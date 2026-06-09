@@ -17,6 +17,7 @@ import {
   seedTasks,
   uid
 } from "./fixtures";
+import { mockProvidersEnabled } from "./env";
 import type {
   AppConfig,
   AppUi,
@@ -24,6 +25,7 @@ import type {
   DerivedBatch,
   Folder,
   GenerationHistory,
+  GenerationProvider,
   Project,
   TaskRecord
 } from "./types";
@@ -83,43 +85,143 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeConfig(value: unknown): AppConfig {
-  const source = isRecord(value) ? (value as Partial<AppConfig>) : {};
-  const openaiPatch = isRecord(source.openai) ? (source.openai as Partial<AppConfig["openai"]>) : {};
-  const seedancePatch = isRecord(source.seedance) ? (source.seedance as Partial<AppConfig["seedance"]>) : {};
-  const openai = { ...defaultConfig.openai, ...openaiPatch };
-  const seedance = { ...defaultConfig.seedance, ...seedancePatch };
-  const resolutionOptions: AppConfig["seedance"]["resolution"][] = ["480P", "720P", "1080P"];
-  const durationOptions: AppConfig["seedance"]["duration"][] = [3, 5, 6, 10];
+  const source = isRecord(value) ? value : {};
+  const providers = isRecord(source.providers) ? source.providers : {};
+  const openaiPatch = isRecord(providers.openai) ? providers.openai : {};
+  const arkPatch = isRecord(providers.volcengineArk) ? providers.volcengineArk : {};
+  const mockPatch = isRecord(providers.seedanceMock) ? providers.seedanceMock : {};
+  const openaiModels = isRecord(openaiPatch.models) ? openaiPatch.models : {};
+  const arkModels = isRecord(arkPatch.models) ? arkPatch.models : {};
+  const arkDefaults = isRecord(arkPatch.defaults) ? arkPatch.defaults : {};
+  const mockModels = isRecord(mockPatch.models) ? mockPatch.models : {};
+  const mockDefaults = isRecord(mockPatch.defaults) ? mockPatch.defaults : {};
+  const capabilityDefaults = isRecord(source.capabilityDefaults) ? source.capabilityDefaults : {};
+  const mockResolutionOptions: AppConfig["providers"]["seedanceMock"]["defaults"]["resolution"][] = ["480P", "720P", "1080P"];
+  const mockDurationOptions: AppConfig["providers"]["seedanceMock"]["defaults"]["duration"][] = [3, 5, 6, 10];
+  const arkResolutionOptions: AppConfig["providers"]["volcengineArk"]["defaults"]["videoResolution"][] = ["480p", "720p", "1080p"];
+  const arkRatioOptions: AppConfig["providers"]["volcengineArk"]["defaults"]["videoRatio"][] = [
+    "adaptive",
+    "16:9",
+    "4:3",
+    "1:1",
+    "3:4",
+    "9:16",
+    "21:9"
+  ];
+  const arkDurationOptions: AppConfig["providers"]["volcengineArk"]["defaults"]["videoDuration"][] = [
+    -1,
+    4,
+    5,
+    6,
+    8,
+    10,
+    12,
+    15
+  ];
+  const providerOptions: GenerationProvider[] = mockProvidersEnabled
+    ? ["openai", "volcengine-ark", "seedance-mock", "local"]
+    : ["openai", "volcengine-ark", "local"];
+  const providerOrDefault = (
+    value: unknown,
+    fallback: AppConfig["capabilityDefaults"][keyof AppConfig["capabilityDefaults"]]
+  ): GenerationProvider => (providerOptions.includes(value as GenerationProvider) ? (value as GenerationProvider) : fallback);
 
   return {
-    ...defaultConfig,
-    ...source,
-    openai: {
-      apiKey: typeof openai.apiKey === "string" ? openai.apiKey : defaultConfig.openai.apiKey,
-      baseUrl: typeof openai.baseUrl === "string" ? openai.baseUrl : defaultConfig.openai.baseUrl,
-      textModel: typeof openai.textModel === "string" ? openai.textModel : defaultConfig.openai.textModel,
-      imageModel:
-        openai.imageModel === "gpt-image-1" || typeof openai.imageModel !== "string"
-          ? defaultConfig.openai.imageModel
-          : openai.imageModel,
-      enabled: typeof openai.enabled === "boolean" ? openai.enabled : defaultConfig.openai.enabled
+    providers: {
+      openai: {
+        apiKey: typeof openaiPatch.apiKey === "string" ? openaiPatch.apiKey : defaultConfig.providers.openai.apiKey,
+        baseUrl: typeof openaiPatch.baseUrl === "string" ? openaiPatch.baseUrl : defaultConfig.providers.openai.baseUrl,
+        enabled: typeof openaiPatch.enabled === "boolean" ? openaiPatch.enabled : defaultConfig.providers.openai.enabled,
+        models: {
+          text: typeof openaiModels.text === "string" ? openaiModels.text : defaultConfig.providers.openai.models.text,
+          image: typeof openaiModels.image === "string" ? openaiModels.image : defaultConfig.providers.openai.models.image
+        }
+      },
+      volcengineArk: {
+        apiKey:
+          typeof arkPatch.apiKey === "string" ? arkPatch.apiKey : defaultConfig.providers.volcengineArk.apiKey,
+        baseUrl:
+          typeof arkPatch.baseUrl === "string" ? arkPatch.baseUrl : defaultConfig.providers.volcengineArk.baseUrl,
+        enabled:
+          typeof arkPatch.enabled === "boolean" ? arkPatch.enabled : defaultConfig.providers.volcengineArk.enabled,
+        models: {
+          image:
+            typeof arkModels.image === "string"
+              ? arkModels.image
+              : defaultConfig.providers.volcengineArk.models.image,
+          video:
+            typeof arkModels.video === "string"
+              ? arkModels.video
+              : defaultConfig.providers.volcengineArk.models.video
+        },
+        defaults: {
+          imageSize:
+            typeof arkDefaults.imageSize === "string"
+              ? arkDefaults.imageSize
+              : defaultConfig.providers.volcengineArk.defaults.imageSize,
+          videoResolution: arkResolutionOptions.includes(
+            arkDefaults.videoResolution as AppConfig["providers"]["volcengineArk"]["defaults"]["videoResolution"]
+          )
+            ? (arkDefaults.videoResolution as AppConfig["providers"]["volcengineArk"]["defaults"]["videoResolution"])
+            : defaultConfig.providers.volcengineArk.defaults.videoResolution,
+          videoRatio: arkRatioOptions.includes(
+            arkDefaults.videoRatio as AppConfig["providers"]["volcengineArk"]["defaults"]["videoRatio"]
+          )
+            ? (arkDefaults.videoRatio as AppConfig["providers"]["volcengineArk"]["defaults"]["videoRatio"])
+            : defaultConfig.providers.volcengineArk.defaults.videoRatio,
+          videoDuration: arkDurationOptions.includes(
+            arkDefaults.videoDuration as AppConfig["providers"]["volcengineArk"]["defaults"]["videoDuration"]
+          )
+            ? (arkDefaults.videoDuration as AppConfig["providers"]["volcengineArk"]["defaults"]["videoDuration"])
+            : defaultConfig.providers.volcengineArk.defaults.videoDuration,
+          generateAudio:
+            typeof arkDefaults.generateAudio === "boolean"
+              ? arkDefaults.generateAudio
+              : defaultConfig.providers.volcengineArk.defaults.generateAudio,
+          watermark:
+            typeof arkDefaults.watermark === "boolean"
+              ? arkDefaults.watermark
+              : defaultConfig.providers.volcengineArk.defaults.watermark
+        }
+      },
+      seedanceMock: {
+        enabled:
+          mockProvidersEnabled && typeof mockPatch.enabled === "boolean"
+            ? mockPatch.enabled
+            : defaultConfig.providers.seedanceMock.enabled,
+        models: {
+          video:
+            typeof mockModels.video === "string"
+              ? mockModels.video
+              : defaultConfig.providers.seedanceMock.models.video,
+          audio:
+            typeof mockModels.audio === "string"
+              ? mockModels.audio
+              : defaultConfig.providers.seedanceMock.models.audio
+        },
+        defaults: {
+          resolution: mockResolutionOptions.includes(
+            mockDefaults.resolution as AppConfig["providers"]["seedanceMock"]["defaults"]["resolution"]
+          )
+            ? (mockDefaults.resolution as AppConfig["providers"]["seedanceMock"]["defaults"]["resolution"])
+            : defaultConfig.providers.seedanceMock.defaults.resolution,
+          duration: mockDurationOptions.includes(
+            mockDefaults.duration as AppConfig["providers"]["seedanceMock"]["defaults"]["duration"]
+          )
+            ? (mockDefaults.duration as AppConfig["providers"]["seedanceMock"]["defaults"]["duration"])
+            : defaultConfig.providers.seedanceMock.defaults.duration
+        },
+        mockLatencyMs:
+          typeof mockPatch.mockLatencyMs === "number" && Number.isFinite(mockPatch.mockLatencyMs)
+            ? mockPatch.mockLatencyMs
+            : defaultConfig.providers.seedanceMock.mockLatencyMs
+      }
     },
-    seedance: {
-      enabled: typeof seedance.enabled === "boolean" ? seedance.enabled : defaultConfig.seedance.enabled,
-      videoModel:
-        typeof seedance.videoModel === "string" ? seedance.videoModel : defaultConfig.seedance.videoModel,
-      audioModel:
-        typeof seedance.audioModel === "string" ? seedance.audioModel : defaultConfig.seedance.audioModel,
-      resolution: resolutionOptions.includes(seedance.resolution)
-        ? seedance.resolution
-        : defaultConfig.seedance.resolution,
-      duration: durationOptions.includes(seedance.duration)
-        ? seedance.duration
-        : defaultConfig.seedance.duration,
-      mockLatencyMs:
-        typeof seedance.mockLatencyMs === "number" && Number.isFinite(seedance.mockLatencyMs)
-          ? seedance.mockLatencyMs
-          : defaultConfig.seedance.mockLatencyMs
+    capabilityDefaults: {
+      text: providerOrDefault(capabilityDefaults.text, defaultConfig.capabilityDefaults.text),
+      image: providerOrDefault(capabilityDefaults.image, defaultConfig.capabilityDefaults.image),
+      video: providerOrDefault(capabilityDefaults.video, defaultConfig.capabilityDefaults.video),
+      audio: providerOrDefault(capabilityDefaults.audio, defaultConfig.capabilityDefaults.audio)
     }
   };
 }

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { nodeLabels } from "../constants";
+import { mockProvidersEnabled } from "../env";
 import type { AssetKind, CanvasNodeData, LibNode, NodeKind, PreviewResource } from "../types";
 import { Button } from "./ui";
 
@@ -24,8 +25,8 @@ const imagePrimaryTools = ["全景 NEW", "多角度", "打光", "九宫格", "�
 export interface LibNodeComponentProps extends NodeProps<LibNode> {
   onUpdate: (id: string, patch: Partial<CanvasNodeData>) => void;
   onOpenAIText: (id: string) => void;
-  onOpenAIImage: (id: string) => void;
-  onSeedance: (id: string, kind?: "video" | "audio" | "compose") => void;
+  onGenerateImage: (id: string) => void;
+  onGenerateVideo: (id: string, kind?: "video" | "audio" | "compose") => void;
   onImageTool: (id: string, label: string) => void;
   onDirectorShot: (id: string) => void;
   onStoryboard: (id: string) => void;
@@ -40,8 +41,8 @@ export function LibNodeComponent({
   selected,
   onUpdate,
   onOpenAIText,
-  onOpenAIImage,
-  onSeedance,
+  onGenerateImage,
+  onGenerateVideo,
   onImageTool,
   onDirectorShot,
   onStoryboard,
@@ -185,6 +186,19 @@ export function LibNodeComponent({
             </div>
           </div>
           <div className="node-param-bar">
+            <label className="tool-select">
+              <span>能力</span>
+              <select
+                className="nodrag"
+                aria-label="图片生成能力"
+                value={String(params.provider ?? "volcengine-ark")}
+                onChange={(event) => setParam("provider", event.target.value)}
+                disabled={readonly}
+              >
+                <option value="volcengine-ark">火山 Seedream</option>
+                <option value="openai">OpenAI 图片</option>
+              </select>
+            </label>
             <button type="button" className="node-param-chip nodrag nopan" onClick={() => setParam("model", "Seedream 5.0 Lite")}>
               {String(params.model ?? "Seedream 5.0 Lite")}
             </button>
@@ -221,9 +235,9 @@ export function LibNodeComponent({
               lastStatus={String(params.lastToolStatus ?? nodeData.taskInfo?.status ?? "idle")}
             />
           )}
-          <Button className="nodrag nopan" variant="primary" size="sm" onClick={() => onOpenAIImage(id)} disabled={readonly}>
+          <Button className="nodrag nopan" variant="primary" size="sm" onClick={() => onGenerateImage(id)} disabled={readonly}>
             <Sparkles size={14} />
-            OpenAI 生成
+            生成图片
           </Button>
           <div className="node-meta-row">
             <span>{String(params.outputCount ?? params.count ?? nodeData.output?.resources.length ?? 1)} 张</span>
@@ -294,6 +308,17 @@ export function LibNodeComponent({
           <div className="param-grid">
             <select
               className="nodrag"
+              name={`node-${id}-video-provider`}
+              aria-label="视频生成能力"
+              value={String(params.provider ?? "volcengine-ark")}
+              onChange={(event) => setParam("provider", event.target.value)}
+              disabled={readonly}
+            >
+              <option value="volcengine-ark">火山 Seedance</option>
+              {mockProvidersEnabled && <option value="seedance-mock">Seedance Mock</option>}
+            </select>
+            <select
+              className="nodrag"
               name={`node-${id}-video-mode`}
               aria-label="视频模式"
               value={String(params.modeType ?? "text2video")}
@@ -319,13 +344,13 @@ export function LibNodeComponent({
               className="nodrag"
               name={`node-${id}-video-resolution`}
               aria-label="视频分辨率"
-              value={String(params.resolution ?? "720P")}
+              value={String(params.resolution ?? "720p")}
               onChange={(event) => setParam("resolution", event.target.value)}
               disabled={readonly}
             >
-              <option>480P</option>
-              <option>720P</option>
-              <option>1080P</option>
+              <option>480p</option>
+              <option>720p</option>
+              <option>1080p</option>
             </select>
             <select
               className="nodrag"
@@ -335,15 +360,28 @@ export function LibNodeComponent({
               onChange={(event) => setParam("duration", Number(event.target.value))}
               disabled={readonly}
             >
-              <option value={3}>3s</option>
+              <option value={4}>4s</option>
               <option value={5}>5s</option>
               <option value={6}>6s</option>
+              <option value={8}>8s</option>
               <option value={10}>10s</option>
+              <option value={12}>12s</option>
+              <option value={15}>15s</option>
             </select>
           </div>
-          <Button className="nodrag nopan" variant="primary" onClick={() => onSeedance(id, "video")} disabled={readonly}>
+          <label className="node-switch">
+            <span>模型生成声音</span>
+            <input
+              className="nodrag"
+              type="checkbox"
+              checked={Boolean(params.generateAudio ?? true)}
+              onChange={(event) => setParam("generateAudio", event.target.checked)}
+              disabled={readonly}
+            />
+          </label>
+          <Button className="nodrag nopan" variant="primary" onClick={() => onGenerateVideo(id, "video")} disabled={readonly}>
             <Video size={14} />
-            Seedance mock
+            生成视频
           </Button>
         </div>
       )}
@@ -363,10 +401,10 @@ export function LibNodeComponent({
           <div className="param-grid">
             <input
               className="nodrag"
-              name={`node-${id}-audio-model`}
-              aria-label="音频模型"
-              value={String(params.model ?? "seedance-audio-mock")}
-              onChange={(event) => setParam("model", event.target.value)}
+              name={`node-${id}-audio-source`}
+              aria-label="音频来源"
+              value={String(params.source ?? "本地音频文件")}
+              onChange={(event) => setParam("source", event.target.value)}
               disabled={readonly}
             />
             <select
@@ -382,9 +420,22 @@ export function LibNodeComponent({
               <option value={10}>10s</option>
             </select>
           </div>
-          <Button className="nodrag nopan" variant="primary" onClick={() => onSeedance(id, "audio")} disabled={readonly}>
+          <Button
+            className="nodrag nopan"
+            variant="primary"
+            onClick={() =>
+              onUpdate(id, {
+                taskInfo: {
+                  status: "done",
+                  progress: 100,
+                  message: "请将此音频节点连接到视频节点作为参考音频"
+                }
+              })
+            }
+            disabled={readonly}
+          >
             <AudioLines size={14} />
-            音频 mock
+            作为视频参考输入
           </Button>
         </div>
       )}
@@ -421,7 +472,7 @@ export function LibNodeComponent({
               <option>1:1</option>
             </select>
           </div>
-          <Button className="nodrag nopan" variant="primary" onClick={() => onSeedance(id, "compose")} disabled={readonly}>
+          <Button className="nodrag nopan" variant="primary" onClick={() => onGenerateVideo(id, "compose")} disabled={readonly}>
             生成合成视频
           </Button>
         </div>

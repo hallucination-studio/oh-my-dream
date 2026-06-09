@@ -210,20 +210,51 @@ export const uid = (prefix = "id") =>
 export const nowIso = () => new Date().toISOString();
 
 export const defaultConfig: AppConfig = {
-  openai: {
-    apiKey: "",
-    baseUrl: "https://api.openai.com/v1",
-    textModel: "gpt-5.5",
-    imageModel: "gpt-image-2",
-    enabled: false
+  providers: {
+    openai: {
+      apiKey: "",
+      baseUrl: "https://api.openai.com/v1",
+      enabled: false,
+      models: {
+        text: "gpt-5.5",
+        image: "gpt-image-2"
+      }
+    },
+    volcengineArk: {
+      apiKey: "",
+      baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
+      enabled: false,
+      models: {
+        image: "doubao-seedream-5-0-lite-251215",
+        video: "doubao-seedance-2-0-260128"
+      },
+      defaults: {
+        imageSize: "2048x2048",
+        videoResolution: "720p",
+        videoRatio: "16:9",
+        videoDuration: 5,
+        generateAudio: true,
+        watermark: false
+      }
+    },
+    seedanceMock: {
+      enabled: false,
+      models: {
+        video: "seedance-2.0-mock",
+        audio: "seedance-audio-mock"
+      },
+      defaults: {
+        resolution: "720P",
+        duration: 5
+      },
+      mockLatencyMs: 1800
+    }
   },
-  seedance: {
-    enabled: true,
-    videoModel: "seedance-2.0-mock",
-    audioModel: "seedance-audio-mock",
-    resolution: "720P",
-    duration: 5,
-    mockLatencyMs: 1800
+  capabilityDefaults: {
+    text: "openai",
+    image: "volcengine-ark",
+    video: "volcengine-ark",
+    audio: "local"
   }
 };
 
@@ -274,11 +305,13 @@ export function createBlankProject(name = "未命名", seedance = false): Projec
     ? createNode("video", "Seedance2.0 视频", 120, 120, {
         prompt: "用电影感镜头生成一个 5 秒创意广告片段",
         params: {
-          model: "seedance-2.0-mock",
+          model: defaultConfig.providers.volcengineArk.models.video,
+          provider: "volcengine-ark",
           modeType: "text2video",
           ratio: "16:9",
-          resolution: "720P",
-          duration: 5
+          resolution: "720p",
+          duration: 5,
+          generateAudio: true
         }
       })
     : createNode("text", "创意文本", 120, 120, {
@@ -325,11 +358,13 @@ export function createTemplateProject(templateId: string, readonly = false): Pro
     url: sampleVideo,
     prompt: `${template.title} 的视频预览`,
     params: {
-      model: "seedance-2.0-mock",
+      model: defaultConfig.providers.volcengineArk.models.video,
+      provider: "volcengine-ark",
       modeType: "image2video",
       ratio: "16:9",
-      resolution: "720P",
-      duration: 5
+      resolution: "720p",
+      duration: 5,
+      generateAudio: true
     },
     readonly
   });

@@ -3,6 +3,8 @@ import { createMediaResource, nowIso, uid } from "../fixtures";
 import { generateOpenAIImage, generateOpenAIText, openAIImageRequestParams } from "../services/openai";
 import type { AppConfig, Asset, CanvasNodeData, GenerationHistory, LibNode, TaskRecord } from "../types";
 
+type OpenAIConfig = AppConfig["providers"]["openai"];
+
 export function useCanvasOpenAIActions({
   nodes,
   openai,
@@ -13,7 +15,7 @@ export function useCanvasOpenAIActions({
   updateNodeData
 }: {
   nodes: LibNode[];
-  openai: AppConfig["openai"];
+  openai: OpenAIConfig;
   addHistory: (item: Omit<GenerationHistory, "id" | "createdAt">) => GenerationHistory;
   setAssets: Dispatch<SetStateAction<Asset[]>>;
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
@@ -49,7 +51,7 @@ export function useCanvasOpenAIActions({
       const started = addHistory({
         kind: "text",
         provider: "openai",
-        model: openai.textModel,
+        model: openai.models.text,
         prompt,
         status: "running",
         progress: 25
@@ -126,7 +128,7 @@ export function useCanvasOpenAIActions({
       const started = addHistory({
         kind: "image",
         provider: "openai",
-        model: openai.imageModel,
+        model: openai.models.image,
         prompt,
         status: "running",
         progress: 20,
@@ -164,7 +166,7 @@ export function useCanvasOpenAIActions({
             url: resultUrl,
             category: "project",
             provider: "openai",
-            model: openai.imageModel,
+            model: openai.models.image,
             prompt: revisedPrompt ?? prompt,
             params: requestParams,
             createdAt: nowIso(),

@@ -53,7 +53,11 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
       history,
       config: {
         ...config,
-        openai: { ...config.openai, apiKey: "" }
+        providers: {
+          ...config.providers,
+          openai: { ...config.providers.openai, apiKey: "" },
+          volcengineArk: { ...config.providers.volcengineArk, apiKey: "" }
+        }
       },
       ui
     };
@@ -66,7 +70,7 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
-    setBackupMessage("已导出工作区备份，OpenAI Key 未写入文件。");
+    setBackupMessage("已导出工作区备份，OpenAI 与火山 Ark Key 未写入文件。");
   }, [assets, config, history, projects, ui]);
 
   const importWorkspace = useCallback(
@@ -86,9 +90,16 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
         setHistory(parsed.history);
         setConfig({
           ...parsed.config,
-          openai: {
-            ...parsed.config.openai,
-            apiKey: parsed.config.openai.apiKey || config.openai.apiKey
+          providers: {
+            ...parsed.config.providers,
+            openai: {
+              ...parsed.config.providers.openai,
+              apiKey: parsed.config.providers.openai.apiKey || config.providers.openai.apiKey
+            },
+            volcengineArk: {
+              ...parsed.config.providers.volcengineArk,
+              apiKey: parsed.config.providers.volcengineArk.apiKey || config.providers.volcengineArk.apiKey
+            }
           }
         });
         setUi(parsed.ui);
@@ -98,7 +109,7 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
         setBackupMessage(message);
       }
     },
-    [config.openai.apiKey, setAssets, setConfig, setHistory, setProjects, setUi]
+    [config.providers.openai.apiKey, config.providers.volcengineArk.apiKey, setAssets, setConfig, setHistory, setProjects, setUi]
   );
 
   return (
@@ -118,11 +129,11 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
         </article>
         <article>
           <span>OpenAI</span>
-          <strong>{config.openai.enabled && config.openai.apiKey ? "已配置" : "未配置"}</strong>
+          <strong>{config.providers.openai.enabled && config.providers.openai.apiKey ? "已配置" : "未配置"}</strong>
         </article>
         <article>
-          <span>Seedance</span>
-          <strong>{config.seedance.enabled ? "Mock 开" : "Mock 关"}</strong>
+          <span>火山 Ark</span>
+          <strong>{config.providers.volcengineArk.enabled && config.providers.volcengineArk.apiKey ? "已配置" : "未配置"}</strong>
         </article>
         <article>
           <span>存储</span>
@@ -147,7 +158,7 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
           onChange={importWorkspace}
         />
       </div>
-      <p className="status-note">备份包含项目、素材、历史、配置与 UI 状态；OpenAI Key 默认不导出。</p>
+      <p className="status-note">备份包含项目、素材、历史、配置与 UI 状态；API Key 默认不导出。</p>
       {backupMessage && <p className="status-message">{backupMessage}</p>}
     </Modal>
   );

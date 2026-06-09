@@ -20,6 +20,7 @@ import type {
   NodeKind,
   TaskRecord
 } from "../types";
+import { mockProvidersEnabled } from "../env";
 
 const imageToolMeta: Record<
   string,
@@ -37,7 +38,7 @@ const imageToolMeta: Record<
 
 export function useCanvasLocalActions({
   nodes,
-  seedance,
+  config,
   addHistory,
   setAssets,
   setHistory,
@@ -49,7 +50,7 @@ export function useCanvasLocalActions({
   updateNodeData
 }: {
   nodes: LibNode[];
-  seedance: AppConfig["seedance"];
+  config: AppConfig;
   addHistory: (item: Omit<GenerationHistory, "id" | "createdAt">) => GenerationHistory;
   setAssets: Dispatch<SetStateAction<Asset[]>>;
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
@@ -384,11 +385,13 @@ export function useCanvasLocalActions({
           prompt: source?.data.prompt ?? source?.data.text ?? "",
           workflowType: "generated",
           params: {
-            model: seedance.videoModel,
+            model: config.providers.volcengineArk.models.video,
+            provider: "volcengine-ark",
             modeType: "text2video",
             ratio: "16:9",
-            resolution: seedance.resolution,
-            duration: seedance.duration
+            resolution: config.providers.volcengineArk.defaults.videoResolution,
+            duration: config.providers.volcengineArk.defaults.videoDuration,
+            generateAudio: config.providers.volcengineArk.defaults.generateAudio
           }
         });
       }
@@ -399,13 +402,13 @@ export function useCanvasLocalActions({
         });
       }
       if (action === "music") {
-        addNodeNear(source, "audio", "文字生音乐", {
+        addNodeNear(source, "audio", "音乐参考", {
           prompt: source?.data.prompt ?? source?.data.text ?? "",
-          params: { model: seedance.audioModel, duration: seedance.duration }
+          params: { provider: "local" }
         });
       }
     },
-    [addNodeNear, nodes, seedance]
+    [addNodeNear, config.providers.volcengineArk.defaults, nodes]
   );
 
   const insertToolboxPreset = useCallback(
@@ -421,7 +424,17 @@ export function useCanvasLocalActions({
             prompt: `${preset.description} 第 ${index + 1} 步`,
             url,
             workflowType: index === 0 ? "base" : "generated",
-            params: kind === "video" ? { model: seedance.videoModel, duration: seedance.duration } : {}
+            params:
+              kind === "video"
+                ? {
+                    provider: mockProvidersEnabled ? config.capabilityDefaults.video : "volcengine-ark",
+                    model: config.providers.volcengineArk.models.video,
+                    duration: config.providers.volcengineArk.defaults.videoDuration,
+                    resolution: config.providers.volcengineArk.defaults.videoResolution
+                  }
+                : kind === "audio"
+                  ? { provider: "local" }
+                  : {}
           },
           {
             x: 120 + index * 460,
@@ -439,7 +452,7 @@ export function useCanvasLocalActions({
         previous = node;
       });
     },
-    [addCanvasNode, nodes.length, seedance.duration, seedance.videoModel, setEdges]
+    [addCanvasNode, config, nodes.length, setEdges]
   );
 
   return {

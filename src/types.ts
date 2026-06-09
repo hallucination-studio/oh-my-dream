@@ -22,7 +22,7 @@ export type AssetCategory =
   | "project";
 
 export type GenerationKind = AssetKind | "text";
-export type GenerationProvider = "openai" | "seedance-mock" | "local";
+export type GenerationProvider = "openai" | "volcengine-ark" | "seedance-mock" | "local";
 export type GenerationParams = Record<string, string | number | boolean>;
 
 export type ImageToolName =
@@ -202,20 +202,51 @@ export interface TaskRecord {
 }
 
 export interface AppConfig {
-  openai: {
-    apiKey: string;
-    baseUrl: string;
-    textModel: string;
-    imageModel: string;
-    enabled: boolean;
+  providers: {
+    openai: {
+      apiKey: string;
+      baseUrl: string;
+      enabled: boolean;
+      models: {
+        text: string;
+        image: string;
+      };
+    };
+    volcengineArk: {
+      apiKey: string;
+      baseUrl: string;
+      enabled: boolean;
+      models: {
+        image: string;
+        video: string;
+      };
+      defaults: {
+        imageSize: string;
+        videoResolution: "480p" | "720p" | "1080p";
+        videoRatio: "adaptive" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16" | "21:9";
+        videoDuration: 4 | 5 | 6 | 8 | 10 | 12 | 15 | -1;
+        generateAudio: boolean;
+        watermark: boolean;
+      };
+    };
+    seedanceMock: {
+      enabled: boolean;
+      models: {
+        video: string;
+        audio: string;
+      };
+      defaults: {
+        resolution: "480P" | "720P" | "1080P";
+        duration: 3 | 5 | 6 | 10;
+      };
+      mockLatencyMs: number;
+    };
   };
-  seedance: {
-    enabled: boolean;
-    videoModel: string;
-    audioModel: string;
-    resolution: "480P" | "720P" | "1080P";
-    duration: 3 | 5 | 6 | 10;
-    mockLatencyMs: number;
+  capabilityDefaults: {
+    text: GenerationProvider;
+    image: GenerationProvider;
+    video: GenerationProvider;
+    audio: GenerationProvider;
   };
 }
 

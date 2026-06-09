@@ -93,8 +93,8 @@ function CanvasWorkspace({ project }: { project: Project }) {
     importHistory,
     handleUpload,
     runOpenAIText,
-    runOpenAIImage,
-    runSeedanceMock,
+    runImageGeneration,
+    runVideoGeneration,
     runImageTool,
     runDirectorShot,
     generateStoryboard,
@@ -102,6 +102,7 @@ function CanvasWorkspace({ project }: { project: Project }) {
     insertToolboxPreset
   } = useCanvasActions({
     nodes,
+    edges,
     config,
     setAssets,
     setHistory,
@@ -138,8 +139,8 @@ function CanvasWorkspace({ project }: { project: Project }) {
     LibNodeComponentProps,
     | "onUpdate"
     | "onOpenAIText"
-    | "onOpenAIImage"
-    | "onSeedance"
+    | "onGenerateImage"
+    | "onGenerateVideo"
     | "onImageTool"
     | "onDirectorShot"
     | "onStoryboard"
@@ -150,8 +151,8 @@ function CanvasWorkspace({ project }: { project: Project }) {
   nodeHandlersRef.current = {
     onUpdate: updateNodeData,
     onOpenAIText: runOpenAIText,
-    onOpenAIImage: runOpenAIImage,
-    onSeedance: runSeedanceMock,
+    onGenerateImage: runImageGeneration,
+    onGenerateVideo: runVideoGeneration,
     onImageTool: runImageTool,
     onDirectorShot: runDirectorShot,
     onStoryboard: generateStoryboard,

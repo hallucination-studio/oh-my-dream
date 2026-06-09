@@ -101,7 +101,7 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
 export function HelpPanel() {
   const items = [
     ["使用教程", "创建项目后通过底部工具栏添加节点、素材、历史或工具箱模板。"],
-    ["配置说明", "OpenAI Key 只保存在浏览器本地；Seedance 当前为 mock 生成。"],
+    ["配置说明", "OpenAI 与火山 Ark Key 只保存在本地客户端；Mock 仅调试模式可用。"],
     ["本地数据说明", "项目、素材、历史和配置写入 localStorage。"],
     ["关于本地版", "仅保留创作工作流，本地数据不连接商业入口。"]
   ];

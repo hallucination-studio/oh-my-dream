@@ -1,23 +1,25 @@
 import type { AppConfig, GenerationParams } from "../types";
 import { extractImageResult, extractResponseText } from "./generation";
 
+type OpenAIConfig = AppConfig["providers"]["openai"];
+
 export const openAIImageRequestParams: GenerationParams = {
   size: "1024x1024",
   quality: "medium",
   output_format: "png"
 };
 
-export async function generateOpenAIText(openai: AppConfig["openai"], prompt: string) {
+export async function generateOpenAIText(openai: OpenAIConfig, prompt: string) {
   const payload = await requestOpenAIJson(openai, "/responses", "OpenAI 请求失败", {
-    model: openai.textModel,
+    model: openai.models.text,
     input: prompt
   });
   return extractResponseText(payload) || "生成成功，但响应中没有可显示文本。";
 }
 
-export async function generateOpenAIImage(openai: AppConfig["openai"], prompt: string) {
+export async function generateOpenAIImage(openai: OpenAIConfig, prompt: string) {
   const payload = await requestOpenAIJson(openai, "/images/generations", "OpenAI 图像请求失败", {
-    model: openai.imageModel,
+    model: openai.models.image,
     prompt,
     size: openAIImageRequestParams.size,
     quality: openAIImageRequestParams.quality,
@@ -31,7 +33,7 @@ export async function generateOpenAIImage(openai: AppConfig["openai"], prompt: s
 }
 
 async function requestOpenAIJson(
-  openai: AppConfig["openai"],
+  openai: OpenAIConfig,
   path: "/responses" | "/images/generations",
   failureLabel: string,
   body: Record<string, unknown>

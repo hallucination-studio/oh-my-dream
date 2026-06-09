@@ -3,6 +3,7 @@ import type { AppConfig, AssetKind, GenerationParams } from "../types";
 import { numberParam, stringParam } from "./generation";
 
 export type SeedanceMockKind = "video" | "audio" | "compose";
+type SeedanceMockConfig = AppConfig["providers"]["seedanceMock"];
 
 export function createSeedanceMockJob({
   seedance,
@@ -10,7 +11,7 @@ export function createSeedanceMockJob({
   kind,
   prompt
 }: {
-  seedance: AppConfig["seedance"];
+  seedance: SeedanceMockConfig;
   nodeParams: GenerationParams;
   kind: SeedanceMockKind;
   prompt: string;
@@ -19,16 +20,16 @@ export function createSeedanceMockJob({
   const model = stringParam(
     nodeParams,
     "model",
-    mediaKind === "audio" ? seedance.audioModel : seedance.videoModel
+    mediaKind === "audio" ? seedance.models.audio : seedance.models.video
   );
   const generationParams: GenerationParams = {
     model,
-    duration: numberParam(nodeParams, "duration", seedance.duration),
+    duration: numberParam(nodeParams, "duration", seedance.defaults.duration),
     ...(mediaKind === "video"
       ? {
           modeType: stringParam(nodeParams, "modeType", "text2video"),
           ratio: stringParam(nodeParams, "ratio", "16:9"),
-          resolution: stringParam(nodeParams, "resolution", seedance.resolution),
+          resolution: stringParam(nodeParams, "resolution", seedance.defaults.resolution),
           ...(kind === "compose" ? { transition: stringParam(nodeParams, "transition", "crossfade") } : {})
         }
       : {})

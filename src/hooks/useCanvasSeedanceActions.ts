@@ -1,5 +1,6 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { createMediaResource, nowIso, uid } from "../fixtures";
+import { mockProvidersEnabled } from "../env";
 import { createSeedanceMockJob, type SeedanceMockKind } from "../services/seedanceMock";
 import type {
   AppConfig,
@@ -21,7 +22,7 @@ export function useCanvasSeedanceActions({
   updateNodeData
 }: {
   nodes: LibNode[];
-  seedance: AppConfig["seedance"];
+  seedance: AppConfig["providers"]["seedanceMock"];
   addHistory: (item: Omit<GenerationHistory, "id" | "createdAt">) => GenerationHistory;
   setAssets: Dispatch<SetStateAction<Asset[]>>;
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
@@ -30,9 +31,9 @@ export function useCanvasSeedanceActions({
 }) {
   const runSeedanceMock = useCallback(
     (id: string, kind: SeedanceMockKind = "video") => {
-      if (!seedance.enabled) {
+      if (!mockProvidersEnabled || !seedance.enabled) {
         updateNodeData(id, {
-          taskInfo: { status: "failed", progress: 0, message: "Seedance mock 未启用" }
+          taskInfo: { status: "failed", progress: 0, message: "Mock 仅调试模式可用" }
         });
         return;
       }
