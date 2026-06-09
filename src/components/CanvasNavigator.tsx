@@ -1,4 +1,16 @@
-import { Boxes, ChevronLeft, ChevronRight, Filter, FolderSearch, Image as ImageIcon, Layers3, Search } from "lucide-react";
+import {
+  Boxes,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  Filter,
+  FolderSearch,
+  Image as ImageIcon,
+  Layers3,
+  LocateFixed,
+  MoreHorizontal,
+  Search
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { nodeLabels } from "../constants";
 import type { Asset, AssetKind, DerivedBatch, LibNode, NodeKind, Project } from "../types";
@@ -38,6 +50,7 @@ export function CanvasNavigator({
   const [tab, setTab] = useState<"canvas" | "assets" | "asset-manager">("canvas");
   const [filter, setFilter] = useState<"all" | NodeKind>("all");
   const [query, setQuery] = useState("");
+  const [groupsCollapsed, setGroupsCollapsed] = useState(false);
   const filteredNodes = useMemo(() => {
     const keyword = query.trim().toLowerCase();
     return nodes
@@ -54,6 +67,13 @@ export function CanvasNavigator({
       })
       .sort((a, b) => a.data.name.localeCompare(b.data.name, "zh-CN"));
   }, [filter, nodes, query]);
+  const groupedNodes = useMemo(
+    () => ({
+      groups: filteredNodes.filter((node) => node.data.kind === "group"),
+      nodes: filteredNodes.filter((node) => node.data.kind !== "group")
+    }),
+    [filteredNodes]
+  );
   const visibleAssets = useMemo(() => assets.slice(0, 36), [assets]);
   const recentAssets = useMemo(() => assets.slice(0, 12), [assets]);
 
@@ -111,6 +131,10 @@ export function CanvasNavigator({
         <div role="tabpanel" aria-label="画布元素">
           <div className="navigator-tools">
             <span>画布元素</span>
+            <button type="button" className="navigator-collapse-btn" onClick={() => setGroupsCollapsed((value) => !value)}>
+              <ChevronsUpDown size={14} />
+              <span>{groupsCollapsed ? "展开全部分组" : "收起全部分组"}</span>
+            </button>
             <label>
               <Filter size={14} />
               <select
@@ -138,19 +162,47 @@ export function CanvasNavigator({
             </label>
           </div>
           <div className="navigator-list">
-            {filteredNodes.map((node) => (
-              <button
-                type="button"
-                key={node.id}
-                className={selectedId === node.id ? "active" : ""}
-                onClick={() => onLocateNode(node)}
-              >
-                <NodeThumb node={node} />
-                <span>
-                  <strong>{node.data.name}</strong>
-                  <small>{nodeLabels[node.data.kind]}</small>
-                </span>
-              </button>
+            {groupedNodes.groups.length > 0 && !groupsCollapsed && (
+              <section className="navigator-group-section">
+                {groupedNodes.groups.map((node) => (
+                  <article key={node.id} className={`navigator-row navigator-group-row ${selectedId === node.id ? "active" : ""}`}>
+                    <button type="button" className="navigator-row-main" onClick={() => onLocateNode(node)}>
+                      <NodeThumb node={node} />
+                      <span>
+                        <strong>{node.data.name}</strong>
+                        <small>{nodeLabels[node.data.kind]}</small>
+                      </span>
+                    </button>
+                    <div className="navigator-row-actions">
+                      <button type="button" aria-label={`定位到分组 ${node.data.name}`} onClick={() => onLocateNode(node)}>
+                        <LocateFixed size={14} />
+                      </button>
+                      <button type="button" aria-label={`更多操作 ${node.data.name}`}>
+                        <MoreHorizontal size={14} />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </section>
+            )}
+            {groupedNodes.nodes.map((node) => (
+              <article key={node.id} className={`navigator-row ${selectedId === node.id ? "active" : ""}`}>
+                <button type="button" className="navigator-row-main" onClick={() => onLocateNode(node)}>
+                  <NodeThumb node={node} />
+                  <span>
+                    <strong>{node.data.name}</strong>
+                    <small>{nodeLabels[node.data.kind]}</small>
+                  </span>
+                </button>
+                <div className="navigator-row-actions">
+                  <button type="button" aria-label={`定位到节点 ${node.data.name}`} onClick={() => onLocateNode(node)}>
+                    <LocateFixed size={14} />
+                  </button>
+                  <button type="button" aria-label={`更多操作 ${node.data.name}`}>
+                    <MoreHorizontal size={14} />
+                  </button>
+                </div>
+              </article>
             ))}
           </div>
           <footer className="navigator-footer">
@@ -161,7 +213,7 @@ export function CanvasNavigator({
       ) : tab === "assets" ? (
         <div role="tabpanel" aria-label="资产管理">
           <div className="navigator-tools">
-            <span>资产管理</span>
+            <span>资产</span>
           </div>
           <div className="navigator-asset-grid">
             {visibleAssets.length === 0 ? (

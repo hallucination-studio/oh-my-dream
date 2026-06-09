@@ -3,6 +3,7 @@ import {
   AudioLines,
   BookOpen,
   Box,
+  Languages,
   FileText,
   Image as ImageIcon,
   Layers3,
@@ -62,19 +63,11 @@ export function LibNodeComponent({
     >
       <NodeToolbar isVisible={selected && nodeData.kind === "image"} position={Position.Top} align="center">
         <div className="node-toolbar">
-          {["全景 NEW", "多角度", "打光", "九宫格", "高清", "宫格切分", "标注", "旋转与镜像"].map((label) => (
+          {["全景 NEW", "多角度", "打光", "九宫格", "高清", "宫格切分"].map((label) => (
             <Button key={label} className="nodrag nopan" size="sm" onClick={() => onImageTool(id, label)}>
               {label}
             </Button>
           ))}
-          {nodeData.output?.preview && (
-            <Button className="nodrag nopan" size="sm" onClick={() => onPreview(nodeData.output!.preview!)}>
-              预览
-            </Button>
-          )}
-          <Button className="nodrag nopan" size="sm" onClick={() => onDownload(id)}>
-            下载
-          </Button>
         </div>
       </NodeToolbar>
       <Handle type="target" position={Position.Left} />
@@ -125,6 +118,19 @@ export function LibNodeComponent({
 
       {nodeData.kind === "image" && (
         <div className="node-content">
+          {selected && (
+            <div className="node-primary-tools">
+              {["全景 NEW", "多角度", "打光", "九宫格", "高清", "宫格切分"].map((label) => (
+                <Button key={label} className="nodrag nopan" size="sm" onClick={() => onImageTool(id, label)}>
+                  {label}
+                </Button>
+              ))}
+            </div>
+          )}
+          <div className="node-media-head">
+            <span>{nodeData.name}</span>
+            <small>{String(params.size ?? `${Math.round(width)} × ${Math.round(height)}`)}</small>
+          </div>
           <MediaPreview kind="image" url={nodeData.url} compact={compactNode} />
           {nodeData.output?.resources && nodeData.output.resources.length > 1 && (
             <div className="node-gallery-strip">
@@ -152,29 +158,77 @@ export function LibNodeComponent({
             onChange={(event) => onUpdate(id, { prompt: event.target.value })}
             placeholder="图片提示词"
           />
+          <div className="node-reference-input">
+            <span>引用输入</span>
+            <div>
+              {nodeData.sourceRefs?.length ? (
+                nodeData.sourceRefs.map((ref) => <em key={ref.id}>{ref.label}</em>)
+              ) : (
+                <>
+                  <em>图片1</em>
+                  <em>图片2</em>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="node-param-bar">
+            <button type="button" className="node-param-chip nodrag nopan" onClick={() => setParam("model", "Seedream 5.0 Lite")}>
+              {String(params.model ?? "Seedream 5.0 Lite")}
+            </button>
+            <button type="button" className="node-param-chip nodrag nopan" onClick={() => setParam("ratio", "16:9 · 2K")}>
+              {String(params.ratio ?? "16:9 · 2K")}
+            </button>
+            <button type="button" className="node-param-chip nodrag nopan" onClick={() => setParam("count", 1)}>
+              {String(params.count ?? 1)}张
+            </button>
+          </div>
+          <div className="node-param-bar">
+            <Button className="nodrag nopan node-inline-btn" size="sm" onClick={() => setParam("translation", "已翻译")}>
+              <Languages size={14} />
+              翻译提示词
+            </Button>
+            <label className="node-switch">
+              <span>组图模式</span>
+              <input
+                className="nodrag"
+                type="checkbox"
+                checked={Boolean(params.grouped ?? false)}
+                onChange={(event) => setParam("grouped", event.target.checked)}
+                disabled={readonly}
+              />
+            </label>
+          </div>
           <Button className="nodrag nopan" variant="primary" size="sm" onClick={() => onOpenAIImage(id)} disabled={readonly}>
             <Sparkles size={14} />
             OpenAI 生成
           </Button>
           <div className="node-meta-row">
-            <span>{String(params.model ?? "本地工作区图片流")}</span>
-            <span>{String(params.ratio ?? "16:9")}</span>
-            <span>{String(params.outputCount ?? nodeData.output?.resources.length ?? 1)} 张</span>
+            <span>{String(params.outputCount ?? params.count ?? nodeData.output?.resources.length ?? 1)} 张</span>
+            <span>{Boolean(params.grouped) ? "组图模式" : "单图模式"}</span>
+            <span>{String(params.translation ?? "未翻译")}</span>
           </div>
-          {nodeData.sourceRefs?.length ? (
-            <div className="node-reference-row">
-              {nodeData.sourceRefs.map((ref) => (
-                <span key={ref.id}>{ref.label}</span>
-              ))}
-            </div>
-          ) : null}
-          {nodeData.annotations?.length ? (
-            <div className="annotation-list">
-              {nodeData.annotations.map((item) => (
-                <span key={item}>{item}</span>
-              ))}
-            </div>
-          ) : null}
+          <div className="node-secondary-actions">
+            {nodeData.annotations?.length ? (
+              <Button className="nodrag nopan" size="sm" onClick={() => onImageTool(id, "标注")}>
+                标注
+              </Button>
+            ) : (
+              <Button className="nodrag nopan" size="sm" onClick={() => onImageTool(id, "标注")}>
+                标注
+              </Button>
+            )}
+            <Button className="nodrag nopan" size="sm" onClick={() => onImageTool(id, "旋转与镜像")}>
+              旋转
+            </Button>
+            {nodeData.output?.preview && (
+              <Button className="nodrag nopan" size="sm" onClick={() => onPreview(nodeData.output!.preview!)}>
+                预览
+              </Button>
+            )}
+            <Button className="nodrag nopan" size="sm" onClick={() => onDownload(id)}>
+              下载
+            </Button>
+          </div>
         </div>
       )}
 

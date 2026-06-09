@@ -1,18 +1,16 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { formatGenerationParams, historyDisplayText } from "../services/generation";
-import type { GenerationHistory, TaskRecord } from "../types";
+import type { GenerationHistory } from "../types";
 import { formatDate } from "../utils";
 import { MediaThumb } from "./CanvasMediaThumb";
 import { Button } from "./ui";
 
 export function HistoryPanel({
   history,
-  tasks,
   setHistory,
   onImport
 }: {
   history: GenerationHistory[];
-  tasks: TaskRecord[];
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
   onImport: (item: GenerationHistory) => void;
 }) {
@@ -62,7 +60,6 @@ export function HistoryPanel({
         </label>
       </div>
       <div className="batch-row">
-        <span className="history-task-summary">任务中心：{tasks.filter((task) => task.status !== "done").length} 进行中</span>
         <Button size="sm" onClick={() => setSelected(items.map((item) => item.id))}>
           全选
         </Button>

@@ -57,7 +57,6 @@ function CanvasWorkspace({ project }: { project: Project }) {
     setAssets,
     history,
     setHistory,
-    tasks,
     setTasks,
     batches,
     setBatches
@@ -191,7 +190,6 @@ function CanvasWorkspace({ project }: { project: Project }) {
       <CanvasTopbar
         project={project}
         readonlyProject={readonlyProject}
-        tasks={tasks}
         onNavigateHome={() => navigate("/")}
         onNavigateProjects={() => navigate("/project")}
         onRenameProject={(name) => updateProject(project.id, { name })}
@@ -255,7 +253,6 @@ function CanvasWorkspace({ project }: { project: Project }) {
         onImportHistory={importHistory}
         onUseToolboxPreset={insertToolboxPreset}
         assets={assets}
-        tasks={tasks}
         onImportAsset={importAsset}
         setHistory={setHistory}
       />

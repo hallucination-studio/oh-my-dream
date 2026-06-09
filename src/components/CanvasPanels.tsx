@@ -1,12 +1,4 @@
-import {
-  Boxes,
-  Clock3,
-  Hammer,
-  HelpCircle,
-  Keyboard,
-  Plus,
-  X
-} from "lucide-react";
+import { Clock3, Hammer, HelpCircle, Keyboard, Plus, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { IconButton, Modal } from "./ui";
 export { AddNodePanel } from "./CanvasAddNodePanel";
@@ -38,7 +30,6 @@ export function BottomToolbar({
   const tools: { id: Exclude<PanelId, null>; label: string; icon: ReactNode }[] = [
     { id: "add", label: "添加节点", icon: <Plus size={16} /> },
     { id: "toolbox", label: "工具箱", icon: <Hammer size={16} /> },
-    { id: "assets", label: "我的素材", icon: <Boxes size={16} /> },
     { id: "history", label: "历史记录", icon: <Clock3 size={16} /> },
     { id: "shortcuts", label: "快捷键", icon: <Keyboard size={16} /> },
     { id: "help", label: "帮助中心", icon: <HelpCircle size={16} /> }
