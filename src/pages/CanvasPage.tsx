@@ -16,35 +16,15 @@ import {
   type OnSelectionChangeParams,
   type Viewport
 } from "@xyflow/react";
-import {
-  ArrowLeft,
-  Copy,
-  Grid2X2,
-  Home,
-  Maximize2,
-  PanelLeft,
-  Rows3,
-  Save,
-  Settings
-} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppShell, ConfigModal } from "../components/AppShell";
 import {
-  AddNodePanel,
-  AssetsPanel,
-  BottomToolbar,
-  CanvasDrawer,
-  HelpPanel,
-  HistoryPanel,
-  ShortcutsModal,
-  ToolboxPanel,
-  panelTitle,
   type PanelId
 } from "../components/CanvasPanels";
+import { CanvasLeftControls, CanvasPanelHost, CanvasTopbar } from "../components/CanvasChrome";
 import { CanvasNavigator } from "../components/CanvasNavigator";
 import { LibNodeComponent, type LibNodeComponentProps } from "../components/LibNode";
-import { Button, IconButton } from "../components/ui";
 import { nodeFootprints, nodeLabels } from "../constants";
 import {
   createNode,
@@ -897,41 +877,15 @@ function CanvasWorkspace({ project }: { project: Project }) {
         onToggle={() => setNavigatorCollapsed((value) => !value)}
         onLocateNode={locateNode}
       />
-      <header className="canvas-topbar">
-        <div className="canvas-nav">
-          <IconButton label="返回首页" onClick={() => navigate("/")}>
-            <Home size={18} />
-          </IconButton>
-          <IconButton label="返回项目" onClick={() => navigate("/project")}>
-            <ArrowLeft size={18} />
-          </IconButton>
-          <input
-            className="project-name-input"
-            aria-label="项目名称"
-            name="projectName"
-            value={project.name}
-            readOnly={project.readonly}
-            onChange={(event) => updateProject(project.id, { name: event.target.value })}
-          />
-          {project.readonly && <span className="pill">只读预览</span>}
-          {project.readonly && (
-            <Button className="canvas-copy-btn" size="sm" onClick={createEditableCopy}>
-              <Copy size={14} />
-              创建副本
-            </Button>
-          )}
-        </div>
-        <div className="canvas-top-actions">
-          {!readonlyProject && (
-            <IconButton label="保存状态">
-              <Save size={18} />
-            </IconButton>
-          )}
-          <IconButton label="系统配置" onClick={() => setConfigOpen(true)}>
-            <Settings size={18} />
-          </IconButton>
-        </div>
-      </header>
+      <CanvasTopbar
+        project={project}
+        readonlyProject={readonlyProject}
+        onNavigateHome={() => navigate("/")}
+        onNavigateProjects={() => navigate("/project")}
+        onRenameProject={(name) => updateProject(project.id, { name })}
+        onCreateEditableCopy={createEditableCopy}
+        onOpenConfig={() => setConfigOpen(true)}
+      />
 
       <ReactFlow
         className={ui.snapToGrid ? "snap-grid" : ""}
@@ -968,63 +922,31 @@ function CanvasWorkspace({ project }: { project: Project }) {
         {ui.minimap && <MiniMap pannable zoomable position="bottom-right" />}
       </ReactFlow>
 
-      <div className="canvas-left-controls" aria-label="画布控制">
-        {!readonlyProject && (
-          <IconButton label="整理画布" onClick={organizeCanvas}>
-            <Rows3 size={16} />
-          </IconButton>
-        )}
-        <IconButton
-          label="切换小地图"
-          className={ui.minimap ? "active" : ""}
-          onClick={() => setUi((value) => ({ ...value, minimap: !value.minimap }))}
-        >
-          <PanelLeft size={16} />
-        </IconButton>
-        {!readonlyProject && (
-          <IconButton
-            label="网格吸附"
-            className={ui.snapToGrid ? "active" : ""}
-            onClick={() => setUi((value) => ({ ...value, snapToGrid: !value.snapToGrid }))}
-          >
-            <Grid2X2 size={16} />
-          </IconButton>
-        )}
-        <span className="zoom-pill">{Math.round(zoom * 100)}%</span>
-        <IconButton label="适配视图" onClick={() => flow.fitView({ padding: 0.18, duration: 240 })}>
-          <Maximize2 size={16} />
-        </IconButton>
-      </div>
+      <CanvasLeftControls
+        readonlyProject={readonlyProject}
+        minimap={ui.minimap}
+        snapToGrid={ui.snapToGrid}
+        zoom={zoom}
+        onOrganize={organizeCanvas}
+        onToggleMinimap={() => setUi((value) => ({ ...value, minimap: !value.minimap }))}
+        onToggleSnap={() => setUi((value) => ({ ...value, snapToGrid: !value.snapToGrid }))}
+        onFitView={() => flow.fitView({ padding: 0.18, duration: 240 })}
+      />
 
-      {!readonlyProject && <BottomToolbar activePanel={activePanel} setActivePanel={setActivePanel} />}
-
-      {!readonlyProject && activePanel && activePanel !== "shortcuts" && (
-        <CanvasDrawer panel={activePanel} title={panelTitle(activePanel)} onClose={() => setActivePanel(null)}>
-          {activePanel === "add" && (
-            <AddNodePanel
-              onAdd={addCanvasNode}
-              onUpload={handleUpload}
-              history={history}
-              onImportHistory={importHistory}
-            />
-          )}
-          {activePanel === "toolbox" && <ToolboxPanel onUse={insertToolboxPreset} />}
-          {activePanel === "assets" && (
-            <AssetsPanel assets={assets} onUpload={handleUpload} onImport={importAsset} />
-          )}
-          {activePanel === "history" && (
-            <HistoryPanel
-              history={history}
-              setHistory={setHistory}
-              onImport={importHistory}
-            />
-          )}
-          {activePanel === "help" && <HelpPanel />}
-        </CanvasDrawer>
-      )}
-      {!readonlyProject && activePanel === "shortcuts" && <ShortcutsModal onClose={() => setActivePanel(null)} />}
+      <CanvasPanelHost
+        readonlyProject={readonlyProject}
+        activePanel={activePanel}
+        setActivePanel={setActivePanel}
+        onAddNode={addCanvasNode}
+        onUpload={handleUpload}
+        history={history}
+        onImportHistory={importHistory}
+        onUseToolboxPreset={insertToolboxPreset}
+        assets={assets}
+        onImportAsset={importAsset}
+        setHistory={setHistory}
+      />
       {configOpen && <ConfigModal onClose={() => setConfigOpen(false)} />}
     </div>
   );
 }
-
