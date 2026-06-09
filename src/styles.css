@@ -1641,7 +1641,7 @@ kbd {
   position: absolute;
   left: 18px;
   bottom: 74px;
-  z-index: 12;
+  z-index: 20;
   width: min(372px, calc(100vw - 44px));
   max-height: calc(100vh - 130px);
   display: grid;
@@ -1650,6 +1650,10 @@ kbd {
   overflow: hidden;
   background: rgba(25, 27, 30, 0.97);
   backdrop-filter: blur(14px);
+}
+
+.canvas-page.with-navigator .canvas-drawer {
+  left: 398px;
 }
 
 .canvas-drawer header {
@@ -2418,6 +2422,11 @@ kbd {
     max-width: calc(100vw - 24px);
     overflow-x: auto;
   }
+
+  .canvas-page.with-navigator .canvas-drawer {
+    left: 332px;
+    width: min(372px, calc(100vw - 344px));
+  }
 }
 
 @media (max-width: 680px) {
@@ -2513,6 +2522,11 @@ kbd {
   .canvas-drawer {
     left: 12px;
     bottom: 92px;
+    width: calc(100vw - 24px);
+  }
+
+  .canvas-page.with-navigator .canvas-drawer {
+    left: 12px;
     width: calc(100vw - 24px);
   }
 

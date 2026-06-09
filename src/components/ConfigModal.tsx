@@ -188,12 +188,16 @@ export function ConfigModal({ onClose }: { onClose: () => void }) {
                 name="seedanceMockLatency"
                 type="number"
                 min={300}
+                max={10000}
                 step={100}
                 value={config.seedance.mockLatencyMs}
                 onChange={(event) =>
                   setConfig((value) => ({
                     ...value,
-                    seedance: { ...value.seedance, mockLatencyMs: Number(event.target.value) }
+                    seedance: {
+                      ...value.seedance,
+                      mockLatencyMs: Math.min(10000, Math.max(300, Number(event.target.value) || 300))
+                    }
                   }))
                 }
               />

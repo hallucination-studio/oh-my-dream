@@ -202,6 +202,7 @@ export function HomePage() {
             <label className="search-box">
               <Search size={16} />
               <input
+                aria-label="搜索 TV Show 模板"
                 name="templateSearch"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
