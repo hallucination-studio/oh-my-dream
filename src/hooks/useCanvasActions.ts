@@ -2,13 +2,11 @@ import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { nodeLabels } from "../constants";
 import { imageCovers, nowIso, sampleAudio, sampleVideo, toolboxPresets, uid } from "../fixtures";
 import {
-  extractImageResult,
-  extractResponseText,
   historyDisplayText,
-  historyToNodeKind,
-  numberParam,
-  stringParam
+  historyToNodeKind
 } from "../services/generation";
+import { generateOpenAIImage, generateOpenAIText, openAIImageRequestParams } from "../services/openai";
+import { createSeedanceMockJob, type SeedanceMockKind } from "../services/seedanceMock";
 import type {
   AppConfig,
   Asset,
@@ -147,22 +145,7 @@ export function useCanvasActions({
         progress: 25
       });
       try {
-        const response = await fetch(`${config.openai.baseUrl.replace(/\/$/, "")}/responses`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${config.openai.apiKey}`
-          },
-          body: JSON.stringify({
-            model: config.openai.textModel,
-            input: prompt
-          })
-        });
-        if (!response.ok) {
-          throw new Error(`OpenAI 请求失败：${response.status}`);
-        }
-        const payload = await response.json();
-        const text = extractResponseText(payload) || "生成成功，但响应中没有可显示文本。";
+        const text = await generateOpenAIText(config.openai, prompt);
         updateNodeData(id, {
           text,
           prompt: text,
@@ -201,11 +184,6 @@ export function useCanvasActions({
         return;
       }
       updateNodeData(id, { taskInfo: { status: "running", progress: 20, message: "OpenAI 图像生成中" } });
-      const requestParams: GenerationParams = {
-        size: "1024x1024",
-        quality: "medium",
-        output_format: "png"
-      };
       const started = addHistory({
         kind: "image",
         provider: "openai",
@@ -213,31 +191,10 @@ export function useCanvasActions({
         prompt,
         status: "running",
         progress: 20,
-        params: requestParams
+        params: openAIImageRequestParams
       });
       try {
-        const response = await fetch(`${config.openai.baseUrl.replace(/\/$/, "")}/images/generations`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${config.openai.apiKey}`
-          },
-          body: JSON.stringify({
-            model: config.openai.imageModel,
-            prompt,
-            size: requestParams.size,
-            quality: requestParams.quality,
-            output_format: requestParams.output_format
-          })
-        });
-        if (!response.ok) {
-          throw new Error(`OpenAI 图像请求失败：${response.status}`);
-        }
-        const payload = await response.json();
-        const { url: resultUrl, revisedPrompt } = extractImageResult(payload);
-        if (!resultUrl) {
-          throw new Error("OpenAI 响应中没有可显示图像");
-        }
+        const { resultUrl, revisedPrompt, requestParams } = await generateOpenAIImage(config.openai, prompt);
         updateNodeData(id, {
           url: resultUrl,
           taskInfo: { status: "done", progress: 100, message: "图像已写回节点" }
@@ -280,7 +237,7 @@ export function useCanvasActions({
   );
 
   const runSeedanceMock = useCallback(
-    (id: string, kind: "video" | "audio" | "compose" = "video") => {
+    (id: string, kind: SeedanceMockKind = "video") => {
       if (!config.seedance.enabled) {
         updateNodeData(id, {
           taskInfo: { status: "failed", progress: 0, message: "Seedance mock 未启用" }
@@ -288,46 +245,27 @@ export function useCanvasActions({
         return;
       }
       const node = nodes.find((item) => item.id === id);
-      const mediaKind: AssetKind = kind === "audio" ? "audio" : "video";
       const nodeParams = (node?.data.params ?? {}) as GenerationParams;
-      const model = stringParam(
-        nodeParams,
-        "model",
-        mediaKind === "audio" ? config.seedance.audioModel : config.seedance.videoModel
-      );
       const prompt = node?.data.prompt || `${node?.data.name ?? "Seedance"} mock 生成`;
-      const resultUrl = mediaKind === "audio" ? sampleAudio : sampleVideo;
-      const generationParams: GenerationParams = {
-        model,
-        duration: numberParam(nodeParams, "duration", config.seedance.duration),
-        ...(mediaKind === "video"
-          ? {
-              modeType: stringParam(nodeParams, "modeType", "text2video"),
-              ratio: stringParam(nodeParams, "ratio", "16:9"),
-              resolution: stringParam(nodeParams, "resolution", config.seedance.resolution),
-              ...(kind === "compose" ? { transition: stringParam(nodeParams, "transition", "crossfade") } : {})
-            }
-          : {})
-      };
+      const job = createSeedanceMockJob({ seedance: config.seedance, nodeParams, kind, prompt });
       const record = addHistory({
-        kind: mediaKind,
+        kind: job.mediaKind,
         provider: "seedance-mock",
-        model,
+        model: job.model,
         prompt,
         status: "queued",
         progress: 0,
-        params: generationParams
+        params: job.generationParams
       });
       updateNodeData(id, {
         taskInfo: { status: "queued", progress: 0, message: "已加入队列" }
       });
       let progress = 0;
-      const steps = Math.max(4, Math.round(config.seedance.mockLatencyMs / 320));
       const timer = window.setInterval(() => {
-        progress = Math.min(100, progress + Math.ceil(100 / steps));
+        progress = Math.min(100, progress + Math.ceil(100 / job.steps));
         const running = progress < 100;
         updateNodeData(id, {
-          url: running ? node?.data.url : resultUrl,
+          url: running ? node?.data.url : job.resultUrl,
           taskInfo: {
             status: running ? "running" : "done",
             progress,
@@ -341,7 +279,7 @@ export function useCanvasActions({
                   ...item,
                   status: running ? "running" : "done",
                   progress,
-                  resultUrl: running ? item.resultUrl : resultUrl
+                  resultUrl: running ? item.resultUrl : job.resultUrl
                 }
               : item
           )
@@ -351,20 +289,20 @@ export function useCanvasActions({
           setAssets((items) => [
             {
               id: uid("asset"),
-              kind: mediaKind,
+              kind: job.mediaKind,
               name: `${node?.data.name ?? "生成结果"}`,
-              url: resultUrl,
-              category: mediaKind === "audio" ? "sound" : "project",
+              url: job.resultUrl,
+              category: job.mediaKind === "audio" ? "sound" : "project",
               provider: "seedance-mock",
-              model,
+              model: job.model,
               prompt,
-              params: generationParams,
+              params: job.generationParams,
               createdAt: nowIso()
             },
             ...items
           ]);
         }
-      }, Math.max(220, config.seedance.mockLatencyMs / steps));
+      }, job.intervalMs);
     },
     [addHistory, config.seedance, nodes, setAssets, setHistory, updateNodeData]
   );

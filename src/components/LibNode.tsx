@@ -59,7 +59,7 @@ export function LibNodeComponent({
       <NodeToolbar isVisible={selected && nodeData.kind === "image"} position={Position.Top} align="center">
         <div className="node-toolbar">
           {["全景 NEW", "多角度", "打光", "九宫格", "高清", "宫格切分"].map((label) => (
-            <Button key={label} size="sm" onClick={() => onImageTool(id, label)}>
+            <Button key={label} className="nodrag nopan" size="sm" onClick={() => onImageTool(id, label)}>
               {label}
             </Button>
           ))}
@@ -91,20 +91,20 @@ export function LibNodeComponent({
             placeholder="输入剧本、广告词或品牌文案"
           />
           <div className="node-action-row">
-            <Button size="sm" onClick={() => onUpdate(id, { text: nodeData.text ?? "" })}>
+            <Button className="nodrag nopan" size="sm" onClick={() => onUpdate(id, { text: nodeData.text ?? "" })}>
               自己编写内容
             </Button>
-            <Button size="sm" onClick={() => onQuickAction(id, "text2video")}>
+            <Button className="nodrag nopan" size="sm" onClick={() => onQuickAction(id, "text2video")}>
               文生视频
             </Button>
-            <Button size="sm" onClick={() => onQuickAction(id, "imagePrompt")}>
+            <Button className="nodrag nopan" size="sm" onClick={() => onQuickAction(id, "imagePrompt")}>
               图片反推提示词
             </Button>
-            <Button size="sm" onClick={() => onQuickAction(id, "music")}>
+            <Button className="nodrag nopan" size="sm" onClick={() => onQuickAction(id, "music")}>
               文字生音乐
             </Button>
           </div>
-          <Button variant="primary" onClick={() => onOpenAIText(id)} disabled={readonly}>
+          <Button className="nodrag nopan" variant="primary" onClick={() => onOpenAIText(id)} disabled={readonly}>
             <Wand2 size={14} />
             生成文本
           </Button>
@@ -123,7 +123,7 @@ export function LibNodeComponent({
             onChange={(event) => onUpdate(id, { prompt: event.target.value })}
             placeholder="图片提示词"
           />
-          <Button variant="primary" size="sm" onClick={() => onOpenAIImage(id)} disabled={readonly}>
+          <Button className="nodrag nopan" variant="primary" size="sm" onClick={() => onOpenAIImage(id)} disabled={readonly}>
             <Sparkles size={14} />
             OpenAI 生成
           </Button>
@@ -192,7 +192,7 @@ export function LibNodeComponent({
               <option value={10}>10s</option>
             </select>
           </div>
-          <Button variant="primary" onClick={() => onSeedance(id, "video")} disabled={readonly}>
+          <Button className="nodrag nopan" variant="primary" onClick={() => onSeedance(id, "video")} disabled={readonly}>
             <Video size={14} />
             Seedance mock
           </Button>
@@ -233,7 +233,7 @@ export function LibNodeComponent({
               <option value={10}>10s</option>
             </select>
           </div>
-          <Button variant="primary" onClick={() => onSeedance(id, "audio")} disabled={readonly}>
+          <Button className="nodrag nopan" variant="primary" onClick={() => onSeedance(id, "audio")} disabled={readonly}>
             <AudioLines size={14} />
             音频 mock
           </Button>
@@ -272,7 +272,7 @@ export function LibNodeComponent({
               <option>1:1</option>
             </select>
           </div>
-          <Button variant="primary" onClick={() => onSeedance(id, "compose")} disabled={readonly}>
+          <Button className="nodrag nopan" variant="primary" onClick={() => onSeedance(id, "compose")} disabled={readonly}>
             生成合成视频
           </Button>
         </div>
@@ -307,7 +307,7 @@ export function LibNodeComponent({
               disabled={readonly}
             />
           </div>
-          <Button variant="primary" onClick={() => onDirectorShot(id)} disabled={readonly}>
+          <Button className="nodrag nopan" variant="primary" onClick={() => onDirectorShot(id)} disabled={readonly}>
             <ImageIcon size={14} />
             截图为参考
           </Button>
@@ -325,7 +325,7 @@ export function LibNodeComponent({
             onChange={(event) => onUpdate(id, { text: event.target.value, prompt: event.target.value })}
             placeholder="创意脚本、镜头、对白、场景"
           />
-          <Button variant="primary" onClick={() => onStoryboard(id)} disabled={readonly}>
+          <Button className="nodrag nopan" variant="primary" onClick={() => onStoryboard(id)} disabled={readonly}>
             <Layers3 size={14} />
             生成故事板
           </Button>
