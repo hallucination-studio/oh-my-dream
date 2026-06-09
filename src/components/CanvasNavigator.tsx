@@ -76,20 +76,33 @@ export function CanvasNavigator({
         <input name="navigatorProjectName" value={project.name} readOnly aria-label="当前画布名称" />
       </div>
       <div className="navigator-tabs" role="tablist" aria-label="画布侧栏">
-        <button type="button" className={tab === "canvas" ? "active" : ""} onClick={() => setTab("canvas")}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "canvas"}
+          className={tab === "canvas" ? "active" : ""}
+          onClick={() => setTab("canvas")}
+        >
           画布
         </button>
-        <button type="button" className={tab === "assets" ? "active" : ""} onClick={() => setTab("assets")}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "assets"}
+          className={tab === "assets" ? "active" : ""}
+          onClick={() => setTab("assets")}
+        >
           资产
         </button>
       </div>
       {tab === "canvas" ? (
-        <>
+        <div role="tabpanel" aria-label="画布元素">
           <div className="navigator-tools">
             <span>画布元素</span>
             <label>
               <Filter size={14} />
               <select
+                aria-label="筛选画布元素"
                 name="navigatorNodeFilter"
                 value={filter}
                 onChange={(event) => setFilter(event.target.value as "all" | NodeKind)}
@@ -104,6 +117,7 @@ export function CanvasNavigator({
             <label className="navigator-search">
               <Search size={15} />
               <input
+                aria-label="搜索画布节点"
                 name="navigatorNodeSearch"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -131,9 +145,9 @@ export function CanvasNavigator({
             <Layers3 size={15} />
             <span>共 {nodes.length} 节点</span>
           </footer>
-        </>
+        </div>
       ) : (
-        <>
+        <div role="tabpanel" aria-label="资产管理">
           <div className="navigator-tools">
             <span>资产管理</span>
           </div>
@@ -153,7 +167,7 @@ export function CanvasNavigator({
             <Boxes size={15} />
             <span>共 {assets.length} 资产</span>
           </footer>
-        </>
+        </div>
       )}
     </aside>
   );
