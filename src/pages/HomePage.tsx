@@ -231,7 +231,11 @@ export function HomePage() {
                   </Button>
                 </div>
                 <div className="template-meta">
-                  <span className="template-avatar">{template.author.slice(0, 1).toUpperCase()}</span>
+                  {template.avatar ? (
+                    <img className="template-avatar-img" src={template.avatar} alt={template.author} loading="lazy" />
+                  ) : (
+                    <span className="template-avatar">{template.author.slice(0, 1).toUpperCase()}</span>
+                  )}
                   <p>{template.author}</p>
                   {template.tier && (
                     <span className={`template-tier ${template.tier === "专业" ? "pro" : ""}`}>
