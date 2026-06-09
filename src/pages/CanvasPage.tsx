@@ -246,7 +246,7 @@ function CanvasWorkspace({ project }: { project: Project }) {
         proOptions={{ hideAttribution: true }}
       >
         <Background
-          color={ui.snapToGrid ? "#006666" : "#b9c1c9"}
+          color={ui.snapToGrid ? "#0a84ff" : "#cbd5e1"}
           gap={ui.snapToGrid ? 20 : 32}
           size={1}
           variant={BackgroundVariant.Dots}

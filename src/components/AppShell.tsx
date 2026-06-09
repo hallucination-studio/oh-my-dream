@@ -11,9 +11,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="app-page app-shell">
       <header className="topbar canvas-shell-topbar">
         <Link to="/" className="brand" aria-label="返回首页">
-          <span className="brand-mark">TV</span>
-          <span>LibTV</span>
-          <small>Local</small>
+          <span>Oh My Dream</span>
+          <small>Workspace</small>
         </Link>
         <nav className="topbar-nav" aria-label="主导航">
           <Link to="/project">项目</Link>

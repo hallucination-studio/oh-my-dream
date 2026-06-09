@@ -220,7 +220,7 @@ export interface AppConfig {
 }
 
 export interface AppUi {
-  bannerClosed: boolean;
+  noticeDismissed: boolean;
   minimap: boolean;
   snapToGrid: boolean;
   folders: Folder[];

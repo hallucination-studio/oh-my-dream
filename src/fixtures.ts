@@ -21,16 +21,66 @@ export const KEY_UI = "omd.ui";
 export const KEY_TASKS = "omd.tasks";
 export const KEY_BATCHES = "omd.batches";
 
-export const imageCovers = [
-  "https://libtv-res.liblib.art/upload-images/a4c1b997d3f84fa8a871ed91d861f88f/996bd408ee659cf13c4ef989b9e84fa949134d1d.png?x-oss-process=image/resize,w_1200,m_lfit/format,webp",
-  "https://libtv-res.liblib.art/upload-images/e32469f1cda3481581e3b1fef896d2a7/72051af025c9848e7e7bf7bfdcba77809ea9a4dc.png?x-oss-process=image/resize,w_1200,m_lfit/format,webp",
-  "https://libtv-res.liblib.art/upload-images/4516157ad4cf4175bef2cb448d41b9f3/75c546e516b74f1a63df6bf942e11be99313d3fc.png?x-oss-process=image/resize,w_1200,m_lfit/format,webp",
-  "https://libtv-res.liblib.art/upload-images/d548bbe5d2194184a0afbc869fd93558/3a1a05f9b7b1362a1207f2c05942ccf56e80b5b1.png?x-oss-process=image/resize,w_1200,m_lfit/format,webp",
-  "https://libtv-res.liblib.art/upload-images/1e3a67e7d1214022b9d8cfd35ae3dd7b/d68305126a00f9400ffd2179ed77b700ce0bcf37.png?x-oss-process=image/resize,w_1200,m_lfit/format,webp",
-  "https://libtv-res.liblib.art/upload-images/6dd3b41611724db79e60b68a549590cc/2acc72924322941ba7e1b367c5541748cf9c1e6a.jpg?x-oss-process=image/resize,w_1200,m_lfit/format,webp",
-  "https://libtv-res.liblib.art/upload-images/72e56fb0d04f4fda82340018214d399b/0202e5021d6896e7eed40ffdec7658cf088c99c3.jpg?x-oss-process=image/resize,w_1200,m_lfit/format,webp",
-  "https://libtv-res.liblib.art/upload-images/0c8bad1646dd40ad8d55d1ff6e289ccd/ab57199675db5a66fb418058a0f2230a63b7e312.jpeg?x-oss-process=image/resize,w_1200,m_lfit/format,webp"
-];
+function svgDataUrl(svg: string) {
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function createCoverImage(index: number) {
+  const palettes = [
+    ["#f6f9ff", "#dcecff", "#8ebcff", "#0f172a"],
+    ["#f7f6ff", "#e7e3ff", "#b8b0ff", "#18223d"],
+    ["#f8fbf7", "#ddeee5", "#93c8af", "#143025"],
+    ["#fff7f3", "#ffe0cf", "#ffb38a", "#352015"],
+    ["#f5f8fb", "#e2e8f0", "#94a3b8", "#162033"],
+    ["#fdf7ff", "#f2defa", "#d3a3f4", "#2f123f"],
+    ["#f8fbfd", "#deedf6", "#8dc3df", "#10283b"],
+    ["#fffaf3", "#f8e7c6", "#e7b669", "#3d2a15"]
+  ] as const;
+  const [surface, tint, accent, ink] = palettes[index % palettes.length];
+  return svgDataUrl(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+      <defs>
+        <linearGradient id="bg-${index}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${surface}" />
+          <stop offset="100%" stop-color="${tint}" />
+        </linearGradient>
+      </defs>
+      <rect width="1280" height="720" rx="40" fill="url(#bg-${index})" />
+      <circle cx="226" cy="190" r="136" fill="${accent}" opacity=".22" />
+      <circle cx="1060" cy="132" r="98" fill="${ink}" opacity=".08" />
+      <rect x="124" y="120" width="620" height="320" rx="34" fill="#ffffff" opacity=".78" />
+      <rect x="156" y="154" width="296" height="18" rx="9" fill="${ink}" opacity=".14" />
+      <rect x="156" y="198" width="442" height="76" rx="24" fill="${ink}" opacity=".88" />
+      <rect x="156" y="300" width="360" height="22" rx="11" fill="${ink}" opacity=".18" />
+      <rect x="156" y="344" width="314" height="22" rx="11" fill="${ink}" opacity=".12" />
+      <rect x="802" y="192" width="316" height="292" rx="38" fill="${ink}" opacity=".08" />
+      <rect x="846" y="236" width="228" height="150" rx="28" fill="${accent}" opacity=".7" />
+      <rect x="124" y="526" width="1032" height="56" rx="28" fill="#ffffff" opacity=".76" />
+    </svg>
+  `);
+}
+
+function createAvatarImage(name: string, index: number) {
+  const tones = [
+    ["#0a84ff", "#dcecff"],
+    ["#34c759", "#dff5e6"],
+    ["#ff9f0a", "#ffedd0"],
+    ["#bf5af2", "#f1ddfb"]
+  ] as const;
+  const [accent, surface] = tones[index % tones.length];
+  const initials = Array.from(name.trim())[0] ?? "A";
+  return svgDataUrl(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+      <rect width="96" height="96" rx="48" fill="${surface}" />
+      <circle cx="48" cy="48" r="34" fill="${accent}" opacity=".2" />
+      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle"
+        font-family="SF Pro Display, PingFang SC, Arial, sans-serif"
+        font-size="34" font-weight="700" fill="${accent}">${initials}</text>
+    </svg>
+  `);
+}
+
+export const imageCovers = Array.from({ length: 8 }, (_, index) => createCoverImage(index));
 
 export const sampleVideo =
   "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
@@ -69,192 +119,41 @@ export function makeWorkspacePath(name: string) {
   return `workspace/${slug || "untitled"}`;
 }
 
-export const tvCategories = [
+export const templateCategories = [
   "全部",
-  "大乱斗｜vol.1 显形记",
-  "大乱斗｜vol.2《AI，想象和尖叫》",
-  "精选画布",
-  "专业影视",
-  "短剧漫剧",
-  "商业广告",
-  "动漫游戏",
-  "教育生活",
-  "TV工具箱"
-];
-
-export const banners = [
-  {
-    title: "Seedance2.0 创意广告流",
-    tag: "文生视频",
-    cover: "https://liblibai-online.liblib.cloud/banner/1780372235458.webp"
-  },
-  {
-    title: "导演台镜头构图参考",
-    tag: "3D 场景",
-    cover: "https://libtv-res.liblib.art/upload-images/70a305c50c704a778db114468830617b/9c90f7ec12aa8d8c42fd055abfba849ea193d5d6.webp"
-  },
-  {
-    title: "短剧分镜一键铺排",
-    tag: "故事板",
-    cover: "https://libtv-res.liblib.art/upload-images/70a305c50c704a778db114468830617b/17c0e59477a29c09914e4727db7fe424c4b1fb27.webp"
-  },
-  {
-    title: "品牌主视觉变体",
-    tag: "图片工具",
-    cover: "https://liblibai-online.liblib.cloud/banner/1780329415980.webp"
-  },
-  {
-    title: "多节点合成实验",
-    tag: "画布模板",
-    cover: "https://liblibai-online.liblib.cloud/banner/1775750958026.webp"
-  }
+  "叙事短片",
+  "品牌广告",
+  "角色概念",
+  "空间氛围",
+  "产品视觉",
+  "教育内容",
+  "工作流参考"
 ];
 
 export const templates = [
-  [
-    "死于罗曼蒂克 - 某位来自洛圣都的NPCの爱情故事",
-    "yoimachigusa",
-    "大乱斗｜vol.2《AI，想象和尖叫》",
-    "先锋",
-    "328",
-    "大乱斗｜vol.2《AI，想象和尖叫》 - 最佳画风",
-    "https://liblibai-online.liblib.cloud/img/a4c1b997d3f84fa8a871ed91d861f88f/ff003559bede02660ddbfe09b7f93856659fa613018b60102354847275711ff9.jfif?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "AI一镜到底📹｜欢迎来到石湾镇 - Welcome to Stone Bay",
-    "ZeteroGeneouZ",
-    "精选画布",
-    "",
-    "20",
-    "",
-    "https://liblibai-online.liblib.cloud/img/e32469f1cda3481581e3b1fef896d2a7/63fb7366ba33b33c5829459411565e900b6a32d4cd880aa33cb22c0a41dc4972.png?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "中古风室内空间720度空间一致性",
-    "三千问Atelier",
-    "专业影视",
-    "专业",
-    "10",
-    "",
-    "https://liblibai-online.liblib.cloud/img/4516157ad4cf4175bef2cb448d41b9f3/df345921bdcbd6912a6992a2702f9916280444d89f01bc8674e855cdeb27d371.jpg?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "《Y2K-iphone》--自动化工作流",
-    "贾麦子",
-    "TV工具箱",
-    "先锋",
-    "12",
-    "",
-    "https://liblibai-online.liblib.cloud/img/d548bbe5d2194184a0afbc869fd93558/6d7a7e824a181c43360bd265f2563d73ae5af0f9bebd63e9351fb7b694a7a310.png?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "贵司有尾",
-    "Tassi",
-    "大乱斗｜vol.1 显形记",
-    "先锋",
-    "369",
-    "大乱斗｜vol.1 显形记 - 最佳画布",
-    "https://liblibai-online.liblib.cloud/img/1e3a67e7d1214022b9d8cfd35ae3dd7b/56dc99dcc8975afadfa1ceb490c70f7e4a7231b46b7c48105b4944c5f5d1e748.jpg?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "黎明之刃PV",
-    "133****2591",
-    "动漫游戏",
-    "",
-    "11",
-    "",
-    "https://liblibai-online.liblib.cloud/web/avatar/avatar3.png?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "VIVO手机短片《柳宗元的独钓“玄机”》",
-    "是YY呀",
-    "商业广告",
-    "先锋",
-    "216",
-    "",
-    "https://liblibai-online.liblib.cloud/img/72e56fb0d04f4fda82340018214d399b/157ee9ead33568855bf123fa8d52b24a4dc3444a51f4f6503633e7feb5e1b5a6.jpg?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "24节气 | 芒种",
-    "小团长安铺子",
-    "教育生活",
-    "先锋",
-    "6",
-    "",
-    "https://liblibai-online.liblib.cloud/img/0c8bad1646dd40ad8d55d1ff6e289ccd/f53f11ee659e6eb0c67f46192555e6c68a8eb84a01959e3ca17a357fd32a3b6d.jpeg?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "《Wrong Room》",
-    "简恩",
-    "大乱斗｜vol.2《AI，想象和尖叫》",
-    "",
-    "185",
-    "大乱斗｜vol.2《AI，想象和尖叫》 - 最佳画风",
-    "https://liblibai-online.liblib.cloud/img/a379033239b44269ae4bf0ec96dc6773/21e194b33b69d228ebccf4c3c4fc013a19674b48e3b70905976457094f6f669d.jpg?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "奇怪的迷宫",
-    "Babluer拜拜",
-    "短剧漫剧",
-    "先锋",
-    "12",
-    "",
-    "https://liblibai-online.liblib.cloud/img/59aea8d9952445ee9a21201ef7319f3e/5727da5ed292baf8894416934d4567338bea74eba264bd4ba730db14afaa9e25.png?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "《异常放送》丨File 02.形影分离",
-    "Chiraku",
-    "专业影视",
-    "",
-    "5",
-    "",
-    "https://liblibai-online.liblib.cloud/img/b3a333c3f3464d1f8f2c8931291b0a1f/e2780211deedefdbc2c81f09a4dc3a34b39ef5dd3e5fdec3235ca62231011824.jpg?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "Remenber 蛋仔派对 逃出惊魂夜 海瑟角色曲MV",
-    "那边的蛋仔",
-    "动漫游戏",
-    "先锋",
-    "275",
-    "",
-    "https://liblibai-online.liblib.cloud/img/2dfcc8936b424f8db53b641c82b8f3d1/c58ec5fc067e405259f60b6da67a65304ed86dd42d01842b5319d7ca19194011.png?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  ["《UnTouchable》AI音乐MV短片", "Zeno", "精选画布", "", "404", "", ""],
-  [
-    "沙僧终于不洗了",
-    "迈克的AiGC世界",
-    "专业影视",
-    "专业",
-    "12",
-    "",
-    "https://liblibai-online.liblib.cloud/img/f574471b318b491695503813e0f553cf/f7a9e12155e7b224a9b4934a5ca8f6906e40cc650e6a6f352796eb5b88d1bbba.jpg?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "高端游戏手柄｜世界杯联名款概念TVC",
-    "追逐星辰",
-    "商业广告",
-    "先锋",
-    "13",
-    "",
-    "https://liblibai-online.liblib.cloud/img/bc19270a4e744fa38a01a9ebbdab3244/722e023f39d7dc69916f25658bdde4e848938d9d58c50b42700341045d12e52f.jpg?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-  [
-    "见鬼",
-    "niu_456000",
-    "短剧漫剧",
-    "先锋",
-    "6",
-    "",
-    "https://liblibai-online.liblib.cloud/img/b4567961984a4d25be54ada178ab2374/35dfca3166d35102ece91ec209606fb51b3b405a9a6d9effa586465bb2fd3b63.jpg?x-oss-process=image/resize,w_60,m_lfit/format,webp"
-  ],
-].map(([title, author, category, tier, views, award, avatar], index) => ({
+  ["凌晨地铁站的无对白短片", "yoimachigusa", "叙事短片", "先锋", "328", "最佳叙事节奏"],
+  ["一镜到底的港口晨雾练习", "ZeteroGeneouZ", "空间氛围", "", "120", ""],
+  ["中古家电广告的空间统一性", "三千问Atelier", "品牌广告", "专业", "87", ""],
+  ["Y2K 手机开箱自动化工作流", "贾麦子", "工作流参考", "先锋", "64", ""],
+  ["角色关系图到镜头拆解", "Tassi", "角色概念", "先锋", "154", "推荐流程"],
+  ["黎明之刃角色预告片", "133****2591", "产品视觉", "", "92", ""],
+  ["高端饮品 15 秒节奏广告", "是YY呀", "品牌广告", "先锋", "216", ""],
+  ["二十四节气节奏海报", "小团长安铺子", "教育内容", "先锋", "56", ""],
+  ["Wrong Room 异常空间实验", "简恩", "叙事短片", "", "185", "视觉表现突出"],
+  ["迷宫追逐的分镜铺排", "Babluer拜拜", "叙事短片", "先锋", "72", ""],
+  ["异常放送 File 02", "Chiraku", "空间氛围", "", "44", ""],
+  ["蛋仔派对角色曲 MV", "那边的蛋仔", "角色概念", "先锋", "275", ""],
+  ["AI 音乐短片模板", "Zeno", "工作流参考", "", "404", ""],
+  ["高端手柄概念广告", "追逐星辰", "产品视觉", "先锋", "113", ""],
+  ["惊悚短片情绪板", "niu_456000", "叙事短片", "先锋", "66", ""]
+].map(([title, author, category, tier, views, award], index) => ({
   id: `tpl-${index + 1}`,
   title,
   author,
   category,
   tier,
   award,
-  avatar,
+  avatar: createAvatarImage(author, index),
   cover: imageCovers[index % imageCovers.length],
   views,
   uses: 210 + index * 31
@@ -329,7 +228,7 @@ export const defaultConfig: AppConfig = {
 };
 
 export const defaultUi: AppUi = {
-  bannerClosed: false,
+  noticeDismissed: false,
   minimap: false,
   snapToGrid: false,
   folders: []
@@ -521,8 +420,8 @@ export function createReferenceCanvasProject(): Project {
   ];
 
   return {
-    id: "libtv-reference-local",
-    name: "死于罗曼蒂克 - 某位来自洛圣都的NPCの爱情故事 - 副本",
+    id: "reference-local",
+    name: "凌晨地铁站的无对白短片 - 副本",
     coverUrl: imageCovers[0],
     createdAt,
     updatedAt: createdAt,

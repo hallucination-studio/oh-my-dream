@@ -3,14 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { Button, IconButton } from "../components/ui";
-import {
-  banners,
-  createBlankProject,
-  createTemplateProject,
-  imageCovers,
-  templates,
-  tvCategories
-} from "../fixtures";
+import { createBlankProject, createTemplateProject, imageCovers, templateCategories, templates } from "../fixtures";
 import { useStore } from "../storage";
 import type { Project } from "../types";
 import { formatDate } from "../utils";
@@ -18,16 +11,10 @@ import { formatDate } from "../utils";
 export function HomePage() {
   const { projects, setProjects } = useStore();
   const navigate = useNavigate();
-  const [slide, setSlide] = useState(1);
   const [category, setCategory] = useState("全部");
   const [query, setQuery] = useState("");
   const [categoryScroll, setCategoryScroll] = useState({ canLeft: false, canRight: false });
   const categoryRowRef = useRef<HTMLDivElement | null>(null);
-  const currentBanner = banners[slide];
-  const visibleBanners = [-1, 0, 1].map((offset) => {
-    const index = (slide + offset + banners.length) % banners.length;
-    return { ...banners[index], index, slot: offset };
-  });
 
   const recentProjects = useMemo(
     () =>
@@ -97,74 +84,54 @@ export function HomePage() {
   return (
     <AppShell>
       <main className="home-main">
-        <section className="hero-strip neumorphic-panel" aria-label="轮播推荐">
-          <div className="hero-track">
-            {visibleBanners.map((banner) => (
-              <button
-                key={`${banner.title}-${banner.slot}`}
-                type="button"
-                className={`hero-card ${banner.slot === 0 ? "active" : banner.slot < 0 ? "prev" : "next"}`}
-                style={{ backgroundImage: `url(${banner.cover})` }}
-                aria-label={banner.title}
-                onClick={() => {
-                  if (banner.slot === 0) {
-                    createProject(currentBanner.tag === "文生视频");
-                  } else {
-                    setSlide(banner.index);
-                  }
-                }}
-              >
-                <span>{banner.tag}</span>
-                <strong>{banner.title}</strong>
-              </button>
-            ))}
-            <IconButton
-              className="hero-arrow hero-prev"
-              label="上一张"
-              onClick={() => setSlide((value) => (value + banners.length - 1) % banners.length)}
-            >
-              <ChevronLeft size={18} />
-            </IconButton>
-            <IconButton
-              className="hero-arrow hero-next"
-              label="下一张"
-              onClick={() => setSlide((value) => (value + 1) % banners.length)}
-            >
-              <ChevronRight size={18} />
-            </IconButton>
-          </div>
-          <div className="hero-dots" role="tablist" aria-label="轮播分页">
-            {banners.map((banner, index) => (
-              <button
-                key={banner.title}
-                type="button"
-                aria-label={`切换到 ${banner.title}`}
-                className={index === slide ? "active" : ""}
-                onClick={() => setSlide(index)}
-              />
-            ))}
-          </div>
-        </section>
-
-        <section className="home-action-row" aria-label="创作入口">
-          <Button className="home-create-btn" onClick={() => createProject(false)}>
-            <Plus size={19} />
-            开始创作
-          </Button>
-          <Button className="home-seedance-btn" onClick={() => createProject(true)}>
-            <Video size={19} />
-            <span>快速体验</span>
-            <strong>Seedance 2.0</strong>
-          </Button>
-        </section>
-
-        <section className="tv-show">
-          <div className="section-head">
-            <div>
-              <h2>TV Show</h2>
+        <section className="home-hero" aria-label="创作工作台">
+          <div className="home-hero-copy">
+            <span className="home-hero-kicker">Local-first creative workspace</span>
+            <h1>把脚本、镜头、素材和生成流程放在一个清晰的工作台里。</h1>
+            <p>
+              从想法、参考图到分镜与生成结果，全部保留在本地项目中，方便继续迭代、比较方案和推进交付。
+            </p>
+            <div className="home-hero-actions" aria-label="创作入口">
+              <Button className="home-create-btn" onClick={() => createProject(false)}>
+                <Plus size={19} />
+                开始创作
+              </Button>
+              <Button className="home-seedance-btn" onClick={() => createProject(true)}>
+                <Video size={19} />
+                <span>快速体验</span>
+                <strong>Seedance 2.0</strong>
+              </Button>
             </div>
           </div>
-          <div className="tv-filter-row">
+          <div className="home-hero-preview" aria-hidden="true">
+            <article className="hero-preview-card hero-preview-primary">
+              <span>当前工作流</span>
+              <strong>脚本整理 → 分镜参考 → 结果回看</strong>
+              <p>围绕一个项目连续推进，而不是在多个页面之间来回切换。</p>
+            </article>
+            <div className="hero-preview-stack">
+              <article className="hero-preview-card">
+                <span>本地项目</span>
+                <strong>{projects.length}</strong>
+                <p>持续积累可复用的流程和素材。</p>
+              </article>
+              <article className="hero-preview-card hero-preview-accent">
+                <span>推荐起点</span>
+                <strong>Seedance 快速体验</strong>
+                <p>适合先试镜头节奏，再回到完整项目继续细化。</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section className="template-library">
+          <div className="section-head">
+            <div>
+              <h2>精选模板</h2>
+              <p>按主题浏览现成工作流，快速打开一个可继续修改的创作过程。</p>
+            </div>
+          </div>
+          <div className="template-filter-row">
             <IconButton
               className="category-scroll-prev"
               label="向左滚动"
@@ -176,11 +143,11 @@ export function HomePage() {
             <div
               className="tab-row"
               role="tablist"
-              aria-label="TV Show 分类"
+              aria-label="模板分类"
               ref={categoryRowRef}
               onScroll={updateCategoryScroll}
             >
-              {tvCategories.map((item) => (
+              {templateCategories.map((item) => (
                 <button
                   key={item}
                   type="button"
@@ -202,11 +169,11 @@ export function HomePage() {
             <label className="search-box">
               <Search size={16} />
               <input
-                aria-label="搜索 TV Show 模板"
+                aria-label="搜索模板"
                 name="templateSearch"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="请输入搜索内容"
+                placeholder="搜索标题或作者"
               />
             </label>
           </div>
@@ -260,6 +227,7 @@ export function HomePage() {
             <section className="section-head local-project-head">
               <div>
                 <h2>本地项目</h2>
+                <p>从最近打开的项目继续推进，不打断当前创作节奏。</p>
               </div>
               <Link to="/project" className="text-link">
                 全部项目

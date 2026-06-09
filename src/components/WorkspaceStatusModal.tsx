@@ -61,7 +61,7 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `libtv-local-workspace-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.download = `workspace-backup-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();

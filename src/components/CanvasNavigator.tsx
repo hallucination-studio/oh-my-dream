@@ -96,7 +96,7 @@ export function CanvasNavigator({
   return (
     <aside className="canvas-navigator" aria-label="画布节点侧栏">
       <header className="canvas-navigator-head">
-        <div className="navigator-logo" aria-hidden="true" />
+        <span className="navigator-workspace-label">Workspace</span>
         <IconButton label="收起节点侧栏" onClick={onToggle}>
           <ChevronLeft size={17} />
         </IconButton>

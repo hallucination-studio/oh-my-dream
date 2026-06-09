@@ -1,0 +1,63 @@
+name: Nightly Release
+
+on:
+  schedule:
+    # 20:00 Asia/Shanghai is 12:00 UTC.
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and publish nightly
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Package build
+        run: tar -czf oh-my-dream-nightly.tgz -C dist .
+
+      - name: Publish rolling nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tag="nightly"
+          asset="oh-my-dream-nightly.tgz"
+          release_title="Nightly $(TZ=Asia/Shanghai date +'%Y-%m-%d')"
+          release_notes="Automated nightly build for ${GITHUB_SHA}."
+
+          git tag -f "${tag}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${tag}" --force
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release upload "${tag}" "${asset}" --clobber
+            gh release edit "${tag}" \
+              --title "${release_title}" \
+              --notes "${release_notes}" \
+              --prerelease
+          else
+            gh release create "${tag}" "${asset}" \
+              --title "${release_title}" \
+              --notes "${release_notes}" \
+              --prerelease
+          fi
