@@ -84,6 +84,7 @@ export function LibNodeComponent({
           <textarea
             className="nodrag"
             name={`node-${id}-text`}
+            aria-label="文本节点内容"
             value={nodeData.text ?? nodeData.prompt ?? ""}
             readOnly={readonly}
             onChange={(event) => onUpdate(id, { text: event.target.value, prompt: event.target.value })}
@@ -116,6 +117,7 @@ export function LibNodeComponent({
           <textarea
             className="nodrag compact-textarea"
             name={`node-${id}-image-prompt`}
+            aria-label="图片提示词"
             value={nodeData.prompt ?? ""}
             readOnly={readonly}
             onChange={(event) => onUpdate(id, { prompt: event.target.value })}
@@ -134,6 +136,7 @@ export function LibNodeComponent({
           <textarea
             className="nodrag compact-textarea"
             name={`node-${id}-video-prompt`}
+            aria-label="视频提示词"
             value={nodeData.prompt ?? ""}
             readOnly={readonly}
             onChange={(event) => onUpdate(id, { prompt: event.target.value })}
@@ -143,6 +146,7 @@ export function LibNodeComponent({
             <select
               className="nodrag"
               name={`node-${id}-video-mode`}
+              aria-label="视频模式"
               value={String(params.modeType ?? "text2video")}
               onChange={(event) => setParam("modeType", event.target.value)}
               disabled={readonly}
@@ -153,6 +157,7 @@ export function LibNodeComponent({
             <select
               className="nodrag"
               name={`node-${id}-video-ratio`}
+              aria-label="视频比例"
               value={String(params.ratio ?? "16:9")}
               onChange={(event) => setParam("ratio", event.target.value)}
               disabled={readonly}
@@ -164,6 +169,7 @@ export function LibNodeComponent({
             <select
               className="nodrag"
               name={`node-${id}-video-resolution`}
+              aria-label="视频分辨率"
               value={String(params.resolution ?? "720P")}
               onChange={(event) => setParam("resolution", event.target.value)}
               disabled={readonly}
@@ -175,6 +181,7 @@ export function LibNodeComponent({
             <select
               className="nodrag"
               name={`node-${id}-video-duration`}
+              aria-label="视频时长"
               value={String(params.duration ?? 5)}
               onChange={(event) => setParam("duration", Number(event.target.value))}
               disabled={readonly}
@@ -198,6 +205,7 @@ export function LibNodeComponent({
           <textarea
             className="nodrag compact-textarea"
             name={`node-${id}-audio-prompt`}
+            aria-label="音频提示词"
             value={nodeData.prompt ?? ""}
             readOnly={readonly}
             onChange={(event) => onUpdate(id, { prompt: event.target.value })}
@@ -207,6 +215,7 @@ export function LibNodeComponent({
             <input
               className="nodrag"
               name={`node-${id}-audio-model`}
+              aria-label="音频模型"
               value={String(params.model ?? "seedance-audio-mock")}
               onChange={(event) => setParam("model", event.target.value)}
               disabled={readonly}
@@ -214,6 +223,7 @@ export function LibNodeComponent({
             <select
               className="nodrag"
               name={`node-${id}-audio-duration`}
+              aria-label="音频时长"
               value={String(params.duration ?? 5)}
               onChange={(event) => setParam("duration", Number(event.target.value))}
               disabled={readonly}
@@ -240,6 +250,7 @@ export function LibNodeComponent({
             <select
               className="nodrag"
               name={`node-${id}-compose-transition`}
+              aria-label="合成转场"
               value={String(params.transition ?? "crossfade")}
               onChange={(event) => setParam("transition", event.target.value)}
               disabled={readonly}
@@ -251,6 +262,7 @@ export function LibNodeComponent({
             <select
               className="nodrag"
               name={`node-${id}-compose-ratio`}
+              aria-label="合成比例"
               value={String(params.ratio ?? "16:9")}
               onChange={(event) => setParam("ratio", event.target.value)}
               disabled={readonly}
@@ -271,6 +283,7 @@ export function LibNodeComponent({
           <textarea
             className="nodrag"
             name={`node-${id}-director-prompt`}
+            aria-label="导演台提示词"
             value={nodeData.prompt ?? ""}
             readOnly={readonly}
             onChange={(event) => onUpdate(id, { prompt: event.target.value })}
@@ -280,6 +293,7 @@ export function LibNodeComponent({
             <input
               className="nodrag"
               name={`node-${id}-director-camera`}
+              aria-label="镜头参数"
               value={String(params.camera ?? "35mm medium shot")}
               onChange={(event) => setParam("camera", event.target.value)}
               disabled={readonly}
@@ -287,6 +301,7 @@ export function LibNodeComponent({
             <input
               className="nodrag"
               name={`node-${id}-director-character`}
+              aria-label="角色参数"
               value={String(params.character ?? "主角")}
               onChange={(event) => setParam("character", event.target.value)}
               disabled={readonly}
@@ -304,6 +319,7 @@ export function LibNodeComponent({
           <textarea
             className="nodrag"
             name={`node-${id}-script`}
+            aria-label="脚本内容"
             value={nodeData.text ?? nodeData.prompt ?? ""}
             readOnly={readonly}
             onChange={(event) => onUpdate(id, { text: event.target.value, prompt: event.target.value })}
