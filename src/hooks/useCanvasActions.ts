@@ -79,7 +79,8 @@ export function useCanvasActions({
     setBatches,
     setEdges,
     addCanvasNode,
-    addNodeNear
+    addNodeNear,
+    updateNodeData
   });
 
   return {

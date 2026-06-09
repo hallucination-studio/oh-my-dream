@@ -28,6 +28,9 @@ export function useCanvasImportActions({
 }) {
   const importAsset = useCallback(
     (asset: Asset) => {
+      setAssets((items) =>
+        items.map((item) => (item.id === asset.id ? { ...item, uses: (item.uses ?? 0) + 1 } : item))
+      );
       addCanvasNode(asset.kind, asset.name, {
         url: asset.url,
         prompt: asset.prompt ?? `从我的素材导入：${asset.name}`,
@@ -56,7 +59,7 @@ export function useCanvasImportActions({
         }
       });
     },
-    [addCanvasNode]
+    [addCanvasNode, setAssets]
   );
 
   const importHistory = useCallback(

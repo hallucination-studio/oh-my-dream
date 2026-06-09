@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { nodeLabels } from "../constants";
-import type { Asset, AssetKind, DerivedBatch, LibNode, NodeKind, Project } from "../types";
-import { IconButton } from "./ui";
+import type { Asset, AssetKind, DerivedBatch, LibNode, NodeKind, PreviewResource, Project } from "../types";
+import { Button, IconButton } from "./ui";
 
 const filters: { value: "all" | NodeKind; label: string }[] = [
   { value: "all", label: "全部" },
@@ -36,7 +36,10 @@ export function CanvasNavigator({
   collapsed,
   batches,
   onToggle,
-  onLocateNode
+  onLocateNode,
+  onImportAsset,
+  onPreviewAsset,
+  onDownloadAsset
 }: {
   project: Project;
   nodes: LibNode[];
@@ -46,6 +49,9 @@ export function CanvasNavigator({
   batches: DerivedBatch[];
   onToggle: () => void;
   onLocateNode: (node: LibNode) => void;
+  onImportAsset: (asset: Asset) => void;
+  onPreviewAsset: (preview: PreviewResource) => void;
+  onDownloadAsset: (asset: Asset) => void;
 }) {
   const [tab, setTab] = useState<"canvas" | "assets" | "asset-manager">("canvas");
   const [filter, setFilter] = useState<"all" | NodeKind>("all");
@@ -220,9 +226,27 @@ export function CanvasNavigator({
               <p>暂无资产</p>
             ) : (
               visibleAssets.map((asset) => (
-                <article key={asset.id}>
+                <article key={asset.id} className="navigator-asset-card">
                   <AssetThumb kind={asset.kind} url={asset.url} />
                   <strong>{asset.name}</strong>
+                  <div className="navigator-asset-actions">
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        onPreviewAsset({
+                          id: `navigator-preview-${asset.id}`,
+                          title: asset.name,
+                          kind: asset.kind,
+                          items: [asset.resource]
+                        })
+                      }
+                    >
+                      预览
+                    </Button>
+                    <Button size="sm" onClick={() => onImportAsset(asset)}>
+                      插入
+                    </Button>
+                  </div>
                 </article>
               ))
             )}
@@ -245,6 +269,27 @@ export function CanvasNavigator({
                   <strong>{asset.name}</strong>
                   <small>{asset.resource.localPath ?? "本地缓存"}</small>
                   <span>{asset.tags?.join(" · ") || "项目资产"}</span>
+                  <div className="navigator-asset-actions">
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        onPreviewAsset({
+                          id: `manager-preview-${asset.id}`,
+                          title: asset.name,
+                          kind: asset.kind,
+                          items: [asset.resource]
+                        })
+                      }
+                    >
+                      预览
+                    </Button>
+                    <Button size="sm" onClick={() => onImportAsset(asset)}>
+                      插入
+                    </Button>
+                    <Button size="sm" onClick={() => onDownloadAsset(asset)}>
+                      下载
+                    </Button>
+                  </div>
                 </div>
               </article>
             ))}

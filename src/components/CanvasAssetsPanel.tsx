@@ -1,7 +1,7 @@
 import { Upload } from "lucide-react";
 import { useState } from "react";
 import { formatGenerationParams } from "../services/generation";
-import type { Asset, AssetCategory } from "../types";
+import type { Asset, AssetCategory, PreviewResource } from "../types";
 import { MediaThumb } from "./CanvasMediaThumb";
 import { Button } from "./ui";
 
@@ -19,11 +19,15 @@ const categories: { id: AssetCategory; label: string }[] = [
 export function AssetsPanel({
   assets,
   onUpload,
-  onImport
+  onImport,
+  onPreview,
+  onDownload
 }: {
   assets: Asset[];
   onUpload: (files: FileList | File[]) => void;
   onImport: (asset: Asset) => void;
+  onPreview: (preview: PreviewResource) => void;
+  onDownload: (asset: Asset) => void;
 }) {
   const [tab, setTab] = useState<"assets" | "subjects">("assets");
   const [category, setCategory] = useState<AssetCategory>("all");
@@ -78,9 +82,27 @@ export function AssetsPanel({
               )}
               {asset.params && <p className="asset-params">{formatGenerationParams(asset.params)}</p>}
               {asset.prompt && <p className="asset-prompt">{asset.prompt}</p>}
-              <Button size="sm" onClick={() => onImport(asset)}>
-                插入画布
-              </Button>
+              <div className="asset-card-actions">
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    onPreview({
+                      id: `asset-preview-${asset.id}`,
+                      title: asset.name,
+                      kind: asset.kind,
+                      items: [asset.resource]
+                    })
+                  }
+                >
+                  预览
+                </Button>
+                <Button size="sm" onClick={() => onImport(asset)}>
+                  插入画布
+                </Button>
+                <Button size="sm" onClick={() => onDownload(asset)}>
+                  下载
+                </Button>
+              </div>
             </article>
           ))}
         </div>

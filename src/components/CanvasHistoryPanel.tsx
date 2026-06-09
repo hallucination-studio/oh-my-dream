@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { formatGenerationParams, historyDisplayText } from "../services/generation";
-import type { GenerationHistory } from "../types";
+import type { GenerationHistory, PreviewResource } from "../types";
 import { formatDate } from "../utils";
 import { MediaThumb } from "./CanvasMediaThumb";
 import { Button } from "./ui";
@@ -8,11 +8,15 @@ import { Button } from "./ui";
 export function HistoryPanel({
   history,
   setHistory,
-  onImport
+  onImport,
+  onPreview,
+  onDownload
 }: {
   history: GenerationHistory[];
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
   onImport: (item: GenerationHistory) => void;
+  onPreview: (preview: PreviewResource) => void;
+  onDownload: (item: GenerationHistory) => void;
 }) {
   const [tab, setTab] = useState<GenerationHistory["kind"]>("text");
   const [size, setSize] = useState(92);
@@ -100,9 +104,29 @@ export function HistoryPanel({
                   {item.provider} · {item.status} · {item.progress}%
                 </em>
                 <div className="history-actions">
+                  {item.resultResources?.length ? (
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        onPreview({
+                          id: `history-preview-${item.id}`,
+                          title: historyDisplayText(item),
+                          kind: item.kind === "text" ? "image" : item.kind,
+                          items: item.resultResources ?? []
+                        })
+                      }
+                    >
+                      预览
+                    </Button>
+                  ) : null}
                   <Button size="sm" onClick={() => onImport(item)}>
                     导入画布
                   </Button>
+                  {(item.resultUrl || item.resultResources?.length) ? (
+                    <Button size="sm" onClick={() => onDownload(item)}>
+                      下载
+                    </Button>
+                  ) : null}
                   <Button
                     size="sm"
                     variant="danger"

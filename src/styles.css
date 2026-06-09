@@ -2867,6 +2867,19 @@ kbd {
   padding: 0 12px;
 }
 
+.navigator-asset-card {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  display: grid;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.navigator-asset-card strong {
+  color: #f2f5f8;
+}
+
 .navigator-row {
   min-height: 62px;
   padding: 8px 10px;
@@ -2949,6 +2962,12 @@ kbd {
   color: #aab2bc;
 }
 
+.navigator-asset-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .navigator-group-row {
   margin-bottom: 8px;
 }
@@ -2986,6 +3005,13 @@ kbd {
   box-shadow: none;
 }
 
+.node-toolbar .btn.is-active,
+.node-primary-tools .btn.is-active {
+  background: rgba(8, 215, 215, 0.18);
+  border-color: rgba(8, 215, 215, 0.4);
+  color: #efffff;
+}
+
 .node-media-head {
   display: flex;
   justify-content: space-between;
@@ -3006,6 +3032,59 @@ kbd {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.04);
   box-shadow: none;
+}
+
+.image-tool-workbench {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  display: grid;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.image-tool-workbench-head {
+  display: grid;
+  gap: 4px;
+}
+
+.image-tool-workbench-head strong {
+  color: #f3f6f9;
+  font-size: 13px;
+}
+
+.image-tool-workbench-head span,
+.tool-result-bar span,
+.tool-select span {
+  color: #9da5ae;
+  font-size: 12px;
+}
+
+.tool-config-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tool-select {
+  display: grid;
+  gap: 6px;
+}
+
+.tool-select select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(19, 22, 26, 0.9);
+  color: #e6ebf0;
+}
+
+.tool-result-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
 }
 
 .node-media-head small {
@@ -3079,6 +3158,23 @@ kbd {
 .annotation-list span,
 .history-task-summary {
   background: rgba(255, 255, 255, 0.05);
+}
+
+.asset-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .tool-config-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tool-result-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 1100px) {

@@ -19,6 +19,8 @@ import { nodeLabels } from "../constants";
 import type { AssetKind, CanvasNodeData, LibNode, NodeKind, PreviewResource } from "../types";
 import { Button } from "./ui";
 
+const imagePrimaryTools = ["全景 NEW", "多角度", "打光", "九宫格", "高清", "宫格切分"] as const;
+
 export interface LibNodeComponentProps extends NodeProps<LibNode> {
   onUpdate: (id: string, patch: Partial<CanvasNodeData>) => void;
   onOpenAIText: (id: string) => void;
@@ -53,6 +55,7 @@ export function LibNodeComponent({
   const width = Number(nodeData.contentWidth ?? 360);
   const height = Number(nodeData.contentHeight ?? 280);
   const compactNode = width <= 340 || height <= 240;
+  const activeImageTool = String(params.activeTool ?? imagePrimaryTools[0]);
   const setParam = (key: string, value: string | number | boolean) =>
     onUpdate(id, { params: { ...params, [key]: value } });
 
@@ -63,8 +66,13 @@ export function LibNodeComponent({
     >
       <NodeToolbar isVisible={selected && nodeData.kind === "image"} position={Position.Top} align="center">
         <div className="node-toolbar">
-          {["全景 NEW", "多角度", "打光", "九宫格", "高清", "宫格切分"].map((label) => (
-            <Button key={label} className="nodrag nopan" size="sm" onClick={() => onImageTool(id, label)}>
+          {imagePrimaryTools.map((label) => (
+            <Button
+              key={label}
+              className={`nodrag nopan ${activeImageTool === label ? "is-active" : ""}`}
+              size="sm"
+              onClick={() => setParam("activeTool", label)}
+            >
               {label}
             </Button>
           ))}
@@ -120,8 +128,13 @@ export function LibNodeComponent({
         <div className="node-content">
           {selected && (
             <div className="node-primary-tools">
-              {["全景 NEW", "多角度", "打光", "九宫格", "高清", "宫格切分"].map((label) => (
-                <Button key={label} className="nodrag nopan" size="sm" onClick={() => onImageTool(id, label)}>
+              {imagePrimaryTools.map((label) => (
+                <Button
+                  key={label}
+                  className={`nodrag nopan ${activeImageTool === label ? "is-active" : ""}`}
+                  size="sm"
+                  onClick={() => setParam("activeTool", label)}
+                >
                   {label}
                 </Button>
               ))}
@@ -198,6 +211,16 @@ export function LibNodeComponent({
               />
             </label>
           </div>
+          {selected && (
+            <ImageToolWorkbench
+              activeTool={activeImageTool}
+              params={params}
+              onSetParam={setParam}
+              onRunTool={() => onImageTool(id, activeImageTool)}
+              lastOutputCount={Number(params.lastOutputCount ?? nodeData.output?.resources.length ?? 0)}
+              lastStatus={String(params.lastToolStatus ?? nodeData.taskInfo?.status ?? "idle")}
+            />
+          )}
           <Button className="nodrag nopan" variant="primary" size="sm" onClick={() => onOpenAIImage(id)} disabled={readonly}>
             <Sparkles size={14} />
             OpenAI 生成
@@ -220,8 +243,32 @@ export function LibNodeComponent({
             <Button className="nodrag nopan" size="sm" onClick={() => onImageTool(id, "旋转与镜像")}>
               旋转
             </Button>
-            {nodeData.output?.preview && (
-              <Button className="nodrag nopan" size="sm" onClick={() => onPreview(nodeData.output!.preview!)}>
+            {(nodeData.output?.preview || nodeData.url) && (
+              <Button
+                className="nodrag nopan"
+                size="sm"
+                onClick={() =>
+                  onPreview(
+                    nodeData.output?.preview ?? {
+                      id: `preview-${id}`,
+                      title: nodeData.name,
+                      kind: "image",
+                      items: [
+                        {
+                          id: `resource-${id}`,
+                          kind: "image",
+                          title: nodeData.name,
+                          dataUrl: nodeData.url,
+                          remoteUrl: nodeData.remoteUrl,
+                          localPath: nodeData.localPath,
+                          cachePath: nodeData.cachePath,
+                          createdAt: new Date().toISOString()
+                        }
+                      ]
+                    }
+                  )
+                }
+              >
                 预览
               </Button>
             )}
@@ -453,6 +500,172 @@ export function LibNodeComponent({
       <Handle type="source" position={Position.Right} />
     </section>
   );
+}
+
+function ImageToolWorkbench({
+  activeTool,
+  params,
+  onSetParam,
+  onRunTool,
+  lastOutputCount,
+  lastStatus
+}: {
+  activeTool: string;
+  params: CanvasNodeData["params"];
+  onSetParam: (key: string, value: string | number | boolean) => void;
+  onRunTool: () => void;
+  lastOutputCount: number;
+  lastStatus: string;
+}) {
+  const mode = String(params?.toolMode ?? defaultToolMode(activeTool));
+  const variant = String(params?.toolVariant ?? defaultToolVariant(activeTool));
+  const count = Number(params?.toolCount ?? defaultToolCount(activeTool));
+
+  return (
+    <section className="image-tool-workbench">
+      <div className="image-tool-workbench-head">
+        <strong>{activeTool}</strong>
+        <span>{toolSummary(activeTool)}</span>
+      </div>
+      <div className="node-param-bar tool-config-row">
+        <label className="tool-select">
+          <span>模式</span>
+          <select
+            className="nodrag"
+            aria-label={`${activeTool} 模式`}
+            value={mode}
+            onChange={(event) => onSetParam("toolMode", event.target.value)}
+          >
+            {toolModeOptions(activeTool).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="tool-select">
+          <span>方案</span>
+          <select
+            className="nodrag"
+            aria-label={`${activeTool} 方案`}
+            value={variant}
+            onChange={(event) => onSetParam("toolVariant", event.target.value)}
+          >
+            {toolVariantOptions(activeTool).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="tool-select tool-count">
+          <span>数量</span>
+          <select
+            className="nodrag"
+            aria-label={`${activeTool} 数量`}
+            value={String(count)}
+            onChange={(event) => onSetParam("toolCount", Number(event.target.value))}
+          >
+            {toolCountOptions(activeTool).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="tool-result-bar">
+        <span>{lastStatus === "done" ? `最近生成 ${lastOutputCount} 个结果` : "参数调整后可直接生成到当前链路"}</span>
+        <Button className="nodrag nopan" size="sm" variant="primary" onClick={onRunTool}>
+          生成 {activeTool}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function defaultToolMode(tool: string) {
+  const map: Record<string, string> = {
+    "全景 NEW": "扩景",
+    多角度: "多机位",
+    打光: "电影光",
+    九宫格: "组图筛选",
+    高清: "细节增强",
+    宫格切分: "均分导出"
+  };
+  return map[tool] ?? "标准";
+}
+
+function defaultToolVariant(tool: string) {
+  const map: Record<string, string> = {
+    "全景 NEW": "16:9 横向",
+    多角度: "正面+侧面",
+    打光: "冷暖对比",
+    九宫格: "九宫格",
+    高清: "2K",
+    宫格切分: "2x2"
+  };
+  return map[tool] ?? "默认";
+}
+
+function defaultToolCount(tool: string) {
+  const map: Record<string, number> = {
+    "全景 NEW": 2,
+    多角度: 4,
+    打光: 3,
+    九宫格: 9,
+    高清: 1,
+    宫格切分: 4
+  };
+  return map[tool] ?? 1;
+}
+
+function toolModeOptions(tool: string) {
+  const map: Record<string, string[]> = {
+    "全景 NEW": ["扩景", "补边", "重构空间"],
+    多角度: ["多机位", "环绕视角", "角色转身"],
+    打光: ["电影光", "商业棚拍", "夜景氛围"],
+    九宫格: ["组图筛选", "同构图变体", "同主体风格集"],
+    高清: ["细节增强", "皮肤修复", "纹理锐化"],
+    宫格切分: ["均分导出", "按主体切分", "按构图切分"]
+  };
+  return map[tool] ?? ["标准"];
+}
+
+function toolVariantOptions(tool: string) {
+  const map: Record<string, string[]> = {
+    "全景 NEW": ["16:9 横向", "21:9 宽银幕", "上下延展"],
+    多角度: ["正面+侧面", "俯拍组", "近景组"],
+    打光: ["冷暖对比", "高反差", "柔光棚拍"],
+    九宫格: ["九宫格", "四宫格", "十二宫格"],
+    高清: ["2K", "4K", "海报精修"],
+    宫格切分: ["2x2", "3x3", "智能主体"]
+  };
+  return map[tool] ?? ["默认"];
+}
+
+function toolCountOptions(tool: string) {
+  const map: Record<string, number[]> = {
+    "全景 NEW": [1, 2, 3],
+    多角度: [2, 4, 6],
+    打光: [2, 3, 4],
+    九宫格: [4, 9, 12],
+    高清: [1, 2],
+    宫格切分: [2, 4, 9]
+  };
+  return map[tool] ?? [1];
+}
+
+function toolSummary(tool: string) {
+  const map: Record<string, string> = {
+    "全景 NEW": "保持主体一致，延展构图边界。",
+    多角度: "围绕同一主体生成多机位结果。",
+    打光: "在不改主体的前提下切换灯光方案。",
+    九宫格: "生成可筛选的多结果组合。",
+    高清: "提升细节与清晰度，适合精修导出。",
+    宫格切分: "将多结果批次拆成独立文件。"
+  };
+  return map[tool] ?? "生成新的图片派生结果。";
 }
 
 function nodeIcon(kind: NodeKind) {

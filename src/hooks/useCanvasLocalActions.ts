@@ -45,7 +45,8 @@ export function useCanvasLocalActions({
   setBatches,
   setEdges,
   addCanvasNode,
-  addNodeNear
+  addNodeNear,
+  updateNodeData
 }: {
   nodes: LibNode[];
   seedance: AppConfig["seedance"];
@@ -67,14 +68,38 @@ export function useCanvasLocalActions({
     name: string,
     extra?: Partial<CanvasNodeData>
   ) => LibNode | undefined;
+  updateNodeData: (id: string, patch: Partial<CanvasNodeData>) => void;
 }) {
   const runImageTool = useCallback(
     (id: string, label: string) => {
       const source = nodes.find((item) => item.id === id);
       const meta = imageToolMeta[label] ?? imageToolMeta["多角度"];
+      const sourceParams = source?.data.params ?? {};
+      const activeTool = String(sourceParams.activeTool ?? label);
+      const configuredCount = Number(sourceParams.toolCount ?? meta.count);
+      const configuredVariant = String(sourceParams.toolVariant ?? "默认");
+      const configuredMode = String(sourceParams.toolMode ?? "标准");
+      const resolvedCount =
+        Number.isFinite(configuredCount) && configuredCount > 0
+          ? configuredCount
+          : meta.count;
       const batchId = uid("batch");
       const taskId = uid("task");
       const taskTitle = `${meta.title} · ${source?.data.name ?? "图片节点"}`;
+
+      updateNodeData(id, {
+        params: {
+          ...sourceParams,
+          activeTool,
+          lastTool: label,
+          lastBatchId: batchId
+        },
+        taskInfo: {
+          status: "running",
+          progress: 14,
+          message: `${meta.title} 参数已锁定，正在生成`
+        }
+      });
 
       setTasks((items) => [
         {
@@ -94,7 +119,7 @@ export function useCanvasLocalActions({
       ]);
 
       setTimeout(() => {
-        const resultResources = Array.from({ length: meta.count }, (_, index) =>
+        const resultResources = Array.from({ length: resolvedCount }, (_, index) =>
           createMediaResource("image", `${meta.title} ${index + 1}`, imageCovers[(index + 1 + nodes.length) % imageCovers.length], {
             localPath: `${meta.tool}/${source?.data.name ?? "image"}-${index + 1}.png`
           })
@@ -128,9 +153,15 @@ export function useCanvasLocalActions({
           annotations: meta.annotation ? [meta.annotation] : undefined,
           params: {
             ...(source?.data.params ?? {}),
-            outputCount: meta.count,
-            grouped: meta.count > 1,
-            localMode: true
+            activeTool,
+            toolMode: configuredMode,
+            toolVariant: configuredVariant,
+            outputCount: resolvedCount,
+            count: resolvedCount,
+            grouped: resolvedCount > 1,
+            localMode: true,
+            sourceToolLabel: label,
+            generatedFromBatch: batchId
           },
           taskInfo: { status: "done", progress: 100, message: "派生结果已保存到本地工作区" }
         });
@@ -138,13 +169,18 @@ export function useCanvasLocalActions({
         const assetRecords: Asset[] = resultResources.map((resource, index) => ({
           id: uid("asset"),
           kind: "image",
-          name: meta.count > 1 ? `${meta.title} ${index + 1}` : meta.title,
+          name: resolvedCount > 1 ? `${meta.title} ${index + 1}` : meta.title,
           url: resource.dataUrl ?? resource.remoteUrl ?? "",
           category: "project",
           provider: "local",
           model: `desktop-${meta.tool}`,
           prompt: `${meta.prompt} #${index + 1}`,
-          params: { grouped: meta.count > 1, batchIndex: index + 1 },
+          params: {
+            grouped: resolvedCount > 1,
+            batchIndex: index + 1,
+            toolMode: configuredMode,
+            toolVariant: configuredVariant
+          },
           createdAt: nowIso(),
           resource,
           sourceNodeId: resultNode?.id,
@@ -164,7 +200,12 @@ export function useCanvasLocalActions({
           resultResources,
           sourceNodeId: id,
           batchId,
-          params: { outputCount: meta.count, localMode: true }
+          params: {
+            outputCount: resolvedCount,
+            localMode: true,
+            toolMode: configuredMode,
+            toolVariant: configuredVariant
+          }
         });
 
         setAssets((items) => [...assetRecords, ...items]);
@@ -180,11 +221,44 @@ export function useCanvasLocalActions({
             sourceNodeId: id,
             resultNodeIds: resultNode ? [resultNode.id] : [],
             resultAssetIds: assetRecords.map((item) => item.id),
-            outputCount: meta.count,
+            outputCount: resolvedCount,
             createdAt: nowIso()
           },
           ...items
         ]);
+        updateNodeData(id, {
+          params: {
+            ...sourceParams,
+            activeTool,
+            lastTool: label,
+            lastBatchId: batchId,
+            lastOutputCount: resolvedCount,
+            lastToolStatus: "done"
+          },
+          output: {
+            resources: resultResources,
+            batchId,
+            preview: {
+              id: uid("preview"),
+              title: `${meta.title} 结果`,
+              kind: "image",
+              items: resultResources
+            },
+            downloads: resultResources.map((resource, index) => ({
+              id: uid("download"),
+              name: `${meta.title} ${index + 1}`,
+              kind: "image",
+              resourceId: resource.id,
+              fileName: `${meta.tool}-${index + 1}.png`,
+              targetPath: `${source?.data.name ?? "result"}/exports/${meta.tool}-${index + 1}.png`
+            }))
+          },
+          taskInfo: {
+            status: "done",
+            progress: 100,
+            message: `${meta.title} 已生成 ${resolvedCount} 个结果`
+          }
+        });
         setTasks((items) =>
           items.map((task) =>
             task.id === taskId
@@ -192,7 +266,7 @@ export function useCanvasLocalActions({
                   ...task,
                   status: "done",
                   progress: 100,
-                  detail: `已生成 ${meta.count} 个本地结果`,
+                  detail: `已生成 ${resolvedCount} 个本地结果`,
                   updatedAt: nowIso(),
                   artifacts: resultNode?.data.output?.downloads
                 }
@@ -201,7 +275,7 @@ export function useCanvasLocalActions({
         );
       }, 880);
     },
-    [addHistory, addNodeNear, nodes, setAssets, setBatches, setHistory, setTasks]
+    [addHistory, addNodeNear, nodes, setAssets, setBatches, setHistory, setTasks, updateNodeData]
   );
 
   const runDirectorShot = useCallback(

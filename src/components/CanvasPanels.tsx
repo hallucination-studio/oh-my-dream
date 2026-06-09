@@ -12,8 +12,8 @@ export function panelTitle(panel: Exclude<PanelId, null>) {
   const titles = {
     add: "添加节点",
     toolbox: "工具箱",
-    assets: "我的素材",
-    history: "历史资产",
+    assets: "资产",
+    history: "历史记录",
     shortcuts: "快捷键",
     help: "帮助中心"
   };

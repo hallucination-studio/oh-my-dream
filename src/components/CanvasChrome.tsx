@@ -1,6 +1,6 @@
 import { ArrowLeft, Copy, Grid2X2, Home, Maximize2, PanelLeft, Rows3, Save, Settings } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
-import type { Asset, CanvasNodeData, GenerationHistory, LibNode, NodeKind, Project } from "../types";
+import type { Asset, CanvasNodeData, GenerationHistory, LibNode, NodeKind, PreviewResource, Project } from "../types";
 import {
   AddNodePanel,
   AssetsPanel,
@@ -124,7 +124,10 @@ export function CanvasPanelHost({
   onUseToolboxPreset,
   assets,
   onImportAsset,
-  setHistory
+  setHistory,
+  onPreview,
+  onDownloadAsset,
+  onDownloadHistory
 }: {
   readonlyProject: boolean;
   activePanel: PanelId;
@@ -137,6 +140,9 @@ export function CanvasPanelHost({
   assets: Asset[];
   onImportAsset: (asset: Asset) => void;
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
+  onPreview: (preview: PreviewResource) => void;
+  onDownloadAsset: (asset: Asset) => void;
+  onDownloadHistory: (item: GenerationHistory) => void;
 }) {
   if (readonlyProject) {
     return null;
@@ -157,10 +163,22 @@ export function CanvasPanelHost({
           )}
           {activePanel === "toolbox" && <ToolboxPanel onUse={onUseToolboxPreset} />}
           {activePanel === "assets" && (
-            <AssetsPanel assets={assets} onUpload={onUpload} onImport={onImportAsset} />
+            <AssetsPanel
+              assets={assets}
+              onUpload={onUpload}
+              onImport={onImportAsset}
+              onPreview={onPreview}
+              onDownload={onDownloadAsset}
+            />
           )}
           {activePanel === "history" && (
-            <HistoryPanel history={history} setHistory={setHistory} onImport={onImportHistory} />
+            <HistoryPanel
+              history={history}
+              setHistory={setHistory}
+              onImport={onImportHistory}
+              onPreview={onPreview}
+              onDownload={onDownloadHistory}
+            />
           )}
           {activePanel === "help" && <HelpPanel />}
         </CanvasDrawer>

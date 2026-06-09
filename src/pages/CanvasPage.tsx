@@ -18,7 +18,7 @@ import { Modal } from "../components/ui";
 import { useCanvasActions } from "../hooks/useCanvasActions";
 import { useCanvasWorkspaceState } from "../hooks/useCanvasWorkspaceState";
 import { useStore } from "../storage";
-import type { LibNode, PreviewResource, Project } from "../types";
+import type { Asset, GenerationHistory, LibNode, PreviewResource, Project } from "../types";
 import { downloadUrl } from "../utils";
 
 export function CanvasPage() {
@@ -114,6 +114,26 @@ function CanvasWorkspace({ project }: { project: Project }) {
   });
   const [preview, setPreview] = useState<PreviewResource | null>(null);
 
+  const downloadHistory = useCallback((item: GenerationHistory) => {
+    const resources = item.resultResources ?? [];
+    if (resources.length > 0) {
+      resources.forEach((resource, index) => {
+        const url = resource.dataUrl ?? resource.remoteUrl;
+        if (url) {
+          downloadUrl(url, `${item.model}-${index + 1}.${resource.mimeType?.split("/")[1] ?? "png"}`);
+        }
+      });
+      return;
+    }
+    if (item.resultUrl) {
+      downloadUrl(item.resultUrl, `${item.model}.png`);
+    }
+  }, []);
+
+  const downloadAsset = useCallback((asset: Asset) => {
+    downloadUrl(asset.url, asset.resource.localPath ?? `${asset.name}.png`);
+  }, []);
+
   const nodeHandlersRef = useRef<Pick<
     LibNodeComponentProps,
     | "onUpdate"
@@ -186,6 +206,9 @@ function CanvasWorkspace({ project }: { project: Project }) {
         batches={batches}
         onToggle={() => setNavigatorCollapsed((value) => !value)}
         onLocateNode={locateNode}
+        onImportAsset={importAsset}
+        onPreviewAsset={setPreview}
+        onDownloadAsset={downloadAsset}
       />
       <CanvasTopbar
         project={project}
@@ -255,6 +278,9 @@ function CanvasWorkspace({ project }: { project: Project }) {
         assets={assets}
         onImportAsset={importAsset}
         setHistory={setHistory}
+        onPreview={setPreview}
+        onDownloadAsset={downloadAsset}
+        onDownloadHistory={downloadHistory}
       />
       {configOpen && <ConfigModal onClose={() => setConfigOpen(false)} />}
       {preview && <PreviewModal preview={preview} onClose={() => setPreview(null)} />}
