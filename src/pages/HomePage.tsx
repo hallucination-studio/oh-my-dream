@@ -205,7 +205,7 @@ export function HomePage() {
                 name="templateSearch"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索模板"
+                placeholder="请输入搜索内容"
               />
             </label>
           </div>
@@ -218,7 +218,7 @@ export function HomePage() {
                     <Eye size={13} />
                     {template.views}
                   </span>
-                  {template.badge && <em>{template.badge}</em>}
+                  {template.award && <em className="template-award">{template.award}</em>}
                   <Button
                     size="sm"
                     className="template-process"
@@ -233,6 +233,11 @@ export function HomePage() {
                 <div className="template-meta">
                   <span className="template-avatar">{template.author.slice(0, 1).toUpperCase()}</span>
                   <p>{template.author}</p>
+                  {template.tier && (
+                    <span className={`template-tier ${template.tier === "专业" ? "pro" : ""}`}>
+                      {template.tier}
+                    </span>
+                  )}
                 </div>
                 <div className="template-title-row">
                   <h3>{template.title}</h3>

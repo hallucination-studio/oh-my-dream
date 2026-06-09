@@ -807,20 +807,27 @@ video {
   font-size: 12px;
 }
 
-.template-cover em {
+.template-award {
   position: absolute;
   left: 8px;
   top: 8px;
-  min-height: 22px;
-  padding: 0 7px;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 5px;
-  color: #111;
-  background: #a7f7eb;
+  max-width: calc(100% - 86px);
+  min-height: 24px;
+  max-height: 38px;
+  padding: 4px 9px;
+  display: -webkit-box;
+  border-radius: 4px;
+  color: #f8fafc;
+  background: rgba(0, 102, 102, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
   font-size: 11px;
   font-style: normal;
   font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .template-process {
@@ -872,6 +879,24 @@ video {
   background: var(--primary-bright);
   font-size: 11px;
   font-weight: 700;
+}
+
+.template-tier {
+  min-height: 20px;
+  padding: 0 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  color: #0f172a;
+  background: #8cf5df;
+  font-size: 10px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.template-tier.pro {
+  color: #111827;
+  background: #f7d47d;
 }
 
 .template-title-row {
