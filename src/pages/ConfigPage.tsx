@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { AppShell, ConfigModal } from "../components/AppShell";
+import { AppShell } from "../components/AppShell";
+import { ConfigModal } from "../components/ConfigModal";
 import { Button } from "../components/ui";
 
 export function ConfigPage() {

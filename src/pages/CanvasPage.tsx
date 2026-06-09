@@ -18,12 +18,13 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { AppShell, ConfigModal } from "../components/AppShell";
+import { AppShell } from "../components/AppShell";
 import {
   type PanelId
 } from "../components/CanvasPanels";
 import { CanvasLeftControls, CanvasPanelHost, CanvasTopbar } from "../components/CanvasChrome";
 import { CanvasNavigator } from "../components/CanvasNavigator";
+import { ConfigModal } from "../components/ConfigModal";
 import { LibNodeComponent, type LibNodeComponentProps } from "../components/LibNode";
 import { nodeFootprints } from "../constants";
 import { createNode, nowIso, uid } from "../fixtures";
