@@ -428,7 +428,9 @@ export function useCanvasActions({
           return;
         }
         if (previous) {
-          setEdges((items) => [...items, { id: uid("edge"), source: previous!.id, target: node.id }]);
+          const sourceId = previous.id;
+          const targetId = node.id;
+          setEdges((items) => [...items, { id: uid("edge"), source: sourceId, target: targetId }]);
         }
         previous = node;
       });

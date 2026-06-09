@@ -3,7 +3,6 @@ import {
   BookOpen,
   Box,
   Boxes,
-  CircleHelp,
   Clock3,
   FileImage,
   FileText,
@@ -24,26 +23,16 @@ import {
   Video,
   X
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
-import { imageCovers, toolboxPresets } from "../fixtures";
-import { formatGenerationParams, historyDisplayText } from "../services/generation";
-import type { Asset, AssetCategory, CanvasNodeData, GenerationHistory, LibNode, NodeKind } from "../types";
-import { MediaThumb } from "./CanvasMediaThumb";
-import { Button, IconButton, Modal } from "./ui";
+import type { ReactNode } from "react";
+import { imageCovers } from "../fixtures";
+import { historyDisplayText } from "../services/generation";
+import type { CanvasNodeData, GenerationHistory, LibNode, NodeKind } from "../types";
+import { IconButton, Modal } from "./ui";
+export { AssetsPanel } from "./CanvasAssetsPanel";
 export { HistoryPanel } from "./CanvasHistoryPanel";
+export { ToolboxPanel } from "./CanvasToolboxPanel";
 
 export type PanelId = "add" | "toolbox" | "assets" | "history" | "shortcuts" | "help" | null;
-
-const categories: { id: AssetCategory; label: string }[] = [
-  { id: "all", label: "全部" },
-  { id: "other", label: "其它" },
-  { id: "character", label: "人物" },
-  { id: "scene", label: "场景" },
-  { id: "object", label: "物品" },
-  { id: "style", label: "风格" },
-  { id: "sound", label: "音效" },
-  { id: "project", label: "项目空间" }
-];
 
 export function panelTitle(panel: Exclude<PanelId, null>) {
   const titles = {
@@ -219,104 +208,6 @@ export function AddNodePanel({
           )}
         </div>
       </section>
-    </div>
-  );
-}
-
-export function ToolboxPanel({ onUse }: { onUse: (presetId: string) => void }) {
-  return (
-    <div className="drawer-body">
-      <div className="toolbox-tabs">
-        <button type="button" className="active">我的工具箱</button>
-        <Button size="sm">
-          <CircleHelp size={14} />
-          模板说明
-        </Button>
-      </div>
-      <div className="toolbox-grid">
-        {toolboxPresets.map((preset) => (
-          <article key={preset.id} className="tool-card">
-            <img src={preset.thumb} alt="" loading="lazy" />
-            <h3>{preset.name}</h3>
-            <p>{preset.description}</p>
-            <Button size="sm" variant="primary" onClick={() => onUse(preset.id)}>
-              使用
-            </Button>
-          </article>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function AssetsPanel({
-  assets,
-  onUpload,
-  onImport
-}: {
-  assets: Asset[];
-  onUpload: (files: FileList | File[]) => void;
-  onImport: (asset: Asset) => void;
-}) {
-  const [tab, setTab] = useState<"assets" | "subjects">("assets");
-  const [category, setCategory] = useState<AssetCategory>("all");
-  const filtered = assets.filter((asset) => category === "all" || asset.category === category);
-
-  return (
-    <div className="drawer-body">
-      <div className="tab-row compact">
-        <button type="button" className={tab === "assets" ? "active" : ""} onClick={() => setTab("assets")}>
-          我的素材
-        </button>
-        <button type="button" className={tab === "subjects" ? "active" : ""} onClick={() => setTab("subjects")}>
-          我的主体库
-        </button>
-      </div>
-      <div className="chip-row">
-        {categories.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={item.id === category ? "active" : ""}
-            onClick={() => setCategory(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <label className="upload-zone small">
-        <Upload size={16} />
-        <span>上传素材</span>
-        <input
-          name="assetUpload"
-          type="file"
-          multiple
-          accept="image/*,video/*,audio/*"
-          onChange={(event) => event.target.files && onUpload(event.target.files)}
-        />
-      </label>
-      {filtered.length === 0 ? (
-        <p className="empty-copy">暂无素材。</p>
-      ) : (
-        <div className="asset-grid">
-          {filtered.map((asset) => (
-            <article className="asset-card" key={asset.id}>
-              <MediaThumb kind={asset.kind} url={asset.url} />
-              <strong>{asset.name}</strong>
-              {asset.model && (
-                <span className="asset-source">
-                  {asset.provider ?? "local"} · {asset.model}
-                </span>
-              )}
-              {asset.params && <p className="asset-params">{formatGenerationParams(asset.params)}</p>}
-              {asset.prompt && <p className="asset-prompt">{asset.prompt}</p>}
-              <Button size="sm" onClick={() => onImport(asset)}>
-                插入画布
-              </Button>
-            </article>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
