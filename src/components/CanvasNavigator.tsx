@@ -1,0 +1,188 @@
+import { Boxes, ChevronLeft, ChevronRight, Filter, Image as ImageIcon, Layers3, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { nodeLabels } from "../constants";
+import type { Asset, AssetKind, LibNode, NodeKind, Project } from "../types";
+import { IconButton } from "./ui";
+
+const filters: { value: "all" | NodeKind; label: string }[] = [
+  { value: "all", label: "全部" },
+  { value: "text", label: "文本" },
+  { value: "image", label: "图片" },
+  { value: "video", label: "视频" },
+  { value: "audio", label: "音频" },
+  { value: "script", label: "脚本" },
+  { value: "director", label: "导演台" },
+  { value: "compose", label: "合成" },
+  { value: "group", label: "分组" }
+];
+
+export function CanvasNavigator({
+  project,
+  nodes,
+  assets,
+  selectedId,
+  collapsed,
+  onToggle,
+  onLocateNode
+}: {
+  project: Project;
+  nodes: LibNode[];
+  assets: Asset[];
+  selectedId: string | null;
+  collapsed: boolean;
+  onToggle: () => void;
+  onLocateNode: (node: LibNode) => void;
+}) {
+  const [tab, setTab] = useState<"canvas" | "assets">("canvas");
+  const [filter, setFilter] = useState<"all" | NodeKind>("all");
+  const [query, setQuery] = useState("");
+  const filteredNodes = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    return nodes
+      .filter((node) => filter === "all" || node.data.kind === filter)
+      .filter((node) => {
+        if (!keyword) {
+          return true;
+        }
+        return (
+          node.data.name.toLowerCase().includes(keyword) ||
+          node.data.kind.toLowerCase().includes(keyword) ||
+          (node.data.prompt ?? "").toLowerCase().includes(keyword)
+        );
+      })
+      .sort((a, b) => a.data.name.localeCompare(b.data.name, "zh-CN"));
+  }, [filter, nodes, query]);
+  const visibleAssets = useMemo(() => assets.slice(0, 36), [assets]);
+
+  if (collapsed) {
+    return (
+      <div className="canvas-navigator-collapsed">
+        <IconButton label="展开节点侧栏" onClick={onToggle}>
+          <ChevronRight size={17} />
+        </IconButton>
+      </div>
+    );
+  }
+
+  return (
+    <aside className="canvas-navigator" aria-label="画布节点侧栏">
+      <header className="canvas-navigator-head">
+        <div className="navigator-logo" aria-hidden="true" />
+        <IconButton label="收起节点侧栏" onClick={onToggle}>
+          <ChevronLeft size={17} />
+        </IconButton>
+      </header>
+      <div className="navigator-title-row">
+        <input name="navigatorProjectName" value={project.name} readOnly aria-label="当前画布名称" />
+      </div>
+      <div className="navigator-tabs" role="tablist" aria-label="画布侧栏">
+        <button type="button" className={tab === "canvas" ? "active" : ""} onClick={() => setTab("canvas")}>
+          画布
+        </button>
+        <button type="button" className={tab === "assets" ? "active" : ""} onClick={() => setTab("assets")}>
+          资产
+        </button>
+      </div>
+      {tab === "canvas" ? (
+        <>
+          <div className="navigator-tools">
+            <span>画布元素</span>
+            <label>
+              <Filter size={14} />
+              <select
+                name="navigatorNodeFilter"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value as "all" | NodeKind)}
+              >
+                {filters.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="navigator-search">
+              <Search size={15} />
+              <input
+                name="navigatorNodeSearch"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="搜索节点"
+              />
+            </label>
+          </div>
+          <div className="navigator-list">
+            {filteredNodes.map((node) => (
+              <button
+                type="button"
+                key={node.id}
+                className={selectedId === node.id ? "active" : ""}
+                onClick={() => onLocateNode(node)}
+              >
+                <NodeThumb node={node} />
+                <span>
+                  <strong>{node.data.name}</strong>
+                  <small>{nodeLabels[node.data.kind]}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+          <footer className="navigator-footer">
+            <Layers3 size={15} />
+            <span>共 {nodes.length} 节点</span>
+          </footer>
+        </>
+      ) : (
+        <>
+          <div className="navigator-tools">
+            <span>资产管理</span>
+          </div>
+          <div className="navigator-asset-grid">
+            {visibleAssets.length === 0 ? (
+              <p>暂无资产</p>
+            ) : (
+              visibleAssets.map((asset) => (
+                <article key={asset.id}>
+                  <AssetThumb kind={asset.kind} url={asset.url} />
+                  <strong>{asset.name}</strong>
+                </article>
+              ))
+            )}
+          </div>
+          <footer className="navigator-footer">
+            <Boxes size={15} />
+            <span>共 {assets.length} 资产</span>
+          </footer>
+        </>
+      )}
+    </aside>
+  );
+}
+
+function NodeThumb({ node }: { node: LibNode }) {
+  if (node.data.kind === "image" && node.data.url) {
+    return <img src={node.data.url} alt="" loading="lazy" />;
+  }
+  if (node.data.kind === "video" && node.data.url) {
+    return <video src={node.data.url} muted preload="metadata" />;
+  }
+  return (
+    <span className={`navigator-node-icon node-${node.data.kind}`}>
+      {nodeLabels[node.data.kind].slice(0, 1)}
+    </span>
+  );
+}
+
+function AssetThumb({ kind, url }: { kind: AssetKind; url: string }) {
+  if (kind === "image") {
+    return <img src={url} alt="" loading="lazy" />;
+  }
+  if (kind === "video") {
+    return <video src={url} muted preload="metadata" />;
+  }
+  return (
+    <div className="navigator-asset-fallback">
+      <ImageIcon size={18} />
+    </div>
+  );
+}
