@@ -5,6 +5,7 @@ export function Button({
   className = "",
   variant = "default",
   size = "md",
+  type = "button",
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -12,7 +13,7 @@ export function Button({
   size?: "sm" | "md" | "icon";
 }) {
   return (
-    <button className={`btn btn-${variant} btn-${size} ${className}`} {...props}>
+    <button type={type} className={`btn btn-${variant} btn-${size} ${className}`} {...props}>
       {children}
     </button>
   );
