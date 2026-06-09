@@ -6,7 +6,9 @@ import type {
   GenerationHistory,
   LibEdge,
   LibNode,
-  NodeKind
+  NodeKind,
+  TaskRecord,
+  DerivedBatch
 } from "../types";
 import { useCanvasHistoryActions } from "./useCanvasHistoryActions";
 import { useCanvasImportActions } from "./useCanvasImportActions";
@@ -19,6 +21,8 @@ export function useCanvasActions({
   config,
   setAssets,
   setHistory,
+  setTasks,
+  setBatches,
   setEdges,
   addCanvasNode,
   addNodeNear,
@@ -28,6 +32,8 @@ export function useCanvasActions({
   config: AppConfig;
   setAssets: Dispatch<SetStateAction<Asset[]>>;
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
+  setTasks: Dispatch<SetStateAction<TaskRecord[]>>;
+  setBatches: Dispatch<SetStateAction<DerivedBatch[]>>;
   setEdges: Dispatch<SetStateAction<LibEdge[]>>;
   addCanvasNode: (
     kind: NodeKind,
@@ -51,6 +57,7 @@ export function useCanvasActions({
     addHistory,
     setAssets,
     setHistory,
+    setTasks,
     updateNodeData
   });
   const seedanceActions = useCanvasSeedanceActions({
@@ -59,12 +66,17 @@ export function useCanvasActions({
     addHistory,
     setAssets,
     setHistory,
+    setTasks,
     updateNodeData
   });
   const localActions = useCanvasLocalActions({
     nodes,
     seedance: config.seedance,
     addHistory,
+    setAssets,
+    setHistory,
+    setTasks,
+    setBatches,
     setEdges,
     addCanvasNode,
     addNodeNear

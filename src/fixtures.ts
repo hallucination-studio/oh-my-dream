@@ -1,10 +1,25 @@
-import type { AppConfig, AppUi, Asset, GenerationHistory, LibEdge, LibNode, NodeKind, Project } from "./types";
+import type {
+  AppConfig,
+  AppUi,
+  Asset,
+  AssetKind,
+  DerivedBatch,
+  GenerationHistory,
+  LibEdge,
+  LibNode,
+  LocalMediaResource,
+  NodeKind,
+  Project,
+  TaskRecord
+} from "./types";
 
 export const KEY_PROJECTS = "omd.projects";
 export const KEY_ASSETS = "omd.assets";
 export const KEY_HISTORY = "omd.history";
 export const KEY_CONFIG = "omd.config";
 export const KEY_UI = "omd.ui";
+export const KEY_TASKS = "omd.tasks";
+export const KEY_BATCHES = "omd.batches";
 
 export const imageCovers = [
   "https://libtv-res.liblib.art/upload-images/a4c1b997d3f84fa8a871ed91d861f88f/996bd408ee659cf13c4ef989b9e84fa949134d1d.png?x-oss-process=image/resize,w_1200,m_lfit/format,webp",
@@ -21,6 +36,38 @@ export const sampleVideo =
   "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 export const sampleAudio =
   "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+
+export function createMediaResource(
+  kind: AssetKind,
+  title: string,
+  url: string,
+  extra: Partial<LocalMediaResource> = {}
+): LocalMediaResource {
+  return {
+    id: uid(`media-${kind}`),
+    kind,
+    title,
+    dataUrl: url.startsWith("data:") ? url : undefined,
+    remoteUrl: url.startsWith("http") ? url : undefined,
+    localPath: extra.localPath ?? title,
+    cachePath: extra.cachePath ?? `.cache/${title}`,
+    createdAt: extra.createdAt ?? nowIso(),
+    ...extra
+  };
+}
+
+export function primaryUrl(resource?: LocalMediaResource) {
+  return resource?.dataUrl ?? resource?.remoteUrl ?? "";
+}
+
+export function makeWorkspacePath(name: string) {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/gi, "-")
+    .replace(/^-+|-+$/g, "");
+  return `workspace/${slug || "untitled"}`;
+}
 
 export const tvCategories = [
   "全部",
@@ -316,6 +363,7 @@ export function createNode(
       prompt: "",
       contentWidth: dimensions[kind].width,
       contentHeight: dimensions[kind].height,
+      workflowType: "base",
       ...extra
     }
   };
@@ -346,7 +394,9 @@ export function createBlankProject(name = "未命名", seedance = false): Projec
     updatedAt: createdAt,
     nodes: [firstNode],
     edges: [],
-    viewport: { x: 0, y: 0, zoom: 0.85 }
+    viewport: { x: 0, y: 0, zoom: 0.85 },
+    workspacePath: makeWorkspacePath(name),
+    exportPath: `${makeWorkspacePath(name)}/exports`
   };
 }
 
@@ -360,6 +410,15 @@ export function createTemplateProject(templateId: string, readonly = false): Pro
   });
   const imageNode = createNode("image", "关键视觉", 520, 120, {
     url: template.cover,
+    output: {
+      resources: [createMediaResource("image", "关键视觉", template.cover)],
+      preview: {
+        id: uid("preview"),
+        title: "关键视觉",
+        kind: "image",
+        items: [createMediaResource("image", "关键视觉", template.cover)]
+      }
+    },
     prompt: `${template.title} 的主视觉参考`,
     readonly
   });
@@ -389,7 +448,9 @@ export function createTemplateProject(templateId: string, readonly = false): Pro
     nodes: [textNode, imageNode, videoNode],
     edges,
     viewport: { x: 0, y: 0, zoom: 0.62 },
-    readonly
+    readonly,
+    workspacePath: makeWorkspacePath(template.title),
+    exportPath: `${makeWorkspacePath(template.title)}/exports`
   };
 }
 
@@ -467,7 +528,9 @@ export function createReferenceCanvasProject(): Project {
     updatedAt: createdAt,
     nodes: allNodes,
     edges,
-    viewport: { x: 40, y: 40, zoom: 0.28 }
+    viewport: { x: 40, y: 40, zoom: 0.28 },
+    workspacePath: makeWorkspacePath("romantic-reference"),
+    exportPath: `${makeWorkspacePath("romantic-reference")}/exports`
   };
 }
 
@@ -484,7 +547,10 @@ export const seedAssets = (): Asset[] => [
     name: "城市主视觉",
     url: imageCovers[0],
     category: "scene",
-    createdAt: nowIso()
+    createdAt: nowIso(),
+    resource: createMediaResource("image", "城市主视觉", imageCovers[0]),
+    tags: ["城市", "主视觉"],
+    uses: 2
   }
 ];
 
@@ -498,6 +564,23 @@ export const seedHistory = (): GenerationHistory[] => [
     status: "done",
     progress: 100,
     resultUrl: imageCovers[1],
-    createdAt: nowIso()
+    createdAt: nowIso(),
+    resultResources: [createMediaResource("image", "首页示例历史图像", imageCovers[1])]
   }
 ];
+
+export const seedTasks = (): TaskRecord[] => [
+  {
+    id: uid("task"),
+    kind: "derive",
+    status: "done",
+    title: "多角度派生示例",
+    provider: "local",
+    progress: 100,
+    detail: "已写入本地资产库",
+    createdAt: nowIso(),
+    updatedAt: nowIso()
+  }
+];
+
+export const seedBatches = (): DerivedBatch[] => [];

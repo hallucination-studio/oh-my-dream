@@ -1,7 +1,7 @@
-import { Boxes, ChevronLeft, ChevronRight, Filter, Image as ImageIcon, Layers3, Search } from "lucide-react";
+import { Boxes, ChevronLeft, ChevronRight, Filter, FolderSearch, Image as ImageIcon, Layers3, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { nodeLabels } from "../constants";
-import type { Asset, AssetKind, LibNode, NodeKind, Project } from "../types";
+import type { Asset, AssetKind, DerivedBatch, LibNode, NodeKind, Project } from "../types";
 import { IconButton } from "./ui";
 
 const filters: { value: "all" | NodeKind; label: string }[] = [
@@ -22,6 +22,7 @@ export function CanvasNavigator({
   assets,
   selectedId,
   collapsed,
+  batches,
   onToggle,
   onLocateNode
 }: {
@@ -30,10 +31,11 @@ export function CanvasNavigator({
   assets: Asset[];
   selectedId: string | null;
   collapsed: boolean;
+  batches: DerivedBatch[];
   onToggle: () => void;
   onLocateNode: (node: LibNode) => void;
 }) {
-  const [tab, setTab] = useState<"canvas" | "assets">("canvas");
+  const [tab, setTab] = useState<"canvas" | "assets" | "asset-manager">("canvas");
   const [filter, setFilter] = useState<"all" | NodeKind>("all");
   const [query, setQuery] = useState("");
   const filteredNodes = useMemo(() => {
@@ -53,6 +55,7 @@ export function CanvasNavigator({
       .sort((a, b) => a.data.name.localeCompare(b.data.name, "zh-CN"));
   }, [filter, nodes, query]);
   const visibleAssets = useMemo(() => assets.slice(0, 36), [assets]);
+  const recentAssets = useMemo(() => assets.slice(0, 12), [assets]);
 
   if (collapsed) {
     return (
@@ -93,6 +96,15 @@ export function CanvasNavigator({
           onClick={() => setTab("assets")}
         >
           资产
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "asset-manager"}
+          className={tab === "asset-manager" ? "active" : ""}
+          onClick={() => setTab("asset-manager")}
+        >
+          资产管理
         </button>
       </div>
       {tab === "canvas" ? (
@@ -146,7 +158,7 @@ export function CanvasNavigator({
             <span>共 {nodes.length} 节点</span>
           </footer>
         </div>
-      ) : (
+      ) : tab === "assets" ? (
         <div role="tabpanel" aria-label="资产管理">
           <div className="navigator-tools">
             <span>资产管理</span>
@@ -166,6 +178,28 @@ export function CanvasNavigator({
           <footer className="navigator-footer">
             <Boxes size={15} />
             <span>共 {assets.length} 资产</span>
+          </footer>
+        </div>
+      ) : (
+        <div role="tabpanel" aria-label="资产管理详情">
+          <div className="navigator-tools">
+            <span>资产管理</span>
+          </div>
+          <div className="asset-manager-list">
+            {recentAssets.map((asset) => (
+              <article key={asset.id} className="asset-manager-card">
+                <AssetThumb kind={asset.kind} url={asset.url} />
+                <div>
+                  <strong>{asset.name}</strong>
+                  <small>{asset.resource.localPath ?? "本地缓存"}</small>
+                  <span>{asset.tags?.join(" · ") || "项目资产"}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+          <footer className="navigator-footer navigator-footer-wide">
+            <FolderSearch size={15} />
+            <span>{assets.length} 资产 · {batches.length} 批次</span>
           </footer>
         </div>
       )}

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { nodeLabels } from "../constants";
-import type { AssetKind, CanvasNodeData, LibNode, NodeKind } from "../types";
+import type { AssetKind, CanvasNodeData, LibNode, NodeKind, PreviewResource } from "../types";
 import { Button } from "./ui";
 
 export interface LibNodeComponentProps extends NodeProps<LibNode> {
@@ -27,6 +27,8 @@ export interface LibNodeComponentProps extends NodeProps<LibNode> {
   onDirectorShot: (id: string) => void;
   onStoryboard: (id: string) => void;
   onQuickAction: (id: string, action: string) => void;
+  onPreview: (preview: PreviewResource) => void;
+  onDownload: (id: string) => void;
 }
 
 export function LibNodeComponent({
@@ -40,7 +42,9 @@ export function LibNodeComponent({
   onImageTool,
   onDirectorShot,
   onStoryboard,
-  onQuickAction
+  onQuickAction,
+  onPreview,
+  onDownload
 }: LibNodeComponentProps) {
   const nodeData = data as CanvasNodeData;
   const readonly = Boolean(nodeData.readonly);
@@ -58,11 +62,19 @@ export function LibNodeComponent({
     >
       <NodeToolbar isVisible={selected && nodeData.kind === "image"} position={Position.Top} align="center">
         <div className="node-toolbar">
-          {["全景 NEW", "多角度", "打光", "九宫格", "高清", "宫格切分"].map((label) => (
+          {["全景 NEW", "多角度", "打光", "九宫格", "高清", "宫格切分", "标注", "旋转与镜像"].map((label) => (
             <Button key={label} className="nodrag nopan" size="sm" onClick={() => onImageTool(id, label)}>
               {label}
             </Button>
           ))}
+          {nodeData.output?.preview && (
+            <Button className="nodrag nopan" size="sm" onClick={() => onPreview(nodeData.output!.preview!)}>
+              预览
+            </Button>
+          )}
+          <Button className="nodrag nopan" size="sm" onClick={() => onDownload(id)}>
+            下载
+          </Button>
         </div>
       </NodeToolbar>
       <Handle type="target" position={Position.Left} />
@@ -114,6 +126,23 @@ export function LibNodeComponent({
       {nodeData.kind === "image" && (
         <div className="node-content">
           <MediaPreview kind="image" url={nodeData.url} compact={compactNode} />
+          {nodeData.output?.resources && nodeData.output.resources.length > 1 && (
+            <div className="node-gallery-strip">
+              {nodeData.output.resources.slice(0, 5).map((resource) => (
+                <button
+                  key={resource.id}
+                  type="button"
+                  className="node-gallery-thumb nodrag nopan"
+                  onClick={() =>
+                    nodeData.output?.preview &&
+                    onPreview({ ...nodeData.output.preview, activeIndex: nodeData.output.resources.findIndex((item) => item.id === resource.id) })
+                  }
+                >
+                  <img src={resource.dataUrl ?? resource.remoteUrl} alt={resource.title} />
+                </button>
+              ))}
+            </div>
+          )}
           <textarea
             className="nodrag compact-textarea"
             name={`node-${id}-image-prompt`}
@@ -127,6 +156,25 @@ export function LibNodeComponent({
             <Sparkles size={14} />
             OpenAI 生成
           </Button>
+          <div className="node-meta-row">
+            <span>{String(params.model ?? "本地工作区图片流")}</span>
+            <span>{String(params.ratio ?? "16:9")}</span>
+            <span>{String(params.outputCount ?? nodeData.output?.resources.length ?? 1)} 张</span>
+          </div>
+          {nodeData.sourceRefs?.length ? (
+            <div className="node-reference-row">
+              {nodeData.sourceRefs.map((ref) => (
+                <span key={ref.id}>{ref.label}</span>
+              ))}
+            </div>
+          ) : null}
+          {nodeData.annotations?.length ? (
+            <div className="annotation-list">
+              {nodeData.annotations.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
 

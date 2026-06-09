@@ -1,7 +1,7 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import { nowIso, uid } from "../fixtures";
+import { createMediaResource, nowIso, uid } from "../fixtures";
 import { generateOpenAIImage, generateOpenAIText, openAIImageRequestParams } from "../services/openai";
-import type { AppConfig, Asset, CanvasNodeData, GenerationHistory, LibNode } from "../types";
+import type { AppConfig, Asset, CanvasNodeData, GenerationHistory, LibNode, TaskRecord } from "../types";
 
 export function useCanvasOpenAIActions({
   nodes,
@@ -9,6 +9,7 @@ export function useCanvasOpenAIActions({
   addHistory,
   setAssets,
   setHistory,
+  setTasks,
   updateNodeData
 }: {
   nodes: LibNode[];
@@ -16,6 +17,7 @@ export function useCanvasOpenAIActions({
   addHistory: (item: Omit<GenerationHistory, "id" | "createdAt">) => GenerationHistory;
   setAssets: Dispatch<SetStateAction<Asset[]>>;
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
+  setTasks: Dispatch<SetStateAction<TaskRecord[]>>;
   updateNodeData: (id: string, patch: Partial<CanvasNodeData>) => void;
 }) {
   const runOpenAIText = useCallback(
@@ -29,6 +31,21 @@ export function useCanvasOpenAIActions({
         return;
       }
       updateNodeData(id, { taskInfo: { status: "running", progress: 25, message: "OpenAI 生成中" } });
+      const taskId = uid("task");
+      setTasks((items) => [
+        {
+          id: taskId,
+          kind: "generate",
+          status: "running",
+          title: "文本生成",
+          provider: "openai",
+          sourceNodeId: id,
+          progress: 25,
+          createdAt: nowIso(),
+          updatedAt: nowIso()
+        },
+        ...items
+      ]);
       const started = addHistory({
         kind: "text",
         provider: "openai",
@@ -51,6 +68,13 @@ export function useCanvasOpenAIActions({
               : item
           )
         );
+        setTasks((items) =>
+          items.map((task) =>
+            task.id === taskId
+              ? { ...task, status: "done", progress: 100, detail: "文本已写回节点", updatedAt: nowIso() }
+              : task
+          )
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : "生成失败";
         updateNodeData(id, {
@@ -61,9 +85,16 @@ export function useCanvasOpenAIActions({
             item.id === started.id ? { ...item, status: "failed", progress: 100, error: message } : item
           )
         );
+        setTasks((items) =>
+          items.map((task) =>
+            task.id === taskId
+              ? { ...task, status: "failed", progress: 100, detail: message, updatedAt: nowIso() }
+              : task
+          )
+        );
       }
     },
-    [addHistory, nodes, openai, setHistory, updateNodeData]
+    [addHistory, nodes, openai, setHistory, setTasks, updateNodeData]
   );
 
   const runOpenAIImage = useCallback(
@@ -77,6 +108,21 @@ export function useCanvasOpenAIActions({
         return;
       }
       updateNodeData(id, { taskInfo: { status: "running", progress: 20, message: "OpenAI 图像生成中" } });
+      const taskId = uid("task");
+      setTasks((items) => [
+        {
+          id: taskId,
+          kind: "generate",
+          status: "running",
+          title: "图片生成",
+          provider: "openai",
+          sourceNodeId: id,
+          progress: 20,
+          createdAt: nowIso(),
+          updatedAt: nowIso()
+        },
+        ...items
+      ]);
       const started = addHistory({
         kind: "image",
         provider: "openai",
@@ -88,14 +134,25 @@ export function useCanvasOpenAIActions({
       });
       try {
         const { resultUrl, revisedPrompt, requestParams } = await generateOpenAIImage(openai, prompt);
+        const resource = createMediaResource("image", `${node?.data.name ?? "OpenAI 图像"}`, resultUrl);
         updateNodeData(id, {
           url: resultUrl,
+          output: {
+            resources: [resource],
+            preview: {
+              id: uid("preview"),
+              title: node?.data.name ?? "OpenAI 图像",
+              kind: "image",
+              items: [resource]
+            }
+          },
+          workflowType: "generated",
           taskInfo: { status: "done", progress: 100, message: "图像已写回节点" }
         });
         setHistory((items) =>
           items.map((item) =>
             item.id === started.id
-              ? { ...item, status: "done", progress: 100, resultUrl, revisedPrompt }
+              ? { ...item, status: "done", progress: 100, resultUrl, revisedPrompt, resultResources: [resource] }
               : item
           )
         );
@@ -110,10 +167,21 @@ export function useCanvasOpenAIActions({
             model: openai.imageModel,
             prompt: revisedPrompt ?? prompt,
             params: requestParams,
-            createdAt: nowIso()
+            createdAt: nowIso(),
+            resource,
+            sourceNodeId: id,
+            tags: ["OpenAI", "生成"],
+            uses: 0
           },
           ...items
         ]);
+        setTasks((items) =>
+          items.map((task) =>
+            task.id === taskId
+              ? { ...task, status: "done", progress: 100, detail: "结果已写入资产库", updatedAt: nowIso() }
+              : task
+          )
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : "图像生成失败";
         updateNodeData(id, {
@@ -124,9 +192,16 @@ export function useCanvasOpenAIActions({
             item.id === started.id ? { ...item, status: "failed", progress: 100, error: message } : item
           )
         );
+        setTasks((items) =>
+          items.map((task) =>
+            task.id === taskId
+              ? { ...task, status: "failed", progress: 100, detail: message, updatedAt: nowIso() }
+              : task
+          )
+        );
       }
     },
-    [addHistory, nodes, openai, setAssets, setHistory, updateNodeData]
+    [addHistory, nodes, openai, setAssets, setHistory, setTasks, updateNodeData]
   );
 
   return { runOpenAIText, runOpenAIImage };

@@ -1,6 +1,6 @@
 import { ArrowLeft, Copy, Grid2X2, Home, Maximize2, PanelLeft, Rows3, Save, Settings } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
-import type { Asset, CanvasNodeData, GenerationHistory, LibNode, NodeKind, Project } from "../types";
+import type { Asset, CanvasNodeData, GenerationHistory, LibNode, NodeKind, Project, TaskRecord } from "../types";
 import {
   AddNodePanel,
   AssetsPanel,
@@ -18,6 +18,7 @@ import { Button, IconButton } from "./ui";
 export function CanvasTopbar({
   project,
   readonlyProject,
+  tasks,
   onNavigateHome,
   onNavigateProjects,
   onRenameProject,
@@ -26,6 +27,7 @@ export function CanvasTopbar({
 }: {
   project: Project;
   readonlyProject: boolean;
+  tasks: TaskRecord[];
   onNavigateHome: () => void;
   onNavigateProjects: () => void;
   onRenameProject: (name: string) => void;
@@ -58,6 +60,11 @@ export function CanvasTopbar({
         )}
       </div>
       <div className="canvas-top-actions">
+        <div className="task-pill-group">
+          <span className="task-pill">
+            本地工作区 · {tasks.filter((task) => task.status !== "done").length} 进行中
+          </span>
+        </div>
         {!readonlyProject && (
           <IconButton label="保存状态">
             <Save size={18} />
@@ -123,6 +130,7 @@ export function CanvasPanelHost({
   onImportHistory,
   onUseToolboxPreset,
   assets,
+  tasks,
   onImportAsset,
   setHistory
 }: {
@@ -135,6 +143,7 @@ export function CanvasPanelHost({
   onImportHistory: (item: GenerationHistory) => void;
   onUseToolboxPreset: (presetId: string) => void;
   assets: Asset[];
+  tasks: TaskRecord[];
   onImportAsset: (asset: Asset) => void;
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
 }) {
@@ -160,7 +169,7 @@ export function CanvasPanelHost({
             <AssetsPanel assets={assets} onUpload={onUpload} onImport={onImportAsset} />
           )}
           {activePanel === "history" && (
-            <HistoryPanel history={history} setHistory={setHistory} onImport={onImportHistory} />
+            <HistoryPanel history={history} tasks={tasks} setHistory={setHistory} onImport={onImportHistory} />
           )}
           {activePanel === "help" && <HelpPanel />}
         </CanvasDrawer>

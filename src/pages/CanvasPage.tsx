@@ -7,17 +7,19 @@ import {
   ReactFlowProvider,
   type NodeProps,
 } from "@xyflow/react";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { CanvasLeftControls, CanvasPanelHost, CanvasTopbar } from "../components/CanvasChrome";
 import { CanvasNavigator } from "../components/CanvasNavigator";
 import { ConfigModal } from "../components/ConfigModal";
 import { LibNodeComponent, type LibNodeComponentProps } from "../components/LibNode";
+import { Modal } from "../components/ui";
 import { useCanvasActions } from "../hooks/useCanvasActions";
 import { useCanvasWorkspaceState } from "../hooks/useCanvasWorkspaceState";
 import { useStore } from "../storage";
-import type { LibNode, Project } from "../types";
+import type { LibNode, PreviewResource, Project } from "../types";
+import { downloadUrl } from "../utils";
 
 export function CanvasPage() {
   const { projectId } = useParams();
@@ -54,7 +56,11 @@ function CanvasWorkspace({ project }: { project: Project }) {
     assets,
     setAssets,
     history,
-    setHistory
+    setHistory,
+    tasks,
+    setTasks,
+    batches,
+    setBatches
   } = useStore();
   const navigate = useNavigate();
   const {
@@ -100,11 +106,14 @@ function CanvasWorkspace({ project }: { project: Project }) {
     config,
     setAssets,
     setHistory,
+    setTasks,
+    setBatches,
     setEdges,
     addCanvasNode,
     addNodeNear,
     updateNodeData
   });
+  const [preview, setPreview] = useState<PreviewResource | null>(null);
 
   const nodeHandlersRef = useRef<Pick<
     LibNodeComponentProps,
@@ -116,6 +125,8 @@ function CanvasWorkspace({ project }: { project: Project }) {
     | "onDirectorShot"
     | "onStoryboard"
     | "onQuickAction"
+    | "onPreview"
+    | "onDownload"
   > | null>(null);
   nodeHandlersRef.current = {
     onUpdate: updateNodeData,
@@ -125,7 +136,24 @@ function CanvasWorkspace({ project }: { project: Project }) {
     onImageTool: runImageTool,
     onDirectorShot: runDirectorShot,
     onStoryboard: generateStoryboard,
-    onQuickAction: quickAction
+    onQuickAction: quickAction,
+    onPreview: (resource) => setPreview(resource),
+    onDownload: (nodeId) => {
+      const node = nodes.find((item) => item.id === nodeId);
+      const downloads = node?.data.output?.downloads;
+      const resources = node?.data.output?.resources ?? [];
+      if (downloads?.length) {
+        downloads.forEach((artifact, index) => {
+          const resource = resources.find((item) => item.id === artifact.resourceId) ?? resources[index];
+          const url = resource?.dataUrl ?? resource?.remoteUrl;
+          if (url) {
+            downloadUrl(url, artifact.fileName);
+          }
+        });
+      } else if (node?.data.url) {
+        downloadUrl(node.data.url, `${node.data.name}.png`);
+      }
+    }
   };
 
   const nodeTypes = useMemo(
@@ -156,12 +184,14 @@ function CanvasWorkspace({ project }: { project: Project }) {
         assets={assets}
         selectedId={selectedId}
         collapsed={navigatorCollapsed}
+        batches={batches}
         onToggle={() => setNavigatorCollapsed((value) => !value)}
         onLocateNode={locateNode}
       />
       <CanvasTopbar
         project={project}
         readonlyProject={readonlyProject}
+        tasks={tasks}
         onNavigateHome={() => navigate("/")}
         onNavigateProjects={() => navigate("/project")}
         onRenameProject={(name) => updateProject(project.id, { name })}
@@ -225,10 +255,38 @@ function CanvasWorkspace({ project }: { project: Project }) {
         onImportHistory={importHistory}
         onUseToolboxPreset={insertToolboxPreset}
         assets={assets}
+        tasks={tasks}
         onImportAsset={importAsset}
         setHistory={setHistory}
       />
       {configOpen && <ConfigModal onClose={() => setConfigOpen(false)} />}
+      {preview && <PreviewModal preview={preview} onClose={() => setPreview(null)} />}
     </div>
+  );
+}
+
+function PreviewModal({ preview, onClose }: { preview: PreviewResource; onClose: () => void }) {
+  const active = preview.items[preview.activeIndex ?? 0] ?? preview.items[0];
+  const url = active?.dataUrl ?? active?.remoteUrl;
+  return (
+    <Modal title={preview.title} width={920} onClose={onClose}>
+      <div className="preview-modal">
+        {preview.kind === "video" ? (
+          <video src={url} className="preview-media" controls autoPlay muted playsInline />
+        ) : preview.kind === "audio" ? (
+          <audio src={url} className="preview-audio" controls autoPlay />
+        ) : (
+          <img src={url} className="preview-media" alt={preview.title} />
+        )}
+        <div className="preview-strip">
+          {preview.items.map((item) => (
+            <article key={item.id}>
+              <span>{item.title}</span>
+              <small>{item.localPath ?? item.remoteUrl ?? "本地缓存"}</small>
+            </article>
+          ))}
+        </div>
+      </div>
+    </Modal>
   );
 }

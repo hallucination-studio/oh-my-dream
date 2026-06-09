@@ -3,17 +3,30 @@ import {
   defaultConfig,
   defaultUi,
   KEY_ASSETS,
+  KEY_BATCHES,
   KEY_CONFIG,
   KEY_HISTORY,
   KEY_PROJECTS,
+  KEY_TASKS,
   KEY_UI,
   nowIso,
   seedAssets,
+  seedBatches,
   seedHistory,
   seedProjects,
+  seedTasks,
   uid
 } from "./fixtures";
-import type { AppConfig, AppUi, Asset, Folder, GenerationHistory, Project } from "./types";
+import type {
+  AppConfig,
+  AppUi,
+  Asset,
+  DerivedBatch,
+  Folder,
+  GenerationHistory,
+  Project,
+  TaskRecord
+} from "./types";
 
 type Setter<T> = React.Dispatch<React.SetStateAction<T>>;
 
@@ -24,6 +37,10 @@ interface StoreContextValue {
   setAssets: Setter<Asset[]>;
   history: GenerationHistory[];
   setHistory: Setter<GenerationHistory[]>;
+  tasks: TaskRecord[];
+  setTasks: Setter<TaskRecord[]>;
+  batches: DerivedBatch[];
+  setBatches: Setter<DerivedBatch[]>;
   config: AppConfig;
   setConfig: Setter<AppConfig>;
   ui: AppUi;
@@ -111,6 +128,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useStoredState<Project[]>(KEY_PROJECTS, seedProjects);
   const [assets, setAssets] = useStoredState<Asset[]>(KEY_ASSETS, seedAssets);
   const [history, setHistory] = useStoredState<GenerationHistory[]>(KEY_HISTORY, seedHistory);
+  const [tasks, setTasks] = useStoredState<TaskRecord[]>(KEY_TASKS, seedTasks);
+  const [batches, setBatches] = useStoredState<DerivedBatch[]>(KEY_BATCHES, seedBatches);
   const [rawConfig, setRawConfig] = useStoredState<AppConfig>(KEY_CONFIG, defaultConfig);
   const [ui, setUi] = useStoredState<AppUi>(KEY_UI, defaultUi);
   const config = useMemo(() => normalizeConfig(rawConfig), [rawConfig]);
@@ -204,6 +223,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAssets,
       history,
       setHistory,
+      tasks,
+      setTasks,
+      batches,
+      setBatches,
       config,
       setConfig,
       ui,
@@ -220,6 +243,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAssets,
       history,
       setHistory,
+      tasks,
+      setTasks,
+      batches,
+      setBatches,
       config,
       setConfig,
       ui,

@@ -1,5 +1,5 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import { nowIso, uid } from "../fixtures";
+import { createMediaResource, nowIso, uid } from "../fixtures";
 import { createSeedanceMockJob, type SeedanceMockKind } from "../services/seedanceMock";
 import type {
   AppConfig,
@@ -7,7 +7,8 @@ import type {
   CanvasNodeData,
   GenerationHistory,
   GenerationParams,
-  LibNode
+  LibNode,
+  TaskRecord
 } from "../types";
 
 export function useCanvasSeedanceActions({
@@ -16,6 +17,7 @@ export function useCanvasSeedanceActions({
   addHistory,
   setAssets,
   setHistory,
+  setTasks,
   updateNodeData
 }: {
   nodes: LibNode[];
@@ -23,6 +25,7 @@ export function useCanvasSeedanceActions({
   addHistory: (item: Omit<GenerationHistory, "id" | "createdAt">) => GenerationHistory;
   setAssets: Dispatch<SetStateAction<Asset[]>>;
   setHistory: Dispatch<SetStateAction<GenerationHistory[]>>;
+  setTasks: Dispatch<SetStateAction<TaskRecord[]>>;
   updateNodeData: (id: string, patch: Partial<CanvasNodeData>) => void;
 }) {
   const runSeedanceMock = useCallback(
@@ -49,12 +52,40 @@ export function useCanvasSeedanceActions({
       updateNodeData(id, {
         taskInfo: { status: "queued", progress: 0, message: "已加入队列" }
       });
+      const taskId = uid("task");
+      setTasks((items) => [
+        {
+          id: taskId,
+          kind: "generate",
+          status: "queued",
+          title: `${kind === "audio" ? "音频" : "视频"}生成`,
+          provider: "seedance-mock",
+          sourceNodeId: id,
+          progress: 0,
+          createdAt: nowIso(),
+          updatedAt: nowIso()
+        },
+        ...items
+      ]);
       let progress = 0;
       const timer = window.setInterval(() => {
         progress = Math.min(100, progress + Math.ceil(100 / job.steps));
         const running = progress < 100;
+        const resource = running ? undefined : createMediaResource(job.mediaKind, `${node?.data.name ?? "生成结果"}`, job.resultUrl);
         updateNodeData(id, {
           url: running ? node?.data.url : job.resultUrl,
+          output: running || !resource
+            ? node?.data.output
+            : {
+                resources: [resource],
+                preview: {
+                  id: uid("preview"),
+                  title: node?.data.name ?? "生成结果",
+                  kind: job.mediaKind,
+                  items: [resource]
+                }
+              },
+          workflowType: "generated",
           taskInfo: {
             status: running ? "running" : "done",
             progress,
@@ -68,13 +99,30 @@ export function useCanvasSeedanceActions({
                   ...item,
                   status: running ? "running" : "done",
                   progress,
-                  resultUrl: running ? item.resultUrl : job.resultUrl
+                  resultUrl: running ? item.resultUrl : job.resultUrl,
+                  resultResources: running || !resource ? item.resultResources : [resource]
                 }
               : item
           )
         );
+        setTasks((items) =>
+          items.map((task) =>
+            task.id === taskId
+              ? {
+                  ...task,
+                  status: running ? "running" : "done",
+                  progress,
+                  detail: running ? "任务执行中" : "结果已保存到本地资产",
+                  updatedAt: nowIso()
+                }
+              : task
+          )
+        );
         if (!running) {
           window.clearInterval(timer);
+          if (!resource) {
+            return;
+          }
           setAssets((items) => [
             {
               id: uid("asset"),
@@ -86,14 +134,18 @@ export function useCanvasSeedanceActions({
               model: job.model,
               prompt,
               params: job.generationParams,
-              createdAt: nowIso()
+              createdAt: nowIso(),
+              resource,
+              sourceNodeId: id,
+              tags: ["Seedance", "生成"],
+              uses: 0
             },
             ...items
           ]);
         }
       }, job.intervalMs);
     },
-    [addHistory, nodes, seedance, setAssets, setHistory, updateNodeData]
+    [addHistory, nodes, seedance, setAssets, setHistory, setTasks, updateNodeData]
   );
 
   return { runSeedanceMock };

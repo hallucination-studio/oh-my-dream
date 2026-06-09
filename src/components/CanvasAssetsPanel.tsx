@@ -70,6 +70,7 @@ export function AssetsPanel({
             <article className="asset-card" key={asset.id}>
               <MediaThumb kind={asset.kind} url={asset.url} />
               <strong>{asset.name}</strong>
+              <span className="asset-source">{asset.resource.localPath ?? "本地缓存工作区"}</span>
               {asset.model && (
                 <span className="asset-source">
                   {asset.provider ?? "local"} · {asset.model}

@@ -25,6 +25,76 @@ export type GenerationKind = AssetKind | "text";
 export type GenerationProvider = "openai" | "seedance-mock" | "local";
 export type GenerationParams = Record<string, string | number | boolean>;
 
+export type ImageToolName =
+  | "panorama"
+  | "angles"
+  | "lighting"
+  | "grid"
+  | "upscale"
+  | "split"
+  | "annotate"
+  | "rotate";
+
+export type TaskStatus = "queued" | "running" | "done" | "failed" | "canceled";
+export type TaskKind = "generate" | "derive" | "download";
+
+export interface LocalMediaResource {
+  id: string;
+  kind: AssetKind;
+  title: string;
+  mimeType?: string;
+  localPath?: string;
+  cachePath?: string;
+  remoteUrl?: string;
+  dataUrl?: string;
+  width?: number;
+  height?: number;
+  fileSize?: number;
+  createdAt: string;
+}
+
+export interface PreviewResource {
+  id: string;
+  title: string;
+  kind: AssetKind;
+  items: LocalMediaResource[];
+  activeIndex?: number;
+  sourceNodeId?: string;
+}
+
+export interface DownloadArtifact {
+  id: string;
+  name: string;
+  kind: AssetKind;
+  resourceId: string;
+  fileName: string;
+  targetPath?: string;
+}
+
+export interface DerivedBatch {
+  id: string;
+  tool: ImageToolName;
+  sourceNodeId: string;
+  sourceAssetId?: string;
+  resultNodeIds: string[];
+  resultAssetIds: string[];
+  outputCount: number;
+  createdAt: string;
+}
+
+export interface NodeReference {
+  id: string;
+  label: string;
+  kind: "node" | "asset" | "history";
+}
+
+export interface NodeOutput {
+  resources: LocalMediaResource[];
+  preview?: PreviewResource;
+  downloads?: DownloadArtifact[];
+  batchId?: string;
+}
+
 export interface CanvasNodeData extends Record<string, unknown> {
   kind: NodeKind;
   name: string;
@@ -34,19 +104,27 @@ export interface CanvasNodeData extends Record<string, unknown> {
   urls?: string[];
   params?: GenerationParams;
   taskInfo?: {
-    status: "queued" | "running" | "done" | "failed";
+    status: TaskStatus;
     progress?: number;
     message?: string;
   };
   contentWidth?: number;
   contentHeight?: number;
   readonly?: boolean;
+  workflowType?: "base" | "generated" | "derived" | "asset" | "reference";
+  toolName?: ImageToolName;
+  sourceRefs?: NodeReference[];
+  output?: NodeOutput;
+  annotations?: string[];
+  localPath?: string;
+  cachePath?: string;
+  remoteUrl?: string;
 }
 
 export type LibNode = Node<CanvasNodeData, "libNode">;
 export type LibEdge = Edge;
 
-export interface Project {
+export interface LocalProject {
   id: string;
   name: string;
   coverUrl: string;
@@ -57,7 +135,11 @@ export interface Project {
   edges: LibEdge[];
   viewport?: Viewport;
   readonly?: boolean;
+  workspacePath?: string;
+  exportPath?: string;
 }
+
+export type Project = LocalProject;
 
 export interface Folder {
   id: string;
@@ -65,7 +147,7 @@ export interface Folder {
   createdAt: string;
 }
 
-export interface Asset {
+export interface AssetRecord {
   id: string;
   kind: AssetKind;
   name: string;
@@ -76,7 +158,14 @@ export interface Asset {
   prompt?: string;
   params?: GenerationParams;
   createdAt: string;
+  resource: LocalMediaResource;
+  sourceNodeId?: string;
+  batchId?: string;
+  tags?: string[];
+  uses?: number;
 }
+
+export type Asset = AssetRecord;
 
 export interface GenerationHistory {
   id: string;
@@ -84,7 +173,7 @@ export interface GenerationHistory {
   provider: GenerationProvider;
   model: string;
   prompt: string;
-  status: "queued" | "running" | "done" | "failed";
+  status: TaskStatus;
   progress: number;
   resultUrl?: string;
   resultText?: string;
@@ -92,6 +181,24 @@ export interface GenerationHistory {
   params?: GenerationParams;
   error?: string;
   createdAt: string;
+  resultResources?: LocalMediaResource[];
+  sourceNodeId?: string;
+  batchId?: string;
+}
+
+export interface TaskRecord {
+  id: string;
+  kind: TaskKind;
+  status: TaskStatus;
+  title: string;
+  provider: GenerationProvider | "desktop";
+  sourceNodeId?: string;
+  batchId?: string;
+  progress: number;
+  detail?: string;
+  artifacts?: DownloadArtifact[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AppConfig {

@@ -1,8 +1,8 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { nodeLabels } from "../constants";
-import { nowIso, uid } from "../fixtures";
+import { createMediaResource, nowIso, primaryUrl, uid } from "../fixtures";
 import { historyDisplayText, historyToNodeKind } from "../services/generation";
-import type { Asset, AssetKind, CanvasNodeData, GenerationHistory, LibNode, NodeKind } from "../types";
+import type { Asset, AssetKind, CanvasNodeData, GenerationHistory, LibNode, NodeKind, PreviewResource } from "../types";
 
 function fileToAssetKind(file: File): AssetKind {
   if (file.type.startsWith("video")) {
@@ -35,6 +35,20 @@ export function useCanvasImportActions({
           ...(asset.params ?? {}),
           ...(asset.model ? { model: asset.model } : {})
         },
+        localPath: asset.resource.localPath,
+        cachePath: asset.resource.cachePath,
+        remoteUrl: asset.resource.remoteUrl,
+        workflowType: "asset",
+        output: {
+          resources: [asset.resource],
+          preview: {
+            id: uid("preview"),
+            title: asset.name,
+            kind: asset.kind,
+            items: [asset.resource]
+          }
+        },
+        sourceRefs: [{ id: asset.id, label: asset.name, kind: "asset" }],
         taskInfo: {
           status: "done",
           progress: 100,
@@ -50,10 +64,27 @@ export function useCanvasImportActions({
       const kind = historyToNodeKind(item.kind);
       const text = historyDisplayText(item);
       addCanvasNode(kind, `${nodeLabels[kind]}历史`, {
-        url: item.resultUrl,
+        url: item.resultUrl ?? primaryUrl(item.resultResources?.[0]),
         prompt: item.kind === "text" ? text : item.revisedPrompt ?? item.prompt,
         text: item.kind === "text" ? text : undefined,
         params: item.params,
+        workflowType: item.resultResources?.length ? "generated" : "reference",
+        output:
+          item.kind === "text"
+            ? undefined
+            : {
+                resources: item.resultResources ?? [],
+                batchId: item.batchId,
+                preview: item.resultResources?.length
+                  ? ({
+                      id: uid("preview"),
+                      title: text,
+                      kind: item.kind,
+                      items: item.resultResources
+                    } satisfies PreviewResource)
+                  : undefined
+              },
+        sourceRefs: [{ id: item.id, label: text, kind: "history" }],
         taskInfo: { status: item.status, progress: item.progress }
       });
     },
@@ -73,7 +104,14 @@ export function useCanvasImportActions({
             name: file.name,
             url,
             category: kind === "audio" ? "sound" : "project",
-            createdAt: nowIso()
+            createdAt: nowIso(),
+            resource: createMediaResource(kind, file.name, url, {
+              mimeType: file.type,
+              localPath: file.name,
+              fileSize: file.size
+            }),
+            tags: ["本地导入"],
+            uses: 0
           };
           setAssets((items) => [asset, ...items]);
           importAsset(asset);
