@@ -66,7 +66,7 @@
     top: var(--space-7);
     left: var(--canvas-center-x);
     z-index: var(--z-canvas-chrome);
-    width: min(760px, calc(var(--canvas-center-width) - var(--space-10)));
+    width: min(860px, calc(var(--canvas-center-width) - var(--space-10)));
     min-height: 50px;
     padding: var(--space-2);
     border: 1px solid var(--color-border);
@@ -94,7 +94,7 @@
 
   .canvas-topbar-primary {
     display: grid;
-    grid-template-columns: 176px minmax(0, 1fr) 176px;
+    grid-template-columns: minmax(150px, max-content) minmax(220px, 1fr) minmax(210px, max-content);
     align-items: center;
     width: 100%;
   }
@@ -103,6 +103,14 @@
     justify-content: flex-end;
     min-height: 24px;
     flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
+  .canvas-save-status,
+  .canvas-task-status {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    word-break: keep-all;
   }
 
   .canvas-status-path {
@@ -280,19 +288,15 @@
     }
 
     .canvas-topbar-status {
+      display: grid;
+      grid-template-columns: max-content max-content;
       justify-content: center;
       gap: var(--space-2);
-      flex-wrap: nowrap;
+      min-width: 0;
     }
 
     .canvas-status-path {
       display: none;
-    }
-
-    .canvas-topbar-status .canvas-status-path {
-      flex-basis: 100%;
-      max-width: 100%;
-      justify-content: center;
     }
 
     .canvas-project-meta .canvas-path-pill {
@@ -301,10 +305,19 @@
 
     .canvas-save-status,
     .canvas-task-status {
-      flex: 0 0 auto;
+      width: auto;
+      min-width: max-content;
       min-height: 20px;
-      padding: 0 var(--space-2);
+      padding: 0 var(--space-3);
+      display: inline-grid;
+      place-items: center;
       white-space: nowrap;
+      word-break: keep-all;
+      line-height: 1;
+    }
+
+    .canvas-save-status svg {
+      display: none;
     }
 
     .canvas-left-controls {
