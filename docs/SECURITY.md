@@ -18,3 +18,4 @@ User project data must remain local and must not leak. API tokens and similar se
 - Workspace backup export must omit provider API keys by default.
 - Browser local storage is a transitional fallback for configuration and local workspace state; it is not the target secret store.
 - Desktop adapters should move OpenAI and Volcengine Ark keys into a system keychain-backed `SecretStore` so workspace JSON never contains long-lived provider secrets.
+- Provider and local capability settings should be presented as user-controlled local configuration. UI copy should make it clear when backups include workspace data and that provider API keys are excluded by default.

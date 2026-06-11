@@ -181,7 +181,7 @@ export function CanvasPanelHost({
               onDownload={onDownloadAsset}
             />
           )}
-          {activePanel === "history" && (
+          {activePanel === "review" && (
             <HistoryPanel
               history={history}
               setHistory={setHistory}
@@ -190,6 +190,7 @@ export function CanvasPanelHost({
               onDownload={onDownloadHistory}
             />
           )}
+          {activePanel === "queue" && <HelpPanel />}
           {activePanel === "help" && <HelpPanel />}
         </CanvasDrawer>
       )}

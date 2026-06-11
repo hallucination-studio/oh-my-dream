@@ -1,4 +1,4 @@
-import { Clock3, Hammer, HelpCircle, Keyboard, Plus, X } from "lucide-react";
+import { Activity, Clock3, Hammer, HelpCircle, Keyboard, Plus, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { IconButton, Modal } from "./ui";
 export { AddNodePanel } from "./CanvasAddNodePanel";
@@ -6,14 +6,15 @@ export { AssetsPanel } from "./CanvasAssetsPanel";
 export { HistoryPanel } from "./CanvasHistoryPanel";
 export { ToolboxPanel } from "./CanvasToolboxPanel";
 
-export type PanelId = "add" | "toolbox" | "assets" | "history" | "shortcuts" | "help" | null;
+export type PanelId = "add" | "toolbox" | "assets" | "review" | "queue" | "shortcuts" | "help" | null;
 
 export function panelTitle(panel: Exclude<PanelId, null>) {
   const titles = {
     add: "添加节点",
     toolbox: "工具箱",
     assets: "资产",
-    history: "历史记录",
+    review: "结果库",
+    queue: "任务队列",
     shortcuts: "快捷键",
     help: "帮助中心"
   };
@@ -30,7 +31,8 @@ export function BottomToolbar({
   const tools: { id: Exclude<PanelId, null>; label: string; icon: ReactNode }[] = [
     { id: "add", label: "添加节点", icon: <Plus size={16} /> },
     { id: "toolbox", label: "工具箱", icon: <Hammer size={16} /> },
-    { id: "history", label: "历史记录", icon: <Clock3 size={16} /> },
+    { id: "review", label: "结果库", icon: <Clock3 size={16} /> },
+    { id: "queue", label: "任务队列", icon: <Activity size={16} /> },
     { id: "shortcuts", label: "快捷键", icon: <Keyboard size={16} /> },
     { id: "help", label: "帮助中心", icon: <HelpCircle size={16} /> }
   ];

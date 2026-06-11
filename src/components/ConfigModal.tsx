@@ -7,7 +7,7 @@ export function ConfigModal({ onClose }: { onClose: () => void }) {
   const { config, setConfig } = useStore();
   const { openai, volcengineArk, seedanceMock } = config.providers;
   return (
-    <Modal title="系统配置" onClose={onClose} width={860}>
+    <Modal title="Provider 与本地能力" onClose={onClose} width={860}>
       <form
         className="config-form"
         onSubmit={(event) => {

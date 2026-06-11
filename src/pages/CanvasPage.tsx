@@ -12,6 +12,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { CanvasLeftControls, CanvasPanelHost, CanvasTopbar } from "../components/CanvasChrome";
 import { CanvasNavigator } from "../components/CanvasNavigator";
+import { CanvasWorkbenchPanel } from "../components/CanvasWorkbenchPanel";
 import { ConfigModal } from "../components/ConfigModal";
 import { LibNodeComponent, type LibNodeComponentProps } from "../components/LibNode";
 import { Modal } from "../components/ui";
@@ -115,6 +116,7 @@ function CanvasWorkspace({ project }: { project: Project }) {
     updateNodeData
   });
   const [preview, setPreview] = useState<PreviewResource | null>(null);
+  const [workbenchTab, setWorkbenchTab] = useState<"inspector" | "queue" | "review">("inspector");
 
   const downloadHistory = useCallback((item: GenerationHistory) => {
     const resources = item.resultResources ?? [];
@@ -176,6 +178,9 @@ function CanvasWorkspace({ project }: { project: Project }) {
       }
     }
   };
+  const downloadNode = useCallback((nodeId: string) => {
+    nodeHandlersRef.current?.onDownload(nodeId);
+  }, []);
 
   const nodeTypes = useMemo(
     () => ({
@@ -285,6 +290,31 @@ function CanvasWorkspace({ project }: { project: Project }) {
         onPreview={setPreview}
         onDownloadAsset={downloadAsset}
         onDownloadHistory={downloadHistory}
+      />
+      <CanvasWorkbenchPanel
+        selectedNodeId={selectedId}
+        nodes={nodes}
+        edges={edges}
+        tasks={tasks}
+        history={history}
+        assets={assets}
+        batches={batches}
+        readonlyProject={readonlyProject}
+        activeTab={workbenchTab}
+        onActiveTabChange={setWorkbenchTab}
+        onUpdateNode={updateNodeData}
+        onGenerateText={runOpenAIText}
+        onGenerateImage={runImageGeneration}
+        onGenerateVideo={runVideoGeneration}
+        onImageTool={runImageTool}
+        onDirectorShot={runDirectorShot}
+        onStoryboard={generateStoryboard}
+        onPreview={setPreview}
+        onDownloadNode={downloadNode}
+        onDownloadAsset={downloadAsset}
+        onDownloadHistory={downloadHistory}
+        onImportHistory={importHistory}
+        onLocateNode={locateNode}
       />
       {configOpen && <ConfigModal onClose={() => setConfigOpen(false)} />}
       {preview && <PreviewModal preview={preview} onClose={() => setPreview(null)} />}
