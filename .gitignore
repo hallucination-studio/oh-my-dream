@@ -7,6 +7,7 @@ vite.config.js
 vite.config.d.ts
 .impeccable/
 .agents/skills/impeccable/
+.agents/skills/design-system/
 
 # harness-engine transient files
 .codex/skills/
