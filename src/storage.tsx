@@ -18,6 +18,7 @@ import {
   uid
 } from "./fixtures";
 import { mockProvidersEnabled } from "./env";
+import { createBrowserLocalCapabilityPorts, type LocalCapabilityPorts } from "./localCapabilities";
 import type {
   AppConfig,
   AppUi,
@@ -31,6 +32,7 @@ import type {
 } from "./types";
 
 type Setter<T> = React.Dispatch<React.SetStateAction<T>>;
+const WORKSPACE_SCHEMA_VERSION = 1;
 
 interface StoreContextValue {
   projects: Project[];
@@ -47,6 +49,8 @@ interface StoreContextValue {
   setConfig: Setter<AppConfig>;
   ui: AppUi;
   setUi: Setter<AppUi>;
+  ports: LocalCapabilityPorts;
+  storageSchemaVersion: number;
   updateProject: (id: string, patch: Partial<Project> | ((project: Project) => Project)) => void;
   duplicateProject: (id: string) => Project | undefined;
   deleteProject: (id: string) => void;
@@ -70,18 +74,77 @@ function readJson<T>(key: string, fallback: T | (() => T)): T {
   }
 }
 
-function useStoredState<T>(key: string, fallback: T | (() => T)) {
-  const [value, setValue] = useState<T>(() => readJson(key, fallback));
+function useStoredState<T>(key: string, fallback: T | (() => T), normalize?: (value: unknown) => T) {
+  const [value, setValue] = useState<T>(() => {
+    const parsed = readJson<unknown>(key, fallback);
+    return normalize ? normalize(parsed) : (parsed as T);
+  });
 
   useEffect(() => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, [key, value]);
+    const next = normalize ? normalize(value) : value;
+    window.localStorage.setItem(key, JSON.stringify(next));
+  }, [key, normalize, value]);
 
   return [value, setValue] as const;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeArray<T>(value: unknown, fallback: T[] | (() => T[])): T[] {
+  if (Array.isArray(value)) {
+    return value as T[];
+  }
+  return typeof fallback === "function" ? (fallback as () => T[])() : fallback;
+}
+
+function normalizeProject(value: Project): Project {
+  const workspacePath = value.workspacePath || `workspace/${value.id}`;
+  return {
+    ...value,
+    nodes: Array.isArray(value.nodes) ? value.nodes : [],
+    edges: Array.isArray(value.edges) ? value.edges : [],
+    createdAt: value.createdAt || nowIso(),
+    updatedAt: value.updatedAt || value.createdAt || nowIso(),
+    workspacePath,
+    exportPath: value.exportPath || `${workspacePath}/exports`
+  };
+}
+
+function normalizeUi(value: unknown): AppUi {
+  const source = isRecord(value) ? value : {};
+  return {
+    ...defaultUi,
+    ...source,
+    folders: Array.isArray(source.folders) ? (source.folders as AppUi["folders"]) : defaultUi.folders
+  };
+}
+
+function normalizeTask(value: TaskRecord): TaskRecord {
+  const statusMap: Record<string, TaskRecord["status"]> = {
+    pending: "queued",
+    submitted: "queued",
+    processing: "running",
+    succeeded: "done",
+    success: "done",
+    error: "failed"
+  };
+  const rawStatus = String(value.status ?? "queued");
+  const status = ["queued", "running", "done", "failed", "canceled"].includes(rawStatus)
+    ? (rawStatus as TaskRecord["status"])
+    : statusMap[rawStatus] ?? "queued";
+  return {
+    ...value,
+    id: value.id || uid("task"),
+    kind: value.kind || "generate",
+    provider: value.provider || "local",
+    title: value.title || value.detail || "生成任务",
+    status,
+    progress: Number.isFinite(value.progress) ? value.progress : status === "done" || status === "failed" ? 100 : 0,
+    createdAt: value.createdAt || nowIso(),
+    updatedAt: value.updatedAt || value.createdAt || nowIso()
+  };
 }
 
 function normalizeConfig(value: unknown): AppConfig {
@@ -227,14 +290,49 @@ function normalizeConfig(value: unknown): AppConfig {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [projects, setProjects] = useStoredState<Project[]>(KEY_PROJECTS, seedProjects);
-  const [assets, setAssets] = useStoredState<Asset[]>(KEY_ASSETS, seedAssets);
-  const [history, setHistory] = useStoredState<GenerationHistory[]>(KEY_HISTORY, seedHistory);
-  const [tasks, setTasks] = useStoredState<TaskRecord[]>(KEY_TASKS, seedTasks);
-  const [batches, setBatches] = useStoredState<DerivedBatch[]>(KEY_BATCHES, seedBatches);
-  const [rawConfig, setRawConfig] = useStoredState<AppConfig>(KEY_CONFIG, defaultConfig);
-  const [ui, setUi] = useStoredState<AppUi>(KEY_UI, defaultUi);
+  const [projects, setProjectsRaw] = useStoredState<Project[]>(
+    KEY_PROJECTS,
+    seedProjects,
+    (value) => normalizeArray<Project>(value, seedProjects).map(normalizeProject)
+  );
+  const [assets, setAssets] = useStoredState<Asset[]>(KEY_ASSETS, seedAssets, (value) =>
+    normalizeArray<Asset>(value, seedAssets)
+  );
+  const [history, setHistory] = useStoredState<GenerationHistory[]>(KEY_HISTORY, seedHistory, (value) =>
+    normalizeArray<GenerationHistory>(value, seedHistory)
+  );
+  const [tasks, setTasks] = useStoredState<TaskRecord[]>(KEY_TASKS, seedTasks, (value) =>
+    normalizeArray<TaskRecord>(value, seedTasks).map(normalizeTask)
+  );
+  const [batches, setBatches] = useStoredState<DerivedBatch[]>(KEY_BATCHES, seedBatches, (value) =>
+    normalizeArray<DerivedBatch>(value, seedBatches)
+  );
+  const [rawConfig, setRawConfig] = useStoredState<AppConfig>(KEY_CONFIG, defaultConfig, normalizeConfig);
+  const [uiRaw, setUiRaw] = useStoredState<AppUi>(KEY_UI, defaultUi, normalizeUi);
+  const ui = useMemo(() => normalizeUi(uiRaw), [uiRaw]);
   const config = useMemo(() => normalizeConfig(rawConfig), [rawConfig]);
+
+  const setProjects = useCallback<Setter<Project[]>>(
+    (next) => {
+      setProjectsRaw((current) => {
+        const normalized = current.map(normalizeProject);
+        const value = typeof next === "function" ? (next as (value: Project[]) => Project[])(normalized) : next;
+        return normalizeArray<Project>(value, []).map(normalizeProject);
+      });
+    },
+    [setProjectsRaw]
+  );
+
+  const setUi = useCallback<Setter<AppUi>>(
+    (next) => {
+      setUiRaw((current) => {
+        const normalized = normalizeUi(current);
+        const value = typeof next === "function" ? (next as (value: AppUi) => AppUi)(normalized) : next;
+        return normalizeUi(value);
+      });
+    },
+    [setUiRaw]
+  );
 
   const setConfig = useCallback<Setter<AppConfig>>(
     (next) => {
@@ -253,6 +351,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setRawConfig(normalized);
     }
   }, [rawConfig, setRawConfig]);
+
+  useEffect(() => {
+    const normalized = projects.map(normalizeProject);
+    if (JSON.stringify(normalized) !== JSON.stringify(projects)) {
+      setProjectsRaw(normalized);
+    }
+  }, [projects, setProjectsRaw]);
+
+  useEffect(() => {
+    const normalized = normalizeUi(uiRaw);
+    if (JSON.stringify(normalized) !== JSON.stringify(uiRaw)) {
+      setUiRaw(normalized);
+    }
+  }, [setUiRaw, uiRaw]);
 
   const updateProject = useCallback<StoreContextValue["updateProject"]>((id, patch) => {
     setProjects((items) =>
@@ -317,6 +429,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return folder;
   }, [setUi]);
 
+  const ports = useMemo(
+    () =>
+      createBrowserLocalCapabilityPorts({
+        getProjects: () => projects,
+        saveProject: (project) => setProjects((items) => [normalizeProject(project), ...items.filter((item) => item.id !== project.id)]),
+        deleteProject,
+        getAssets: () => assets,
+        saveAsset: (asset) => setAssets((items) => [asset, ...items.filter((item) => item.id !== asset.id)]),
+        deleteAsset: (id) => setAssets((items) => items.filter((item) => item.id !== id)),
+        enqueueTask: (task) => setTasks((items) => [task, ...items]),
+        updateTask: (taskId, patch) => {
+          let updated: TaskRecord | undefined;
+          setTasks((items) =>
+            items.map((task) => {
+              if (task.id !== taskId) {
+                return task;
+              }
+              updated = { ...task, ...patch, updatedAt: nowIso() };
+              return updated;
+            })
+          );
+          return updated;
+        }
+      }),
+    [assets, deleteProject, projects, setAssets, setProjects, setTasks]
+  );
+
   const value = useMemo<StoreContextValue>(
     () => ({
       projects,
@@ -333,6 +472,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setConfig,
       ui,
       setUi,
+      ports,
+      storageSchemaVersion: WORKSPACE_SCHEMA_VERSION,
       updateProject,
       duplicateProject,
       deleteProject,
@@ -353,6 +494,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setConfig,
       ui,
       setUi,
+      ports,
       updateProject,
       duplicateProject,
       deleteProject,

@@ -16,3 +16,9 @@ Detected frameworks: React, Vite. This is a user-facing creative desktop-style i
 - Verify key flows, empty states, failure states, and recovery after reload for project list and canvas interactions.
 - When changing canvas UI, test selection, panel toggles, navigation, and persistence of the edited state.
 - Record reusable UI findings in `docs/design-docs/`.
+
+## Workbench IA Notes
+
+- The home surface should behave like a local desktop workbench: continue work, create/open/import, task overview, provider configuration health, and backup status before template browsing.
+- Templates should remain secondary starter material and should not look like the primary project inventory.
+- Canvas chrome should expose saved state, workspace path, and task state directly. Avoid inert save/status controls.

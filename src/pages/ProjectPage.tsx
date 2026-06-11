@@ -1,7 +1,8 @@
-import { ArrowLeft, Ellipsis, Folder, FolderPlus, Plus } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Archive, ArrowDownAZ, Ellipsis, Folder, FolderPlus, Plus, Search, Upload } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
+import { WorkspaceStatusModal } from "../components/WorkspaceStatusModal";
 import { Button, IconButton, Modal } from "../components/ui";
 import { createBlankProject, imageCovers } from "../fixtures";
 import { useStore } from "../storage";
@@ -19,14 +20,37 @@ export function ProjectPage() {
   } = useStore();
   const navigate = useNavigate();
   const [folderView, setFolderView] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"updated" | "name" | "created">("updated");
   const [menuId, setMenuId] = useState<string | null>(null);
   const [folderModal, setFolderModal] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [moveId, setMoveId] = useState<string | null>(null);
-  const visibleProjects = projects.filter(
-    (project) => !project.readonly && (folderView ? project.folderId === folderView : !project.folderId)
-  );
+  const visibleProjects = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    return projects
+      .filter((project) => !project.readonly && (folderView ? project.folderId === folderView : !project.folderId))
+      .filter((project) => {
+        if (!keyword) {
+          return true;
+        }
+        return (
+          project.name.toLowerCase().includes(keyword) ||
+          (project.workspacePath ?? "").toLowerCase().includes(keyword)
+        );
+      })
+      .sort((a, b) => {
+        if (sort === "name") {
+          return a.name.localeCompare(b.name, "zh-CN");
+        }
+        if (sort === "created") {
+          return +new Date(b.createdAt) - +new Date(a.createdAt);
+        }
+        return +new Date(b.updatedAt) - +new Date(a.updatedAt);
+      });
+  }, [folderView, projects, query, sort]);
   const folder = ui.folders.find((item) => item.id === folderView);
 
   const createProject = () => {
@@ -45,6 +69,7 @@ export function ProjectPage() {
               返回
             </Link>
             <h1>{folder ? folder.name : "全部项目"}</h1>
+            <p className="project-title-meta">浏览器本地工作区 · {visibleProjects.length} 个项目</p>
           </div>
           <div className="row-actions">
             {folderView && (
@@ -57,8 +82,42 @@ export function ProjectPage() {
               <FolderPlus size={16} />
               新建文件夹
             </Button>
+            <Button onClick={() => setWorkspaceOpen(true)}>
+              <Archive size={16} />
+              备份/导入
+            </Button>
           </div>
         </div>
+
+        <section className="project-toolbar" aria-label="项目筛选">
+          <label className="search-box">
+            <Search size={16} />
+            <input
+              aria-label="搜索项目"
+              name="projectSearch"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索项目名或工作区路径"
+            />
+          </label>
+          <label className="project-sort">
+            <ArrowDownAZ size={16} />
+            <select
+              aria-label="项目排序"
+              name="projectSort"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as "updated" | "name" | "created")}
+            >
+              <option value="updated">最近修改</option>
+              <option value="created">创建时间</option>
+              <option value="name">名称</option>
+            </select>
+          </label>
+          <Button onClick={() => setWorkspaceOpen(true)}>
+            <Upload size={16} />
+            导入工作区
+          </Button>
+        </section>
 
         {!folderView && ui.folders.length > 0 && (
           <section className="folder-grid" aria-label="文件夹">
@@ -84,7 +143,8 @@ export function ProjectPage() {
                 <img src={project.coverUrl || imageCovers[0]} alt="" loading="lazy" />
                 <span>
                   <strong>{project.name}</strong>
-                  <small>{formatDate(project.updatedAt)}</small>
+                  <small>{project.workspacePath ?? `workspace/${project.id}`}</small>
+                  <small>{project.nodes.length} 节点 · {project.edges.length} 连接 · {formatDate(project.updatedAt)}</small>
                 </span>
               </button>
               <IconButton
@@ -124,8 +184,16 @@ export function ProjectPage() {
             </article>
           ))}
         </section>
-        <p className="end-state">没有更多了</p>
+        {visibleProjects.length === 0 ? (
+          <section className="project-empty-state">
+            <strong>{query ? "没有匹配的项目" : "当前文件夹没有项目"}</strong>
+            <p>{query ? "清空搜索词或切换文件夹后再试。" : "创建项目后会出现在这里，并保留工作区路径和最近修改状态。"}</p>
+          </section>
+        ) : (
+          <p className="end-state">没有更多了</p>
+        )}
       </main>
+      {workspaceOpen && <WorkspaceStatusModal onClose={() => setWorkspaceOpen(false)} />}
       {folderModal && (
         <TextInputModal
           title="新建文件夹"
@@ -165,7 +233,7 @@ export function ProjectPage() {
       {deleteId && (
         <ConfirmModal
           title="删除项目"
-          body="删除后会从首页最近项目和项目列表中同步消失。"
+          body="删除后会从首页最近项目和项目列表中同步消失。导出的工作区备份不会被自动更新。"
           danger
           onClose={() => setDeleteId(null)}
           onConfirm={() => {

@@ -17,6 +17,12 @@ A local-first creative client for AI-driven video work that keeps ideation, shot
 - Detected package managers: npm
 - Detected frameworks: React, Vite
 
+## Local Capability Boundaries
+
+- Project, asset, secret, and generation-task access should flow through local capability ports (`ProjectRepository`, `AssetRepository`, `SecretStore`, `GenerationTaskRunner`) rather than being embedded directly in UI flows.
+- The current browser implementation is a transition adapter over local storage. Future Tauri or desktop adapters should replace these ports with workspace-folder, asset-folder, export-folder, and system-keychain implementations.
+- Templates, mock assets, and sample media are starter/demo layers. Production projects should treat persisted project data as user-owned local workspace data, not as seeded template inventory.
+
 ## Reliability Architecture
 
 Local data persistence, crash recovery, and offline behavior are all critical. The core workflow must remain usable in local-only mode, project state should survive reloads and interruptions, and changes to canvas and project state should be validated with a focus on durability before merge.

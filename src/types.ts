@@ -201,6 +201,35 @@ export interface TaskRecord {
   updatedAt: string;
 }
 
+export interface SecretRef {
+  provider: "openai" | "volcengineArk";
+  key: "apiKey";
+}
+
+export interface ProjectRepository {
+  listProjects: () => Promise<Project[]>;
+  saveProject: (project: Project) => Promise<Project>;
+  deleteProject: (id: string) => Promise<void>;
+}
+
+export interface AssetRepository {
+  listAssets: () => Promise<Asset[]>;
+  saveAsset: (asset: Asset) => Promise<Asset>;
+  deleteAsset: (id: string) => Promise<void>;
+}
+
+export interface SecretStore {
+  getSecret: (ref: SecretRef) => Promise<string | undefined>;
+  setSecret: (ref: SecretRef, value: string) => Promise<void>;
+  clearSecret: (ref: SecretRef) => Promise<void>;
+}
+
+export interface GenerationTaskRunner {
+  enqueue: (task: TaskRecord) => Promise<TaskRecord>;
+  cancel: (taskId: string) => Promise<void>;
+  retry: (taskId: string) => Promise<TaskRecord>;
+}
+
 export interface AppConfig {
   providers: {
     openai: {

@@ -58,6 +58,7 @@ function CanvasWorkspace({ project }: { project: Project }) {
     history,
     setHistory,
     setTasks,
+    tasks,
     batches,
     setBatches
   } = useStore();
@@ -205,6 +206,7 @@ function CanvasWorkspace({ project }: { project: Project }) {
         selectedId={selectedId}
         collapsed={navigatorCollapsed}
         batches={batches}
+        tasks={tasks}
         onToggle={() => setNavigatorCollapsed((value) => !value)}
         onLocateNode={locateNode}
         onImportAsset={importAsset}
@@ -219,6 +221,7 @@ function CanvasWorkspace({ project }: { project: Project }) {
         onRenameProject={(name) => updateProject(project.id, { name })}
         onCreateEditableCopy={createEditableCopy}
         onOpenConfig={() => setConfigOpen(true)}
+        tasks={tasks}
       />
 
       <ReactFlow

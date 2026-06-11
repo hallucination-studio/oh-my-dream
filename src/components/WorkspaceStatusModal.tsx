@@ -2,7 +2,7 @@ import { Save, Upload } from "lucide-react";
 import { useCallback, useRef, useState, type ChangeEvent } from "react";
 import { nowIso } from "../fixtures";
 import { useStore } from "../storage";
-import type { AppConfig, AppUi, Asset, GenerationHistory, Project } from "../types";
+import type { AppConfig, AppUi, Asset, DerivedBatch, GenerationHistory, Project, TaskRecord } from "../types";
 import { Button, Modal } from "./ui";
 
 interface WorkspaceBackup {
@@ -11,6 +11,8 @@ interface WorkspaceBackup {
   projects: Project[];
   assets: Asset[];
   history: GenerationHistory[];
+  tasks: TaskRecord[];
+  batches: DerivedBatch[];
   config: AppConfig;
   ui: AppUi;
 }
@@ -23,6 +25,8 @@ function isWorkspaceBackup(value: unknown): value is WorkspaceBackup {
       Array.isArray(backup.projects) &&
       Array.isArray(backup.assets) &&
       Array.isArray(backup.history) &&
+      (!("tasks" in backup) || Array.isArray(backup.tasks)) &&
+      (!("batches" in backup) || Array.isArray(backup.batches)) &&
       backup.config &&
       backup.ui
   );
@@ -36,10 +40,15 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
     setAssets,
     history,
     setHistory,
+    tasks,
+    setTasks,
+    batches,
+    setBatches,
     config,
     setConfig,
     ui,
-    setUi
+    setUi,
+    storageSchemaVersion
   } = useStore();
   const [backupMessage, setBackupMessage] = useState("");
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -51,6 +60,8 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
       projects,
       assets,
       history,
+      tasks,
+      batches,
       config: {
         ...config,
         providers: {
@@ -71,7 +82,7 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
     anchor.remove();
     URL.revokeObjectURL(url);
     setBackupMessage("已导出工作区备份，OpenAI 与火山 Ark Key 未写入文件。");
-  }, [assets, config, history, projects, ui]);
+  }, [assets, batches, config, history, projects, tasks, ui]);
 
   const importWorkspace = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
@@ -88,6 +99,8 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
         setProjects(parsed.projects);
         setAssets(parsed.assets);
         setHistory(parsed.history);
+        setTasks(parsed.tasks ?? []);
+        setBatches(parsed.batches ?? []);
         setConfig({
           ...parsed.config,
           providers: {
@@ -103,13 +116,23 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
           }
         });
         setUi(parsed.ui);
-        setBackupMessage(`已导入 ${parsed.projects.length} 个项目、${parsed.assets.length} 个素材。`);
+        setBackupMessage(`已导入 ${parsed.projects.length} 个项目、${parsed.assets.length} 个素材、${parsed.tasks?.length ?? 0} 个任务。`);
       } catch (error) {
         const message = error instanceof Error ? error.message : "导入失败";
         setBackupMessage(message);
       }
     },
-    [config.providers.openai.apiKey, config.providers.volcengineArk.apiKey, setAssets, setConfig, setHistory, setProjects, setUi]
+    [
+      config.providers.openai.apiKey,
+      config.providers.volcengineArk.apiKey,
+      setAssets,
+      setBatches,
+      setConfig,
+      setHistory,
+      setProjects,
+      setTasks,
+      setUi
+    ]
   );
 
   return (
@@ -128,6 +151,10 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
           <strong>{history.length}</strong>
         </article>
         <article>
+          <span>任务</span>
+          <strong>{tasks.length}</strong>
+        </article>
+        <article>
           <span>OpenAI</span>
           <strong>{config.providers.openai.enabled && config.providers.openai.apiKey ? "已配置" : "未配置"}</strong>
         </article>
@@ -136,8 +163,12 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
           <strong>{config.providers.volcengineArk.enabled && config.providers.volcengineArk.apiKey ? "已配置" : "未配置"}</strong>
         </article>
         <article>
-          <span>存储</span>
-          <strong>localStorage</strong>
+          <span>Schema</span>
+          <strong>v{storageSchemaVersion}</strong>
+        </article>
+        <article>
+          <span>存储适配器</span>
+          <strong>Browser local</strong>
         </article>
       </div>
       <div className="status-actions">
@@ -158,7 +189,9 @@ export function WorkspaceStatusModal({ onClose }: { onClose: () => void }) {
           onChange={importWorkspace}
         />
       </div>
-      <p className="status-note">备份包含项目、素材、历史、配置与 UI 状态；API Key 默认不导出。</p>
+      <p className="status-note">
+        当前使用浏览器本地存储作为桌面工作区的过渡适配器。备份包含项目、素材索引、历史、任务、配置与 UI 状态；API Key 默认不导出。
+      </p>
       {backupMessage && <p className="status-message">{backupMessage}</p>}
     </Modal>
   );

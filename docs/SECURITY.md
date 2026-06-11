@@ -12,3 +12,9 @@ User project data must remain local and must not leak. API tokens and similar se
 - Review secrets handling and outbound network behavior explicitly whenever config, persistence, or generation services change.
 - Prefer storage and UX patterns that make it obvious to the user where sensitive settings live and when they are used.
 - Record security-sensitive assumptions in durable docs.
+
+## Current Secret Handling
+
+- Workspace backup export must omit provider API keys by default.
+- Browser local storage is a transitional fallback for configuration and local workspace state; it is not the target secret store.
+- Desktop adapters should move OpenAI and Volcengine Ark keys into a system keychain-backed `SecretStore` so workspace JSON never contains long-lived provider secrets.

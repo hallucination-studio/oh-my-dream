@@ -1,18 +1,33 @@
-import { ChevronLeft, ChevronRight, Eye, MoreHorizontal, Plus, Search, Video } from "lucide-react";
+import {
+  Archive,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  FolderOpen,
+  HardDrive,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Settings,
+  Upload,
+  Video
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
+import { WorkspaceStatusModal } from "../components/WorkspaceStatusModal";
 import { Button, IconButton } from "../components/ui";
 import { createBlankProject, createTemplateProject, imageCovers, templateCategories, templates } from "../fixtures";
 import { useStore } from "../storage";
-import type { Project } from "../types";
 import { formatDate } from "../utils";
 
 export function HomePage() {
-  const { projects, setProjects } = useStore();
+  const { projects, setProjects, assets, tasks, config } = useStore();
   const navigate = useNavigate();
   const [category, setCategory] = useState("全部");
   const [query, setQuery] = useState("");
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [categoryScroll, setCategoryScroll] = useState({ canLeft: false, canRight: false });
   const categoryRowRef = useRef<HTMLDivElement | null>(null);
 
@@ -24,6 +39,14 @@ export function HomePage() {
         .slice(0, 5),
     [projects]
   );
+  const activeTasks = useMemo(
+    () => tasks.filter((task) => task.status === "queued" || task.status === "running").slice(0, 4),
+    [tasks]
+  );
+  const failedTasks = useMemo(() => tasks.filter((task) => task.status === "failed"), [tasks]);
+  const providerReady =
+    (config.providers.openai.enabled && Boolean(config.providers.openai.apiKey)) ||
+    (config.providers.volcengineArk.enabled && Boolean(config.providers.volcengineArk.apiKey));
 
   const filteredTemplates = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -84,179 +107,221 @@ export function HomePage() {
   return (
     <AppShell>
       <main className="home-main">
-        <section className="home-hero" aria-label="创作工作台">
-          <div className="home-hero-copy">
-            <span className="home-hero-kicker">Local-first creative workspace</span>
-            <h1>把脚本、镜头、素材和生成流程放在一个清晰的工作台里。</h1>
-            <p>
-              从想法、参考图到分镜与生成结果，全部保留在本地项目中，方便继续迭代、比较方案和推进交付。
-            </p>
-            <div className="home-hero-actions" aria-label="创作入口">
-              <Button className="home-create-btn" onClick={() => createProject(false)}>
-                <Plus size={19} />
-                开始创作
-              </Button>
-              <Button className="home-seedance-btn" onClick={() => createProject(true)}>
-                <Video size={19} />
-                <span>快速体验</span>
-                <strong>Seedance 2.0</strong>
-              </Button>
-            </div>
+        <section className="workbench-hero" aria-label="本地工作台">
+          <div className="workbench-copy">
+            <span className="home-hero-kicker">Local workspace</span>
+            <h1>继续推进你的本地视频项目。</h1>
+            <p>项目、画布、素材索引和生成历史保存在当前设备的浏览器本地存储中；桌面文件夹存储会接入同一工作区边界。</p>
           </div>
-          <div className="home-hero-preview" aria-hidden="true">
-            <article className="hero-preview-card hero-preview-primary">
-              <span>当前工作流</span>
-              <strong>脚本整理 → 分镜参考 → 结果回看</strong>
-              <p>围绕一个项目连续推进，而不是在多个页面之间来回切换。</p>
-            </article>
-            <div className="hero-preview-stack">
-              <article className="hero-preview-card">
-                <span>本地项目</span>
-                <strong>{projects.length}</strong>
-                <p>持续积累可复用的流程和素材。</p>
-              </article>
-              <article className="hero-preview-card hero-preview-accent">
-                <span>推荐起点</span>
-                <strong>Seedance 快速体验</strong>
-                <p>适合先试镜头节奏，再回到完整项目继续细化。</p>
-              </article>
-            </div>
+          <div className="workbench-actions" aria-label="工作区操作">
+            <Button variant="primary" onClick={() => createProject(false)}>
+              <Plus size={18} />
+              创建项目
+            </Button>
+            <Button onClick={() => setWorkspaceOpen(true)}>
+              <Upload size={18} />
+              导入备份
+            </Button>
+            <Button onClick={() => navigate("/project")}>
+              <FolderOpen size={18} />
+              打开项目库
+            </Button>
           </div>
         </section>
 
-        <section className="template-library">
-          <div className="section-head">
-            <div>
-              <h2>精选模板</h2>
-              <p>按主题浏览现成工作流，快速打开一个可继续修改的创作过程。</p>
-            </div>
-          </div>
-          <div className="template-filter-row">
-            <IconButton
-              className="category-scroll-prev"
-              label="向左滚动"
-              disabled={!categoryScroll.canLeft}
-              onClick={() => scrollCategories(-220)}
-            >
-              <ChevronLeft size={18} />
-            </IconButton>
-            <div
-              className="tab-row"
-              role="tablist"
-              aria-label="模板分类"
-              ref={categoryRowRef}
-              onScroll={updateCategoryScroll}
-            >
-              {templateCategories.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  className={item === category ? "active" : ""}
-                  onClick={() => setCategory(item)}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-            <IconButton
-              className="category-scroll-next"
-              label="向右滚动"
-              disabled={!categoryScroll.canRight}
-              onClick={() => scrollCategories(220)}
-            >
-              <ChevronRight size={18} />
-            </IconButton>
-            <label className="search-box">
-              <Search size={16} />
-              <input
-                aria-label="搜索模板"
-                name="templateSearch"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索标题或作者"
-              />
-            </label>
-          </div>
-          <div className="template-grid">
-            {filteredTemplates.map((template) => (
-              <article className="template-card" key={template.id} onClick={() => useTemplate(template.id, true)}>
-                <div className="template-cover">
-                  <img src={template.cover} alt="" loading="lazy" />
-                  <span className="template-views">
-                    <Eye size={13} />
-                    {template.views}
-                  </span>
-                  {template.award && <em className="template-award">{template.award}</em>}
-                  <Button
-                    size="sm"
-                    className="template-process"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      useTemplate(template.id, true);
-                    }}
-                  >
-                    查看创作过程
-                  </Button>
-                </div>
-                <div className="template-meta">
-                  {template.avatar ? (
-                    <img className="template-avatar-img" src={template.avatar} alt={template.author} loading="lazy" />
-                  ) : (
-                    <span className="template-avatar">{template.author.slice(0, 1).toUpperCase()}</span>
-                  )}
-                  <p>{template.author}</p>
-                  {template.tier && (
-                    <span className={`template-tier ${template.tier === "专业" ? "pro" : ""}`}>
-                      {template.tier}
-                    </span>
-                  )}
-                </div>
-                <div className="template-title-row">
-                  <h3>{template.title}</h3>
-                  <IconButton label="模板菜单" onClick={(event) => event.stopPropagation()}>
-                    <MoreHorizontal size={14} />
-                  </IconButton>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        {recentProjects.length > 0 && (
-          <>
-            <section className="section-head local-project-head">
+        <section className="workbench-grid" aria-label="工作台概览">
+          <article className="continue-panel">
+            <div className="panel-head">
               <div>
-                <h2>本地项目</h2>
-                <p>从最近打开的项目继续推进，不打断当前创作节奏。</p>
+                <h2>继续工作</h2>
+                <p>{recentProjects.length > 0 ? "最近修改的本地项目。" : "创建第一个本地项目，画布会自动保存到当前设备。"}</p>
               </div>
               <Link to="/project" className="text-link">
                 全部项目
               </Link>
-            </section>
-            <section className="recent-grid local-recent-grid">
-              {recentProjects.map((project) => (
-                <ProjectCard key={project.id} project={project} onOpen={() => navigate(`/canvas/${project.id}`)} />
+            </div>
+            <div className="continue-list">
+              {recentProjects.length > 0 ? (
+                recentProjects.slice(0, 4).map((project) => (
+                  <button key={project.id} type="button" className="continue-row" onClick={() => navigate(`/canvas/${project.id}`)}>
+                    <img src={project.coverUrl || imageCovers[0]} alt="" loading="lazy" />
+                    <span>
+                      <strong>{project.name}</strong>
+                      <small>{project.workspacePath ?? `workspace/${project.id}`} · {formatDate(project.updatedAt)}</small>
+                    </span>
+                    <ChevronRight size={16} />
+                  </button>
+                ))
+              ) : (
+                <button type="button" className="empty-workbench-action" onClick={() => createProject(false)}>
+                  <Plus size={18} />
+                  新建空白项目
+                </button>
+              )}
+            </div>
+          </article>
+
+          <aside className="workspace-health-panel" aria-label="工作区健康度">
+            <div className="panel-head">
+              <div>
+                <h2>工作区状态</h2>
+                <p>当前为浏览器本地适配器。</p>
+              </div>
+              <Button size="sm" onClick={() => setWorkspaceOpen(true)}>
+                <Archive size={15} />
+                备份
+              </Button>
+            </div>
+            <div className="health-grid">
+              <article>
+                <HardDrive size={16} />
+                <span>项目</span>
+                <strong>{projects.filter((project) => !project.readonly).length}</strong>
+              </article>
+              <article>
+                <span>资产</span>
+                <strong>{assets.length}</strong>
+              </article>
+              <article className={providerReady ? "is-ok" : "is-warning"}>
+                <span>Provider</span>
+                <strong>{providerReady ? "可用" : "未配置"}</strong>
+              </article>
+              <article className={activeTasks.length > 0 ? "is-running" : ""}>
+                <span>任务</span>
+                <strong>{activeTasks.length}</strong>
+              </article>
+            </div>
+            <div className="task-summary-list">
+              {activeTasks.length > 0 ? (
+                activeTasks.map((task) => (
+                  <div key={task.id}>
+                    <span>{task.title}</span>
+                    <progress value={task.progress} max={100} />
+                  </div>
+                ))
+              ) : (
+                <p>{failedTasks.length > 0 ? `${failedTasks.length} 个失败任务可在画布历史中检查。` : "没有正在运行的生成任务。"}</p>
+              )}
+            </div>
+            <Button onClick={() => navigate("/config")}>
+              <Settings size={16} />
+              检查配置
+            </Button>
+          </aside>
+        </section>
+
+        <section className="starter-strip" aria-label="快速起步">
+          <Button onClick={() => createProject(true)}>
+            <Video size={17} />
+            Seedance 视频草稿
+          </Button>
+          <Button onClick={() => setTemplatesOpen((value) => !value)}>
+            <Archive size={17} />
+            {templatesOpen ? "收起模板" : "浏览起步模板"}
+          </Button>
+        </section>
+
+        {templatesOpen && (
+          <section className="template-library starter-template-library">
+            <div className="section-head">
+              <div>
+                <h2>起步模板</h2>
+                <p>模板以只读方式打开，用于参考流程；创建副本后再进入正式项目。</p>
+              </div>
+            </div>
+            <div className="template-filter-row">
+              <IconButton
+                className="category-scroll-prev"
+                label="向左滚动"
+                disabled={!categoryScroll.canLeft}
+                onClick={() => scrollCategories(-220)}
+              >
+                <ChevronLeft size={18} />
+              </IconButton>
+              <div
+                className="tab-row"
+                role="tablist"
+                aria-label="模板分类"
+                ref={categoryRowRef}
+                onScroll={updateCategoryScroll}
+              >
+                {templateCategories.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={item === category ? "active" : ""}
+                    onClick={() => setCategory(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+              <IconButton
+                className="category-scroll-next"
+                label="向右滚动"
+                disabled={!categoryScroll.canRight}
+                onClick={() => scrollCategories(220)}
+              >
+                <ChevronRight size={18} />
+              </IconButton>
+              <label className="search-box">
+                <Search size={16} />
+                <input
+                  aria-label="搜索模板"
+                  name="templateSearch"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜索标题或作者"
+                />
+              </label>
+            </div>
+            <div className="template-grid">
+              {filteredTemplates.map((template) => (
+                <article className="template-card" key={template.id} onClick={() => useTemplate(template.id, true)}>
+                  <div className="template-cover">
+                    <img src={template.cover} alt="" loading="lazy" />
+                    <span className="template-views">
+                      <Eye size={13} />
+                      {template.views}
+                    </span>
+                    {template.award && <em className="template-award">{template.award}</em>}
+                    <Button
+                      size="sm"
+                      className="template-process"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        useTemplate(template.id, true);
+                      }}
+                    >
+                      查看创作过程
+                    </Button>
+                  </div>
+                  <div className="template-meta">
+                    {template.avatar ? (
+                      <img className="template-avatar-img" src={template.avatar} alt={template.author} loading="lazy" />
+                    ) : (
+                      <span className="template-avatar">{template.author.slice(0, 1).toUpperCase()}</span>
+                    )}
+                    <p>{template.author}</p>
+                    {template.tier && (
+                      <span className={`template-tier ${template.tier === "专业" ? "pro" : ""}`}>
+                        {template.tier}
+                      </span>
+                    )}
+                  </div>
+                  <div className="template-title-row">
+                    <h3>{template.title}</h3>
+                    <IconButton label="模板菜单" onClick={(event) => event.stopPropagation()}>
+                      <MoreHorizontal size={14} />
+                    </IconButton>
+                  </div>
+                </article>
               ))}
-            </section>
-          </>
+            </div>
+          </section>
         )}
       </main>
+      {workspaceOpen && <WorkspaceStatusModal onClose={() => setWorkspaceOpen(false)} />}
     </AppShell>
-  );
-}
-
-function ProjectCard({ project, onOpen }: { project: Project; onOpen: () => void }) {
-  const coverUrl = project.coverUrl || imageCovers[0];
-  return (
-    <article className="project-card" onClick={onOpen}>
-      <img src={coverUrl} alt="" loading="lazy" />
-      <div>
-        <h3>{project.name}</h3>
-        <span>{formatDate(project.updatedAt)}</span>
-      </div>
-      <IconButton label="项目菜单" onClick={(event) => event.stopPropagation()}>
-        <MoreHorizontal size={16} />
-      </IconButton>
-    </article>
   );
 }

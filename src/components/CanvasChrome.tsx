@@ -1,6 +1,6 @@
-import { ArrowLeft, Copy, Grid2X2, Home, Maximize2, PanelLeft, Rows3, Save, Settings } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, Grid2X2, Home, Maximize2, PanelLeft, Rows3, Settings } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
-import type { Asset, CanvasNodeData, GenerationHistory, LibNode, NodeKind, PreviewResource, Project } from "../types";
+import type { Asset, CanvasNodeData, GenerationHistory, LibNode, NodeKind, PreviewResource, Project, TaskRecord } from "../types";
 import {
   AddNodePanel,
   AssetsPanel,
@@ -22,7 +22,8 @@ export function CanvasTopbar({
   onNavigateProjects,
   onRenameProject,
   onCreateEditableCopy,
-  onOpenConfig
+  onOpenConfig,
+  tasks
 }: {
   project: Project;
   readonlyProject: boolean;
@@ -31,7 +32,11 @@ export function CanvasTopbar({
   onRenameProject: (name: string) => void;
   onCreateEditableCopy: () => void;
   onOpenConfig: () => void;
+  tasks: TaskRecord[];
 }) {
+  const activeTasks = tasks.filter((task) => task.status === "queued" || task.status === "running");
+  const failedTasks = tasks.filter((task) => task.status === "failed");
+
   return (
     <header className="canvas-topbar">
       <div className="canvas-nav">
@@ -56,13 +61,18 @@ export function CanvasTopbar({
             创建副本
           </Button>
         )}
+        <span className="canvas-path-pill" title={project.workspacePath ?? `workspace/${project.id}`}>
+          {project.workspacePath ?? `workspace/${project.id}`}
+        </span>
       </div>
       <div className="canvas-top-actions">
-        {!readonlyProject && (
-          <IconButton label="保存状态">
-            <Save size={18} />
-          </IconButton>
-        )}
+        <span className="canvas-save-status">
+          <CheckCircle2 size={15} />
+          {readonlyProject ? "只读预览" : "自动保存"}
+        </span>
+        <span className={`canvas-task-status ${activeTasks.length > 0 ? "running" : failedTasks.length > 0 ? "failed" : ""}`}>
+          {activeTasks.length > 0 ? `${activeTasks.length} 运行中` : failedTasks.length > 0 ? `${failedTasks.length} 失败` : "无运行任务"}
+        </span>
         <IconButton label="系统配置" onClick={onOpenConfig}>
           <Settings size={18} />
         </IconButton>

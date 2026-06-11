@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { nodeLabels } from "../constants";
-import type { Asset, AssetKind, DerivedBatch, LibNode, NodeKind, PreviewResource, Project } from "../types";
+import type { Asset, AssetKind, DerivedBatch, LibNode, NodeKind, PreviewResource, Project, TaskRecord } from "../types";
 import { Button, IconButton } from "./ui";
 
 const filters: { value: "all" | NodeKind; label: string }[] = [
@@ -35,6 +35,7 @@ export function CanvasNavigator({
   selectedId,
   collapsed,
   batches,
+  tasks,
   onToggle,
   onLocateNode,
   onImportAsset,
@@ -47,13 +48,14 @@ export function CanvasNavigator({
   selectedId: string | null;
   collapsed: boolean;
   batches: DerivedBatch[];
+  tasks: TaskRecord[];
   onToggle: () => void;
   onLocateNode: (node: LibNode) => void;
   onImportAsset: (asset: Asset) => void;
   onPreviewAsset: (preview: PreviewResource) => void;
   onDownloadAsset: (asset: Asset) => void;
 }) {
-  const [tab, setTab] = useState<"canvas" | "assets" | "asset-manager">("canvas");
+  const [tab, setTab] = useState<"canvas" | "assets" | "tasks" | "asset-manager">("canvas");
   const [filter, setFilter] = useState<"all" | NodeKind>("all");
   const [query, setQuery] = useState("");
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
@@ -82,6 +84,7 @@ export function CanvasNavigator({
   );
   const visibleAssets = useMemo(() => assets.slice(0, 36), [assets]);
   const recentAssets = useMemo(() => assets.slice(0, 12), [assets]);
+  const visibleTasks = useMemo(() => tasks.slice(0, 18), [tasks]);
 
   if (collapsed) {
     return (
@@ -103,6 +106,9 @@ export function CanvasNavigator({
       </header>
       <div className="navigator-title-row">
         <input name="navigatorProjectName" value={project.name} readOnly aria-label="当前画布名称" />
+        <small title={project.workspacePath ?? `workspace/${project.id}`}>
+          {project.workspacePath ?? `workspace/${project.id}`}
+        </small>
       </div>
       <div className="navigator-tabs" role="tablist" aria-label="画布侧栏">
         <button
@@ -131,6 +137,15 @@ export function CanvasNavigator({
           onClick={() => setTab("asset-manager")}
         >
           资产管理
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "tasks"}
+          className={tab === "tasks" ? "active" : ""}
+          onClick={() => setTab("tasks")}
+        >
+          任务
         </button>
       </div>
       {tab === "canvas" ? (
@@ -256,7 +271,7 @@ export function CanvasNavigator({
             <span>共 {assets.length} 资产</span>
           </footer>
         </div>
-      ) : (
+      ) : tab === "asset-manager" ? (
         <div role="tabpanel" aria-label="资产管理详情">
           <div className="navigator-tools">
             <span>资产管理</span>
@@ -297,6 +312,32 @@ export function CanvasNavigator({
           <footer className="navigator-footer navigator-footer-wide">
             <FolderSearch size={15} />
             <span>{assets.length} 资产 · {batches.length} 批次</span>
+          </footer>
+        </div>
+      ) : (
+        <div role="tabpanel" aria-label="任务队列">
+          <div className="navigator-tools">
+            <span>任务队列</span>
+          </div>
+          <div className="navigator-task-list">
+            {visibleTasks.length === 0 ? (
+              <p>暂无任务记录</p>
+            ) : (
+              visibleTasks.map((task) => (
+                <article key={task.id} className={`navigator-task-card ${task.status}`}>
+                  <div>
+                    <strong>{task.title}</strong>
+                    <span>{task.provider} · {task.status}</span>
+                  </div>
+                  <progress value={task.progress} max={100} />
+                  <small>{task.detail ?? "任务状态会随生成流程自动更新。"}</small>
+                </article>
+              ))
+            )}
+          </div>
+          <footer className="navigator-footer navigator-footer-wide">
+            <FolderSearch size={15} />
+            <span>{tasks.length} 任务 · {tasks.filter((task) => task.status === "failed").length} 失败</span>
           </footer>
         </div>
       )}
