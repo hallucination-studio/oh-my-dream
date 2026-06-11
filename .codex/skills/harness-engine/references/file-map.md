@@ -13,5 +13,5 @@
 - `docs/product-specs/`: durable product specs
 - `docs/exec-plans/`: active plans, completed plans, and tech debt tracker
 - `docs/sops/`: mechanical procedures for recurring workflows and validation loops
-- `docs/generated/`: generated facts such as schemas
+- `docs/generated/`: generated evidence and facts such as schemas, browser screenshots, DOM snapshots, layout summaries, and smoke outputs; use `evidence-prune` to preview stale unreferenced artifacts before deleting
 - `docs/references/`: external references rewritten or linked for model-friendly discovery

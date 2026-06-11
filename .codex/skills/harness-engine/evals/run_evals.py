@@ -5,10 +5,18 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 MANAGER = SKILL_DIR / "scripts" / "manage_harness.py"
+CASES_PATH = Path(__file__).with_name("cases.json")
+
+
+def load_case_metadata():
+    if not CASES_PATH.exists():
+        return {}
+    return {item["id"]: item for item in json.loads(CASES_PATH.read_text())}
 
 
 def run_manager(*args, expect_success=True):
@@ -34,7 +42,7 @@ def write_answers(path, project_name="demo"):
         "primary_users": "Codex users and maintainers",
         "deployment_targets": "npm package and local repositories",
         "product_domain": "developer tooling",
-        "reliability_targets": "Repeatable local commands and safe update behavior",
+        "reliability_targets": "Repeatable local commands and safe init behavior",
         "security_constraints": "Do not write secrets or overwrite user-owned docs without consent",
         "frontend_stack_notes": "Frontend changes require browser validation when a UI is detected",
         "quality_focus": "installer behavior, generated docs, plan closure, and knowledge capture",
@@ -53,6 +61,27 @@ def assert_contains(repo, relative_path, needle):
     text = (repo / relative_path).read_text()
     if needle not in text:
         raise AssertionError(f"Expected {relative_path} to contain {needle!r}")
+
+
+def quality_note_args(
+    product="Product behavior was validated by the eval case.",
+    ux="User/operator workflow evidence was validated by the eval case.",
+    architecture="Architecture and plan state were validated by the eval case.",
+    reliability="Repeatable validation evidence was produced by the eval case.",
+    security="Security and data-handling assumptions were checked by the eval case.",
+):
+    return [
+        "--product-note",
+        product,
+        "--ux-note",
+        ux,
+        "--architecture-note",
+        architecture,
+        "--reliability-note",
+        reliability,
+        "--security-note",
+        security,
+    ]
 
 
 def test_empty_repo_init(tmp_root):
@@ -83,12 +112,32 @@ def test_empty_repo_init(tmp_root):
         "docs/exec-plans/active/_template.md",
         "docs/exec-plans/completed/README.md",
         "docs/sops/encode-unseen-knowledge.md",
+        "docs/sops/evidence-first-eval-loop.md",
     ]:
         assert_exists(repo, relative_path)
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/active/")
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/workstreams.md")
     assert_contains(repo, "AGENTS.md", "docs/sops/")
-    assert_contains(repo, "AGENTS.md", ".codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check")
+    assert_contains(repo, "AGENTS.md", ".codex/skills/harness-engine/scripts/manage_harness.py check")
+    assert_contains(repo, "AGENTS.md", "## Issue Workflows")
+    assert_contains(repo, "AGENTS.md", "Product contract or acceptance drift")
+    assert_contains(repo, "AGENTS.md", "Backend, API, runtime behavior, background jobs, or integrations")
+    assert_contains(repo, "AGENTS.md", "Architecture boundaries, layering, data flow, or dependency direction")
+    assert_contains(repo, "AGENTS.md", "Data, state, migrations, cache, queues, or file formats")
+    assert_contains(repo, "AGENTS.md", "Security, privacy, auth, authorization, secrets, or sensitive data")
+    assert_contains(repo, "AGENTS.md", "Performance, capacity, timeout, resource use, or availability")
+    assert_contains(repo, "AGENTS.md", "Convert the issue into assertions, tests, smoke checks, or a regression case")
+    assert_contains(repo, "AGENTS.md", "Log confirmed defects or missing evidence with `defect-log`")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Evidence Requirements")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Treat LLM or human judgment as a summary over evidence")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Backend and runtime scores must cite")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Architecture scores must cite")
+    assert_contains(repo, "docs/QUALITY_SCORE.md", "Security scores must cite")
+    assert_contains(repo, "docs/FRONTEND.md", "Evidence For Meaningful UI Work")
+    assert_contains(repo, "docs/FRONTEND.md", "Define and verify layout invariants")
+    assert_contains(repo, "docs/FRONTEND.md", "preserve the primary task area")
+    assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Report per-case results")
+    assert_contains(repo, "docs/sops/evidence-first-eval-loop.md", "Read the Issue Workflows in `AGENTS.md`")
 
 
 def test_frontend_analysis(tmp_root):
@@ -117,6 +166,35 @@ def test_frontend_analysis(tmp_root):
         raise AssertionError("Frontend repo should ask frontend confirmation questions")
     if "React" not in analysis["frameworks"]:
         raise AssertionError("React should be detected")
+    if "docs/sops/evidence-first-eval-loop.md" not in analysis["missing_sops"]:
+        raise AssertionError("Analysis should include the evidence-first eval SOP")
+
+
+def test_init_reconciles_existing_harness(tmp_root):
+    repo = tmp_root / "reconcile-repo"
+    repo.mkdir()
+    answers = tmp_root / "reconcile-answers.json"
+    write_answers(answers, project_name="reconcile-demo")
+    init_result = run_manager("init", "--repo", str(repo), "--answers", str(answers))
+    if init_result["mode"] != "init" or "AGENTS.md" not in init_result["created"]:
+        raise AssertionError("init should report created managed files")
+
+    existing_analysis = run_manager("analyze", "--repo", str(repo))
+    if existing_analysis["recommended_action"] != "init" or existing_analysis["harness_state"] != "existing":
+        raise AssertionError("existing harnesses should still route through init reconciliation")
+
+    target = repo / "docs" / "sops" / "evidence-first-eval-loop.md"
+    target.unlink()
+    (repo / "AGENTS.md").write_text("<!-- harness-engine:managed -->\n# stale managed router\n")
+    reconcile_result = run_manager("init", "--repo", str(repo), "--answers", str(answers))
+    if reconcile_result["mode"] != "init" or reconcile_result["operation"] != "reconciled":
+        raise AssertionError("init should reconcile an existing managed harness")
+    if "docs/sops/evidence-first-eval-loop.md" not in reconcile_result["created"]:
+        raise AssertionError("init reconcile should create missing managed files introduced by newer templates")
+    if "AGENTS.md" not in reconcile_result["refreshed"]:
+        raise AssertionError("init reconcile should refresh existing managed files")
+    assert_contains(repo, "AGENTS.md", "## Issue Workflows")
+    assert_exists(repo, "docs/sops/evidence-first-eval-loop.md")
 
 
 def test_closed_loop_plan(tmp_root):
@@ -220,6 +298,9 @@ def test_closed_loop_plan(tmp_root):
         "8",
         "--architecture-note",
         "Plan closure needs a deterministic quality gate before handoff",
+        *quality_note_args(
+            architecture="Plan closure needs a deterministic quality gate before handoff",
+        ),
         expect_success=False,
     )
     if failing_score["status"] != "fail":
@@ -248,10 +329,10 @@ def test_closed_loop_plan(tmp_root):
         "8",
         "--security-data-handling",
         "8",
-        "--product-note",
-        "Requested behavior is complete",
-        "--architecture-note",
-        "Plan closure now has a deterministic quality gate",
+        *quality_note_args(
+            product="Requested behavior is complete",
+            architecture="Plan closure now has a deterministic quality gate",
+        ),
     )
     if passing_score["status"] != "pass":
         raise AssertionError("Scores at or above the minimum should pass")
@@ -346,6 +427,9 @@ def test_closed_loop_plan(tmp_root):
         "8",
         "--security-data-handling",
         "8",
+        *quality_note_args(
+            architecture="Id-based evidence closure was validated against ARCHITECTURE.md",
+        ),
     )
     plan_text = id_plan_path.read_text()
     if id_fact in (repo / "ARCHITECTURE.md").read_text():
@@ -439,6 +523,10 @@ def test_phase_continuity_workstream(tmp_root):
         "8",
         "--security-data-handling",
         "8",
+        *quality_note_args(
+            product="Phase 1 plan state was validated.",
+            architecture="Workstream continuity was validated.",
+        ),
     )
     close_without_continuity = run_manager(
         "plan-close",
@@ -568,6 +656,9 @@ def test_plan_path_canonicalization(tmp_root):
         "8",
         "--security-data-handling",
         "8",
+        *quality_note_args(
+            architecture="Canonical plan path normalization was validated.",
+        ),
     )
     run_manager(
         "workstream-upsert",
@@ -675,6 +766,10 @@ def test_defect_recovery_loop(tmp_root):
         "10",
         "--security-data-handling",
         "10",
+        *quality_note_args(
+            product="Open Snake defect remains unresolved.",
+            reliability="Open defect must block scoring despite high numeric values.",
+        ),
         expect_success=False,
     )
     if score_with_open_defect["status"] != "fail" or defect_id not in score_with_open_defect["open_defects"]:
@@ -729,6 +824,10 @@ def test_defect_recovery_loop(tmp_root):
         "9",
         "--security-data-handling",
         "10",
+        *quality_note_args(
+            product="Snake tail-cell defect was resolved with passing test evidence.",
+            reliability="Defect recovery was validated with fresh passing evidence.",
+        ),
     )
     if passing_score["status"] != "pass":
         raise AssertionError("quality-score should pass after defects are resolved")
@@ -749,38 +848,339 @@ def test_defect_recovery_loop(tmp_root):
         raise AssertionError("plan-close should not mark the default knowledge placeholder as completed")
 
 
+def test_quality_score_requires_notes(tmp_root):
+    repo = tmp_root / "quality-notes-repo"
+    repo.mkdir()
+    answers = tmp_root / "quality-notes-answers.json"
+    write_answers(answers, project_name="quality-notes-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "quality-notes",
+        "--goal",
+        "Validate quality-score evidence notes are required",
+    )
+    relative_plan = str(Path(plan_result["plan"]).resolve().relative_to(repo.resolve()))
+    missing_notes = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "9",
+        "--ux-operator-clarity",
+        "9",
+        "--architecture-maintainability",
+        "9",
+        "--reliability-observability",
+        "9",
+        "--security-data-handling",
+        "9",
+        expect_success=False,
+    )
+    if missing_notes["reason"] != "missing-quality-notes":
+        raise AssertionError("quality-score should fail with a missing-quality-notes reason")
+    if len(missing_notes["missing_notes"]) != 5:
+        raise AssertionError("quality-score should name every dimension missing an evidence note")
+    arguments = {item["argument"] for item in missing_notes["missing_notes"]}
+    if "--product-note" not in arguments or "--security-note" not in arguments:
+        raise AssertionError("quality-score should name the missing note arguments")
+
+    passing_score = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "9",
+        "--ux-operator-clarity",
+        "9",
+        "--architecture-maintainability",
+        "9",
+        "--reliability-observability",
+        "9",
+        "--security-data-handling",
+        "9",
+        *quality_note_args(
+            product="Product assertions were checked.",
+            ux="User workflow evidence was checked.",
+            architecture="Architecture evidence was checked.",
+            reliability="Validation command evidence was checked.",
+            security="Security evidence was checked.",
+        ),
+    )
+    if passing_score["status"] != "pass":
+        raise AssertionError("quality-score should pass when all evidence notes are present")
+    plan_text = Path(plan_result["plan"]).read_text()
+    if "No note provided" in plan_text:
+        raise AssertionError("quality-score should not write placeholder notes when evidence is required")
+
+
+def test_knowledge_evidence_verbatim(tmp_root):
+    repo = tmp_root / "knowledge-evidence-repo"
+    repo.mkdir()
+    answers = tmp_root / "knowledge-evidence-answers.json"
+    write_answers(answers, project_name="knowledge-evidence-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "knowledge-evidence",
+        "--goal",
+        "Validate durable knowledge evidence must be exact destination text",
+    )
+    plan_path = Path(plan_result["plan"])
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    fact = "Snake non-growth movement may enter the current tail cell because the tail leaves during the same tick"
+    log_result = run_manager(
+        "knowledge-log",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--fact",
+        fact,
+        "--destination",
+        "docs/product-specs/snake.md",
+    )
+    destination = repo / "docs" / "product-specs" / "snake.md"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    exact_evidence = "On a non-eating tick, moving into the current tail cell is legal because the tail leaves during the same tick."
+    destination.write_text(f"# Snake Rules\n\n- {exact_evidence}\n")
+
+    paraphrase_result = run_manager(
+        "knowledge-mark-written",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--id",
+        log_result["id"],
+        "--evidence",
+        "docs/product-specs/snake.md now states the tail-vacating rule.",
+        expect_success=False,
+    )
+    if paraphrase_result:
+        raise AssertionError("Paraphrased knowledge evidence should not succeed")
+    plan_text_after_failure = plan_path.read_text()
+    if f"- [x] [id:{log_result['id']}]" in plan_text_after_failure:
+        raise AssertionError("Failed knowledge evidence should not close the knowledge item")
+
+    evidence_file = tmp_root / "snake-evidence.txt"
+    evidence_file.write_text(exact_evidence + "\n")
+    run_manager(
+        "knowledge-mark-written",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--id",
+        log_result["id"],
+        "--evidence-file",
+        str(evidence_file),
+    )
+    plan_text = plan_path.read_text()
+    if f"- [x] [id:{log_result['id']}]" not in plan_text:
+        raise AssertionError("Exact destination evidence should close the knowledge item")
+    if f"| evidence: {exact_evidence}" not in plan_text:
+        raise AssertionError("Closed knowledge item should record the exact verification evidence")
+
+
+def test_evidence_prune_generated_artifacts(tmp_root):
+    repo = tmp_root / "prune-repo"
+    repo.mkdir()
+    answers = tmp_root / "prune-answers.json"
+    write_answers(answers, project_name="prune-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    generated = repo / "docs" / "generated"
+    stale = generated / "old-layout.json"
+    referenced = generated / "kept-layout.json"
+    recent = generated / "recent-layout.json"
+    managed = generated / "managed-starter.md"
+    stale.write_text('{"old": true}\n')
+    referenced.write_text('{"referenced": true}\n')
+    recent.write_text('{"recent": true}\n')
+    managed.write_text("<!-- harness-engine:managed -->\n# Starter\n")
+    old_time = time.time() - (30 * 24 * 60 * 60)
+    for path in [stale, referenced, managed]:
+        os.utime(path, (old_time, old_time))
+    (repo / "docs" / "PLANS.md").write_text(
+        (repo / "docs" / "PLANS.md").read_text()
+        + "\nKeep evidence at docs/generated/kept-layout.json for the closed mobile layout plan.\n"
+    )
+
+    dry_run = run_manager("evidence-prune", "--repo", str(repo), "--older-than-days", "14")
+    candidate_paths = {item["path"] for item in dry_run["candidates"]}
+    if dry_run["mode"] != "dry-run" or dry_run["removed"]:
+        raise AssertionError("evidence-prune should dry-run by default")
+    if "docs/generated/old-layout.json" not in candidate_paths:
+        raise AssertionError("stale unreferenced generated evidence should be a prune candidate")
+    if "docs/generated/kept-layout.json" in candidate_paths:
+        raise AssertionError("referenced generated evidence should not be a prune candidate")
+    if "docs/generated/recent-layout.json" in candidate_paths:
+        raise AssertionError("recent generated evidence should not be a prune candidate")
+    if "docs/generated/managed-starter.md" in candidate_paths:
+        raise AssertionError("managed starter files should not be prune candidates")
+    if not stale.exists():
+        raise AssertionError("dry-run should not delete candidates")
+
+    applied = run_manager(
+        "evidence-prune",
+        "--repo",
+        str(repo),
+        "--older-than-days",
+        "14",
+        "--apply",
+    )
+    if "docs/generated/old-layout.json" not in applied["removed"]:
+        raise AssertionError("apply should remove stale unreferenced generated evidence")
+    if stale.exists() or not referenced.exists() or not recent.exists() or not managed.exists():
+        raise AssertionError("apply should delete only stale unreferenced evidence")
+
+
+def test_eval_report_shape(tmp_root):
+    case_metadata = load_case_metadata()
+    report = build_report(
+        [
+            {
+                "id": "empty-repo-init",
+                "status": "pass",
+                "description": case_metadata["empty-repo-init"]["description"],
+                "score": 1.0,
+                "duration_seconds": 0.01,
+                "findings": [],
+                "recommended_actions": [],
+            },
+            {
+                "id": "frontend-analysis",
+                "status": "fail",
+                "description": case_metadata["frontend-analysis"]["description"],
+                "score": 0.0,
+                "duration_seconds": 0.02,
+                "findings": ["Frontend repo should ask frontend confirmation questions"],
+                "recommended_actions": ["Fix frontend-analysis before release."],
+            },
+        ]
+    )
+    if report["schema_version"] != "harness-eval-report.v1":
+        raise AssertionError("Eval report should expose a stable schema version")
+    if report["status"] != "fail" or report["score"] != 50:
+        raise AssertionError("Eval report should expose aggregate status and score")
+    if report["metrics"]["case_pass_rate"] != 0.5:
+        raise AssertionError("Eval report should expose detailed aggregate metrics")
+    if "case_results" not in report or len(report["case_results"]) != 2:
+        raise AssertionError("Eval report should expose per-case results")
+    failed_case = report["case_results"][1]
+    if not failed_case["findings"] or not failed_case["recommended_actions"]:
+        raise AssertionError("Failed eval cases should expose findings and recommended actions")
+    if "Review `case_results`" not in report["user_message"]:
+        raise AssertionError("Eval report should include a user-facing failure message")
+
+
 EVALS = [
     ("empty-repo-init", test_empty_repo_init),
     ("frontend-analysis", test_frontend_analysis),
+    ("init-reconciles-existing-harness", test_init_reconciles_existing_harness),
     ("closed-loop-plan", test_closed_loop_plan),
     ("phase-continuity-workstream", test_phase_continuity_workstream),
     ("plan-path-canonicalization", test_plan_path_canonicalization),
     ("defect-recovery-loop", test_defect_recovery_loop),
+    ("quality-score-requires-notes", test_quality_score_requires_notes),
+    ("knowledge-evidence-verbatim", test_knowledge_evidence_verbatim),
+    ("evidence-prune-generated-artifacts", test_evidence_prune_generated_artifacts),
+    ("eval-report-shape", test_eval_report_shape),
     ("preserve-unmanaged-docs", test_preserve_unmanaged_docs),
 ]
 
 
+def build_report(results):
+    passed = sum(1 for result in results if result["status"] == "pass")
+    total = len(results)
+    failed_results = [result for result in results if result["status"] == "fail"]
+    return {
+        "schema_version": "harness-eval-report.v1",
+        "status": "pass" if passed == total else "fail",
+        "score": round((passed / total) * 100) if total else 0,
+        "summary": {
+            "passed": passed,
+            "failed": total - passed,
+            "total": total,
+            "message": (
+                f"All {total} harness eval cases passed."
+                if passed == total
+                else f"{total - passed} of {total} harness eval cases failed."
+            ),
+        },
+        "metrics": {
+            "case_pass_rate": round(passed / total, 4) if total else 0,
+            "case_fail_rate": round((total - passed) / total, 4) if total else 0,
+            "failed_case_count": total - passed,
+        },
+        "case_results": results,
+        "user_message": (
+            "Harness evals passed. No release-blocking eval findings were detected."
+            if passed == total
+            else "Harness evals failed. Review `case_results` and fix the listed findings before handoff or release."
+        ),
+        "recommended_actions": [
+            action
+            for result in failed_results
+            for action in result["recommended_actions"]
+        ],
+    }
+
+
 def main():
     results = []
+    case_metadata = load_case_metadata()
     with tempfile.TemporaryDirectory() as tmp:
         tmp_root = Path(tmp)
         for eval_id, test_func in EVALS:
+            started = time.monotonic()
+            metadata = case_metadata.get(eval_id, {})
             try:
                 test_func(tmp_root)
-                results.append({"id": eval_id, "status": "pass"})
+                results.append(
+                    {
+                        "id": eval_id,
+                        "status": "pass",
+                        "description": metadata.get("description", ""),
+                        "score": 1.0,
+                        "duration_seconds": round(time.monotonic() - started, 3),
+                        "findings": [],
+                        "recommended_actions": [],
+                    }
+                )
             except Exception as error:
-                results.append({"id": eval_id, "status": "fail", "error": str(error)})
+                message = str(error)
+                results.append(
+                    {
+                        "id": eval_id,
+                        "status": "fail",
+                        "description": metadata.get("description", ""),
+                        "score": 0.0,
+                        "duration_seconds": round(time.monotonic() - started, 3),
+                        "findings": [message],
+                        "recommended_actions": [
+                            f"Reproduce `{eval_id}` locally with python3 skills/harness-engine/evals/run_evals.py.",
+                            "Treat the failing assertion as the next implementation input before release.",
+                        ],
+                    }
+                )
 
-    passed = sum(1 for result in results if result["status"] == "pass")
-    total = len(results)
-    report = {
-        "score": round((passed / total) * 100),
-        "passed": passed,
-        "total": total,
-        "results": results,
-    }
+    report = build_report(results)
     print(json.dumps(report, indent=2) + "\n")
-    if passed != total:
+    if report["status"] != "pass":
         sys.exit(1)
 
 

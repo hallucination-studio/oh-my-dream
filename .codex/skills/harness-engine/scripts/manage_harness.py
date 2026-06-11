@@ -5,10 +5,11 @@ import hashlib
 import json
 import os
 import re
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-MANAGED_MARKER = "<!-- harness-repo-bootstrap:managed -->"
+MANAGED_MARKER = "<!-- harness-engine:managed -->"
 DEFAULT_KNOWLEDGE_PLACEHOLDER = "- [ ] Add durable facts here as they emerge -> <destination-doc>"
 DEFAULT_DEFECT_PLACEHOLDER = "None."
 PLAN_TEMPLATE = """# Execution Plan: {title}
@@ -94,7 +95,30 @@ Read this file first, then follow the linked docs.
 - Read `docs/RELIABILITY.md` for runtime validation and failure handling.
 - Read `docs/SECURITY.md` before touching auth, secrets, or sensitive data.
 - Read `docs/FRONTEND.md` for UI or terminal interface changes.
-- Read the matching file in `docs/sops/` before architecture changes, UI validation, observability work, or knowledge capture.
+- Read the matching file in `docs/sops/` before architecture changes, UI validation, observability work, evidence-first evals, or knowledge capture.
+
+## Issue Workflows
+
+For any user-reported issue, classify the domain first, read the listed files, then reproduce,
+fix, and validate with evidence before judging the result.
+
+| Domain | Read First | Required Evidence |
+| --- | --- | --- |
+| Product contract or acceptance drift | `docs/PRODUCT_SENSE.md`, `docs/product-specs/`, `docs/sops/evidence-first-eval-loop.md` | Product assertions, acceptance checks, or documented limitation |
+| Frontend, UI, layout, interaction, responsive, canvas, visual state, or design fidelity | `docs/FRONTEND.md`, `docs/DESIGN.md`, `docs/sops/evidence-first-eval-loop.md` | Browser or local-runtime evidence across relevant workflows and viewports |
+| Backend, API, runtime behavior, background jobs, or integrations | `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/sops/local-observability-feedback-loop.md` | Narrow reproduction, tests or API smoke checks, logs, and failure-mode evidence |
+| Architecture boundaries, layering, data flow, or dependency direction | `ARCHITECTURE.md`, `docs/PLANS.md`, `docs/sops/layered-domain-architecture-setup.md` | Boundary map, tradeoff notes, migration or compatibility plan, and validation path |
+| Data, state, migrations, cache, queues, or file formats | `ARCHITECTURE.md`, `docs/RELIABILITY.md`, `docs/SECURITY.md` | Fixtures or migration checks, rollback/compatibility evidence, and data-loss risk notes |
+| Security, privacy, auth, authorization, secrets, or sensitive data | `docs/SECURITY.md`, `ARCHITECTURE.md` | Threat check, sensitive-data path, permission test, and secret-handling evidence |
+| Performance, capacity, timeout, resource use, or availability | `docs/RELIABILITY.md`, `ARCHITECTURE.md`, `docs/sops/local-observability-feedback-loop.md` | Baseline measurement, repeatable benchmark or smoke check, and before/after evidence |
+
+For each issue:
+
+- Inspect the relevant code path, runtime path, and user/operator workflow.
+- If a code change is needed and no active plan exists, create one with `plan-start`.
+- Convert the issue into assertions, tests, smoke checks, or a regression case before changing code.
+- Log confirmed defects or missing evidence with `defect-log`; unresolved defects must block `quality-score`, `plan-close`, and handoff.
+- Verify the fix against the same workflow and evidence type before claiming it is resolved.
 
 ## Repository Focus
 
@@ -113,7 +137,7 @@ Read this file first, then follow the linked docs.
 - Score completed work with `quality-score` before closing an execution plan.
 - If `quality-score` fails, treat `## Rework Required` as the next implementation input and do not close the plan.
 - Encode durable facts learned during execution into permanent docs before closing the task.
-- Before handoff, run the local harness check: `python3 .codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo .`.
+- Before handoff, run the local harness check: `python3 .codex/skills/harness-engine/scripts/manage_harness.py check --repo .`.
 - Keep generated artifacts in `docs/generated/`.
 - Keep external references in `docs/references/`.
 """,
@@ -178,6 +202,15 @@ DOC_FILES = {
 ## Validation Loop
 
 {frontend_validation_loop}
+
+## Evidence For Meaningful UI Work
+
+- Capture desktop and mobile evidence for significant UI changes.
+- Assert primary text, controls, selected state, loading state, empty state, error state, and primary interactions from the DOM or accessibility tree.
+- Define and verify layout invariants for the changed surface, including readable content, non-overlapping controls, usable primary work area, stable fixed-format elements, and reachable actions.
+- For responsive UI, verify that navigation, side panels, inspectors, toolbars, and secondary panes preserve the primary task area at intended breakpoints.
+- For canvas, WebGL, or game UIs, add pixel or scene-state checks so a blank render cannot pass.
+- Record browser limitations and fallback checks instead of claiming full UX validation when browser evidence is unavailable.
 """,
     "docs/PLANS.md": """{marker}
 # Plans
@@ -230,9 +263,24 @@ DOC_FILES = {
 - Reliability and observability
 - Security and data handling
 
+## Evidence Requirements
+
+- Product correctness scores must cite product contract checks, tests, browser assertions, or documented limitations.
+- UX scores for frontend work must cite browser evidence such as screenshots, DOM/accessibility snapshots, or responsive viewport checks.
+- Backend and runtime scores must cite narrow reproductions, tests, API smoke checks, logs, or integration evidence.
+- Architecture scores must cite boundary, dependency, data-flow, migration, or compatibility evidence.
+- Data and state scores must cite fixtures, migration checks, rollback checks, or data-loss risk analysis.
+- Security scores must cite threat checks, permission tests, sensitive-data path review, or secret-handling evidence.
+- Performance and reliability scores must cite baseline measurements, repeatable checks, failure-mode tests, or before/after evidence.
+- Reliability scores must cite repeatable commands, smoke checks, logs, traces, or failure-mode tests.
+- Every quality-score dimension requires a concrete evidence note; do not leave score notes empty.
+- Open defects must be logged with `defect-log`; do not hide known failures inside a high numeric score.
+- Treat LLM or human judgment as a summary over evidence, not as the only eval signal.
+
 ## Usage
 
 - Score changes by affected domain and layer.
+- Read `AGENTS.md` Issue Workflows and `docs/sops/evidence-first-eval-loop.md` before closing work that could regress product behavior, frontend layout, backend behavior, architecture boundaries, data safety, security, performance, or bug detection.
 - Document recurring weak spots and improvement themes here.
 """,
     "docs/RELIABILITY.md": """{marker}
@@ -448,6 +496,18 @@ Describe the desired first successful experience for a new user of {project_name
 3. Verify responsive behavior for the intended breakpoints.
 4. Write reusable findings back to `docs/FRONTEND.md` or `docs/design-docs/`.
 """,
+    "docs/sops/evidence-first-eval-loop.md": """{marker}
+# SOP: Evidence-First Eval Loop
+
+1. Convert product requirements into explicit product contract checks before scoring.
+2. Run deterministic validation first: tests, API smoke checks, CLI checks, browser actions, and state assertions.
+3. Read the Issue Workflows in `AGENTS.md` and the domain docs named there before judging or fixing.
+4. For frontend work, capture browser evidence: screenshots, DOM/accessibility snapshots, responsive checks, and layout invariants.
+5. For backend, architecture, data, security, and performance work, capture the domain evidence named in `AGENTS.md`.
+6. Log every discovered bug or evidence gap with `defect-log` before running `quality-score`.
+7. Resolve defects only after fixes have passing evidence, then rerun validation and `quality-score`.
+8. Report per-case results, failed assertions, artifact paths, and recommended next actions to the user.
+""",
 }
 
 QUESTION_CATALOG = [
@@ -500,6 +560,13 @@ QUALITY_DIMENSIONS = [
     ("reliability_observability", "Reliability and observability"),
     ("security_data_handling", "Security and data handling"),
 ]
+QUALITY_NOTE_ARGS = {
+    "product_correctness": "product-note",
+    "ux_operator_clarity": "ux-note",
+    "architecture_maintainability": "architecture-note",
+    "reliability_observability": "reliability-note",
+    "security_data_handling": "security-note",
+}
 
 
 def detect_languages(files):
@@ -606,7 +673,7 @@ def detect_existing_managed_files(repo):
         path = repo / relative_path
         if path.exists():
             try:
-                if path.read_text().startswith(MANAGED_MARKER):
+                if is_managed_text(path.read_text()):
                     managed.append(relative_path)
             except UnicodeDecodeError:
                 continue
@@ -669,6 +736,10 @@ def fill_template(template, answers, analysis):
 
 def ensure_parent(path):
     path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def is_managed_text(text):
+    return text.startswith(MANAGED_MARKER)
 
 
 def slugify(value):
@@ -1088,6 +1159,20 @@ def update_quality_gate(plan_path, scores, notes, minimum):
     }
 
 
+def missing_quality_notes(notes):
+    missing = []
+    for key, label in QUALITY_DIMENSIONS:
+        if not (notes.get(key) or "").strip():
+            missing.append(
+                {
+                    "dimension": label,
+                    "argument": "--" + QUALITY_NOTE_ARGS[key],
+                    "message": f"Provide evidence for {label}.",
+                }
+            )
+    return missing
+
+
 def assert_quality_gate_passed(plan_text):
     open_defects = open_defects_for_plan(plan_text)
     if open_defects:
@@ -1495,7 +1580,7 @@ def should_write(path, refresh_managed, force):
     if force:
         return True
     try:
-        is_managed = path.read_text().startswith(MANAGED_MARKER)
+        is_managed = is_managed_text(path.read_text())
     except UnicodeDecodeError:
         return False
     if refresh_managed and is_managed:
@@ -1505,6 +1590,8 @@ def should_write(path, refresh_managed, force):
 
 def write_scaffold(repo, analysis, answers, refresh_managed=False, force=False):
     written = []
+    created = []
+    refreshed = []
     skipped = []
     all_templates = {}
     all_templates.update(ROOT_FILES)
@@ -1512,14 +1599,19 @@ def write_scaffold(repo, analysis, answers, refresh_managed=False, force=False):
 
     for relative_path, template in all_templates.items():
         target = repo / relative_path
+        existed = target.exists()
         if should_write(target, refresh_managed, force):
             ensure_parent(target)
             content = fill_template(template, answers, analysis)
             target.write_text(content)
             written.append(relative_path)
+            if existed:
+                refreshed.append(relative_path)
+            else:
+                created.append(relative_path)
         else:
             skipped.append(relative_path)
-    return written, skipped
+    return written, skipped, created, refreshed
 
 
 def active_plan_dir(repo):
@@ -1729,6 +1821,63 @@ def check_harness(repo):
     }
 
 
+def docs_text_for_reference_scan(repo):
+    docs_root = repo / "docs"
+    chunks = []
+    roots = [repo / "AGENTS.md", repo / "ARCHITECTURE.md"]
+    if docs_root.exists():
+        roots.extend(path for path in docs_root.rglob("*") if path.is_file())
+    for path in roots:
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            chunks.append(path.read_text())
+        except UnicodeDecodeError:
+            continue
+    return "\n".join(chunks)
+
+
+def evidence_prune_candidates(repo, root="docs/generated", older_than_days=14):
+    evidence_root = (repo / root).resolve()
+    if not evidence_root.exists():
+        return []
+    try:
+        evidence_root.relative_to(repo.resolve())
+    except ValueError as error:
+        raise ValueError(f"Evidence root must be inside repo: {root}") from error
+
+    now = time.time()
+    max_age_seconds = older_than_days * 24 * 60 * 60
+    docs_text = docs_text_for_reference_scan(repo)
+    candidates = []
+    for path in sorted(evidence_root.rglob("*")):
+        if not path.is_file():
+            continue
+        relative_path = str(path.relative_to(repo))
+        try:
+            content = path.read_text()
+        except UnicodeDecodeError:
+            content = ""
+        if is_managed_text(content):
+            continue
+        age_seconds = now - path.stat().st_mtime
+        if age_seconds < max_age_seconds:
+            continue
+        if relative_path in docs_text or path.name in docs_text:
+            continue
+        candidates.append(
+            {
+                "path": relative_path,
+                "age_days": round(age_seconds / (24 * 60 * 60), 1),
+                "reason": (
+                    f"unreferenced file under {root} older than {older_than_days} days "
+                    "and not a managed starter"
+                ),
+            }
+        )
+    return candidates
+
+
 def analyze_repo(repo):
     files = list_repo_files(repo)
     languages = detect_languages(files)
@@ -1757,6 +1906,7 @@ def analyze_repo(repo):
             "docs/sops/encode-unseen-knowledge.md",
             "docs/sops/local-observability-feedback-loop.md",
             "docs/sops/chrome-devtools-ui-validation-loop.md",
+            "docs/sops/evidence-first-eval-loop.md",
         ]
         if not (repo / path).exists()
     ]
@@ -1801,7 +1951,8 @@ def analyze_repo(repo):
         "missing_sops": missing_sops,
         "durable_knowledge_targets": durable_knowledge_targets,
         "human_confirmations": human_confirmations,
-        "recommended_action": "update" if existing_harness or existing_managed else "init",
+        "harness_state": "existing" if existing_harness or existing_managed else "new",
+        "recommended_action": "init",
         "notes": [
             "Ask the human only the confirmations that the repository cannot answer safely.",
             "If unmanaged harness files already exist, preserve them unless the human explicitly requests replacement.",
@@ -1847,16 +1998,29 @@ def command_sample_answers(args):
     write_json(args.output, payload)
 
 
-def command_init_or_update(args, refresh_managed):
+def command_init(args):
     repo = Path(args.repo).resolve()
     analysis = analyze_repo(repo)
     answers = load_json(args.answers)
-    written, skipped = write_scaffold(repo, analysis, answers, refresh_managed=refresh_managed, force=args.force)
+    has_harness = bool(analysis["existing_harness_files"] or analysis["existing_managed_files"])
+    effective_refresh = has_harness or args.force
+    written, skipped, created, refreshed = write_scaffold(
+        repo,
+        analysis,
+        answers,
+        refresh_managed=effective_refresh,
+        force=args.force,
+    )
     result = {
         "repo": str(repo),
         "written": written,
+        "created": created,
+        "refreshed": refreshed,
         "skipped": skipped,
-        "mode": "update" if refresh_managed else "init",
+        "mode": "init",
+        "operation": "reconciled" if has_harness else "created",
+        "refresh_managed": effective_refresh,
+        "force": args.force,
     }
     write_json(args.output, result)
 
@@ -1943,6 +2107,18 @@ def command_quality_score(args):
         "reliability_observability": args.reliability_note,
         "security_data_handling": args.security_note,
     }
+    missing_notes = missing_quality_notes(notes)
+    if missing_notes and not args.allow_empty_notes:
+        result = {
+            "status": "fail",
+            "repo": str(repo),
+            "plan": str(plan_path),
+            "reason": "missing-quality-notes",
+            "message": "quality-score requires evidence notes for every dimension.",
+            "missing_notes": missing_notes,
+        }
+        write_json(args.output, result)
+        raise SystemExit(1)
     result = update_quality_gate(plan_path, scores, notes, args.minimum)
     result.update({"repo": str(repo), "plan": str(plan_path)})
     write_json(args.output, result)
@@ -2016,6 +2192,32 @@ def command_check(args):
         raise SystemExit(1)
 
 
+def command_evidence_prune(args):
+    repo = Path(args.repo).resolve()
+    candidates = evidence_prune_candidates(
+        repo,
+        root=args.root,
+        older_than_days=args.older_than_days,
+    )
+    removed = []
+    if args.apply:
+        for candidate in candidates:
+            path = repo / candidate["path"]
+            if path.exists() and path.is_file():
+                path.unlink()
+                removed.append(candidate["path"])
+    result = {
+        "repo": str(repo),
+        "root": args.root,
+        "older_than_days": args.older_than_days,
+        "mode": "apply" if args.apply else "dry-run",
+        "candidate_count": len(candidates),
+        "candidates": candidates,
+        "removed": removed,
+    }
+    write_json(args.output, result)
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="Manage the harness repo scaffold.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2035,19 +2237,7 @@ def build_parser():
     init.add_argument("--answers", required=True)
     init.add_argument("--output")
     init.add_argument("--force", action="store_true")
-    init.set_defaults(func=lambda args: command_init_or_update(args, refresh_managed=False))
-
-    update = subparsers.add_parser("update")
-    update.add_argument("--repo", required=True)
-    update.add_argument("--answers", required=True)
-    update.add_argument("--output")
-    update.add_argument("--refresh-managed", action="store_true")
-    update.add_argument("--force", action="store_true")
-    update.set_defaults(
-        func=lambda args: command_init_or_update(
-            args, refresh_managed=args.refresh_managed or args.force
-        )
-    )
+    init.set_defaults(func=command_init)
 
     plan_start = subparsers.add_parser("plan-start")
     plan_start.add_argument("--repo", required=True)
@@ -2120,6 +2310,7 @@ def build_parser():
     quality_score.add_argument("--architecture-note", default="")
     quality_score.add_argument("--reliability-note", default="")
     quality_score.add_argument("--security-note", default="")
+    quality_score.add_argument("--allow-empty-notes", action="store_true")
     quality_score.add_argument("--output")
     quality_score.set_defaults(func=command_quality_score)
 
@@ -2161,6 +2352,14 @@ def build_parser():
     check.add_argument("--repo", required=True)
     check.add_argument("--output")
     check.set_defaults(func=command_check)
+
+    evidence_prune = subparsers.add_parser("evidence-prune")
+    evidence_prune.add_argument("--repo", required=True)
+    evidence_prune.add_argument("--root", default="docs/generated")
+    evidence_prune.add_argument("--older-than-days", type=int, default=14)
+    evidence_prune.add_argument("--apply", action="store_true")
+    evidence_prune.add_argument("--output")
+    evidence_prune.set_defaults(func=command_evidence_prune)
 
     return parser
 

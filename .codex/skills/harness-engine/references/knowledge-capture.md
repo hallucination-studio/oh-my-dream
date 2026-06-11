@@ -27,9 +27,9 @@ Prefer the script workflow:
 
 1. Log the fact into the active execution plan with `knowledge-log`.
 2. Write the fact into its permanent destination doc.
-3. Mark the plan item complete with `knowledge-mark-written --id <knowledge-id> --evidence "<text present in durable doc>"`.
+3. Mark the plan item complete with `knowledge-mark-written --id <knowledge-id> --evidence "<verbatim text present in durable doc>"`.
 4. Close the plan with `plan-close`.
 
 `knowledge-log` returns a stable id. Prefer id-based closure so permanent docs can use concise, natural wording rather than duplicating the exact plan fact.
 
-`knowledge-mark-written` verifies that the destination file contains either the provided evidence text or, for legacy calls, the exact fact. Use `--append` only when the exact fact should be appended to the destination doc by the tool.
+`knowledge-mark-written` verifies that the destination file contains either the provided evidence text or the exact fact. Evidence must be copied from the destination doc; a summary such as "the doc now states this rule" is rejected unless that exact sentence is in the doc. Use `--append` only when the exact fact should be appended to the destination doc by the tool.
