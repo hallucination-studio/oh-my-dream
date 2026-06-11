@@ -1,0 +1,77 @@
+@layer components {
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-modal-backdrop);
+    padding: var(--space-9);
+    display: grid;
+    place-items: center;
+    background: rgba(15, 23, 42, 0.28);
+  }
+
+  .modal {
+    width: min(100%, 920px);
+    max-height: calc(100vh - 48px);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    overflow: auto;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-modal);
+  }
+
+  .modal-head {
+    min-height: 54px;
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+  }
+
+  .modal-head h2 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--font-title);
+  }
+
+  .modal-actions {
+    padding-top: var(--space-3);
+  }
+
+  .shortcut-list {
+    padding: var(--space-6);
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .shortcut-list div {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+    color: var(--color-text-soft);
+    font-size: var(--font-md);
+  }
+
+  .config-page .modal-backdrop,
+  .standalone-config .modal-backdrop {
+    position: static;
+    padding: 0;
+    display: block;
+    background: transparent;
+  }
+
+  .standalone-config .modal {
+    width: 100%;
+    max-width: none;
+    box-shadow: none;
+  }
+
+  @media (max-width: 680px) {
+    .modal-backdrop {
+      padding: var(--space-3);
+    }
+  }
+}

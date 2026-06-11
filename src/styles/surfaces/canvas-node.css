@@ -1,0 +1,148 @@
+@layer surfaces {
+  .flow-node {
+    min-height: 0;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    color: var(--color-text);
+    background: var(--color-surface);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+  }
+
+  .flow-node.selected {
+    border-color: rgba(10, 132, 255, 0.72);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.13), 0 4px 10px rgba(15, 23, 42, 0.05);
+  }
+
+  .node-head {
+    min-height: 34px;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    background: var(--color-panel-subtle);
+  }
+
+  .node-head span {
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-xs);
+    display: grid;
+    place-items: center;
+    color: var(--color-accent-ink);
+    background: var(--color-accent-soft);
+  }
+
+  .node-head input {
+    height: 22px;
+    padding: 0;
+    border: 0;
+    color: var(--color-text);
+    background: transparent;
+    font-size: var(--font-sm);
+    font-weight: 700;
+  }
+
+  .node-head em {
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-xs);
+    color: var(--color-muted);
+    background: var(--color-surface);
+    font-size: 10px;
+    font-style: normal;
+  }
+
+  .node-preview-shell {
+    padding: var(--space-3);
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .node-media {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  .text-node-preview,
+  .workflow-placeholder {
+    min-height: 90px;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    display: grid;
+    align-content: start;
+    gap: var(--space-3);
+    color: var(--color-muted);
+    background: var(--color-panel-subtle);
+  }
+
+  .text-node-preview span,
+  .workflow-placeholder span {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--color-text);
+    font-size: var(--font-sm);
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+  }
+
+  .workflow-placeholder {
+    min-height: 104px;
+    place-items: center;
+    align-content: center;
+    text-align: center;
+  }
+
+  .node-summary {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .node-summary p {
+    margin: 0;
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--color-muted);
+    font-size: var(--font-xs);
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .node-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .task-info {
+    margin: 0;
+    padding: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-muted);
+    background: var(--color-panel-subtle);
+    font-size: var(--font-xs);
+  }
+
+  .task-info progress {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 5px;
+  }
+
+  .react-flow__handle {
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--color-surface);
+    background: var(--color-accent);
+  }
+}

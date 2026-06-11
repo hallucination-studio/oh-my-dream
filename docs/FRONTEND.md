@@ -27,3 +27,13 @@ Detected frameworks: React, Vite. This is a user-facing creative desktop-style i
 - Canvas IA should use a three-zone workbench: project navigator on the left, React Flow canvas in the center, and inspector/queue/review on the right. Bottom chrome is a shortcut layer, not the primary workspace.
 - Nodes should behave like workflow cards: title, media/text summary, key state, input/output counts, and connection handles. Detailed generation parameters, image tools, result review, and lineage controls belong in the inspector/review surfaces.
 - Generated work should keep visible lineage across node, task, history, asset, and derived batch records so users can locate sources, compare outputs, and reuse parameters without reconstructing context.
+
+## Style System Notes
+
+- Global app styling is owned by `src/styles/index.css`, which imports cascade layers in this order: `tokens`, `reset`, `base`, `layout`, `components`, `surfaces`, `utilities`.
+- New CSS files must wrap rules in the matching `@layer`; do not add unlayered global UI rules or late override sections.
+- Shared product primitives belong in `src/styles/components/`, while page and workbench chrome belong in `src/styles/surfaces/`.
+- Canvas styling must stay split by responsibility: shell positioning and React Flow chrome in `canvas-shell.css`, left project navigation in `canvas-navigator.css`, inspector/queue/review in `canvas-workbench.css`, bottom shortcuts in `canvas-drawer.css`, and workflow-card nodes in `canvas-node.css`.
+- React Flow ships unlayered CSS, so root sizing overrides must live in `src/styles/react-flow-overrides.css` after the layered imports; otherwise third-party `height: 100%` can outrank app layer rules and collapse the canvas.
+- Keep the visual language restrained: neutral light surfaces, thin borders, compact controls, one blue accent for primary action/selection/focus, and low shadows. Avoid decorative gradients, default glass blur, high-saturation inactive states, and border-plus-large-blur card patterns.
+- Treat CSS files over roughly 700 lines as a refactor trigger. Prefer adding or moving rules within the existing layered surface/component boundaries over extending one catch-all stylesheet.

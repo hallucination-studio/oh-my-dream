@@ -1,0 +1,118 @@
+@layer components {
+  input,
+  textarea,
+  select {
+    color: var(--color-text);
+  }
+
+  .search-box,
+  .project-sort,
+  .stack-form input,
+  .stack-form select,
+  .config-grid input,
+  .config-grid select,
+  .project-name-input,
+  .inspector-identity input,
+  .inspector-section textarea,
+  .inspector-grid-two input,
+  .inspector-grid-two select,
+  .navigator-title-row input,
+  .navigator-tools select,
+  .navigator-search input {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    background: var(--color-surface);
+  }
+
+  .search-box,
+  .project-sort {
+    min-height: var(--control-lg);
+    padding: 0 var(--space-5);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .search-box input,
+  .project-sort select,
+  .navigator-tools select,
+  .navigator-search input {
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+  }
+
+  .stack-form,
+  .config-form,
+  .config-grid section {
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  .stack-form label,
+  .config-grid label,
+  .inspector-grid-two label {
+    display: grid;
+    gap: var(--space-2);
+    color: var(--color-text-soft);
+    font-size: var(--font-sm);
+  }
+
+  .stack-form input,
+  .stack-form select,
+  .config-grid input,
+  .config-grid select,
+  .inspector-grid-two input,
+  .inspector-grid-two select {
+    width: 100%;
+    min-height: var(--control-md);
+    padding: 0 var(--space-3);
+  }
+
+  .inspector-section textarea,
+  .stack-form textarea {
+    width: 100%;
+    min-height: 92px;
+    padding: var(--space-3);
+    resize: vertical;
+    line-height: 1.45;
+  }
+
+  .toggle-row,
+  .inline-check {
+    min-height: var(--control-md);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--color-text-soft);
+  }
+
+  .toggle-row input,
+  .inline-check input,
+  .check-cell input {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--color-accent);
+  }
+
+  .split-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+
+  .range-control {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--color-muted);
+    font-size: var(--font-sm);
+  }
+
+  .range-control input {
+    accent-color: var(--color-accent);
+  }
+}

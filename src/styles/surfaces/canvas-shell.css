@@ -1,0 +1,335 @@
+@layer surfaces {
+  .canvas-page {
+    --canvas-left: 292px;
+    --canvas-right: 320px;
+    --canvas-gutter: var(--space-7);
+    --canvas-center-width: calc(100vw - var(--canvas-left) - var(--canvas-right));
+    --canvas-center-x: calc(var(--canvas-left) + var(--canvas-center-width) / 2);
+    min-height: 100vh;
+    background: var(--color-canvas);
+  }
+
+  .canvas-page.navigator-collapsed {
+    --canvas-left: 0px;
+  }
+
+  .canvas-page .react-flow {
+    position: fixed;
+    inset: 0 var(--canvas-right) 0 var(--canvas-left);
+    width: auto;
+    height: auto;
+    background: var(--color-canvas);
+  }
+
+  .canvas-page.navigator-collapsed .react-flow {
+    left: 0;
+  }
+
+  .canvas-page .react-flow__background {
+    opacity: 0.58;
+  }
+
+  .canvas-page .react-flow__edge-path {
+    stroke: rgba(71, 85, 105, 0.38);
+    stroke-width: 1.4;
+  }
+
+  .canvas-page .react-flow__edge.selected .react-flow__edge-path {
+    stroke: var(--color-accent);
+  }
+
+  .canvas-page .react-flow__minimap {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .canvas-page .react-flow__minimap-mask {
+    fill: rgba(10, 132, 255, 0.14);
+  }
+
+  .canvas-page .react-flow__controls {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: none;
+  }
+
+  .canvas-page .react-flow__controls button {
+    width: 30px;
+    height: 30px;
+    border-bottom-color: var(--color-border);
+  }
+
+  .canvas-topbar {
+    position: fixed;
+    top: var(--space-7);
+    left: var(--canvas-center-x);
+    z-index: var(--z-canvas-chrome);
+    width: min(760px, calc(var(--canvas-center-width) - var(--space-10)));
+    min-height: 50px;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-tool);
+    transform: translateX(-50%);
+  }
+
+  .canvas-page.with-navigator .canvas-topbar {
+    left: var(--canvas-center-x);
+  }
+
+  .canvas-topbar-primary,
+  .canvas-topbar-status,
+  .canvas-nav-buttons {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .canvas-topbar-primary {
+    display: grid;
+    grid-template-columns: 176px minmax(0, 1fr) 176px;
+    align-items: center;
+    width: 100%;
+  }
+
+  .canvas-topbar-status {
+    justify-content: flex-end;
+    min-height: 24px;
+    flex-wrap: nowrap;
+  }
+
+  .canvas-status-path {
+    display: none;
+  }
+
+  .canvas-mobile-settings {
+    display: none;
+  }
+
+  .canvas-topbar-primary .icon-btn,
+  .canvas-left-controls .icon-btn,
+  .bottom-toolbar .icon-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .project-name-input {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    border: 0;
+    color: var(--color-text);
+    background: transparent;
+    font-size: var(--font-md);
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .canvas-project-meta {
+    min-width: 0;
+    display: grid;
+    justify-items: center;
+    gap: 1px;
+  }
+
+  .canvas-project-meta .canvas-path-pill {
+    max-width: 100%;
+  }
+
+  .canvas-left-controls {
+    position: fixed;
+    right: calc(var(--canvas-right) + var(--canvas-gutter));
+    bottom: var(--space-7);
+    z-index: var(--z-canvas-chrome);
+    padding: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-tool);
+  }
+
+  .zoom-pill {
+    min-width: 48px;
+    color: var(--color-muted);
+    font-size: var(--font-xs);
+    text-align: center;
+  }
+
+  .bottom-toolbar {
+    position: fixed;
+    left: calc(var(--canvas-left) + var(--canvas-gutter));
+    bottom: var(--space-7);
+    z-index: var(--z-canvas-chrome);
+    padding: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    display: flex;
+    gap: var(--space-1);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-tool);
+  }
+
+  .bottom-toolbar .icon-btn:first-child,
+  .bottom-toolbar .icon-btn.active,
+  .canvas-left-controls .icon-btn.active {
+    color: var(--color-accent-ink);
+    background: var(--color-accent-soft);
+  }
+
+  .canvas-navigator-collapsed {
+    position: fixed;
+    left: var(--space-4);
+    top: var(--space-4);
+    z-index: var(--z-canvas-chrome);
+    padding: var(--space-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-tool);
+  }
+
+  @media (max-width: 1180px) {
+    .canvas-page {
+      --canvas-left: 0px;
+      --canvas-right: 0px;
+      --mobile-workbench-width: min(280px, 68dvw);
+    }
+
+    .canvas-page .react-flow {
+      inset: 0;
+    }
+
+    .canvas-navigator {
+      transform: translateX(-100%);
+    }
+
+    .canvas-topbar,
+    .canvas-page.with-navigator .canvas-topbar {
+      left: 50%;
+      width: min(720px, calc(100vw - 36px));
+    }
+
+    .bottom-toolbar {
+      left: var(--space-7);
+    }
+
+    .canvas-left-controls {
+      right: var(--space-7);
+    }
+  }
+
+  @media (max-width: 720px) {
+    .canvas-topbar,
+    .canvas-page.with-navigator .canvas-topbar {
+      top: var(--space-4);
+      left: var(--space-4);
+      right: calc(var(--mobile-workbench-width) + var(--space-4));
+      width: auto;
+      padding: var(--space-2);
+      gap: var(--space-2);
+      grid-template-rows: auto auto;
+      transform: none;
+    }
+
+    .canvas-topbar-primary {
+      grid-template-columns: 34px minmax(0, 1fr) 34px;
+      grid-template-areas:
+        "nav title settings"
+        "meta meta meta";
+    }
+
+    .canvas-nav-buttons {
+      grid-area: nav;
+      gap: var(--space-1);
+    }
+
+    .canvas-project-meta {
+      grid-area: title;
+    }
+
+    .canvas-topbar-status {
+      grid-area: meta;
+    }
+
+    .canvas-mobile-settings {
+      grid-area: settings;
+      display: inline-flex;
+      justify-self: end;
+    }
+
+    .canvas-desktop-settings {
+      display: none;
+    }
+
+    .canvas-nav-buttons .icon-btn:first-child {
+      display: none;
+    }
+
+    .canvas-project-meta {
+      gap: 0;
+    }
+
+    .canvas-topbar-status {
+      justify-content: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+
+    .canvas-status-path {
+      display: none;
+    }
+
+    .canvas-topbar-status .canvas-status-path {
+      flex-basis: 100%;
+      max-width: 100%;
+      justify-content: center;
+    }
+
+    .canvas-project-meta .canvas-path-pill {
+      display: none;
+    }
+
+    .canvas-save-status,
+    .canvas-task-status {
+      min-height: 20px;
+      padding: 0 var(--space-2);
+    }
+
+    .canvas-left-controls {
+      left: var(--space-4);
+      right: auto;
+      bottom: calc(var(--space-7) + 48px);
+      max-width: calc(100dvw - var(--mobile-workbench-width) - 24px);
+      overflow-x: auto;
+    }
+
+    .bottom-toolbar {
+      left: var(--space-4);
+      right: calc(var(--mobile-workbench-width) + var(--space-4));
+      width: auto;
+      justify-content: flex-start;
+      overflow-x: auto;
+    }
+
+    .bottom-toolbar .icon-btn,
+    .canvas-left-controls .icon-btn {
+      flex: 0 0 auto;
+      width: 30px;
+      height: 30px;
+    }
+
+    .zoom-pill {
+      min-width: 40px;
+    }
+  }
+}

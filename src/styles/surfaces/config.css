@@ -1,0 +1,25 @@
+@layer surfaces {
+  .config-grid {
+    padding: var(--space-6);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: var(--space-6);
+  }
+
+  .config-grid section {
+    padding: var(--space-6);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-panel-subtle);
+  }
+
+  .config-grid h3 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--font-title);
+  }
+
+  .config-form .modal-actions {
+    padding: 0 var(--space-6) var(--space-6);
+  }
+}

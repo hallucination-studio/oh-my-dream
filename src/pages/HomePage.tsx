@@ -110,7 +110,7 @@ export function HomePage() {
       <main className="home-main">
         <section className="workbench-hero" aria-label="本地工作台">
           <div className="workbench-copy">
-            <span className="home-hero-kicker">
+            <span className="workbench-kicker">
               <CheckCircle2 size={14} />
               本地工作台
             </span>

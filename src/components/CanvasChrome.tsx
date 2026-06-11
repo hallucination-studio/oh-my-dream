@@ -39,43 +39,53 @@ export function CanvasTopbar({
 
   return (
     <header className="canvas-topbar">
-      <div className="canvas-nav">
-        <IconButton label="返回首页" onClick={onNavigateHome}>
-          <Home size={18} />
-        </IconButton>
-        <IconButton label="返回项目" onClick={onNavigateProjects}>
-          <ArrowLeft size={18} />
-        </IconButton>
-        <input
-          className="project-name-input"
-          aria-label="项目名称"
-          name="projectName"
-          value={project.name}
-          readOnly={project.readonly}
-          onChange={(event) => onRenameProject(event.target.value)}
-        />
-        {project.readonly && <span className="pill">只读预览</span>}
-        {project.readonly && (
-          <Button className="canvas-copy-btn" size="sm" onClick={onCreateEditableCopy}>
-            <Copy size={14} />
-            创建副本
-          </Button>
-        )}
-        <span className="canvas-path-pill" title={project.workspacePath ?? `workspace/${project.id}`}>
-          {project.workspacePath ?? `workspace/${project.id}`}
-        </span>
-      </div>
-      <div className="canvas-top-actions">
-        <span className="canvas-save-status">
-          <CheckCircle2 size={15} />
-          {readonlyProject ? "只读预览" : "自动保存"}
-        </span>
-        <span className={`canvas-task-status ${activeTasks.length > 0 ? "running" : failedTasks.length > 0 ? "failed" : ""}`}>
-          {activeTasks.length > 0 ? `${activeTasks.length} 运行中` : failedTasks.length > 0 ? `${failedTasks.length} 失败` : "无运行任务"}
-        </span>
-        <IconButton label="打开设置" className="settings-trigger" onClick={onOpenConfig}>
+      <div className="canvas-topbar-primary">
+        <div className="canvas-nav-buttons">
+          <IconButton label="返回首页" onClick={onNavigateHome}>
+            <Home size={18} />
+          </IconButton>
+          <IconButton label="返回项目" onClick={onNavigateProjects}>
+            <ArrowLeft size={18} />
+          </IconButton>
+        </div>
+        <div className="canvas-project-meta">
+          <input
+            className="project-name-input"
+            aria-label="项目名称"
+            name="projectName"
+            value={project.name}
+            readOnly={project.readonly}
+            onChange={(event) => onRenameProject(event.target.value)}
+          />
+          <span className="canvas-path-pill" title={project.workspacePath ?? `workspace/${project.id}`}>
+            {project.workspacePath ?? `workspace/${project.id}`}
+          </span>
+        </div>
+        <IconButton label="打开设置" className="settings-trigger canvas-mobile-settings" onClick={onOpenConfig}>
           <SlidersHorizontal size={17} />
         </IconButton>
+        <div className="canvas-topbar-status">
+          <span className="canvas-path-pill canvas-status-path" title={project.workspacePath ?? `workspace/${project.id}`}>
+            {project.workspacePath ?? `workspace/${project.id}`}
+          </span>
+          {project.readonly && <span className="pill">只读预览</span>}
+          {project.readonly && (
+            <Button className="canvas-copy-btn" size="sm" onClick={onCreateEditableCopy}>
+              <Copy size={14} />
+              创建副本
+            </Button>
+          )}
+          <span className="canvas-save-status">
+            <CheckCircle2 size={15} />
+            {readonlyProject ? "只读预览" : "自动保存"}
+          </span>
+          <span className={`canvas-task-status ${activeTasks.length > 0 ? "running" : failedTasks.length > 0 ? "failed" : ""}`}>
+            {activeTasks.length > 0 ? `${activeTasks.length} 运行中` : failedTasks.length > 0 ? `${failedTasks.length} 失败` : "无运行任务"}
+          </span>
+          <IconButton label="打开设置" className="settings-trigger canvas-desktop-settings" onClick={onOpenConfig}>
+            <SlidersHorizontal size={17} />
+          </IconButton>
+        </div>
       </div>
     </header>
   );

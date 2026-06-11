@@ -1,0 +1,145 @@
+@layer layout {
+  .topbar {
+    height: 58px;
+    padding: 0 var(--space-8);
+    border-bottom: 1px solid var(--color-border);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-6);
+    background: var(--color-surface);
+  }
+
+  .canvas-shell-topbar {
+    position: relative;
+    z-index: var(--z-canvas-chrome);
+  }
+
+  .brand {
+    width: fit-content;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text);
+    font-size: var(--font-title);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .brand small,
+  .pill {
+    min-height: 22px;
+    padding: 0 var(--space-3);
+    border: 1px solid rgba(10, 132, 255, 0.18);
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-accent-ink);
+    background: var(--color-accent-soft);
+    font-size: var(--font-xs);
+    font-weight: 650;
+  }
+
+  .topbar-nav,
+  .topbar-actions,
+  .row-actions,
+  .modal-actions,
+  .batch-row,
+  .history-actions,
+  .workbench-actions,
+  .starter-strip,
+  .asset-card-actions,
+  .navigator-asset-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .topbar-actions,
+  .row-actions,
+  .modal-actions,
+  .workbench-actions {
+    justify-content: flex-end;
+  }
+
+  .topbar-nav a,
+  .plain-link {
+    min-height: var(--control-lg);
+    padding: 0 var(--space-7);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text-soft);
+    background: var(--color-surface);
+  }
+
+  .home-main,
+  .project-main,
+  .config-page {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: var(--space-9) var(--space-9) 80px;
+  }
+
+  .section-head,
+  .project-title-row,
+  .panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-9);
+  }
+
+  .section-head {
+    margin: var(--space-10) 0 var(--space-7);
+  }
+
+  .section-head h2,
+  .project-title-row h1,
+  .panel-head h2 {
+    margin: 0;
+    color: var(--color-text);
+    line-height: 1.18;
+  }
+
+  .section-head h2,
+  .project-title-row h1 {
+    font-size: 24px;
+  }
+
+  .panel-head h2 {
+    font-size: var(--font-title);
+  }
+
+  .section-head p,
+  .panel-head p,
+  .project-title-meta {
+    margin: var(--space-2) 0 0;
+    color: var(--color-muted);
+    font-size: var(--font-md);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 900px) {
+    .topbar {
+      height: auto;
+      min-height: 58px;
+      padding: var(--space-5);
+    }
+
+    .home-main,
+    .project-main,
+    .config-page {
+      padding: var(--space-7) var(--space-5) 64px;
+    }
+
+    .section-head,
+    .project-title-row,
+    .panel-head {
+      align-items: stretch;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
+  }
+}

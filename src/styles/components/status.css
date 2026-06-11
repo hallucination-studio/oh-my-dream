@@ -1,0 +1,106 @@
+@layer components {
+  .status-grid,
+  .health-grid,
+  .review-summary {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .status-grid,
+  .health-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .status-grid article,
+  .health-grid article,
+  .review-summary article {
+    min-height: 62px;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    display: grid;
+    align-content: space-between;
+    gap: var(--space-2);
+    background: var(--color-panel-subtle);
+  }
+
+  .status-grid span,
+  .health-grid span,
+  .review-summary span,
+  .task-summary-list span {
+    color: var(--color-muted);
+    font-size: var(--font-xs);
+  }
+
+  .status-grid strong,
+  .health-grid strong,
+  .review-summary strong {
+    color: var(--color-text);
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .is-ok strong,
+  .history-status.done,
+  .task-info.done {
+    color: var(--color-success);
+  }
+
+  .is-warning strong,
+  .canvas-task-status.failed,
+  .history-status.failed,
+  .task-info.failed,
+  .history-error {
+    color: var(--color-danger);
+  }
+
+  .is-running strong,
+  .canvas-task-status.running,
+  .history-status.running,
+  .history-status.queued {
+    color: var(--color-accent-ink);
+  }
+
+  .status-actions {
+    margin-top: var(--space-5);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .status-note,
+  .status-message {
+    margin: var(--space-5) 0 0;
+    color: var(--color-muted);
+    font-size: var(--font-md);
+    line-height: 1.5;
+  }
+
+  .status-message {
+    padding: var(--space-3);
+    border: 1px solid rgba(10, 132, 255, 0.18);
+    border-radius: var(--radius-md);
+    color: var(--color-accent-ink);
+    background: var(--color-accent-soft);
+  }
+
+  .history-status,
+  .status-chip,
+  .canvas-path-pill,
+  .canvas-save-status,
+  .canvas-task-status,
+  .asset-source,
+  .template-tier {
+    min-height: 22px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    color: var(--color-muted);
+    background: var(--color-panel-subtle);
+    font-size: var(--font-xs);
+    font-style: normal;
+  }
+}

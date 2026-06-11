@@ -1,0 +1,92 @@
+@layer tokens {
+  :root {
+    color-scheme: light;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+
+    --color-bg: #f4f6f9;
+    --color-surface: #ffffff;
+    --color-panel: #fbfcfe;
+    --color-panel-subtle: #f7f9fc;
+    --color-panel-raised: #ffffff;
+    --color-canvas: #f4f6f9;
+    --color-border: rgba(15, 23, 42, 0.1);
+    --color-border-strong: rgba(15, 23, 42, 0.16);
+    --color-text: #111827;
+    --color-text-soft: #334155;
+    --color-muted: #64748b;
+    --color-accent: #0a84ff;
+    --color-accent-ink: #0758ad;
+    --color-accent-soft: rgba(10, 132, 255, 0.1);
+    --color-success: #188038;
+    --color-warning: #b26b00;
+    --color-danger: #d92d20;
+
+    --space-1: 4px;
+    --space-2: 6px;
+    --space-3: 8px;
+    --space-4: 10px;
+    --space-5: 12px;
+    --space-6: 14px;
+    --space-7: 16px;
+    --space-8: 20px;
+    --space-9: 24px;
+    --space-10: 32px;
+
+    --font-xs: 11px;
+    --font-sm: 12px;
+    --font-md: 13px;
+    --font-body: 14px;
+    --font-title: 16px;
+    --font-display: 30px;
+
+    --radius-xs: 5px;
+    --radius-sm: 7px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 12px;
+    --radius-pill: 999px;
+
+    --shadow-tight: 0 4px 10px rgba(15, 23, 42, 0.06);
+    --shadow-tool: 0 8px 12px rgba(15, 23, 42, 0.06);
+    --shadow-modal: 0 12px 30px rgba(15, 23, 42, 0.16);
+
+    --control-sm: 28px;
+    --control-md: 32px;
+    --control-lg: 38px;
+
+    --z-navigator: 12;
+    --z-canvas-chrome: 14;
+    --z-workbench: 13;
+    --z-drawer: 15;
+    --z-modal-backdrop: 40;
+    --z-modal: 41;
+
+    --duration-fast: 120ms;
+    --duration-base: 180ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+    /* Transitional aliases for third-party or older component code. */
+    --primary: var(--color-accent);
+    --primary-bright: var(--color-accent);
+    --secondary: #0f172a;
+    --success: var(--color-success);
+    --warning: var(--color-warning);
+    --danger: var(--color-danger);
+    --surface: var(--color-panel-subtle);
+    --text: var(--color-text);
+    --page: var(--color-bg);
+    --panel: var(--color-surface);
+    --panel-2: var(--color-panel-subtle);
+    --panel-3: #eef2f7;
+    --line: var(--color-border);
+    --line-strong: var(--color-border-strong);
+    --muted: var(--color-muted);
+    --soft: var(--color-text-soft);
+    --radius: var(--radius-md);
+    --radius-lg: var(--radius-xl);
+    --shadow-out: var(--shadow-tool);
+    --shadow-in: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+}
