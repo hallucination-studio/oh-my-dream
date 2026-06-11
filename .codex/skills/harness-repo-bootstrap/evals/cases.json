@@ -1,0 +1,18 @@
+[
+  {
+    "id": "empty-repo-init",
+    "description": "Empty repositories should receive the full advanced harness scaffold."
+  },
+  {
+    "id": "frontend-analysis",
+    "description": "Frontend repositories should trigger frontend-specific confirmation and policy output."
+  },
+  {
+    "id": "closed-loop-plan",
+    "description": "Execution plans should refuse to close until durable knowledge is written back."
+  },
+  {
+    "id": "preserve-unmanaged-docs",
+    "description": "Existing user-owned harness files should be skipped unless explicitly forced."
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "project_name": "oh-my-dream",
+  "project_summary": "A local-first creative client for AI-driven video work that keeps ideation, shot planning, assets, prompts, generation, and revision inside one coherent workspace.",
+  "primary_users": "Independent creators and studio teams using a local client like a professional editing tool to plan and iterate on AI video projects.",
+  "deployment_targets": "Pure local client usage. The product should behave like a desktop creative application, with primary workflows running on the user's machine rather than depending on a hosted web app.",
+  "product_domain": "Local-first creative production software for AI-assisted video workflows.",
+  "reliability_targets": "Local data persistence, crash recovery, and offline behavior are all critical. The core workflow must remain usable in local-only mode, project state should survive reloads and interruptions, and changes to canvas and project state should be validated with a focus on durability before merge.",
+  "security_constraints": "User project data must remain local and must not leak. API tokens and similar secrets require strict handling, must stay under user control, and should never be transmitted anywhere except directly to the configured provider endpoints needed for generation.",
+  "frontend_stack_notes": "Detected frameworks: React, Vite. This is a user-facing creative desktop-style interface with a high polish bar. Prioritize calm, precise workflows, WCAG AA basics, keyboard reachability for primary actions, and validation of dense canvas interactions over flashy presentation.",
+  "quality_focus": "First priority: canvas workflow and canvas state management. Second priority: project management and navigation around the canvas. Third priority: all remaining supporting features and integrations.",
+  "frontend_scope": "User-facing or operator-facing frontend work is expected.",
+  "frontend_validation_loop": "- Run local UI changes in a browser.\n- Check desktop and mobile layouts when relevant.\n- Verify key flows, empty states, and failure states.\n- Record reusable UI findings in `docs/design-docs/`."
+}
