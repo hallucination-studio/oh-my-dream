@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ConfigModal } from "./ConfigModal";
@@ -12,14 +12,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="topbar canvas-shell-topbar">
         <Link to="/" className="brand" aria-label="返回首页">
           <span>Oh My Dream</span>
-          <small>Workspace</small>
         </Link>
-        <nav className="topbar-nav" aria-label="主导航">
-          <Link to="/project">项目</Link>
-        </nav>
         <div className="topbar-actions">
-          <IconButton label="系统配置" onClick={() => setConfigOpen(true)}>
-            <Settings size={18} />
+          <IconButton label="打开设置" className="settings-trigger" onClick={() => setConfigOpen(true)}>
+            <SlidersHorizontal size={17} />
           </IconButton>
         </div>
       </header>

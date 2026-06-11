@@ -22,3 +22,5 @@ Detected frameworks: React, Vite. This is a user-facing creative desktop-style i
 - The home surface should behave like a local desktop workbench: continue work, create/open/import, task overview, provider configuration health, and backup status before template browsing.
 - Templates should remain secondary starter material and should not look like the primary project inventory.
 - Canvas chrome should expose saved state, workspace path, and task state directly. Avoid inert save/status controls.
+- The app shell should not contain a lone centered project navigation button on the home surface. Keep the top row quiet: brand at left, settings/status affordances at right, and place project navigation inside contextual workbench actions such as "打开项目库" or "全部项目".
+- Canvas density should follow professional creative-tool conventions: sidebars, toolbars, node titles, parameter chips, and media frames should stay compact enough that multiple nodes remain visible without zooming out heavily. Prefer 11-13px labels, 28-34px controls, and 8-12px radii for dense canvas chrome.

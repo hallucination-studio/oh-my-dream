@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, Copy, Grid2X2, Home, Maximize2, PanelLeft, Rows3, Settings } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, Grid2X2, Home, Maximize2, PanelLeft, Rows3, SlidersHorizontal } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Asset, CanvasNodeData, GenerationHistory, LibNode, NodeKind, PreviewResource, Project, TaskRecord } from "../types";
 import {
@@ -73,8 +73,8 @@ export function CanvasTopbar({
         <span className={`canvas-task-status ${activeTasks.length > 0 ? "running" : failedTasks.length > 0 ? "failed" : ""}`}>
           {activeTasks.length > 0 ? `${activeTasks.length} 运行中` : failedTasks.length > 0 ? `${failedTasks.length} 失败` : "无运行任务"}
         </span>
-        <IconButton label="系统配置" onClick={onOpenConfig}>
-          <Settings size={18} />
+        <IconButton label="打开设置" className="settings-trigger" onClick={onOpenConfig}>
+          <SlidersHorizontal size={17} />
         </IconButton>
       </div>
     </header>

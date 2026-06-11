@@ -273,14 +273,14 @@ export function createNode(
   extra: Partial<LibNode["data"]> = {}
 ): LibNode {
   const dimensions: Record<NodeKind, { width: number; height: number }> = {
-    text: { width: 350, height: 350 },
-    image: { width: 623, height: 350 },
-    video: { width: 622, height: 350 },
-    audio: { width: 420, height: 260 },
-    compose: { width: 420, height: 300 },
-    director: { width: 430, height: 330 },
-    script: { width: 390, height: 350 },
-    group: { width: 520, height: 360 }
+    text: { width: 320, height: 300 },
+    image: { width: 520, height: 310 },
+    video: { width: 520, height: 310 },
+    audio: { width: 360, height: 230 },
+    compose: { width: 360, height: 250 },
+    director: { width: 380, height: 290 },
+    script: { width: 340, height: 300 },
+    group: { width: 460, height: 300 }
   };
 
   return {

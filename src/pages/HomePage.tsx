@@ -1,5 +1,6 @@
 import {
   Archive,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -109,9 +110,12 @@ export function HomePage() {
       <main className="home-main">
         <section className="workbench-hero" aria-label="本地工作台">
           <div className="workbench-copy">
-            <span className="home-hero-kicker">Local workspace</span>
-            <h1>继续推进你的本地视频项目。</h1>
-            <p>项目、画布、素材索引和生成历史保存在当前设备的浏览器本地存储中；桌面文件夹存储会接入同一工作区边界。</p>
+            <span className="home-hero-kicker">
+              <CheckCircle2 size={14} />
+              本地工作台
+            </span>
+            <h1>继续推进视频项目</h1>
+            <p>把项目、素材、提示词和生成记录放在同一处，打开后直接回到最近的制作上下文。</p>
           </div>
           <div className="workbench-actions" aria-label="工作区操作">
             <Button variant="primary" onClick={() => createProject(false)}>
@@ -134,7 +138,7 @@ export function HomePage() {
             <div className="panel-head">
               <div>
                 <h2>继续工作</h2>
-                <p>{recentProjects.length > 0 ? "最近修改的本地项目。" : "创建第一个本地项目，画布会自动保存到当前设备。"}</p>
+                <p>{recentProjects.length > 0 ? "最近修改的本地项目" : "创建第一个本地项目，画布会自动保存到当前设备"}</p>
               </div>
               <Link to="/project" className="text-link">
                 全部项目
@@ -165,7 +169,7 @@ export function HomePage() {
             <div className="panel-head">
               <div>
                 <h2>工作区状态</h2>
-                <p>当前为浏览器本地适配器。</p>
+                <p>本地适配器与生成配置概览</p>
               </div>
               <Button size="sm" onClick={() => setWorkspaceOpen(true)}>
                 <Archive size={15} />
@@ -205,7 +209,7 @@ export function HomePage() {
             </div>
             <Button onClick={() => navigate("/config")}>
               <Settings size={16} />
-              检查配置
+              打开设置
             </Button>
           </aside>
         </section>
