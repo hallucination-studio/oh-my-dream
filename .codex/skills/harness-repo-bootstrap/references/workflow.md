@@ -36,12 +36,18 @@ After the script runs, read the generated docs once and tighten weak generic phr
 
 After the scaffold exists:
 
+- read `docs/exec-plans/workstreams.md` before resuming interrupted or long-running work
 - create an execution plan before multi-step work
 - use `plan-start` instead of creating plan files manually when possible
 - log durable facts during execution instead of waiting until the end
 - follow the matching SOP for architecture, UI, observability, or knowledge capture work
 - encode durable knowledge back into the repository before closing the task
 - mark logged knowledge items as written after updating the permanent docs
+- log every defect found by tests, evals, browser validation, or code review with `defect-log`
+- resolve logged defects only after fixing the implementation and citing passing validation with `defect-resolve`
+- run `quality-score` after implementation and validation
+- if `quality-score` fails, implement the `## Rework Required` items and score again
+- use `phase-set` and `workstream-upsert` when a plan belongs to phased or resumable work
 - use `plan-close` to verify no durable knowledge is left stranded in the active plan
 - run `.codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check --repo <target-repo>` before handoff
 - do not add CI to the target repository unless the human explicitly asks for it

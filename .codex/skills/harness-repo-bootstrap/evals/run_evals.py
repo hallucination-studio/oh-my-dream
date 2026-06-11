@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -67,6 +68,10 @@ def test_empty_repo_init(tmp_root):
         raise AssertionError("Analysis should report missing exec-plan state")
     if not analysis["missing_sops"]:
         raise AssertionError("Analysis should report missing SOPs")
+    nested_output = tmp_root / "nested" / "generated" / "analysis.json"
+    run_manager("analyze", "--repo", str(repo), "--output", str(nested_output))
+    if not nested_output.exists():
+        raise AssertionError("analyze --output should create missing parent directories")
 
     run_manager("init", "--repo", str(repo), "--answers", str(answers))
     for relative_path in [
@@ -74,12 +79,14 @@ def test_empty_repo_init(tmp_root):
         "ARCHITECTURE.md",
         "docs/PLANS.md",
         "docs/QUALITY_SCORE.md",
+        "docs/exec-plans/workstreams.md",
         "docs/exec-plans/active/_template.md",
         "docs/exec-plans/completed/README.md",
         "docs/sops/encode-unseen-knowledge.md",
     ]:
         assert_exists(repo, relative_path)
     assert_contains(repo, "AGENTS.md", "docs/exec-plans/active/")
+    assert_contains(repo, "AGENTS.md", "docs/exec-plans/workstreams.md")
     assert_contains(repo, "AGENTS.md", "docs/sops/")
     assert_contains(repo, "AGENTS.md", ".codex/skills/harness-repo-bootstrap/scripts/manage_harness.py check")
 
@@ -185,6 +192,69 @@ def test_closed_loop_plan(tmp_root):
         "--append",
     )
     assert_contains(repo, "docs/PRODUCT_SENSE.md", fact)
+    run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "done",
+        expect_success=False,
+    )
+    failing_score = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "9",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "7",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        "--architecture-note",
+        "Plan closure needs a deterministic quality gate before handoff",
+        expect_success=False,
+    )
+    if failing_score["status"] != "fail":
+        raise AssertionError("Low dimension score should fail the quality gate")
+    plan_text_after_fail = plan_path.read_text()
+    if "## Rework Required" not in plan_text_after_fail:
+        raise AssertionError("Failing quality score should keep a rework section")
+    if "Improve Architecture and maintainability" not in plan_text_after_fail:
+        raise AssertionError("Failing quality score should name the low dimension")
+    check_after_fail = run_manager("check", "--repo", str(repo), expect_success=False)
+    if check_after_fail["status"] != "fail":
+        raise AssertionError("Harness check should fail while an active plan has a failed quality gate")
+    passing_score = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "9",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+        "--product-note",
+        "Requested behavior is complete",
+        "--architecture-note",
+        "Plan closure now has a deterministic quality gate",
+    )
+    if passing_score["status"] != "pass":
+        raise AssertionError("Scores at or above the minimum should pass")
     close_result = run_manager(
         "plan-close",
         "--repo",
@@ -247,6 +317,8 @@ def test_closed_loop_plan(tmp_root):
         handle.write(
             "\nThe `main` package owns keyboard input and rendering, while `game` contains pure state transitions.\n"
         )
+    evidence_file = tmp_root / "evidence.txt"
+    evidence_file.write_text("main package owns keyboard input and rendering\n")
     run_manager(
         "knowledge-mark-written",
         "--repo",
@@ -255,8 +327,25 @@ def test_closed_loop_plan(tmp_root):
         id_relative_plan,
         "--id",
         log_result["id"],
-        "--evidence",
-        "main package owns keyboard input and rendering",
+        "--evidence-file",
+        str(evidence_file),
+    )
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        id_relative_plan,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
     )
     plan_text = id_plan_path.read_text()
     if id_fact in (repo / "ARCHITECTURE.md").read_text():
@@ -278,6 +367,21 @@ def create_formatted_plan(repo):
     plan_path = repo / "docs" / "exec-plans" / "active" / "formatted-plan.md"
     plan_path.write_text(
         """# Execution Plan: Formatted Plan
+
+## Quality Gate
+
+Status: pass
+Minimum score: 8.0
+Average score: 8.0
+Last scored: 2026-06-11T00:00:00Z
+
+| Dimension | Score | Notes |
+| --- | ---: | --- |
+| Product correctness | 8.0 | ok |
+| UX and operator clarity | 8.0 | ok |
+| Architecture and maintainability | 8.0 | ok |
+| Reliability and observability | 8.0 | ok |
+| Security and data handling | 8.0 | ok |
 
 ## Durable Knowledge To Capture
 
@@ -301,10 +405,357 @@ def test_preserve_unmanaged_docs(tmp_root):
     assert_exists(repo, "docs/PLANS.md")
 
 
+def test_phase_continuity_workstream(tmp_root):
+    repo = tmp_root / "phase-repo"
+    repo.mkdir()
+    answers = tmp_root / "phase-answers.json"
+    write_answers(answers, project_name="phase-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "local-workbench-phase-1",
+        "--goal",
+        "Complete Local Workbench Phase 1",
+    )
+    plan_path = Path(plan_result["plan"])
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+    )
+    close_without_continuity = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Phase 1 done",
+        expect_success=False,
+    )
+    if close_without_continuity:
+        raise AssertionError("plan-close should not produce JSON when phase continuity blocks closure")
+    check_without_continuity = run_manager("check", "--repo", str(repo), expect_success=False)
+    issue_codes = {issue["code"] for issue in check_without_continuity["issues"]}
+    if "phase-mode-not-declared" not in issue_codes:
+        raise AssertionError("check should flag phased plans that do not declare continuation")
+
+    run_manager(
+        "phase-set",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--mode",
+        "multi-phase",
+        "--workstream",
+        "local-workbench",
+        "--current-phase",
+        "1",
+        "--next-phase",
+        "2",
+        "--continuation",
+        "docs/exec-plans/workstreams.md#local-workbench",
+        "--next-action",
+        "Create Phase 2 plan for command adapters",
+        "--resume-notes",
+        "Read completed Phase 1 plan and ARCHITECTURE.md before continuing",
+    )
+    close_without_workstream = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Phase 1 done",
+        expect_success=False,
+    )
+    if close_without_workstream:
+        raise AssertionError("plan-close should not allow a workstreams continuation without a ledger entry")
+    run_manager(
+        "workstream-upsert",
+        "--repo",
+        str(repo),
+        "--id",
+        "local-workbench",
+        "--status",
+        "active",
+        "--current-plan",
+        relative_plan,
+        "--next-action",
+        "Create Phase 2 plan for command adapters",
+        "--goal",
+        "Refactor local workbench into a maintainable terminal workflow",
+        "--resume-notes",
+        "Read completed Phase 1 plan and ARCHITECTURE.md before continuing",
+    )
+    assert_contains(repo, "docs/exec-plans/workstreams.md", "local-workbench")
+    assert_contains(repo, "docs/exec-plans/workstreams.md", "Create Phase 2 plan for command adapters")
+    close_result = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Phase 1 done; Phase 2 recovery is recorded in workstreams.",
+    )
+    if close_result["status"] != "closed":
+        raise AssertionError("Phased plan should close after continuity and workstream recovery are recorded")
+    completed_relative_plan = "docs/exec-plans/completed/" + plan_path.name
+    workstreams_text = (repo / "docs/exec-plans/workstreams.md").read_text()
+    if completed_relative_plan not in workstreams_text:
+        raise AssertionError("plan-close should update workstream ledger to the completed plan path")
+    if relative_plan in workstreams_text:
+        raise AssertionError("workstream ledger should not keep stale active plan references after plan-close")
+    broken = workstreams_text.replace(completed_relative_plan, relative_plan)
+    (repo / "docs/exec-plans/workstreams.md").write_text(broken)
+    broken_check = run_manager("check", "--repo", str(repo), expect_success=False)
+    broken_codes = {issue["code"] for issue in broken_check["issues"]}
+    if "missing-workstream-plan-reference" not in broken_codes:
+        raise AssertionError("check should fail when workstream ledger points to a missing plan")
+
+
+def test_plan_path_canonicalization(tmp_root):
+    repo = tmp_root / "canonical-repo"
+    repo.mkdir()
+    answers = tmp_root / "canonical-answers.json"
+    write_answers(answers, project_name="canonical-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "canonical-close",
+        "--goal",
+        "Close a plan when repo and plan paths use different filesystem spellings",
+    )
+    plan_path = Path(plan_result["plan"])
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        str(plan_path),
+        "--product-correctness",
+        "8",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "8",
+        "--security-data-handling",
+        "8",
+    )
+    run_manager(
+        "workstream-upsert",
+        "--repo",
+        str(repo),
+        "--id",
+        "canonical-close",
+        "--status",
+        "active",
+        "--current-plan",
+        relative_plan,
+        "--next-action",
+        "Close after canonical path validation",
+        "--goal",
+        "Verify plan-close updates workstreams with normalized relative paths",
+        "--resume-notes",
+        "No special resume notes",
+    )
+
+    repo_arg = os.path.realpath(repo)
+    plan_arg = str(plan_path)
+    if repo_arg == str(repo) and plan_arg == str(plan_path.resolve()):
+        repo_arg = str(repo)
+        plan_arg = str(plan_path.resolve())
+
+    close_result = run_manager(
+        "plan-close",
+        "--repo",
+        repo_arg,
+        "--plan",
+        plan_arg,
+        "--summary",
+        "Closed with canonicalized plan path.",
+    )
+    if close_result["status"] != "closed":
+        raise AssertionError("plan-close should accept absolute plan paths inside the repo")
+    completed_relative_plan = "docs/exec-plans/completed/" + plan_path.name
+    workstreams_text = (repo / "docs/exec-plans/workstreams.md").read_text()
+    if completed_relative_plan not in workstreams_text:
+        raise AssertionError("canonicalized plan-close should update last completed plan")
+    if relative_plan in workstreams_text:
+        raise AssertionError("canonicalized plan-close should remove stale current plan references")
+    check_result = run_manager("check", "--repo", str(repo))
+    if check_result["status"] != "pass":
+        raise AssertionError("canonicalized plan-close should leave harness check passing")
+
+
+def test_defect_recovery_loop(tmp_root):
+    repo = tmp_root / "defect-repo"
+    repo.mkdir()
+    answers = tmp_root / "defect-answers.json"
+    write_answers(answers, project_name="defect-demo")
+    run_manager("init", "--repo", str(repo), "--answers", str(answers))
+
+    plan_result = run_manager(
+        "plan-start",
+        "--repo",
+        str(repo),
+        "--slug",
+        "snake-tail-collision",
+        "--goal",
+        "Validate defect recovery when Snake tail-cell collision behavior fails",
+    )
+    plan_path = Path(plan_result["plan"])
+    relative_plan = str(plan_path.resolve().relative_to(repo.resolve()))
+    defect_summary = (
+        "Snake marks game over when the head moves into the current tail cell during a non-eating tick"
+    )
+    defect_result = run_manager(
+        "defect-log",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--severity",
+        "P1",
+        "--summary",
+        defect_summary,
+        "--evidence",
+        "go test ./internal/game -run TestCanMoveIntoVacatedTailCell failed",
+        expect_success=False,
+    )
+    defect_id = defect_result["id"]
+    plan_text = plan_path.read_text()
+    if "## Defects To Resolve" not in plan_text or defect_id not in plan_text:
+        raise AssertionError("defect-log should record the open defect in the plan")
+    if "Status: fail" not in plan_text:
+        raise AssertionError("defect-log should force the quality gate to fail")
+    if "Resolve all open defects" not in plan_text:
+        raise AssertionError("defect-log should turn the bug into rework input")
+
+    score_with_open_defect = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "10",
+        "--ux-operator-clarity",
+        "10",
+        "--architecture-maintainability",
+        "10",
+        "--reliability-observability",
+        "10",
+        "--security-data-handling",
+        "10",
+        expect_success=False,
+    )
+    if score_with_open_defect["status"] != "fail" or defect_id not in score_with_open_defect["open_defects"]:
+        raise AssertionError("quality-score should fail while any defect is open")
+    check_with_open_defect = run_manager("check", "--repo", str(repo), expect_success=False)
+    issue_codes = {issue["code"] for issue in check_with_open_defect["issues"]}
+    if "open-defect" not in issue_codes:
+        raise AssertionError("check should surface unresolved defects")
+    close_with_open_defect = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Should not close with open defects",
+        expect_success=False,
+    )
+    if close_with_open_defect:
+        raise AssertionError("plan-close should not close while defects are open")
+
+    run_manager(
+        "defect-resolve",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--id",
+        defect_id,
+        "--fix-evidence",
+        "go test ./internal/game -run TestCanMoveIntoVacatedTailCell passed",
+    )
+    plan_text_after_resolve = plan_path.read_text()
+    if f"- [x] [bug:{defect_id}]" not in plan_text_after_resolve:
+        raise AssertionError("defect-resolve should close the defect checkbox")
+    if "Defects resolved. Re-run validation and `quality-score` before closing." not in plan_text_after_resolve:
+        raise AssertionError("defect-resolve should require a fresh quality score")
+
+    passing_score = run_manager(
+        "quality-score",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--product-correctness",
+        "9",
+        "--ux-operator-clarity",
+        "8",
+        "--architecture-maintainability",
+        "8",
+        "--reliability-observability",
+        "9",
+        "--security-data-handling",
+        "10",
+    )
+    if passing_score["status"] != "pass":
+        raise AssertionError("quality-score should pass after defects are resolved")
+    close_result = run_manager(
+        "plan-close",
+        "--repo",
+        str(repo),
+        "--plan",
+        relative_plan,
+        "--summary",
+        "Closed after defect recovery and fresh quality score.",
+    )
+    if close_result["status"] != "closed":
+        raise AssertionError("plan-close should close after defect recovery")
+    completed_plan = repo / "docs" / "exec-plans" / "completed" / plan_path.name
+    completed_text = completed_plan.read_text()
+    if "- [x] Add durable facts here as they emerge" in completed_text:
+        raise AssertionError("plan-close should not mark the default knowledge placeholder as completed")
+
+
 EVALS = [
     ("empty-repo-init", test_empty_repo_init),
     ("frontend-analysis", test_frontend_analysis),
     ("closed-loop-plan", test_closed_loop_plan),
+    ("phase-continuity-workstream", test_phase_continuity_workstream),
+    ("plan-path-canonicalization", test_plan_path_canonicalization),
+    ("defect-recovery-loop", test_defect_recovery_loop),
     ("preserve-unmanaged-docs", test_preserve_unmanaged_docs),
 ]
 

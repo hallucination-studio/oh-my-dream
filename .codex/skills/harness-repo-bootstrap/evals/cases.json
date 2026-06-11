@@ -12,6 +12,14 @@
     "description": "Execution plans should refuse to close until durable knowledge is written back."
   },
   {
+    "id": "plan-path-canonicalization",
+    "description": "Plan commands should canonicalize absolute plan paths before updating workstreams."
+  },
+  {
+    "id": "defect-recovery-loop",
+    "description": "Validation or review defects should block quality gates until resolved with evidence."
+  },
+  {
     "id": "preserve-unmanaged-docs",
     "description": "Existing user-owned harness files should be skipped unless explicitly forced."
   }

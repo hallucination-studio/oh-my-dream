@@ -12,6 +12,8 @@ Use this loop when changing the skill, templates, scripts, or policy references:
 - first-time initialization of an empty repository
 - frontend-aware repository analysis
 - execution-plan and knowledge-capture closure
+- quality gates that block closure and force rework when scores fail
+- phase continuity and workstream recovery for resumable work
 - preservation of unmanaged user-owned docs
 - local harness checks that do not require user-project CI
 
