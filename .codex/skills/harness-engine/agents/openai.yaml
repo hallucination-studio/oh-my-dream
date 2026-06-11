@@ -1,4 +1,0 @@
-interface:
-  display_name: "Harness Engine"
-  short_description: "Scaffold advanced Codex harness docs"
-  default_prompt: "Use $harness-engine to analyze this repository and scaffold or refresh its advanced harness documentation."
