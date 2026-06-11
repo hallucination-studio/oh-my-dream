@@ -202,7 +202,7 @@
     .canvas-page {
       --canvas-left: 0px;
       --canvas-right: 0px;
-      --mobile-workbench-width: min(280px, 68dvw);
+      --mobile-workbench-height: 38dvh;
     }
 
     .canvas-page .react-flow {
@@ -233,7 +233,7 @@
     .canvas-page.with-navigator .canvas-topbar {
       top: var(--space-4);
       left: var(--space-4);
-      right: calc(var(--mobile-workbench-width) + var(--space-4));
+      right: var(--space-4);
       width: auto;
       padding: var(--space-2);
       gap: var(--space-2);
@@ -282,7 +282,7 @@
     .canvas-topbar-status {
       justify-content: center;
       gap: var(--space-2);
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
     }
 
     .canvas-status-path {
@@ -301,23 +301,26 @@
 
     .canvas-save-status,
     .canvas-task-status {
+      flex: 0 0 auto;
       min-height: 20px;
       padding: 0 var(--space-2);
+      white-space: nowrap;
     }
 
     .canvas-left-controls {
       left: var(--space-4);
       right: auto;
-      bottom: calc(var(--space-7) + 48px);
-      max-width: calc(100dvw - var(--mobile-workbench-width) - 24px);
+      bottom: calc(var(--mobile-workbench-height) + 64px);
+      max-width: calc(100dvw - 24px);
       overflow-x: auto;
     }
 
     .bottom-toolbar {
       left: var(--space-4);
-      right: calc(var(--mobile-workbench-width) + var(--space-4));
+      right: var(--space-4);
+      bottom: calc(var(--mobile-workbench-height) + var(--space-4));
       width: auto;
-      justify-content: flex-start;
+      justify-content: center;
       overflow-x: auto;
     }
 

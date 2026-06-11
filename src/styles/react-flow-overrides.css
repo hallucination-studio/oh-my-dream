@@ -25,6 +25,7 @@
 
 @media (max-width: 720px) {
   .canvas-page .react-flow {
-    right: var(--mobile-workbench-width) !important;
+    right: 0 !important;
+    bottom: var(--mobile-workbench-height) !important;
   }
 }
