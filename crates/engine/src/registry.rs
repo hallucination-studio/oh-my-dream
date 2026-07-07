@@ -41,13 +41,10 @@ impl NodeRegistry {
         type_id: &str,
         params: &NodeParams,
     ) -> Result<Box<dyn Node>, EngineError> {
-        let factory =
-            self.factories
-                .get(type_id)
-                .ok_or_else(|| EngineError::UnknownNodeType {
-                    node_id: node_id.to_owned(),
-                    type_id: type_id.to_owned(),
-                })?;
+        let factory = self.factories.get(type_id).ok_or_else(|| EngineError::UnknownNodeType {
+            node_id: node_id.to_owned(),
+            type_id: type_id.to_owned(),
+        })?;
         factory(params).map_err(|source| EngineError::NodeExecution {
             node_id: node_id.to_owned(),
             type_id: type_id.to_owned(),
