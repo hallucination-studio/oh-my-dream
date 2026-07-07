@@ -12,6 +12,14 @@ pub fn run_workflow(
     workflow_json: String,
     state: State<'_, AppState>,
 ) -> Result<RunWorkflowResultDto, String> {
+    run_workflow_with_state(workflow_json, &state)
+}
+
+/// Runs a workflow through the command path against an explicit app state.
+pub fn run_workflow_with_state(
+    workflow_json: String,
+    state: &AppState,
+) -> Result<RunWorkflowResultDto, String> {
     info!("run_workflow command received");
     let workflow = serde_json::from_str::<Workflow>(&workflow_json)
         .map_err(|source| command_error("deserialize workflow", source))?;

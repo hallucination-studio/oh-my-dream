@@ -1,0 +1,10 @@
+{
+  "outputs": {
+    "video": {
+      "video": {
+        "kind": "video",
+        "value": "mock://mock/image-to-video/task-2"
+      }
+    }
+  }
+}

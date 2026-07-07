@@ -1,0 +1,10 @@
+{
+  "id": "asset-0000000000000001",
+  "kind": "video",
+  "file_path": "/tmp/oh-my-dream/assets/files/asset-0000000000000001.mp4",
+  "thumbnail_path": "/tmp/oh-my-dream/assets/thumbnails/asset-0000000000000001.png",
+  "workflow_snapshot": {},
+  "source_node_id": "video",
+  "tags": [],
+  "created_at": 0
+}

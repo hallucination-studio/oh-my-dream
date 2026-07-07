@@ -28,6 +28,14 @@ impl AppState {
     /// Builds app state using an explicit asset root.
     pub fn from_asset_root(root: impl AsRef<Path>) -> Result<Self> {
         let backend = Arc::new(MockBackend::new());
+        Self::from_asset_root_with_backend(root, backend)
+    }
+
+    /// Builds app state using an explicit asset root and mock backend.
+    pub fn from_asset_root_with_backend(
+        root: impl AsRef<Path>,
+        backend: Arc<MockBackend>,
+    ) -> Result<Self> {
         let store =
             Arc::new(Mutex::new(AssetStore::open(root.as_ref()).context("open asset store")?));
         let mut registry = NodeRegistry::new();

@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::{debug, info};
 
 use crate::error::{BackendError, Result};
@@ -15,6 +16,7 @@ const BACKEND_NAME: &str = "mock";
 /// A deterministic local backend with no network or provider credentials.
 pub struct MockBackend {
     state: Mutex<MockState>,
+    submitted_tasks: AtomicUsize,
     failure_reason: Option<String>,
 }
 
@@ -22,13 +24,27 @@ impl MockBackend {
     /// Creates a mock backend whose tasks eventually succeed.
     #[must_use]
     pub fn new() -> Self {
-        Self { state: Mutex::new(MockState::default()), failure_reason: None }
+        Self {
+            state: Mutex::new(MockState::default()),
+            submitted_tasks: AtomicUsize::new(0),
+            failure_reason: None,
+        }
     }
 
     /// Creates a mock backend whose submitted tasks terminally fail.
     #[must_use]
     pub fn always_fails(reason: impl Into<String>) -> Self {
-        Self { state: Mutex::new(MockState::default()), failure_reason: Some(reason.into()) }
+        Self {
+            state: Mutex::new(MockState::default()),
+            submitted_tasks: AtomicUsize::new(0),
+            failure_reason: Some(reason.into()),
+        }
+    }
+
+    /// Returns how many generation tasks this backend has accepted.
+    #[must_use]
+    pub fn submitted_task_count(&self) -> usize {
+        self.submitted_tasks.load(Ordering::Relaxed)
     }
 
     fn submit(&self, kind: TaskKind) -> Result<TaskHandle> {
@@ -36,6 +52,7 @@ impl MockBackend {
         state.next_id += 1;
         let task_id = format!("task-{}", state.next_id);
         state.tasks.insert(task_id.clone(), MockTask { kind, polls: 0, cancelled: false });
+        self.submitted_tasks.fetch_add(1, Ordering::Relaxed);
 
         info!(backend = BACKEND_NAME, task_id = %task_id, kind = kind.as_path(), "mock task submitted");
         Ok(TaskHandle { backend: BACKEND_NAME.to_owned(), task_id })
