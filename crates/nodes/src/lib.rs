@@ -10,5 +10,35 @@
 
 #![forbid(unsafe_code)]
 
-// Wave 2 fills in: text_prompt, text_to_image, image_to_video, save_asset,
-// and `register_all(&mut NodeRegistry)`.
+mod error;
+mod image_to_video;
+mod params;
+mod polling;
+mod ports;
+mod save_asset;
+mod text_prompt;
+mod text_to_image;
+
+use assets::AssetStore;
+use backends::InferenceBackend;
+use engine::NodeRegistry;
+use std::sync::{Arc, Mutex};
+
+/// Shared asset store used by node instances.
+///
+/// `AssetStore` owns a SQLite connection, which must not be shared directly
+/// across concurrent node instances. The mutex serializes store access while
+/// still allowing factories and nodes to hold cheap `Arc` clones.
+pub type SharedAssetStore = Arc<Mutex<AssetStore>>;
+
+/// Registers all first-milestone node factories into `registry`.
+pub fn register_all(
+    registry: &mut NodeRegistry,
+    backend: Arc<dyn InferenceBackend>,
+    store: SharedAssetStore,
+) {
+    text_prompt::register(registry);
+    text_to_image::register(registry, Arc::clone(&backend));
+    image_to_video::register(registry, backend);
+    save_asset::register(registry, store);
+}

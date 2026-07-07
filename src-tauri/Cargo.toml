@@ -1,0 +1,26 @@
+[package]
+name = "oh-my-dream-tauri"
+description = "Tauri backend for the oh-my-dream desktop client."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "oh_my_dream_tauri"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+assets.workspace = true
+backends.workspace = true
+engine.workspace = true
+nodes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
