@@ -10,8 +10,31 @@
 - `cargo fmt --all` formats all Rust code with rustfmt defaults.
 - `cargo clippy --all-targets -- -D warnings` enforces lint cleanliness.
 - `cargo test` runs unit and integration tests.
+- `./scripts/e2e.sh` runs the full suite end to end: the entire Rust workspace (`cargo test --workspace`), then the frontend typecheck and Vitest suite (`cd ui && npm run typecheck && npm run test`). This is the single gate that must pass before merging any change.
 
 Run fmt, clippy, and tests before committing Rust changes.
+
+## Testing Guidelines
+
+Put focused unit tests beside the code with `#[cfg(test)]`; use crate-level `tests/` for cross-module behavior. Name tests by behavior, for example `rejects_cyclic_workflow_graph`.
+
+The suite is layered — know which layer a change touches so you update the right one:
+
+- **Rust unit/integration** (`crates/*/tests/`, `src-tauri/tests/`): engine executor, mock backend, asset store, node pipeline.
+- **Backend E2E** (`src-tauri/tests/e2e.rs`): the whole `run_workflow` path — cache reuse, failure propagation, type-mismatch rejection, asset snapshot read-back.
+- **Cross-language contract** (`src-tauri/tests/contract.rs` writes fixtures to `ui/src/__fixtures__/`; `ui/src/api/contract.test.ts` validates them): guards the frontend TS types against the backend DTO shapes so they cannot drift.
+- **Frontend** (Vitest + jsdom, `ui/**/*.test.ts(x)`): serialization, wiring validation, mock API, API selection, and the App run flow.
+
+**When you MUST update tests (do this in the same change, never defer):**
+
+- **Change a Tauri command signature or a DTO** (`RunWorkflowResultDto`, `AssetDto`, or the nested run-output shape) → regenerate the fixtures via `contract.rs` and update `contract.test.ts` and the affected frontend types. A DTO change with stale fixtures is a broken contract.
+- **Add or change a node type, port, or the `Workflow` JSON schema** → update the engine/nodes tests and the frontend `serialize`/`validate` tests that mirror them.
+- **Add a new Tauri command** → add a backend test exercising it and, if the frontend calls it, a `WorkflowApi` test.
+- **Change error/cancellation/cache behavior** → extend the backend E2E cases that assert propagation, cancellation, and cache reuse.
+- **Fix a bug** → add a regression test that fails before the fix and passes after.
+- **Swap the mock backend for a real provider** → keep the mock-backed tests green (they are the deterministic contract) and add provider tests behind their own gate.
+
+Every such change must leave `./scripts/e2e.sh` green.
 
 ## Rust Coding Standards
 
@@ -20,10 +43,6 @@ All repository content must be English: code, comments, docs, commit messages, i
 ## Error Handling & Logging
 
 Library crates define concrete errors with `thiserror`; the application boundary may use `anyhow`. Do not use `unwrap()`, `expect()`, or `panic!()` in library code outside tests. Never ignore a `Result` or swallow errors; preserve operation context when propagating. Use structured `tracing` logs for meaningful lifecycle events, node execution, cloud calls, polling, cache hits, asset writes, and failures. Log where an error is handled, not at every propagation layer. Never log secrets.
-
-## Testing Guidelines
-
-Put focused unit tests beside the code with `#[cfg(test)]`; use crate-level `tests/` for cross-module behavior. Name tests by behavior, for example `rejects_cyclic_workflow_graph`.
 
 ## Commit & Pull Request Guidelines
 

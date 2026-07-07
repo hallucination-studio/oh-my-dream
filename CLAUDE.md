@@ -79,3 +79,31 @@ cargo fmt --all
 cargo clippy --all-targets -- -D warnings
 cargo test
 ```
+
+Before merging **any** change (Rust or frontend), the full suite must pass:
+
+```bash
+./scripts/e2e.sh
+```
+
+It runs the whole Rust workspace (`cargo test --workspace`), then the frontend typecheck and Vitest suite (`cd ui && npm run typecheck && npm run test`).
+
+### Test layers
+
+- **Rust unit/integration** (`crates/*/tests/`, `src-tauri/tests/`) — engine executor, mock backend, asset store, node pipeline.
+- **Backend E2E** (`src-tauri/tests/e2e.rs`) — the whole `run_workflow` path: cache reuse, failure propagation, type-mismatch rejection, asset snapshot read-back.
+- **Cross-language contract** — `src-tauri/tests/contract.rs` writes fixtures to `ui/src/__fixtures__/`; `ui/src/api/contract.test.ts` validates them. This guards the frontend TS types against the backend DTO shapes so they cannot drift.
+- **Frontend** (Vitest + jsdom, `ui/**/*.test.ts(x)`) — serialization, wiring validation, mock API, API selection, App run flow.
+
+### When to update tests
+
+Update tests in the **same change** that causes the need — never defer:
+
+- **Changing a Tauri command signature or a DTO** (`RunWorkflowResultDto`, `AssetDto`, the nested run-output shape) → regenerate fixtures via `contract.rs` and update `contract.test.ts` and the affected frontend types. A DTO change with stale fixtures is a broken contract.
+- **Adding/changing a node type, port, or the `Workflow` JSON schema** → update the engine/nodes tests and the frontend `serialize`/`validate` tests that mirror them.
+- **Adding a Tauri command** → add a backend test for it, plus a `WorkflowApi` test if the frontend calls it.
+- **Changing error / cancellation / cache behavior** → extend the backend E2E cases asserting propagation, cancellation, and cache reuse.
+- **Fixing a bug** → add a regression test that fails before the fix and passes after.
+- **Swapping the mock backend for a real provider** → keep the mock-backed tests green (they are the deterministic contract) and add provider tests behind their own gate.
+
+Every such change must leave `./scripts/e2e.sh` green.
