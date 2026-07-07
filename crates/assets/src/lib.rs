@@ -16,3 +16,4 @@ pub mod thumbnail;
 
 pub use error::{AssetError, Result};
 pub use model::{Asset, AssetKind, NewAsset};
+pub use store::AssetStore;

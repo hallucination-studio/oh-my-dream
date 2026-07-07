@@ -41,9 +41,7 @@ impl<'r> Executor<'r> {
     /// Creates an executor bound to a node registry.
     #[must_use]
     pub fn new(registry: &'r NodeRegistry) -> Self {
-        Self {
-            _registry: registry,
-        }
+        Self { _registry: registry }
     }
 
     /// Validates and executes `workflow`, returning each node's outputs.

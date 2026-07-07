@@ -11,3 +11,8 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+rusqlite.workspace = true
+image.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

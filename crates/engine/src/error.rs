@@ -14,22 +14,13 @@ pub enum EngineError {
 
     /// A wire referenced a source node that does not exist in the graph.
     #[error("node `{node_id}` input `{input}` references unknown source node `{source_node}`")]
-    UnknownSourceNode {
-        node_id: String,
-        input: String,
-        source_node: String,
-    },
+    UnknownSourceNode { node_id: String, input: String, source_node: String },
 
     /// A wire referenced an output name the source node does not declare.
     #[error(
         "node `{node_id}` input `{input}` references unknown output `{output}` on node `{source_node}`"
     )]
-    UnknownSourceOutput {
-        node_id: String,
-        input: String,
-        source_node: String,
-        output: String,
-    },
+    UnknownSourceOutput { node_id: String, input: String, source_node: String, output: String },
 
     /// A wire connected two ports whose types do not match.
     #[error(
