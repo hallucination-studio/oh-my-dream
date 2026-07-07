@@ -18,6 +18,7 @@ pub mod local;
 pub mod mock;
 
 pub use error::{BackendError, Result};
+pub use mock::MockBackend;
 pub use request::{ImageToVideoRequest, TextToImageRequest};
 pub use task::{TaskHandle, TaskProgress, TaskStatus};
 pub use traits::InferenceBackend;

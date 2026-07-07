@@ -11,11 +11,7 @@ pub enum BackendError {
 
     /// A submitted task failed on the provider side.
     #[error("task `{task_id}` failed on backend `{backend}`: {reason}")]
-    TaskFailed {
-        backend: String,
-        task_id: String,
-        reason: String,
-    },
+    TaskFailed { backend: String, task_id: String, reason: String },
 
     /// The task handle is unknown to this backend (e.g. already reaped).
     #[error("unknown task `{task_id}` on backend `{backend}`")]
