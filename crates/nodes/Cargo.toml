@@ -1,12 +1,15 @@
 [package]
-name = "engine"
-description = "oh-my-dream workflow engine: node graph, topological sort, scheduling and caching (pure logic, no UI / no network)"
+name = "nodes"
+description = "oh-my-dream concrete nodes: TextPrompt, TextToImage, ImageToVideo, SaveAsset."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+engine.workspace = true
+backends.workspace = true
+assets.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

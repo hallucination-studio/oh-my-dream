@@ -1,6 +1,6 @@
 [package]
-name = "engine"
-description = "oh-my-dream workflow engine: node graph, topological sort, scheduling and caching (pure logic, no UI / no network)"
+name = "assets"
+description = "oh-my-dream asset library: local file storage plus SQLite metadata, thumbnails, and workflow-snapshot lookup."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
