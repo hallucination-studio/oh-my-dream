@@ -1,0 +1,36 @@
+# Rust / Cargo
+/target/
+**/target/
+# Cargo.lock is committed: workspace ships as an app, so the build is locked.
+**/*.rs.bk
+*.pdb
+
+# Tauri
+/src-tauri/target/
+/src-tauri/gen/
+
+# Frontend (ui/)
+node_modules/
+dist/
+.vite/
+*.local
+
+# Asset library local data (runtime artifacts, not tracked)
+/data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+
+# Secrets and local config (cloud vendor API keys never enter the repo)
+.env
+.env.*
+!.env.example
+config.local.*
+
+# Editor / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+.DS_Store
