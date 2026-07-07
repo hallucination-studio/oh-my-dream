@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.ohmydream.app",
   "build": {
-    "frontendDist": "../ui",
-    "devUrl": "http://localhost:5173"
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:5273"
   },
   "app": {
     "windows": [

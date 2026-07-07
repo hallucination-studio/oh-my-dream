@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/mockapi.ts","./src/nodes/workflowflownode.tsx","./src/nodes/catalog.ts","./src/workflow/serialize.ts","./src/workflow/types.ts","./src/workflow/validate.ts"],"version":"6.0.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/api/index.ts","./src/api/mockapi.ts","./src/api/tauriapi.ts","./src/api/types.ts","./src/nodes/workflowflownode.tsx","./src/nodes/catalog.ts","./src/workflow/serialize.ts","./src/workflow/types.ts","./src/workflow/validate.ts"],"version":"6.0.3"}

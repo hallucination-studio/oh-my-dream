@@ -1,61 +1,56 @@
-// Mock backend API — the single seam that becomes real Tauri commands in Wave 2.
-//
-// Today it simulates "submit workflow -> progress per node -> produced outputs"
-// entirely in the browser, so the canvas is fully interactive with no Rust or
-// network. Swap only this file's implementation later; callers stay unchanged.
+// Mock backend — an in-browser stand-in implementing the same WorkflowApi as
+// the real Tauri client, so the canvas stays fully interactive with no Rust or
+// network (e.g. in a plain `vite dev` browser tab). `selectApi` picks this when
+// not running inside a Tauri window.
 
-import type { RunOutput, RunStatus, Workflow } from "../workflow/types.ts";
-
-/** Callback invoked with each status transition during a mock run. */
-export type RunObserver = (status: RunStatus) => void;
-
-/** A handle allowing the caller to cancel an in-flight mock run. */
-export interface RunHandle {
-  cancel: () => void;
-}
+import type { RunOutput, RunOutputs, Workflow } from "../workflow/types.ts";
+import type { Asset, RunHandle, RunObserver, WorkflowApi } from "./types.ts";
 
 const STEP_MS = 400;
 
-function outputForNodeType(type: string, nodeId: string): RunOutput | null {
+function outputForNodeType(
+  type: string,
+  nodeId: string,
+): { name: string; output: RunOutput } | null {
   switch (type) {
     case "TextToImage":
-      return { kind: "image", value: `mock://image/${nodeId}` };
+      return { name: "image", output: { kind: "image", value: `mock://image/${nodeId}` } };
     case "ImageToVideo":
-      return { kind: "video", value: `mock://video/${nodeId}` };
+      return { name: "video", output: { kind: "video", value: `mock://video/${nodeId}` } };
     case "TextPrompt":
-      return { kind: "string", value: `mock://text/${nodeId}` };
+      return { name: "text", output: { kind: "string", value: `mock://text/${nodeId}` } };
     default:
       return null;
   }
 }
 
 /**
- * Simulates executing `workflow`, emitting running/succeeded/failed transitions
- * through `observe`. Nodes run in array order (a stand-in for the engine's
- * topological order until the real command is wired in).
+ * Simulates executing `workflow`, emitting running/succeeded transitions.
+ * Nodes run in array order (a stand-in for the engine's topological order).
+ * Outputs use the same nested nodeId -> outputName shape as the real backend.
  */
-export function runWorkflowMock(
-  workflow: Workflow,
-  observe: RunObserver,
-): RunHandle {
+function runWorkflow(workflow: Workflow, observe: RunObserver): RunHandle {
   let cancelled = false;
   const timers: ReturnType<typeof setTimeout>[] = [];
 
-  const outputs: Record<string, RunOutput> = {};
+  const outputs: RunOutputs = {};
   workflow.nodes.forEach((node, index) => {
-    const timer = setTimeout(() => {
-      if (cancelled) {
-        return;
-      }
-      observe({ state: "running", nodeId: node.id, progress: 0.5 });
-      const produced = outputForNodeType(node.type, node.id);
-      if (produced) {
-        outputs[node.id] = produced;
-      }
-      if (index === workflow.nodes.length - 1) {
-        observe({ state: "succeeded", outputs });
-      }
-    }, STEP_MS * (index + 1));
+    const timer = setTimeout(
+      () => {
+        if (cancelled) {
+          return;
+        }
+        observe({ state: "running", nodeId: node.id, progress: 0.5 });
+        const produced = outputForNodeType(node.type, node.id);
+        if (produced) {
+          outputs[node.id] = { [produced.name]: produced.output };
+        }
+        if (index === workflow.nodes.length - 1) {
+          observe({ state: "succeeded", outputs });
+        }
+      },
+      STEP_MS * (index + 1),
+    );
     timers.push(timer);
   });
 
@@ -67,3 +62,15 @@ export function runWorkflowMock(
     },
   };
 }
+
+// The mock has no persistent store; asset listing is empty until a real backend
+// is present. This keeps the interface total rather than throwing.
+async function listAssets(): Promise<Asset[]> {
+  return [];
+}
+
+async function getAsset(id: string): Promise<Asset> {
+  throw new Error(`Mock backend has no asset store; cannot fetch asset ${id}`);
+}
+
+export const mockApi: WorkflowApi = { runWorkflow, listAssets, getAsset };

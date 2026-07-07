@@ -13,7 +13,7 @@ import {
 import { NODE_TYPES } from "./nodes/catalog.ts";
 import { WorkflowFlowNode, type FlowNodeData } from "./nodes/WorkflowFlowNode.tsx";
 import { toWorkflow } from "./workflow/serialize.ts";
-import { runWorkflowMock, type RunHandle } from "./api/mockApi.ts";
+import { api, type RunHandle } from "./api/index.ts";
 import type { RunStatus } from "./workflow/types.ts";
 import { isValidConnection } from "./workflow/validate.ts";
 
@@ -76,7 +76,7 @@ export function App() {
   const run = useCallback(() => {
     const workflow = toWorkflow(nodes, edges);
     setStatus({ state: "running", nodeId: workflow.nodes[0]?.id ?? "", progress: 0 });
-    runHandle.current = runWorkflowMock(workflow, setStatus);
+    runHandle.current = api.runWorkflow(workflow, setStatus);
   }, [nodes, edges]);
 
   const cancel = useCallback(() => runHandle.current?.cancel(), []);

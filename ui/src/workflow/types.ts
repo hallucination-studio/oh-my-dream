@@ -23,11 +23,18 @@ export interface Workflow {
 export type RunStatus =
   | { state: "idle" }
   | { state: "running"; nodeId: string; progress: number }
-  | { state: "succeeded"; outputs: Record<string, RunOutput> }
+  | { state: "succeeded"; outputs: RunOutputs }
   | { state: "failed"; reason: string };
 
 /** A produced artifact reference for a node (asset id / URL placeholder). */
 export interface RunOutput {
-  kind: "image" | "video" | "string";
+  kind: "image" | "video" | "string" | "model" | "int" | "float";
   value: string;
 }
+
+/**
+ * Nested run outputs, matching the backend `run_workflow` DTO exactly:
+ * nodeId -> outputName -> RunOutput. The engine can expose several named
+ * outputs per node, so we preserve output names rather than flattening.
+ */
+export type RunOutputs = Record<string, Record<string, RunOutput>>;
