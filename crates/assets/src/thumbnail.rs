@@ -37,6 +37,10 @@ fn generate_image_thumbnail(asset_id: &str, source_path: &Path, output_path: &Pa
 }
 
 fn generate_video_placeholder(asset_id: &str, output_path: &Path) -> Result<()> {
+    // Why a placeholder rather than a real first frame: extracting a frame needs
+    // a video decoder (ffmpeg or a bundled codec), which we do not want as a hard
+    // dependency in this milestone. A deterministic placeholder keeps the store
+    // self-contained; real frame extraction is deferred.
     let image = ImageBuffer::from_fn(VIDEO_THUMBNAIL_WIDTH, VIDEO_THUMBNAIL_HEIGHT, |x, y| {
         if x / 16 == y / 9 { Rgba([90_u8, 120, 150, 255]) } else { Rgba([32_u8, 38, 46, 255]) }
     });
