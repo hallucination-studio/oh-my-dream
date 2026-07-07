@@ -5,6 +5,10 @@
 **/*.rs.bk
 *.pdb
 
+# Parallel dev worktrees (Codex tracks); nested here so they sit inside the
+# writable project root, but never tracked by the main checkout.
+/.worktrees/
+
 # Tauri
 /src-tauri/target/
 /src-tauri/gen/

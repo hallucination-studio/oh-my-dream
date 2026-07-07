@@ -1,0 +1,8 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+// Fixed port keeps the future Tauri dev shell pointed at a stable URL.
+export default defineConfig({
+  plugins: [react()],
+  server: { port: 5273, strictPort: true },
+});
