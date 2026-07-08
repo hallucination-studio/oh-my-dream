@@ -1,13 +1,17 @@
 #![forbid(unsafe_code)]
 
+pub mod assistant;
+pub mod assistant_capabilities;
+pub mod assistant_sidecar;
 pub mod commands;
 pub mod dto;
 pub mod state;
 
 use commands::{
-    assets_root, create_project, get_asset, get_providers, list_assets, list_projects,
+    assets_root, create_project, get_asset, get_assistant_config, get_assistant_session,
+    get_capability_manifest, get_providers, install_skill, list_assets, list_projects, list_skills,
     load_workflow, open_project, run_workflow, save_workflow, set_active_provider,
-    set_provider_key,
+    set_assistant_config, set_provider_key, set_skill_enabled, uninstall_skill,
 };
 use tauri::Manager;
 
@@ -33,7 +37,15 @@ pub fn run() -> tauri::Result<()> {
             load_workflow,
             get_providers,
             set_active_provider,
-            set_provider_key
+            set_provider_key,
+            get_capability_manifest,
+            get_assistant_config,
+            set_assistant_config,
+            get_assistant_session,
+            list_skills,
+            install_skill,
+            set_skill_enabled,
+            uninstall_skill
         ])
         .run(tauri::generate_context!())
 }

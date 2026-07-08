@@ -11,6 +11,14 @@ use std::fs;
 use tauri::{Emitter, State};
 use tracing::{error, info};
 
+pub use crate::assistant::{
+    get_assistant_config, get_assistant_config_with_state, get_assistant_session,
+    get_assistant_session_with_state, get_capability_manifest, get_capability_manifest_with_state,
+    install_skill, install_skill_with_state, list_skills, list_skills_with_state,
+    set_assistant_config, set_assistant_config_with_state, set_skill_enabled,
+    set_skill_enabled_with_state, uninstall_skill, uninstall_skill_with_state,
+};
+
 /// Runs a workflow JSON payload to completion and returns final node outputs.
 #[tauri::command(rename_all = "snake_case")]
 pub fn run_workflow(

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>oh-my-dream — assistant dock</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #14161d; --ink-2: #3d424f; --ink-3: #767c8b; --ink-faint: #a6abb7;
+        --surface: #fbfcfe; --surface-2: #f5f6fa; --surface-sunk: #eef0f5;
+        --hair: rgba(20,22,29,.08); --hair-2: rgba(20,22,29,.13);
+        --accent: #4f46e5; --accent-strong: #443bd4; --accent-soft: rgba(79,70,229,.1);
+        --ok: #0f9d76; --warn: #d1892a; --err: #dc4361;
+        --t-image: #d97a34; --t-video: #6a4ef0;
+        --font: "Inter", system-ui, sans-serif; --font-m: "JetBrains Mono", monospace;
+        --r-sm: 6px; --r-md: 8px; --r-lg: 11px;
+        --shadow: 0 1px 2px rgba(20,22,40,.06), 0 3px 10px rgba(20,22,40,.05);
+      }
+      * { box-sizing: border-box; } html, body { margin: 0; height: 100%; }
+      body { font-family: var(--font); color: var(--ink); font-size: 13px; letter-spacing: -.006em; -webkit-font-smoothing: antialiased; background: var(--surface-sunk); display: grid; place-items: center; }
+
+      /* The dock, shown at its real 340px width against a canvas-like ground. */
+      .adock { width: 340px; height: 720px; background: var(--surface); border: 1px solid var(--hair); border-radius: 12px; overflow: hidden; display: grid; grid-template-rows: 46px 1fr auto; box-shadow: var(--shadow); }
+
+      /* head */
+      .adock__head { display: flex; align-items: center; gap: 9px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--hair); }
+      .adock__head .mk { width: 16px; height: 16px; }
+      .adock__head b { flex: 1; font-size: 13px; font-weight: 650; }
+      .adock__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(15,157,118,.15); }
+      .adock__dot.off { background: var(--ink-faint); box-shadow: none; }
+      .adock__ico { width: 28px; height: 28px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--ink-3); }
+      .adock__ico:hover { background: rgba(20,22,29,.05); color: var(--ink); }
+      .adock__ico svg { width: 15px; height: 15px; }
+
+      /* stream */
+      .adock__stream { min-height: 0; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 14px; }
+
+      /* empty state with suggestion chips */
+      .empty { margin: auto 0; text-align: center; padding: 20px 8px; }
+      .empty .glow { width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 14px; background: var(--ink); display: grid; place-items: center; box-shadow: 0 8px 24px rgba(79,70,229,.28); }
+      .empty .glow svg { width: 24px; height: 24px; }
+      .empty h4 { margin: 0 0 5px; font-size: 14px; font-weight: 600; }
+      .empty p { margin: 0 0 16px; font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+      .sugg { display: flex; flex-direction: column; gap: 7px; }
+      .sugg button { text-align: left; padding: 9px 12px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--hair); font-size: 12.5px; color: var(--ink-2); cursor: pointer; }
+      .sugg button:hover { border-color: var(--accent); color: var(--ink); }
+
+      /* user message: right-aligned accent bubble */
+      .u { align-self: flex-end; max-width: 84%; background: var(--accent); color: #fff; padding: 8px 12px; border-radius: 12px 12px 3px 12px; font-size: 12.5px; line-height: 1.45; }
+
+      /* assistant message: full-width, no bubble, with a small mark */
+      .a { display: flex; gap: 9px; }
+      .a .amk { width: 20px; height: 20px; border-radius: 6px; background: var(--ink); flex-shrink: 0; display: grid; place-items: center; margin-top: 1px; }
+      .a .amk svg { width: 12px; height: 12px; }
+      .a .abody { min-width: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink); }
+      .a .abody p { margin: 0 0 8px; }
+      .a .abody p:last-child { margin: 0; }
+
+      /* tool-call step: compact, inline, with state */
+      .step { display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 7px 10px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--hair); font-size: 11.5px; }
+      .step .si { width: 15px; height: 15px; flex-shrink: 0; display: grid; place-items: center; }
+      .step .si svg { width: 13px; height: 13px; }
+      .step .scap { font-family: var(--font-m); font-size: 11px; color: var(--ink-2); font-weight: 500; }
+      .step .sarg { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .step.done .si { color: var(--ok); }
+      .step.run .si { color: var(--accent); }
+      .step.run .spin { width: 12px; height: 12px; border: 2px solid var(--accent-soft); border-top-color: var(--accent); border-radius: 50%; animation: sp .7s linear infinite; }
+      @keyframes sp { to { transform: rotate(360deg); } }
+      .step .sok { margin-left: auto; color: var(--ink-faint); font-size: 14px; }
+
+      /* confirm prompt: the human-in-the-loop gate */
+      .confirm { border: 1px solid var(--warn); border-radius: var(--r-lg); overflow: hidden; }
+      .confirm .ch { display: flex; align-items: center; gap: 7px; padding: 9px 12px; background: rgba(209,137,42,.08); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #a5691a; }
+      .confirm .cb { padding: 11px 12px; font-size: 12.5px; line-height: 1.45; }
+      .confirm .cb .cmono { font-family: var(--font-m); font-size: 11px; color: var(--ink-2); background: var(--surface-sunk); padding: 1px 5px; border-radius: 4px; }
+      .confirm .ca { display: flex; gap: 8px; padding: 0 12px 12px; }
+      .confirm .ca button { flex: 1; height: 30px; border-radius: var(--r-sm); font-size: 12px; font-weight: 600; cursor: pointer; }
+      .confirm .approve { background: var(--accent); color: #fff; border: none; }
+      .confirm .deny { background: var(--surface); color: var(--ink-2); border: 1px solid var(--hair-2); }
+
+      /* streaming caret */
+      .caret { display: inline-block; width: 6px; height: 13px; background: var(--accent); border-radius: 1px; vertical-align: text-bottom; animation: bl 1s step-start infinite; }
+      @keyframes bl { 50% { opacity: 0; } }
+
+      /* composer */
+      .adock__composer { border-top: 1px solid var(--hair); padding: 10px; }
+      .cbox { background: var(--surface-sunk); border: 1px solid transparent; border-radius: var(--r-lg); padding: 8px 8px 8px 12px; display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 8px; }
+      .cbox:focus-within { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+      .cbox textarea { background: none; border: none; outline: none; resize: none; font-family: var(--font); font-size: 12.5px; color: var(--ink); min-height: 20px; max-height: 120px; padding: 2px 0; line-height: 1.4; }
+      .cbox textarea::placeholder { color: var(--ink-faint); }
+      .csend { width: 30px; height: 30px; border-radius: var(--r-md); background: var(--accent); color: #fff; border: none; display: grid; place-items: center; cursor: pointer; }
+      .csend:hover { background: var(--accent-strong); }
+      .csend svg { width: 15px; height: 15px; }
+      .chint { margin: 7px 4px 0; font-size: 10.5px; color: var(--ink-faint); display: flex; gap: 5px; align-items: center; }
+      kbd { font-family: var(--font-m); font-size: 9.5px; background: var(--surface-sunk); border: 1px solid var(--hair); border-radius: 4px; padding: 0 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="adock">
+      <!-- head -->
+      <div class="adock__head">
+        <svg class="mk" viewBox="0 0 24 24" fill="none"><rect x="1.2" y="1.2" width="21.6" height="21.6" rx="6.4" fill="#14161d"/><path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="#fff"/></svg>
+        <b>Assistant</b>
+        <span class="adock__dot" title="Connected"></span>
+        <button class="adock__ico" title="Skills"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.4 5 5.6.5-4.2 3.8 1.3 5.7L12 19.8 6.9 22l1.3-5.7L4 12.5 9.6 12z"/></svg></button>
+        <button class="adock__ico" title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+
+      <!-- stream (populated conversation) -->
+      <div class="adock__stream">
+        <div class="u">Build a text-to-video workflow: a cyberpunk city at dusk, then animate it.</div>
+
+        <div class="a">
+          <span class="amk"><svg viewBox="0 0 24 24" fill="none"><path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="#fff"/></svg></span>
+          <div class="abody">
+            <p>I'll set up a three-node pipeline: a prompt, image generation, then image-to-video.</p>
+            <div class="step done"><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12l5 5L20 6"/></svg></span><span class="scap">add_node</span><span class="sarg">· TextPrompt</span><span class="sok">✓</span></div>
+            <div class="step done"><span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12l5 5L20 6"/></svg></span><span class="scap">add_node</span><span class="sarg">· TextToImage</span><span class="sok">✓</span></div>
+            <div class="step run"><span class="si"><span class="spin"></span></span><span class="scap">connect_nodes</span><span class="sarg">· prompt → image</span></div>
+            <p>Now wiring the video stage. This last step will spend credits, so I'll ask first.</p>
+          </div>
+        </div>
+
+        <!-- human-in-the-loop confirm -->
+        <div class="confirm">
+          <div class="ch"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Confirm action</div>
+          <div class="cb">Run <span class="cmono">run_workflow</span> on <b>Chase sequence</b>? This calls the video model and will incur cost.</div>
+          <div class="ca"><button class="deny">Cancel</button><button class="approve">Run &amp; confirm</button></div>
+        </div>
+
+        <div class="a">
+          <span class="amk"><svg viewBox="0 0 24 24" fill="none"><path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="#fff"/></svg></span>
+          <div class="abody"><p>Once you confirm, I'll start the render and report progress here.<span class="caret"></span></p></div>
+        </div>
+      </div>
+
+      <!-- composer -->
+      <div class="adock__composer">
+        <div class="cbox">
+          <textarea placeholder="Message the assistant" rows="1"></textarea>
+          <button class="csend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h15M13 6l6 6-6 6"/></svg></button>
+        </div>
+        <div class="chint"><kbd>↵</kbd> send · <kbd>⇧↵</kbd> newline · assistant can edit the canvas</div>
+      </div>
+    </div>
+  </body>
+</html>

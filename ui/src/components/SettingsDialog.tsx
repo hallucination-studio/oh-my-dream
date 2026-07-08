@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Provider } from "../api/index.ts";
+import { AssistantSettings } from "./AssistantSettings.tsx";
 import "./settings.css";
 
 export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -40,7 +41,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
         </div>
         <div className="dialog__body">
           <nav className="dialog__nav">
-            {["providers", "canvas", "storage", "about"].map((s) => (
+            {["providers", "assistant", "canvas", "storage", "about"].map((s) => (
               <button
                 key={s}
                 className={`dialog__navitem${section === s ? " is-on" : ""}`}
@@ -51,7 +52,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             ))}
           </nav>
           <div className="dialog__panel">
-            {section === "providers" ? (
+            {section === "providers" && (
               <>
                 <p className="dialog__grp">Generation Providers</p>
                 <div className="prov">
@@ -61,7 +62,9 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
                   {providers.length === 0 && <p className="dialog__grp">No providers available.</p>}
                 </div>
               </>
-            ) : (
+            )}
+            {section === "assistant" && <AssistantSettings />}
+            {section !== "providers" && section !== "assistant" && (
               <p className="dialog__grp">Nothing here yet.</p>
             )}
           </div>

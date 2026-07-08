@@ -4,7 +4,7 @@
 // not running inside a Tauri window.
 
 import type { RunOutput, RunOutputs, Workflow } from "../workflow/types.ts";
-import type { Asset, RunHandle, RunObserver, WorkflowApi } from "./types.ts";
+import type { Asset, RunHandle, RunObserver, Skill, WorkflowApi } from "./types.ts";
 
 const STEP_MS = 400;
 
@@ -108,6 +108,42 @@ async function setActiveProvider(): Promise<void> {}
 
 async function setProviderKey(): Promise<void> {}
 
+async function getAssistantConfig() {
+  return {
+    enabled: false,
+    base_url: "https://api.openai.com/v1",
+    model: "gpt-5.4",
+    has_key: false,
+    temperature: 0.3,
+    max_tool_iters: 20,
+    system_prompt_extra: null,
+    developer_mode: false,
+    skills: { installed: [], enabled: [] },
+  };
+}
+
+async function setAssistantConfig(): Promise<void> {}
+
+async function getAssistantSession() {
+  return { port: 0, token: "" };
+}
+
+async function getCapabilityManifest() {
+  return { capabilities: [] };
+}
+
+async function listSkills() {
+  return [];
+}
+
+async function installSkill(): Promise<Skill> {
+  throw new Error("Mock backend cannot install assistant skills");
+}
+
+async function setSkillEnabled(): Promise<void> {}
+
+async function uninstallSkill(): Promise<void> {}
+
 export const mockApi: WorkflowApi = {
   runWorkflow,
   assetsRoot,
@@ -121,4 +157,12 @@ export const mockApi: WorkflowApi = {
   getProviders,
   setActiveProvider,
   setProviderKey,
+  getAssistantConfig,
+  setAssistantConfig,
+  getAssistantSession,
+  getCapabilityManifest,
+  listSkills,
+  installSkill,
+  setSkillEnabled,
+  uninstallSkill,
 };

@@ -105,6 +105,39 @@ describe("tauriApi", () => {
     });
   });
 
+  it("invokes assistant config, session, manifest, and skill commands", async () => {
+    const { tauriApi } = await import("./tauriApi.ts");
+    invokeMock
+      .mockResolvedValueOnce({ enabled: true, base_url: "https://api.openai.com/v1", model: "gpt-5.4", has_key: false, temperature: 0.3, max_tool_iters: 20, system_prompt_extra: null, developer_mode: false, skills: { installed: [], enabled: [] } })
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ port: 55123, token: "token" })
+      .mockResolvedValueOnce({ capabilities: [] })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({ name: "portrait", version: "1.0.0", description: "Portrait", enabled: false, developer_mode_required: false, status: "disabled" })
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined);
+
+    await expect(tauriApi.getAssistantConfig()).resolves.toMatchObject({ model: "gpt-5.4" });
+    await tauriApi.setAssistantConfig({ enabled: true, base_url: "https://api.openai.com/v1", model: "gpt-5.4", api_key: null, clear_api_key: false, temperature: 0.3, max_tool_iters: 20, system_prompt_extra: null, developer_mode: false, enabled_skills: [] });
+    await expect(tauriApi.getAssistantSession()).resolves.toEqual({ port: 55123, token: "token" });
+    await expect(tauriApi.getCapabilityManifest()).resolves.toEqual({ capabilities: [] });
+    await expect(tauriApi.listSkills()).resolves.toEqual([]);
+    await expect(tauriApi.installSkill("/tmp/skill")).resolves.toMatchObject({ name: "portrait" });
+    await tauriApi.setSkillEnabled("portrait", true);
+    await tauriApi.uninstallSkill("portrait");
+
+    expect(invokeMock).toHaveBeenCalledWith("get_assistant_config");
+    expect(invokeMock).toHaveBeenCalledWith("set_assistant_config", {
+      input: { enabled: true, base_url: "https://api.openai.com/v1", model: "gpt-5.4", api_key: null, clear_api_key: false, temperature: 0.3, max_tool_iters: 20, system_prompt_extra: null, developer_mode: false, enabled_skills: [] },
+    });
+    expect(invokeMock).toHaveBeenCalledWith("get_assistant_session");
+    expect(invokeMock).toHaveBeenCalledWith("get_capability_manifest");
+    expect(invokeMock).toHaveBeenCalledWith("list_skills");
+    expect(invokeMock).toHaveBeenCalledWith("install_skill", { path: "/tmp/skill" });
+    expect(invokeMock).toHaveBeenCalledWith("set_skill_enabled", { name: "portrait", enabled: true });
+    expect(invokeMock).toHaveBeenCalledWith("uninstall_skill", { name: "portrait" });
+  });
+
   it("disposes node_progress listener when listen resolves after the run", async () => {
     const { tauriApi } = await import("./tauriApi.ts");
     const dispose = vi.fn();

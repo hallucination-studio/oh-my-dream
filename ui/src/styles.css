@@ -53,6 +53,12 @@ input {
 .bench__body--assets {
   grid-template-columns: 44px 1fr 300px;
 }
+.bench__body--assistant {
+  grid-template-columns: 44px 244px 1fr 292px 320px;
+}
+.bench__body--assets.bench__body--assistant {
+  grid-template-columns: 44px 1fr 300px 320px;
+}
 
 /* Canvas is the only textured surface; nodes float on it. */
 .bench__canvas {

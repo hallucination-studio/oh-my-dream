@@ -46,6 +46,64 @@ export interface Provider {
   has_key: boolean;
 }
 
+export interface AssistantSkills {
+  installed: string[];
+  enabled: string[];
+}
+
+export interface AssistantConfig {
+  enabled: boolean;
+  base_url: string;
+  model: string;
+  has_key: boolean;
+  temperature: number;
+  max_tool_iters: number;
+  system_prompt_extra: string | null;
+  developer_mode: boolean;
+  skills: AssistantSkills;
+}
+
+export interface AssistantConfigInput {
+  enabled: boolean;
+  base_url: string;
+  model: string;
+  api_key: string | null;
+  clear_api_key: boolean;
+  temperature: number;
+  max_tool_iters: number;
+  system_prompt_extra: string | null;
+  developer_mode: boolean;
+  enabled_skills: string[];
+}
+
+export interface Capability {
+  name: string;
+  description: string;
+  kind: "backend" | "ui";
+  command: string | null;
+  parameters: unknown;
+  returns: unknown;
+  confirm: boolean;
+}
+
+export interface CapabilityManifest {
+  capabilities: Capability[];
+}
+
+export interface AssistantSession {
+  port: number;
+  token: string;
+}
+
+export interface Skill {
+  name: string;
+  version: string;
+  description: string;
+  enabled: boolean;
+  developer_mode_required: boolean;
+  status: string;
+}
+
 export interface ListAssetsOptions {
   kind?: AssetKind;
   project_id?: string;
@@ -79,4 +137,12 @@ export interface WorkflowApi {
   getProviders: () => Promise<Provider[]>;
   setActiveProvider: (providerId: string) => Promise<void>;
   setProviderKey: (providerId: string, key: string) => Promise<void>;
+  getAssistantConfig: () => Promise<AssistantConfig>;
+  setAssistantConfig: (input: AssistantConfigInput) => Promise<void>;
+  getAssistantSession: () => Promise<AssistantSession>;
+  getCapabilityManifest: () => Promise<CapabilityManifest>;
+  listSkills: () => Promise<Skill[]>;
+  installSkill: (path: string) => Promise<Skill>;
+  setSkillEnabled: (name: string, enabled: boolean) => Promise<void>;
+  uninstallSkill: (name: string) => Promise<void>;
 }

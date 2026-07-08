@@ -128,6 +128,115 @@ pub struct ProviderDto {
     pub has_key: bool,
 }
 
+/// Assistant configuration summary returned to the frontend.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AssistantConfigDto {
+    /// Whether the assistant is enabled.
+    pub enabled: bool,
+    /// OpenAI-compatible base URL.
+    pub base_url: String,
+    /// Chat model identifier.
+    pub model: String,
+    /// Whether a local API key exists. Raw keys are never returned.
+    pub has_key: bool,
+    /// Sampling temperature.
+    pub temperature: f64,
+    /// Maximum tool iterations per turn.
+    pub max_tool_iters: u32,
+    /// Optional user-provided prompt suffix.
+    pub system_prompt_extra: Option<String>,
+    /// Whether code-carrying skills may run.
+    pub developer_mode: bool,
+    /// Installed and enabled skill names.
+    pub skills: AssistantSkillsDto,
+}
+
+/// Assistant configuration input accepted from the frontend.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AssistantConfigInputDto {
+    /// Whether the assistant is enabled.
+    pub enabled: bool,
+    /// OpenAI-compatible base URL.
+    pub base_url: String,
+    /// Chat model identifier.
+    pub model: String,
+    /// New API key. `None` preserves the stored key unless `clear_api_key` is true.
+    pub api_key: Option<String>,
+    /// Whether to remove the stored API key.
+    pub clear_api_key: bool,
+    /// Sampling temperature.
+    pub temperature: f64,
+    /// Maximum tool iterations per turn.
+    pub max_tool_iters: u32,
+    /// Optional user-provided prompt suffix.
+    pub system_prompt_extra: Option<String>,
+    /// Whether code-carrying skills may run.
+    pub developer_mode: bool,
+    /// Enabled skill names.
+    pub enabled_skills: Vec<String>,
+}
+
+/// Assistant skill name lists.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssistantSkillsDto {
+    /// Installed skill names.
+    pub installed: Vec<String>,
+    /// Enabled skill names.
+    pub enabled: Vec<String>,
+}
+
+/// Full capability manifest returned to the frontend.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapabilityManifestDto {
+    /// Capabilities the assistant may call.
+    pub capabilities: Vec<CapabilityDto>,
+}
+
+/// One assistant-callable capability.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapabilityDto {
+    /// Stable capability name.
+    pub name: String,
+    /// Human-readable model guidance.
+    pub description: String,
+    /// `backend` or `ui`.
+    pub kind: String,
+    /// Backing Tauri command for backend capabilities.
+    pub command: Option<String>,
+    /// JSON Schema parameters.
+    pub parameters: serde_json::Value,
+    /// JSON Schema return shape.
+    pub returns: serde_json::Value,
+    /// Whether user confirmation is required before execution.
+    pub confirm: bool,
+}
+
+/// Local assistant sidecar session.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssistantSessionDto {
+    /// Loopback WebSocket port.
+    pub port: u16,
+    /// Per-launch bearer token.
+    pub token: String,
+}
+
+/// Installed assistant skill summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkillDto {
+    /// Skill package name.
+    pub name: String,
+    /// Skill package version.
+    pub version: String,
+    /// Human-readable description.
+    pub description: String,
+    /// Whether the skill is enabled.
+    pub enabled: bool,
+    /// Whether this skill contains developer-mode code.
+    pub developer_mode_required: bool,
+    /// `ready`, `disabled`, or an install/read status.
+    pub status: String,
+}
+
 /// Node progress event forwarded to the frontend.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NodeProgressEventDto {

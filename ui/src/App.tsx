@@ -29,6 +29,8 @@ import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { AssetLibrary } from "./assets/AssetLibrary.tsx";
 import { useAssets } from "./assets/useAssets.ts";
 import { useRunProjection } from "./canvas/useRunProjection.ts";
+import { AssistantDock } from "./assistant/AssistantDock.tsx";
+import { createCapabilityExecutor, type CanvasActions } from "./assistant/capabilityExecutor.ts";
 
 let idCounter = 0;
 const nextId = () => `n${++idCounter}`;
@@ -45,9 +47,26 @@ export function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantEnabled, setAssistantEnabled] = useState(false);
   const runHandle = useRef<RunHandle | null>(null);
   const { assets, error: assetError, refresh } = useAssets();
   const { apply: projectRun, reset: resetRun } = useRunProjection(setNodes, setEdges);
+
+  // Reflect the assistant enable flag: the rail button and dock only appear
+  // when the assistant is enabled in settings. Re-read after settings closes.
+  const refreshAssistantEnabled = useCallback(() => {
+    void api
+      .getAssistantConfig()
+      .then((config) => setAssistantEnabled(config.enabled))
+      .catch(() => setAssistantEnabled(false));
+  }, []);
+  useEffect(refreshAssistantEnabled, [refreshAssistantEnabled]);
+  useEffect(() => {
+    if (!assistantEnabled && assistantOpen) {
+      setAssistantOpen(false);
+    }
+  }, [assistantEnabled, assistantOpen]);
 
   // Load (or create) an initial project on mount.
   useEffect(() => {
@@ -119,6 +138,27 @@ export function App() {
     [nodes, setEdges],
   );
 
+  const connectNodes = useCallback(
+    (args: Parameters<CanvasActions["connectNodes"]>[0]) => {
+      onConnect({
+        source: args.source_node_id,
+        sourceHandle: args.source_output,
+        target: args.target_node_id,
+        targetHandle: args.target_input,
+      });
+    },
+    [onConnect],
+  );
+
+  const deleteNode = useCallback(
+    (nodeId: string) => {
+      setNodes((current) => current.filter((node) => node.id !== nodeId));
+      setEdges((current) => current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+      setSelectedId((current) => (current === nodeId ? null : current));
+    },
+    [setEdges, setNodes],
+  );
+
   const selected: SelectedNode | null = useMemo(() => {
     const node = nodes.find((n) => n.id === selectedId);
     if (!node) {
@@ -127,6 +167,32 @@ export function App() {
     const data = node.data as FlowNodeData;
     return { id: node.id, type: data.type, params: data.params };
   }, [nodes, selectedId]);
+
+  const assistantActions = useMemo<CanvasActions>(
+    () => ({
+      addNode,
+      connectNodes,
+      setParam,
+      deleteNode,
+      selectNode: setSelectedId,
+      switchTab: setTab,
+      getCanvasState: () => toWorkflow(nodes, edges, project?.id ?? "default"),
+      getSelection: () => selected,
+    }),
+    [addNode, connectNodes, deleteNode, edges, nodes, project, selected, setParam],
+  );
+  const assistantExecutor = useMemo(
+    () => createCapabilityExecutor({ actions: assistantActions, api }),
+    [assistantActions],
+  );
+  const assistantContext = useCallback(
+    () => ({
+      project_id: project?.id ?? "default",
+      canvas_snapshot: toWorkflow(nodes, edges, project?.id ?? "default"),
+      selection: selected,
+    }),
+    [edges, nodes, project, selected],
+  );
 
   const run = useCallback(() => {
     const workflow = toWorkflow(nodes, edges, project?.id ?? "default");
@@ -177,8 +243,18 @@ export function App() {
         onOpenProject={openProject}
       />
 
-      <div className={`bench__body${tab === "assets" ? " bench__body--assets" : ""}`}>
-        <IconRail tab={tab} onSelect={setTab} />
+      <div
+        className={`bench__body${tab === "assets" ? " bench__body--assets" : ""}${
+          assistantOpen ? " bench__body--assistant" : ""
+        }`}
+      >
+        <IconRail
+          tab={tab}
+          assistantEnabled={assistantEnabled}
+          assistantOpen={assistantOpen}
+          onSelect={setTab}
+          onToggleAssistant={() => setAssistantOpen((open) => !open)}
+        />
         {tab === "nodes" ? (
           <NodeLibrary onAdd={(type) => addNode(type)} />
         ) : (
@@ -221,9 +297,22 @@ export function App() {
             <InspectorPanel node={selected} onParamChange={setParam} />
           </>
         )}
+        {assistantEnabled && assistantOpen && (
+          <AssistantDock
+            onClose={() => setAssistantOpen(false)}
+            executeCapability={assistantExecutor.execute}
+            getContext={assistantContext}
+          />
+        )}
       </div>
 
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => {
+          setSettingsOpen(false);
+          refreshAssistantEnabled();
+        }}
+      />
     </div>
   );
 }

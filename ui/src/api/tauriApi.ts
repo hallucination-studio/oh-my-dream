@@ -10,12 +10,17 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { NodeProgressEvent, RunOutputs, Workflow } from "../workflow/types.ts";
 import type {
   Asset,
+  AssistantConfig,
+  AssistantConfigInput,
+  AssistantSession,
+  CapabilityManifest,
   ListAssetsOptions,
   Project,
   ProjectWorkspace,
   Provider,
   RunHandle,
   RunObserver,
+  Skill,
   WorkflowApi,
 } from "./types.ts";
 
@@ -133,6 +138,38 @@ async function setProviderKey(providerId: string, key: string): Promise<void> {
   await invoke("set_provider_key", { provider_id: providerId, key });
 }
 
+async function getAssistantConfig(): Promise<AssistantConfig> {
+  return invoke<AssistantConfig>("get_assistant_config");
+}
+
+async function setAssistantConfig(input: AssistantConfigInput): Promise<void> {
+  await invoke("set_assistant_config", { input });
+}
+
+async function getAssistantSession(): Promise<AssistantSession> {
+  return invoke<AssistantSession>("get_assistant_session");
+}
+
+async function getCapabilityManifest(): Promise<CapabilityManifest> {
+  return invoke<CapabilityManifest>("get_capability_manifest");
+}
+
+async function listSkills(): Promise<Skill[]> {
+  return invoke<Skill[]>("list_skills");
+}
+
+async function installSkill(path: string): Promise<Skill> {
+  return invoke<Skill>("install_skill", { path });
+}
+
+async function setSkillEnabled(name: string, enabled: boolean): Promise<void> {
+  await invoke("set_skill_enabled", { name, enabled });
+}
+
+async function uninstallSkill(name: string): Promise<void> {
+  await invoke("uninstall_skill", { name });
+}
+
 function convertAssetPaths(asset: Asset, root: string | null): Asset {
   return {
     ...asset,
@@ -171,4 +208,12 @@ export const tauriApi: WorkflowApi = {
   getProviders,
   setActiveProvider,
   setProviderKey,
+  getAssistantConfig,
+  setAssistantConfig,
+  getAssistantSession,
+  getCapabilityManifest,
+  listSkills,
+  installSkill,
+  setSkillEnabled,
+  uninstallSkill,
 };

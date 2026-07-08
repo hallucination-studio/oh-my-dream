@@ -1,0 +1,8 @@
+{
+  "name": "portrait-helper",
+  "version": "1.0.0",
+  "description": "Portrait workflow helper",
+  "enabled": false,
+  "developer_mode_required": false,
+  "status": "disabled"
+}

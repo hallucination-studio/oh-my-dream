@@ -1,9 +1,11 @@
+use crate::dto::AssistantSessionDto;
 use anyhow::{Context, Result};
 use assets::AssetStore;
 use backends::{InferenceBackend, MockBackend};
 use engine::NodeRegistry;
 use nodes::SharedAssetStore;
 use std::path::{Path, PathBuf};
+use std::process::Child;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
@@ -19,6 +21,12 @@ pub struct AppState {
     pub store: SharedAssetStore,
     /// Registry populated with all concrete workflow nodes.
     pub registry: NodeRegistry,
+    /// Local assistant sidecar session for this app lifetime.
+    pub assistant_session: Mutex<Option<AssistantSessionDto>>,
+    /// Running assistant sidecar process in app builds.
+    pub assistant_process: Mutex<Option<Child>>,
+    /// Whether this state should spawn the Python assistant.
+    pub assistant_sidecar_enabled: bool,
 }
 
 impl AppState {
@@ -26,13 +34,17 @@ impl AppState {
     pub fn from_app_handle(handle: &tauri::AppHandle) -> Result<Self> {
         let app_data_dir =
             handle.path().app_data_dir().context("resolve application data directory")?;
-        Self::from_roots(app_data_dir.join("assets"), app_data_dir.join("config"))
+        Self::from_roots_with_sidecar(
+            app_data_dir.join("assets"),
+            app_data_dir.join("config"),
+            true,
+        )
     }
 
     /// Builds app state from explicit asset and config roots.
     pub fn from_roots(root: impl AsRef<Path>, config_root: impl AsRef<Path>) -> Result<Self> {
         let backend = Arc::new(MockBackend::new());
-        Self::from_roots_with_backend(root, config_root, backend)
+        Self::from_roots_with_backend_and_sidecar(root, config_root, backend, false)
     }
 
     /// Builds app state using an explicit asset root.
@@ -48,7 +60,7 @@ impl AppState {
     ) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
         let config_root = sibling_config_root(&root);
-        Self::from_roots_with_backend(root, config_root, backend)
+        Self::from_roots_with_backend_and_sidecar(root, config_root, backend, false)
     }
 
     /// Builds app state using explicit asset/config roots and mock backend.
@@ -56,6 +68,31 @@ impl AppState {
         root: impl AsRef<Path>,
         config_root: impl AsRef<Path>,
         backend: Arc<MockBackend>,
+    ) -> Result<Self> {
+        Self::from_roots_with_backend_and_sidecar(root, config_root, backend, false)
+    }
+
+    /// Builds app state using explicit roots and sidecar mode.
+    pub fn from_roots_with_sidecar(
+        root: impl AsRef<Path>,
+        config_root: impl AsRef<Path>,
+        assistant_sidecar_enabled: bool,
+    ) -> Result<Self> {
+        let backend = Arc::new(MockBackend::new());
+        Self::from_roots_with_backend_and_sidecar(
+            root,
+            config_root,
+            backend,
+            assistant_sidecar_enabled,
+        )
+    }
+
+    /// Builds app state using explicit roots, mock backend, and sidecar mode.
+    pub fn from_roots_with_backend_and_sidecar(
+        root: impl AsRef<Path>,
+        config_root: impl AsRef<Path>,
+        backend: Arc<MockBackend>,
+        assistant_sidecar_enabled: bool,
     ) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
         let config_root = config_root.as_ref().to_path_buf();
@@ -66,7 +103,16 @@ impl AppState {
         let mut registry = NodeRegistry::new();
         let registry_backend: Arc<dyn InferenceBackend> = backend.clone();
         nodes::register_all(&mut registry, registry_backend, Arc::clone(&store));
-        Ok(Self { root, config_root, backend, store, registry })
+        Ok(Self {
+            root,
+            config_root,
+            backend,
+            store,
+            registry,
+            assistant_session: Mutex::new(None),
+            assistant_process: Mutex::new(None),
+            assistant_sidecar_enabled,
+        })
     }
 }
 

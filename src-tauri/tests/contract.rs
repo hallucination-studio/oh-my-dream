@@ -1,5 +1,8 @@
 use engine::{NodeExecutionState, NodeProgressEvent, RunOutputs, Value, ValueMap};
-use oh_my_dream_tauri::dto::{AssetDto, NodeProgressEventDto, ProjectDto, RunWorkflowResultDto};
+use oh_my_dream_tauri::dto::{
+    AssetDto, AssistantConfigDto, AssistantSessionDto, AssistantSkillsDto, CapabilityDto,
+    CapabilityManifestDto, NodeProgressEventDto, ProjectDto, RunWorkflowResultDto, SkillDto,
+};
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
@@ -11,6 +14,10 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let asset = asset_fixture();
     let project = project_fixture();
     let progress = progress_fixture();
+    let assistant_config = assistant_config_fixture();
+    let assistant_session = assistant_session_fixture();
+    let capability_manifest = capability_manifest_fixture();
+    let skill = skill_fixture();
 
     assert_eq!(
         serde_json::to_value(&run_result).expect("serialize run workflow result"),
@@ -62,11 +69,58 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
             "cost": 900
         })
     );
+    assert_eq!(
+        serde_json::to_value(&assistant_config).expect("serialize assistant config"),
+        json!({
+            "enabled": true,
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-5.4",
+            "has_key": false,
+            "temperature": 0.3,
+            "max_tool_iters": 20,
+            "system_prompt_extra": null,
+            "developer_mode": false,
+            "skills": { "installed": ["portrait-helper"], "enabled": [] }
+        })
+    );
+    assert_eq!(
+        serde_json::to_value(&assistant_session).expect("serialize assistant session"),
+        json!({ "port": 55123, "token": "abcdef0123456789abcdef0123456789" })
+    );
+    assert_eq!(
+        serde_json::to_value(&capability_manifest).expect("serialize capability manifest"),
+        json!({
+            "capabilities": [{
+                "name": "workflow.run",
+                "description": "Run the current workflow.",
+                "kind": "backend",
+                "command": "run_workflow",
+                "parameters": { "type": "object", "properties": {} },
+                "returns": { "type": "object" },
+                "confirm": true
+            }]
+        })
+    );
+    assert_eq!(
+        serde_json::to_value(&skill).expect("serialize skill"),
+        json!({
+            "name": "portrait-helper",
+            "version": "1.0.0",
+            "description": "Portrait workflow helper",
+            "enabled": false,
+            "developer_mode_required": false,
+            "status": "disabled"
+        })
+    );
 
     write_fixture("run_workflow_result.json", &run_result);
     write_fixture("asset.json", &asset);
     write_fixture("project.json", &project);
     write_fixture("node_progress_event.json", &progress);
+    write_fixture("assistant_config.json", &assistant_config);
+    write_fixture("assistant_session.json", &assistant_session);
+    write_fixture("capability_manifest.json", &capability_manifest);
+    write_fixture("skill.json", &skill);
 }
 
 fn run_workflow_fixture() -> RunWorkflowResultDto {
@@ -117,6 +171,52 @@ fn progress_fixture() -> NodeProgressEventDto {
         progress: Some(1.0),
         cost: Some(900),
     })
+}
+
+fn assistant_config_fixture() -> AssistantConfigDto {
+    AssistantConfigDto {
+        enabled: true,
+        base_url: "https://api.openai.com/v1".to_owned(),
+        model: "gpt-5.4".to_owned(),
+        has_key: false,
+        temperature: 0.3,
+        max_tool_iters: 20,
+        system_prompt_extra: None,
+        developer_mode: false,
+        skills: AssistantSkillsDto {
+            installed: vec!["portrait-helper".to_owned()],
+            enabled: Vec::new(),
+        },
+    }
+}
+
+fn assistant_session_fixture() -> AssistantSessionDto {
+    AssistantSessionDto { port: 55123, token: "abcdef0123456789abcdef0123456789".to_owned() }
+}
+
+fn capability_manifest_fixture() -> CapabilityManifestDto {
+    CapabilityManifestDto {
+        capabilities: vec![CapabilityDto {
+            name: "workflow.run".to_owned(),
+            description: "Run the current workflow.".to_owned(),
+            kind: "backend".to_owned(),
+            command: Some("run_workflow".to_owned()),
+            parameters: json!({ "type": "object", "properties": {} }),
+            returns: json!({ "type": "object" }),
+            confirm: true,
+        }],
+    }
+}
+
+fn skill_fixture() -> SkillDto {
+    SkillDto {
+        name: "portrait-helper".to_owned(),
+        version: "1.0.0".to_owned(),
+        description: "Portrait workflow helper".to_owned(),
+        enabled: false,
+        developer_mode_required: false,
+        status: "disabled".to_owned(),
+    }
 }
 
 fn write_fixture<T: serde::Serialize>(file_name: &str, value: &T) {

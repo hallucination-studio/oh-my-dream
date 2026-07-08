@@ -1,0 +1,18 @@
+{
+  "capabilities": [
+    {
+      "name": "workflow.run",
+      "description": "Run the current workflow.",
+      "kind": "backend",
+      "command": "run_workflow",
+      "parameters": {
+        "properties": {},
+        "type": "object"
+      },
+      "returns": {
+        "type": "object"
+      },
+      "confirm": true
+    }
+  ]
+}

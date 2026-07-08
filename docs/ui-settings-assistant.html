@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>oh-my-dream — settings · assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;550;600;650;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #14161d; --ink-2: #3d424f; --ink-3: #767c8b; --ink-faint: #a6abb7;
+        --surface: #fbfcfe; --surface-2: #f5f6fa; --surface-sunk: #eef0f5;
+        --hair: rgba(20,22,29,.08); --hair-2: rgba(20,22,29,.13);
+        --accent: #4f46e5; --accent-strong: #443bd4; --accent-soft: rgba(79,70,229,.1);
+        --ok: #0f9d76; --warn: #d1892a; --err: #dc4361;
+        --t-video: #6a4ef0;
+        --font: "Inter", system-ui, sans-serif; --font-m: "JetBrains Mono", monospace;
+        --r-sm: 6px; --r-md: 8px; --r-lg: 11px; --r-xl: 14px;
+        --shadow-pop: 0 12px 44px rgba(20,22,40,.2);
+      }
+      * { box-sizing: border-box; } html, body { margin: 0; height: 100%; }
+      body { font-family: var(--font); color: var(--ink); font-size: 13px; letter-spacing: -.006em; -webkit-font-smoothing: antialiased; background: var(--surface-sunk); display: grid; place-items: center; }
+
+      .dialog { width: 680px; height: 620px; border-radius: var(--r-xl); overflow: hidden; box-shadow: var(--shadow-pop); background: var(--surface); border: 1px solid var(--hair-2); display: grid; grid-template-rows: auto 1fr auto; }
+      .dh { display: flex; align-items: center; justify-content: space-between; padding: 15px 22px; border-bottom: 1px solid var(--hair); }
+      .dh b { font-size: 16px; font-weight: 650; }
+      .dh .cl { color: var(--ink-3); font-size: 19px; cursor: pointer; }
+      .db { display: grid; grid-template-columns: 160px 1fr; min-height: 0; }
+      .nav { border-right: 1px solid var(--hair); padding: 13px 11px; display: flex; flex-direction: column; gap: 2px; background: var(--surface-2); }
+      .nav .it { padding: 8px 12px; border-radius: var(--r-sm); font-size: 13px; color: var(--ink-2); cursor: pointer; display: flex; align-items: center; gap: 8px; }
+      .nav .it:hover { background: rgba(20,22,29,.05); }
+      .nav .it.on { background: var(--accent-soft); color: var(--accent); font-weight: 550; }
+      .nav .it .ni { width: 15px; height: 15px; }
+      .panel { padding: 19px 22px; overflow-y: auto; }
+      .grp { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); margin: 0 0 12px; font-weight: 600; }
+      .grp.mt { margin-top: 24px; }
+
+      /* master enable row */
+      .enable { display: flex; align-items: center; gap: 12px; padding: 13px 15px; border: 1px solid var(--hair-2); border-radius: var(--r-lg); margin-bottom: 20px; }
+      .enable .et { flex: 1; }
+      .enable .et b { font-size: 13px; font-weight: 600; display: block; }
+      .enable .et span { font-size: 11.5px; color: var(--ink-3); }
+      /* toggle */
+      .tog { width: 38px; height: 22px; border-radius: 999px; background: var(--accent); position: relative; cursor: pointer; flex-shrink: 0; }
+      .tog::after { content: ""; position: absolute; top: 2px; left: 18px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: left .12s; }
+      .tog.off { background: var(--hair-2); }
+      .tog.off::after { left: 2px; }
+
+      /* form fields */
+      .field { display: grid; grid-template-columns: 116px 1fr; gap: 10px; align-items: center; margin-bottom: 11px; }
+      .field .k { font-size: 12px; color: var(--ink-2); }
+      .field .k small { display: block; font-size: 10.5px; color: var(--ink-faint); margin-top: 1px; }
+      .field .v { background: var(--surface-sunk); border: 1px solid transparent; border-radius: var(--r-sm); padding: 7px 10px; font-size: 12.5px; color: var(--ink); outline: none; width: 100%; }
+      .field .v:focus { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+      .field .v.mono { font-family: var(--font-m); }
+      .field .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+      /* skills — a compact, searchable, scrollable LIST (scales to many) */
+      .skhead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+      .skhead .grp { margin: 0; flex: 1; }
+      .skhead .cnt { font-family: var(--font-m); font-size: 10px; color: var(--ink-faint); background: var(--surface-sunk); border-radius: 999px; padding: 2px 8px; }
+      .skhead .install { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: var(--r-sm); border: 1px solid var(--hair-2); background: var(--surface); font-size: 11.5px; color: var(--ink-2); cursor: pointer; }
+      .skhead .install:hover { border-color: var(--accent); color: var(--accent); }
+      .sksearch { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: var(--r-sm); background: var(--surface-sunk); border: 1px solid transparent; margin-bottom: 8px; color: var(--ink-faint); }
+      .sksearch:focus-within { background: #fff; border-color: var(--hair-2); box-shadow: 0 0 0 3px var(--accent-soft); }
+      .sksearch svg { width: 13px; height: 13px; flex-shrink: 0; }
+      .sksearch input { background: none; border: none; outline: none; font-size: 12px; color: var(--ink); width: 100%; }
+      .sksearch input::placeholder { color: var(--ink-faint); }
+
+      /* the list: bounded height, scrolls; rows separated by hairlines, not cards */
+      .sklist { border: 1px solid var(--hair); border-radius: var(--r-lg); overflow: hidden; }
+      .skrow { display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-bottom: 1px solid var(--hair); }
+      .skrow:last-child { border-bottom: none; }
+      .skrow:hover { background: var(--surface-2); }
+      .skrow .tog { width: 32px; height: 19px; flex-shrink: 0; }
+      .skrow .tog::after { width: 15px; height: 15px; left: 15px; }
+      .skrow .tog.off::after { left: 2px; }
+      .skrow .sm { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+      .skrow .sn { font-size: 12.5px; font-weight: 550; flex-shrink: 0; }
+      .skrow .sv { font-family: var(--font-m); font-size: 10px; color: var(--ink-faint); flex-shrink: 0; }
+      .skrow .sd { font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .skrow .rm { color: var(--ink-faint); font-size: 14px; cursor: pointer; padding: 0 2px; opacity: 0; flex-shrink: 0; }
+      .skrow:hover .rm { opacity: 1; }
+      .skrow .rm:hover { color: var(--err); }
+      .devtag { font-size: 8.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--warn); background: rgba(209,137,42,.12); padding: 1px 5px; border-radius: 4px; flex-shrink: 0; align-self: center; }
+      .skrow.is-off .sn, .skrow.is-off .sd { color: var(--ink-faint); }
+
+      .dev { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: var(--r-lg); background: var(--surface-2); margin-top: 8px; }
+      .dev .dt { flex: 1; font-size: 12px; color: var(--ink-2); }
+      .dev .dt small { display: block; font-size: 10.5px; color: var(--ink-faint); margin-top: 1px; }
+
+      /* disabled veil when assistant is off */
+      .maybe { transition: opacity .15s; }
+
+      .df { display: flex; justify-content: flex-end; padding: 14px 22px; border-top: 1px solid var(--hair); }
+      .done { height: 33px; padding: 0 20px; background: var(--accent); color: #fff; border-radius: var(--r-md); font-weight: 600; cursor: pointer; border: none; }
+    </style>
+  </head>
+  <body>
+    <div class="dialog">
+      <div class="dh"><b>Settings</b><span class="cl">×</span></div>
+      <div class="db">
+        <nav class="nav">
+          <div class="it"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg>Providers</div>
+          <div class="it on"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5.5h16v10.8H8.8L4 20.5V5.5z"/><path d="M8 10h8M8 13h5"/></svg>Assistant</div>
+          <div class="it"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2.5"/></svg>Canvas</div>
+          <div class="it"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7c0-1.5 3.6-2.5 8-2.5s8 1 8 2.5-3.6 2.5-8 2.5S4 8.5 4 7z"/><path d="M4 7v10c0 1.5 3.6 2.5 8 2.5s8-1 8-2.5V7"/></svg>Storage</div>
+          <div class="it"><svg class="ni" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>About</div>
+        </nav>
+        <div class="panel">
+          <!-- master enable -->
+          <div class="enable">
+            <div class="et"><b>AI assistant</b><span>Let an agent drive the canvas, configuration, and workflows.</span></div>
+            <div class="tog"></div>
+          </div>
+
+          <!-- everything below is gated on the toggle -->
+          <div class="maybe">
+            <p class="grp">Model (OpenAI protocol)</p>
+            <div class="field"><span class="k">Base URL<small>OpenAI-compatible</small></span><input class="v mono" value="https://api.openai.com/v1"></div>
+            <div class="field"><span class="k">Model</span><input class="v mono" value="gpt-5.4"></div>
+            <div class="field"><span class="k">API key</span><input class="v" type="password" placeholder="•••••••••••• (set)"></div>
+            <div class="field"><span class="k">Tuning</span><div class="row2"><input class="v mono" value="temperature 0.3"><input class="v mono" value="max tool iters 20"></div></div>
+
+            <div class="skhead">
+              <p class="grp mt">Skills</p>
+              <span class="cnt">3 / 7</span>
+              <button class="install"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Install</button>
+            </div>
+            <div class="sksearch">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <input placeholder="Search skills…">
+            </div>
+            <div class="sklist">
+              <div class="skrow"><div class="tog"></div><div class="sm"><span class="sn">Portrait helper</span><span class="sv">1.0.0</span><span class="sd">Framing, lighting, and upscaling for portraits.</span></div><span class="rm">×</span></div>
+              <div class="skrow"><div class="tog"></div><div class="sm"><span class="sn">Storyboard</span><span class="sv">2.1.0</span><span class="sd">Turn a script into a shot-by-shot workflow.</span></div><span class="rm">×</span></div>
+              <div class="skrow"><div class="tog"></div><div class="sm"><span class="sn">Cinematic shots</span><span class="sv">0.3.1</span><span class="devtag">code</span><span class="sd">Camera-move presets for image-to-video.</span></div><span class="rm">×</span></div>
+              <div class="skrow is-off"><div class="tog off"></div><div class="sm"><span class="sn">Batch upscaler</span><span class="sv">1.2.0</span><span class="sd">Upscale every image asset in a project.</span></div><span class="rm">×</span></div>
+              <div class="skrow is-off"><div class="tog off"></div><div class="sm"><span class="sn">Audio scorer</span><span class="sv">0.9.0</span><span class="sd">Generate a soundtrack matched to a video.</span></div><span class="rm">×</span></div>
+              <div class="skrow is-off"><div class="tog off"></div><div class="sm"><span class="sn">Prompt refiner</span><span class="sv">1.4.2</span><span class="sd">Rewrite prompts for stronger composition.</span></div><span class="rm">×</span></div>
+              <div class="skrow is-off"><div class="tog off"></div><div class="sm"><span class="sn">Lip sync</span><span class="sv">0.2.0</span><span class="devtag">code</span><span class="sd">Sync a talking-head video to an audio track.</span></div><span class="rm">×</span></div>
+            </div>
+
+            <p class="grp mt">Advanced</p>
+            <div class="dev">
+              <div class="dt">Developer mode<small>Allow skills that run custom code in the sidecar. Only enable for skills you trust.</small></div>
+              <div class="tog off"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="df"><button class="done">Done</button></div>
+    </div>
+  </body>
+</html>

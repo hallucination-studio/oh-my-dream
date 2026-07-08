@@ -19,6 +19,10 @@ dist/
 .vite/
 *.local
 
+# Python assistant
+__pycache__/
+*.py[cod]
+
 # Asset library local data (runtime artifacts, not tracked)
 /data/
 *.sqlite
