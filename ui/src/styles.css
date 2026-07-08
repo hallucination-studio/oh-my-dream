@@ -12,16 +12,13 @@ body,
   font-family: var(--font);
   color: var(--ink);
   font-size: 13px;
+  letter-spacing: -0.006em;
 }
 
 body {
-  /* Ambient wallpaper the glass floats over. */
-  background:
-    radial-gradient(1200px 800px at 10% 4%, #ffe0cf 0%, transparent 52%),
-    radial-gradient(1100px 850px at 92% 16%, #cdd7ff 0%, transparent 52%),
-    radial-gradient(900px 900px at 74% 98%, #ddccff 0%, transparent 48%),
-    linear-gradient(140deg, #f5f1fb 0%, #edf2fb 100%);
-  background-attachment: fixed;
+  /* Flush desktop client: a solid, cool neutral ground fills the window. */
+  background: var(--surface);
+  -webkit-font-smoothing: antialiased;
 }
 
 button {
@@ -36,41 +33,38 @@ input {
   font-family: var(--font);
 }
 
-/* App shell: top bar / [rail | side | canvas | inspector]. */
+/* App shell fills the window edge-to-edge: top bar over a 4-column body. */
 .bench {
   display: grid;
-  grid-template-rows: 50px 1fr;
+  grid-template-rows: 44px 1fr;
   height: 100vh;
-  padding: 9px;
-  gap: 9px;
 }
 
 .bench__body {
   display: grid;
-  grid-template-columns: 48px 258px 1fr 288px;
-  gap: 9px;
+  grid-template-columns: 44px 244px 1fr 292px;
+  min-height: 0;
+}
+.bench__body > * {
   min-height: 0;
 }
 
 /* Assets view: rail + full library + detail panel. */
 .bench__body--assets {
-  grid-template-columns: 48px 1fr 300px;
+  grid-template-columns: 44px 1fr 300px;
 }
 
+/* Canvas is the only textured surface; nodes float on it. */
 .bench__canvas {
   position: relative;
   min-width: 0;
-  border-radius: var(--r-lg);
   overflow: hidden;
-  border: 1px solid var(--glass-line);
   background:
-    radial-gradient(circle at 1px 1px, rgba(27, 26, 43, 0.06) 1px, transparent 0) 0 0 / 24px 24px,
-    rgba(255, 255, 255, 0.26);
-  backdrop-filter: blur(6px);
-  box-shadow: var(--shadow);
+    radial-gradient(circle at 1px 1px, rgba(20, 22, 29, 0.055) 1px, transparent 0) -1px -1px / 22px 22px,
+    var(--surface-sunk);
 }
 
-/* React Flow overrides to fit the glass ground. */
+/* React Flow overrides for the flush ground. */
 .react-flow__attribution {
   background: transparent;
 }
@@ -78,18 +72,24 @@ input {
   color: var(--ink-faint);
 }
 .react-flow__controls {
-  box-shadow: var(--shadow);
   border-radius: var(--r-md);
   overflow: hidden;
+  border: 1px solid var(--hair);
+  box-shadow: var(--shadow);
 }
 .react-flow__controls-button {
-  background: var(--glass-hi);
+  background: var(--surface);
   border-bottom: 1px solid var(--hair);
   color: var(--ink-2);
 }
 .react-flow__controls-button:hover {
-  background: #fff;
+  background: var(--surface-sunk);
 }
 .react-flow__controls-button svg {
   fill: var(--ink-2);
+}
+.react-flow__minimap {
+  border-radius: var(--r-md);
+  border: 1px solid var(--hair);
+  overflow: hidden;
 }

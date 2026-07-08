@@ -21,11 +21,14 @@ export function NodeLibrary({ onAdd }: { onAdd: (type: string) => void }) {
   }, [query]);
 
   return (
-    <aside className="nlib glass">
+    <aside className="nlib">
       <div className="nlib__head">
         <div className="nlib__title">Nodes</div>
         <div className="nlib__search">
-          <span aria-hidden="true">⌕</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4-4" />
+          </svg>
           <input
             value={query}
             placeholder="Search nodes…"

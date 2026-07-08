@@ -55,7 +55,7 @@ export function ProjectSwitcher({
   };
 
   return (
-    <div className="psw glass" ref={ref}>
+    <div className="psw" ref={ref}>
       <div className="psw__head">Projects</div>
       <div className="psw__list">
         {projects.map((p) => (

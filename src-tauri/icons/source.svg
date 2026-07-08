@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- oh-my-dream app icon: dark rounded-square with an aperture play triangle.
+       The play triangle marks "generation / render"; the accent ring hints at
+       a camera aperture. Matches the in-app brand mark. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20222e"/>
+      <stop offset="1" stop-color="#101119"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="220" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="300" fill="none" stroke="#4f46e5" stroke-width="24" opacity="0.9"/>
+  <path d="M436 372 L672 512 L436 652 Z" fill="#ffffff"/>
+</svg>

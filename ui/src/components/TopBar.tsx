@@ -21,12 +21,13 @@ export function TopBar({
 }) {
   const running = status.state === "running";
   return (
-    <header className="topbar glass">
+    <header className="topbar">
       <div className="topbar__brand">
-        <span className="topbar__mark" aria-hidden="true" />
-        <b>oh-my-dream</b>
+        <BrandMark />
+        <b>oh&#8209;my&#8209;dream</b>
       </div>
 
+      <span className="topbar__sep" aria-hidden="true" />
       <button className="topbar__proj" onClick={onOpenProjects}>
         <span className="topbar__pdot" />
         <span className="topbar__pn">{project?.name ?? "No project"}</span>
@@ -35,7 +36,10 @@ export function TopBar({
 
       <div className="topbar__spacer" />
       <RunState status={status} />
-      <button className="topbar__gear" onClick={onOpenSettings} aria-label="Settings">⚙</button>
+      <span className="topbar__sep" aria-hidden="true" />
+      <button className="topbar__gear" onClick={onOpenSettings} aria-label="Settings">
+        <GearIcon />
+      </button>
       {running ? (
         <button className="topbar__run topbar__run--cancel" onClick={onCancel}>Cancel</button>
       ) : (
@@ -48,12 +52,36 @@ export function TopBar({
   );
 }
 
+// Geometric brand mark: a dark rounded square with an aperture play triangle.
+function BrandMark() {
+  return (
+    <svg className="topbar__mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="1.2" y="1.2" width="21.6" height="21.6" rx="6.4" fill="#14161d" />
+      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="#fff" />
+    </svg>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
 function RunState({ status }: { status: RunStatus }) {
   switch (status.state) {
     case "idle":
       return null;
     case "running":
-      return <span className="topbar__state">Running · {status.nodeId}…</span>;
+      return (
+        <span className="topbar__state">
+          <span className="topbar__spin" aria-hidden="true" />
+          Running · {status.nodeId}…
+        </span>
+      );
     case "succeeded":
       return (
         <span className="topbar__state topbar__state--ok">

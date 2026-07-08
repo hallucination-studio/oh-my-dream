@@ -1,10 +1,13 @@
+/* Project switcher: a popover anchored under the top-bar switcher. */
 .psw {
   position: absolute;
-  top: 50px;
-  left: 160px;
+  top: 46px;
+  left: 150px;
   width: 240px;
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-lg);
+  background: var(--surface);
+  border: 1px solid var(--hair-2);
+  box-shadow: var(--shadow-pop);
   z-index: 25;
   overflow: hidden;
 }
@@ -28,13 +31,13 @@
   align-items: center;
   gap: 9px;
   padding: 8px 9px;
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   font-size: 13px;
   color: var(--ink-2);
   text-align: left;
 }
 .psw__item:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: var(--surface-sunk);
 }
 .psw__item.is-on {
   color: var(--ink);
@@ -56,19 +59,26 @@
 .psw__new input {
   flex: 1;
   min-width: 0;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid var(--hair);
-  border-radius: 7px;
+  background: var(--surface-sunk);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
   padding: 6px 9px;
   font-size: 12px;
   color: var(--ink);
   outline: none;
 }
+.psw__new input:focus {
+  background: #fff;
+  border-color: var(--accent);
+}
 .psw__add {
   padding: 0 12px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: var(--accent);
   color: #fff;
   font-size: 12px;
   font-weight: 600;
+}
+.psw__add:hover {
+  background: var(--accent-strong);
 }

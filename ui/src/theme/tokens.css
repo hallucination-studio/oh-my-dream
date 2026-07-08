@@ -1,59 +1,59 @@
 /*
- * Design tokens — oh-my-dream, a local creation bench.
+ * Design tokens — oh-my-dream, a local AI creation bench.
  *
- * Direction: Apple-style liquid glass on a light, ambient-gradient ground.
- * Frosted panels float over a soft wallpaper; generated media glows on them.
- * The signature is DATA-TYPED WIRING — every port and edge is colored by the
- * data it carries, so a workflow reads as instruments patched together.
+ * Direction: a flush, edge-to-edge desktop client on a cool neutral ground.
+ * Solid panels butt against 1px hairlines — no floating cards, no window-edge
+ * gaps, no drop shadows on the chrome. Only the workflow nodes float, because
+ * they are the content on the canvas. A single restrained accent; data-type
+ * color appears solely in the wiring (ports, edges, category dots).
  */
 
 :root {
-  /* Ink */
-  --ink: #1b1a2b;
-  --ink-2: #46435f;
-  --ink-3: #85839c;
-  --ink-faint: #b3b1c4;
+  /* Ink — cool near-black */
+  --ink: #14161d;
+  --ink-2: #3d424f;
+  --ink-3: #767c8b;
+  --ink-faint: #a6abb7;
 
-  /* Glass surfaces */
-  --glass: rgba(255, 255, 255, 0.58);
-  --glass-2: rgba(255, 255, 255, 0.76);
-  --glass-hi: rgba(255, 255, 255, 0.92);
-  --glass-line: rgba(255, 255, 255, 0.8);
-  --hair: rgba(27, 26, 43, 0.08);
-  --hair-2: rgba(27, 26, 43, 0.13);
+  /* Solid chrome surfaces (no translucency, no gradients) */
+  --surface: #fbfcfe;
+  --surface-2: #f5f6fa;
+  --surface-sunk: #eef0f5;
 
-  /* Accent + status */
-  --accent: #6355e6;
-  --accent-hot: #7566ff;
-  --ok: #10b088;
-  --warn: #e8a13c;
-  --err: #e5556f;
+  /* Hairline dividers */
+  --hair: rgba(20, 22, 29, 0.08);
+  --hair-2: rgba(20, 22, 29, 0.13);
 
-  /* Data-type channels — tuned for light glass */
-  --t-text: #0eae9b;
-  --t-image: #e07f34;
-  --t-video: #7150f5;
-  --t-audio: #d94f92;
-  --t-model: #d24f8f;
-  --t-number: #3a76ff;
+  /* Single restrained accent */
+  --accent: #4f46e5;
+  --accent-strong: #443bd4;
+  --accent-soft: rgba(79, 70, 229, 0.1);
+
+  /* Status */
+  --ok: #0f9d76;
+  --warn: #d1892a;
+  --err: #dc4361;
+
+  /* Data-type channels — used only in wiring */
+  --t-text: #10a596;
+  --t-image: #d97a34;
+  --t-video: #6a4ef0;
+  --t-audio: #cf4a88;
+  --t-model: #cf4a88;
+  --t-number: #3268e8;
 
   /* Type */
   --font: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /* Scale */
-  --r-sm: 7px;
-  --r-md: 10px;
-  --r-lg: 14px;
-  --r-xl: 18px;
-  --shadow: 0 6px 22px rgba(30, 25, 64, 0.12);
-  --shadow-lg: 0 24px 70px rgba(30, 25, 64, 0.26);
-  --blur: saturate(160%) blur(22px);
-}
+  /* Radius scale — modest; chrome is square, only nodes/controls round */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 11px;
+  --r-xl: 14px;
 
-.glass {
-  background: var(--glass);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--glass-line);
+  /* The only shadows in the app belong to floating nodes and popovers. */
+  --shadow: 0 1px 2px rgba(20, 22, 40, 0.06), 0 3px 10px rgba(20, 22, 40, 0.05);
+  --shadow-lg: 0 4px 16px rgba(20, 22, 40, 0.09), 0 12px 40px rgba(20, 22, 40, 0.07);
+  --shadow-pop: 0 12px 44px rgba(20, 22, 40, 0.2);
 }

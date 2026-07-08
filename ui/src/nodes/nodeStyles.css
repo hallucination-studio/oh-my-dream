@@ -1,30 +1,29 @@
-/* Workflow node card — glass, typed ports, status/progress/preview/cost. */
+/* Workflow node card — solid, typed ports, status/progress/preview/cost.
+ * Nodes float on the canvas (they are the content), so they keep a shadow. */
 
 .wf-node {
   position: relative;
   width: 216px;
-  border-radius: 13px;
-  box-shadow: var(--shadow);
-  background: var(--glass-2);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--glass-line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  background: #fff;
+  border: 1px solid var(--hair);
   overflow: hidden;
 }
 .wf-node__bar {
   position: absolute;
   inset: 0 auto 0 0;
-  width: 4px;
+  width: 3px;
   background: var(--accent);
   z-index: 2;
 }
 .wf-node.is-selected {
   border-color: var(--accent);
-  box-shadow: var(--shadow), 0 0 0 3px rgba(99, 85, 230, 0.24);
+  box-shadow: var(--shadow-lg), 0 0 0 3px var(--accent-soft);
 }
 .wf-node.is-running {
   border-color: var(--accent);
-  box-shadow: var(--shadow), 0 0 0 3px rgba(99, 85, 230, 0.2);
+  box-shadow: var(--shadow-lg), 0 0 0 3px var(--accent-soft);
 }
 .wf-node.is-error {
   border-color: var(--err);
@@ -37,9 +36,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 9px 12px 9px 16px;
+  padding: 8px 11px 8px 14px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
   border-bottom: 1px solid var(--hair);
 }
 
@@ -47,23 +47,23 @@
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 9.5px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 999px;
+  padding: 2px 6px;
+  border-radius: 5px;
 }
 .wf-pill__dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
 }
 .wf-pill--idle,
 .wf-pill--cached {
   color: var(--ink-3);
-  background: rgba(133, 131, 156, 0.14);
+  background: rgba(20, 22, 29, 0.05);
 }
 .wf-pill--idle .wf-pill__dot,
 .wf-pill--cached .wf-pill__dot {
@@ -71,7 +71,7 @@
 }
 .wf-pill--running {
   color: var(--accent);
-  background: rgba(99, 85, 230, 0.13);
+  background: var(--accent-soft);
 }
 .wf-pill--running .wf-pill__dot {
   background: var(--accent);
@@ -79,14 +79,14 @@
 }
 .wf-pill--done {
   color: var(--ok);
-  background: rgba(16, 176, 136, 0.14);
+  background: rgba(15, 157, 118, 0.1);
 }
 .wf-pill--done .wf-pill__dot {
   background: var(--ok);
 }
 .wf-pill--error {
   color: var(--err);
-  background: rgba(229, 85, 111, 0.14);
+  background: rgba(220, 67, 97, 0.12);
 }
 .wf-pill--error .wf-pill__dot {
   background: var(--err);
@@ -98,37 +98,35 @@
 
 .wf-node__prog {
   height: 3px;
-  background: rgba(99, 85, 230, 0.16);
+  background: var(--accent-soft);
   position: relative;
 }
 .wf-node__prog i {
   position: absolute;
   inset: 0 auto 0 0;
-  background: linear-gradient(90deg, var(--accent), var(--accent-hot));
-  border-radius: 0 2px 2px 0;
+  background: var(--accent);
   transition: width 0.2s ease;
 }
 
 .wf-preview {
-  margin: 10px 11px 0;
+  margin: 9px 10px 0;
   aspect-ratio: 16 / 10;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   overflow: hidden;
   position: relative;
-  border: 1px solid var(--glass-line);
-  box-shadow: var(--shadow);
+  border: 1px solid var(--hair);
   display: grid;
   place-items: center;
 }
-.wf-preview--image { background: linear-gradient(135deg, #ffcb96, #e07f34); }
-.wf-preview--video { background: linear-gradient(135deg, #b6a3ff, #7150f5); }
+.wf-preview--image { background: var(--surface-sunk); }
+.wf-preview--video { background: var(--surface-sunk); }
 .wf-preview--audio {
-  background: linear-gradient(135deg, #ffb0d6, #d94f92);
-  color: #fff;
+  background: var(--surface-sunk);
+  color: var(--t-audio);
   font-size: 12px;
   font-weight: 600;
   aspect-ratio: auto;
-  padding: 10px;
+  padding: 12px;
 }
 .wf-preview__img {
   width: 100%;
@@ -139,10 +137,7 @@
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.32);
-  padding: 2px 7px;
-  border-radius: 999px;
+  color: var(--ink-3);
 }
 .wf-preview__play {
   position: absolute;
@@ -164,10 +159,10 @@
 }
 
 .wf-node__body {
-  padding: 11px 13px 12px;
+  padding: 9px 11px 10px;
   display: grid;
-  grid-template-columns: 58px 1fr;
-  gap: 8px 9px;
+  grid-template-columns: 56px 1fr;
+  gap: 7px 9px;
   align-items: center;
 }
 .wf-param {
@@ -182,9 +177,9 @@
   line-height: 1.15;
 }
 .wf-param__input {
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid var(--hair);
-  border-radius: 7px;
+  background: var(--surface-sunk);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
   padding: 6px 9px;
   font-size: 12px;
   color: var(--ink);
@@ -192,6 +187,7 @@
   min-width: 0;
 }
 .wf-param__input:focus {
+  background: #fff;
   border-color: var(--accent);
 }
 .wf-param__input.is-mono {
@@ -201,9 +197,10 @@
 .wf-node__foot {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 7px 11px;
   border-top: 1px solid var(--hair);
+  background: var(--surface-2);
   font-size: 10.5px;
   color: var(--ink-3);
 }
@@ -212,18 +209,14 @@
   align-items: center;
   gap: 4px;
   font-family: var(--font-mono);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--ink-2);
-  background: rgba(232, 161, 60, 0.14);
-  border: 1px solid rgba(232, 161, 60, 0.3);
-  border-radius: 6px;
-  padding: 2px 7px;
 }
 .wf-credit__coin {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ffd479, #e8a13c);
+  border: 1.5px solid var(--warn);
 }
 .wf-node__time {
   margin-left: auto;
@@ -233,17 +226,18 @@
 .wf-node--error {
   padding: 12px;
   color: var(--err);
-  background: var(--glass-2);
+  background: #fff;
   border: 1px solid var(--err);
-  border-radius: 13px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
 }
 
 .wf-port {
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.95);
+  width: 11px;
+  height: 11px;
+  border: 2.5px solid #fff;
   border-radius: 50%;
-  box-shadow: var(--shadow);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 .react-flow__handle.wf-port:hover {
   transform: scale(1.3);

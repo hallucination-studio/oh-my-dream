@@ -1,4 +1,4 @@
-// Custom workflow node: a glass card with a type-colored accent, typed port
+// Custom workflow node: a solid card with a type-colored accent, typed port
 // gems, an inline parameter grid, and — once run — a status pill, progress bar,
 // result preview, and a cost/time footer. Mirrors the states in docs/ui-pro.
 

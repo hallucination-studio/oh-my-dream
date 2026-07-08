@@ -1,36 +1,51 @@
+/* Node library: flush panel, hairline dividers, category tree. */
 .nlib {
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow);
+  background: var(--surface);
+  border-right: 1px solid var(--hair);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .nlib__head {
-  padding: 13px 14px 0;
+  padding: 11px 12px 10px;
+  border-bottom: 1px solid var(--hair);
 }
 .nlib__title {
-  font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 10px;
+  font-weight: 650;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-3);
+  margin-bottom: 9px;
 }
 .nlib__search {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 34px;
-  padding: 0 11px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid var(--hair);
-  color: var(--ink-3);
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface-sunk);
+  border: 1px solid transparent;
+  color: var(--ink-faint);
+}
+.nlib__search:focus-within {
+  background: #fff;
+  border-color: var(--hair-2);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.nlib__search svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
 }
 .nlib__search input {
   background: none;
   border: none;
   outline: none;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 12.5px;
   width: 100%;
 }
 .nlib__search input::placeholder {
@@ -40,26 +55,26 @@
 .nlib__tree {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 8px 4px;
+  padding: 8px;
 }
 .nlib__cat {
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 .nlib__cathead {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 8px;
-  border-radius: 8px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
 }
 .nlib__cathead:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(20, 22, 29, 0.04);
 }
 .nlib__tw {
   width: 0;
   height: 0;
-  border-left: 5px solid var(--ink-3);
+  border-left: 5px solid var(--ink-faint);
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
   transition: transform 0.12s ease;
@@ -68,14 +83,14 @@
   transform: rotate(90deg);
 }
 .nlib__cdot {
-  width: 8px;
-  height: 8px;
-  border-radius: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
 }
 .nlib__cn {
   flex: 1;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 12px;
   text-align: left;
 }
 .nlib__cc {
@@ -85,7 +100,9 @@
 }
 
 .nlib__leaves {
-  margin: 1px 0 3px 20px;
+  margin: 1px 0 3px 12px;
+  padding-left: 9px;
+  border-left: 1px solid var(--hair);
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -95,26 +112,29 @@
   align-items: center;
   gap: 9px;
   padding: 6px 9px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   font-size: 12.5px;
   color: var(--ink-2);
   text-align: left;
   cursor: grab;
 }
 .nlib__leaf:hover {
-  background: var(--glass-hi);
+  background: var(--surface-sunk);
   color: var(--ink);
-  box-shadow: var(--shadow);
 }
 .nlib__ld {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
 }
 .nlib__lg {
   margin-left: auto;
   color: var(--ink-faint);
-  font-size: 11px;
+  font-size: 12px;
+  opacity: 0;
+}
+.nlib__leaf:hover .nlib__lg {
+  opacity: 1;
 }
 
 .nlib__empty,

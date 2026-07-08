@@ -15,7 +15,7 @@ export function AssetDetail({
 }) {
   if (!asset) {
     return (
-      <aside className="adet glass">
+      <aside className="adet">
         <div className="adet__empty">Select an asset to see its details.</div>
       </aside>
     );
@@ -23,7 +23,7 @@ export function AssetDetail({
 
   const src = asset.thumbnail_path ?? asset.file_path;
   return (
-    <aside className="adet glass">
+    <aside className="adet">
       <div className={`adet__prev adet__prev--${asset.kind}`}>
         {src && asset.kind !== "audio" ? (
           <img className="adet__img" src={src} alt={asset.kind} />

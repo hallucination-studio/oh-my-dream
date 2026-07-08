@@ -208,7 +208,14 @@ export function App() {
               >
                 <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="transparent" />
                 <Controls showInteractive={false} />
-                <MiniMap pannable className="bench__minimap" />
+                <MiniMap
+                  pannable
+                  className="bench__minimap"
+                  bgColor="#f5f6fa"
+                  maskColor="rgba(20,22,29,0.06)"
+                  nodeColor="#c3c7d2"
+                  nodeStrokeWidth={0}
+                />
               </ReactFlow>
             </div>
             <InspectorPanel node={selected} onParamChange={setParam} />

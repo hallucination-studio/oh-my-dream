@@ -40,14 +40,17 @@ export function AssetLibrary({
 
   return (
     <>
-      <section className="lib glass">
+      <section className="lib">
         <div className="lib__top">
           <div className="lib__title-row">
             <span className="lib__title">Library</span>
             <span className="lib__count">{filtered.length}</span>
           </div>
           <div className="lib__search">
-            <span aria-hidden="true">⌕</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4-4" />
+            </svg>
             <input
               value={query}
               placeholder="Search by prompt or model…"

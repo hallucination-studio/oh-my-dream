@@ -1,30 +1,44 @@
+/* Left icon rail: flush left edge, hairline divider on the right. */
 .rail {
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow);
+  background: var(--surface-2);
+  border-right: 1px solid var(--hair);
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 9px;
-  gap: 5px;
+  padding: 8px 0;
+  gap: 4px;
 }
 
 .rail__btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-md);
   display: grid;
   place-items: center;
   color: var(--ink-3);
-  font-size: 16px;
   border: 1px solid transparent;
 }
+.rail__btn svg {
+  width: 18px;
+  height: 18px;
+}
 .rail__btn:hover {
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.5);
+  color: var(--ink-2);
+  background: rgba(20, 22, 29, 0.05);
 }
 .rail__btn.is-on {
-  background: var(--glass-hi);
   color: var(--accent);
-  border-color: var(--glass-line);
-  box-shadow: var(--shadow);
+  background: transparent;
+}
+/* Active tab reads as a left edge bar, the desktop-tool idiom. */
+.rail__btn.is-on::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 7px;
+  bottom: 7px;
+  width: 2.5px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
 }
