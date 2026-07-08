@@ -1,12 +1,11 @@
-// End-to-end: drive the full text-to-image -> image-to-video -> save pipeline
-// through the same code path `run_workflow` uses (enrich + engine executor +
-// asset store), starting from a workflow JSON string. This is the integration
-// proof that the backend the frontend calls actually produces and persists a
-// video asset.
+// End-to-end: drive the full text-to-image -> image-to-video auto-save pipeline
+// through the same code path `run_workflow` uses, starting from a workflow JSON
+// string. This proves the backend the frontend calls produces and persists
+// image/video assets without a terminal SaveAsset node.
 
 use backends::MockBackend;
 use engine::{EngineError, Executor, ResultCache, Workflow};
-use oh_my_dream_tauri::commands::{enrich_save_asset_params, run_workflow_with_state};
+use oh_my_dream_tauri::commands::run_workflow_with_state;
 use oh_my_dream_tauri::dto::RunWorkflowResultDto;
 use oh_my_dream_tauri::state::AppState;
 use std::sync::Arc;
@@ -14,11 +13,11 @@ use tempfile::tempdir;
 
 const WORKFLOW_JSON: &str = r#"{
   "version": "1.0",
+  "project_id": "project-0000000000000001",
   "nodes": [
     { "id": "prompt", "type": "TextPrompt", "params": { "text": "a red fox" }, "inputs": {} },
     { "id": "image", "type": "TextToImage", "params": {}, "inputs": { "prompt": ["prompt", "text"] } },
-    { "id": "video", "type": "ImageToVideo", "params": {}, "inputs": { "image": ["image", "image"] } },
-    { "id": "save", "type": "SaveAsset", "params": {}, "inputs": { "media": ["video", "video"] } }
+    { "id": "video", "type": "ImageToVideo", "params": {}, "inputs": { "image": ["image", "image"] } }
   ]
 }"#;
 
@@ -26,9 +25,9 @@ const WORKFLOW_JSON: &str = r#"{
 fn runs_full_pipeline_and_persists_video_asset() {
     let root = tempdir().expect("create temp asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
+    state.store.lock().expect("lock store").create_project("Default").expect("project");
 
     let workflow: Workflow = serde_json::from_str(WORKFLOW_JSON).expect("parse workflow json");
-    let workflow = enrich_save_asset_params(&workflow).expect("enrich workflow");
 
     let mut cache = ResultCache::new();
     let outputs = Executor::new(&state.registry)
@@ -44,16 +43,19 @@ fn runs_full_pipeline_and_persists_video_asset() {
         .expect("video node produced a `video` output");
     assert_eq!(video.kind, "video");
 
-    // The SaveAsset node persisted exactly one video asset, retrievable back.
+    // Producer nodes persisted the image and video assets, retrievable back.
     let assets = state.store.lock().expect("lock store").list(None).expect("list assets");
-    assert_eq!(assets.len(), 1, "one asset should be stored");
+    assert_eq!(assets.len(), 2, "image and video assets should be stored");
     assert_eq!(assets[0].kind, assets::AssetKind::Video);
+    assert_eq!(assets[0].prompt.as_deref(), Some("a red fox"));
+    assert_eq!(assets[0].source_node_type.as_deref(), Some("ImageToVideo"));
 }
 
 #[test]
 fn reuses_result_cache_without_resubmitting_backend_tasks() {
     let root = tempdir().expect("create temp asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
+    state.store.lock().expect("lock store").create_project("Default").expect("project");
     let workflow = parsed_enriched_workflow();
     let mut cache = ResultCache::new();
     let executor = Executor::new(&state.registry);
@@ -65,7 +67,7 @@ fn reuses_result_cache_without_resubmitting_backend_tasks() {
 
     assert_eq!(state.backend.submitted_task_count(), 2);
     let assets = state.store.lock().expect("lock store").list(None).expect("list assets");
-    assert_eq!(assets.len(), 1, "cached SaveAsset node should not persist twice");
+    assert_eq!(assets.len(), 2, "cached producer nodes should not persist duplicates");
 }
 
 #[test]
@@ -74,6 +76,7 @@ fn failing_backend_surfaces_readable_run_workflow_error() {
     let backend = Arc::new(MockBackend::always_fails("provider outage"));
     let state =
         AppState::from_asset_root_with_backend(root.path(), backend).expect("build app state");
+    state.store.lock().expect("lock store").create_project("Default").expect("project");
 
     let error =
         run_workflow_with_state(WORKFLOW_JSON.to_owned(), &state).expect_err("run should fail");
@@ -113,12 +116,12 @@ fn rejects_image_output_wired_into_string_prompt_input() {
 fn stored_asset_can_be_read_back_with_original_workflow_snapshot() {
     let root = tempdir().expect("create temp asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
+    state.store.lock().expect("lock store").create_project("Default").expect("project");
     let workflow: Workflow = serde_json::from_str(WORKFLOW_JSON).expect("parse workflow json");
-    let enriched = enrich_save_asset_params(&workflow).expect("enrich workflow");
     let mut cache = ResultCache::new();
 
     Executor::new(&state.registry)
-        .execute(&enriched, &mut cache)
+        .execute(&workflow, &mut cache)
         .expect("pipeline runs to completion");
     let assets = state.store.lock().expect("lock store").list(None).expect("list assets");
     let stored =
@@ -131,12 +134,12 @@ fn stored_asset_can_be_read_back_with_original_workflow_snapshot() {
 }
 
 fn parsed_enriched_workflow() -> Workflow {
-    let workflow: Workflow = serde_json::from_str(WORKFLOW_JSON).expect("parse workflow json");
-    enrich_save_asset_params(&workflow).expect("enrich workflow")
+    serde_json::from_str(WORKFLOW_JSON).expect("parse workflow json")
 }
 
 const TYPE_MISMATCH_WORKFLOW_JSON: &str = r#"{
   "version": "1.0",
+  "project_id": "project-0000000000000001",
   "nodes": [
     { "id": "prompt", "type": "TextPrompt", "params": { "text": "a red fox" }, "inputs": {} },
     { "id": "image", "type": "TextToImage", "params": {}, "inputs": { "prompt": ["prompt", "text"] } },

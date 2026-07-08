@@ -11,6 +11,8 @@ use tauri::Manager;
 pub struct AppState {
     /// Root directory for stored asset files and metadata.
     pub root: PathBuf,
+    /// Root directory for local non-asset configuration.
+    pub config_root: PathBuf,
     /// Deterministic backend used for the first local integration.
     pub backend: Arc<MockBackend>,
     /// Local asset store.
@@ -24,7 +26,13 @@ impl AppState {
     pub fn from_app_handle(handle: &tauri::AppHandle) -> Result<Self> {
         let app_data_dir =
             handle.path().app_data_dir().context("resolve application data directory")?;
-        Self::from_asset_root(app_data_dir.join("assets"))
+        Self::from_roots(app_data_dir.join("assets"), app_data_dir.join("config"))
+    }
+
+    /// Builds app state from explicit asset and config roots.
+    pub fn from_roots(root: impl AsRef<Path>, config_root: impl AsRef<Path>) -> Result<Self> {
+        let backend = Arc::new(MockBackend::new());
+        Self::from_roots_with_backend(root, config_root, backend)
     }
 
     /// Builds app state using an explicit asset root.
@@ -39,11 +47,41 @@ impl AppState {
         backend: Arc<MockBackend>,
     ) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
+        let config_root = sibling_config_root(&root);
+        Self::from_roots_with_backend(root, config_root, backend)
+    }
+
+    /// Builds app state using explicit asset/config roots and mock backend.
+    pub fn from_roots_with_backend(
+        root: impl AsRef<Path>,
+        config_root: impl AsRef<Path>,
+        backend: Arc<MockBackend>,
+    ) -> Result<Self> {
+        let root = root.as_ref().to_path_buf();
+        let config_root = config_root.as_ref().to_path_buf();
+        std::fs::create_dir_all(&config_root).context("create config root")?;
         let store =
             Arc::new(Mutex::new(AssetStore::open(root.as_path()).context("open asset store")?));
+        seed_default_project(&store)?;
         let mut registry = NodeRegistry::new();
         let registry_backend: Arc<dyn InferenceBackend> = backend.clone();
         nodes::register_all(&mut registry, registry_backend, Arc::clone(&store));
-        Ok(Self { root, backend, store, registry })
+        Ok(Self { root, config_root, backend, store, registry })
     }
+}
+
+fn sibling_config_root(root: &Path) -> PathBuf {
+    root.with_file_name(format!(
+        "{}-config",
+        root.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("assets")
+    ))
+}
+
+fn seed_default_project(store: &SharedAssetStore) -> Result<()> {
+    let store = store.lock().map_err(|_| anyhow::anyhow!("asset store lock was poisoned"))?;
+    if store.get_project("default").is_ok() {
+        return Ok(());
+    }
+    store.create_project_with_id("default", "Default")?;
+    Ok(())
 }

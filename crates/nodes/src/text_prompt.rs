@@ -2,7 +2,8 @@ use crate::error::boxed;
 use crate::params::string_param;
 use crate::ports::output;
 use engine::{
-    InputPort, Node, NodeParams, NodeRegistry, NodeRunError, OutputPort, PortType, Value, ValueMap,
+    InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
+    OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use tracing::info;
@@ -43,9 +44,16 @@ impl Node for TextPromptNode {
         &self.outputs
     }
 
-    fn run(&self, _inputs: &ValueMap) -> Result<ValueMap, NodeRunError> {
+    fn run(
+        &self,
+        _inputs: &ValueMap,
+        _context: &mut NodeRunContext,
+    ) -> Result<NodeRunResult, NodeRunError> {
         info!(type_id = TYPE_ID, "text prompt node produced text");
-        Ok(BTreeMap::from([("text".to_owned(), Value::String(self.prompt.clone()))]))
+        Ok(NodeRunResult::new(BTreeMap::from([(
+            "text".to_owned(),
+            Value::String(self.prompt.clone()),
+        )])))
     }
 }
 

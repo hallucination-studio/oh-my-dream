@@ -20,6 +20,8 @@ pub enum PortType {
     Image,
     /// A generated video.
     Video,
+    /// A generated audio clip.
+    Audio,
     /// An opaque model identifier selecting a cloud model.
     Model,
     /// A signed integer widget value.

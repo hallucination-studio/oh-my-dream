@@ -9,11 +9,14 @@ describe("isValidConnection", () => {
       flowNode("prompt", "TextPrompt"),
       flowNode("image", "TextToImage"),
       flowNode("video", "ImageToVideo"),
+      flowNode("audio", "TextToAudio"),
     ];
 
     expect(isValidConnection(connection("prompt", "text", "image", "prompt"), nodes)).toBe(true);
     expect(isValidConnection(connection("image", "image", "video", "image"), nodes)).toBe(true);
+    expect(isValidConnection(connection("prompt", "text", "audio", "prompt"), nodes)).toBe(true);
     expect(isValidConnection(connection("image", "image", "image", "prompt"), nodes)).toBe(false);
+    expect(isValidConnection(connection("audio", "audio", "video", "image"), nodes)).toBe(false);
   });
 });
 

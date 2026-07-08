@@ -1,6 +1,7 @@
 use engine::{
-    EngineError, Executor, InputPort, Node, NodeParams, NodeRegistry, OutputPort, OutputRef,
-    PortType, ResultCache, Value, ValueMap, Workflow, WorkflowNode,
+    EngineError, Executor, InputPort, Node, NodeExecutionState, NodeParams, NodeProgressEvent,
+    NodeRegistry, NodeRunContext, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache,
+    Value, ValueMap, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -43,6 +44,109 @@ fn reuses_cached_node_outputs_on_second_run() {
 }
 
 #[test]
+fn emits_running_and_done_events_with_node_costs() {
+    let counters = RunCounters::default();
+    let registry = registry(counters);
+    let workflow = linear_workflow("hello");
+    let mut cache = ResultCache::new();
+    let mut events = Vec::new();
+
+    Executor::new(&registry)
+        .execute_with_observer(&workflow, &mut cache, &mut |event| events.push(event.clone()))
+        .expect("workflow should execute");
+
+    assert_eq!(
+        event_summary(&events),
+        vec![
+            ("prompt".to_owned(), NodeExecutionState::Running, Some(0.0), None),
+            ("prompt".to_owned(), NodeExecutionState::Done, Some(1.0), Some(7)),
+            ("upper".to_owned(), NodeExecutionState::Running, Some(0.0), None),
+            ("upper".to_owned(), NodeExecutionState::Done, Some(1.0), Some(7)),
+            ("collect".to_owned(), NodeExecutionState::Running, Some(0.0), None),
+            ("collect".to_owned(), NodeExecutionState::Done, Some(1.0), Some(7)),
+        ]
+    );
+}
+
+#[test]
+fn emits_cached_events_with_cached_cost_without_rerunning_nodes() {
+    let counters = RunCounters::default();
+    let registry = registry(counters.clone());
+    let workflow = linear_workflow("hello");
+    let mut cache = ResultCache::new();
+    let executor = Executor::new(&registry);
+
+    executor.execute(&workflow, &mut cache).expect("first run should execute");
+    let mut events = Vec::new();
+    executor
+        .execute_with_observer(&workflow, &mut cache, &mut |event| events.push(event.clone()))
+        .expect("second run should use cache");
+
+    assert_eq!(counters.text_prompt.load(Ordering::SeqCst), 1);
+    assert_eq!(counters.upper_case.load(Ordering::SeqCst), 1);
+    assert_eq!(counters.collect.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        event_summary(&events),
+        vec![
+            ("prompt".to_owned(), NodeExecutionState::Cached, Some(1.0), Some(7)),
+            ("upper".to_owned(), NodeExecutionState::Cached, Some(1.0), Some(7)),
+            ("collect".to_owned(), NodeExecutionState::Cached, Some(1.0), Some(7)),
+        ]
+    );
+}
+
+#[test]
+fn does_not_reuse_cached_outputs_across_projects() {
+    let counters = RunCounters::default();
+    let registry = registry(counters.clone());
+    let mut first = linear_workflow("hello");
+    first.project_id = "project-a".to_owned();
+    let mut second = linear_workflow("hello");
+    second.project_id = "project-b".to_owned();
+    let mut cache = ResultCache::new();
+    let executor = Executor::new(&registry);
+
+    executor.execute(&first, &mut cache).expect("first project should execute");
+    executor.execute(&second, &mut cache).expect("second project should execute");
+
+    assert_eq!(counters.text_prompt.load(Ordering::SeqCst), 2);
+    assert_eq!(counters.upper_case.load(Ordering::SeqCst), 2);
+    assert_eq!(counters.collect.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn emits_error_event_before_returning_node_failure() {
+    let mut registry = NodeRegistry::new();
+    registry.register("Failing", Box::new(|_| Ok(Box::new(FailingNode))));
+    let workflow = Workflow {
+        version: "1.0".to_owned(),
+        project_id: "default".to_owned(),
+        nodes: vec![WorkflowNode {
+            id: "fail".to_owned(),
+            type_id: "Failing".to_owned(),
+            params: NodeParams::new(),
+            inputs: BTreeMap::new(),
+            position: None,
+        }],
+    };
+    let mut cache = ResultCache::new();
+    let mut events = Vec::new();
+
+    let error = Executor::new(&registry)
+        .execute_with_observer(&workflow, &mut cache, &mut |event| events.push(event.clone()))
+        .expect_err("node should fail");
+
+    assert!(matches!(error, EngineError::NodeExecution { .. }));
+    assert_eq!(
+        event_summary(&events),
+        vec![
+            ("fail".to_owned(), NodeExecutionState::Running, Some(0.0), None),
+            ("fail".to_owned(), NodeExecutionState::Error, None, None),
+        ]
+    );
+}
+
+#[test]
 fn rejects_cycles_before_execution() {
     let counters = RunCounters::default();
     let registry = registry(counters);
@@ -50,7 +154,7 @@ fn rejects_cycles_before_execution() {
     nodes[0]
         .inputs
         .insert("ignored".to_owned(), OutputRef("collect".to_owned(), "text".to_owned()));
-    let workflow = Workflow { version: "1.0".to_owned(), nodes };
+    let workflow = Workflow { version: "1.0".to_owned(), project_id: "default".to_owned(), nodes };
 
     let error = Executor::new(&registry)
         .execute(&workflow, &mut ResultCache::new())
@@ -65,6 +169,7 @@ fn rejects_type_mismatches_while_building_plan() {
     let registry = registry(counters);
     let workflow = Workflow {
         version: "1.0".to_owned(),
+        project_id: "default".to_owned(),
         nodes: vec![
             WorkflowNode {
                 id: "image".to_owned(),
@@ -170,6 +275,7 @@ fn output(name: &str, port_type: PortType) -> OutputPort {
 fn linear_workflow(text: &str) -> Workflow {
     Workflow {
         version: "1.0".to_owned(),
+        project_id: "default".to_owned(),
         nodes: vec![
             WorkflowNode {
                 id: "prompt".to_owned(),
@@ -226,9 +332,16 @@ impl Node for TextPromptNode {
         &self.outputs
     }
 
-    fn run(&self, _inputs: &ValueMap) -> Result<ValueMap, Box<dyn Error + Send + Sync>> {
+    fn run(
+        &self,
+        _inputs: &ValueMap,
+        _context: &mut NodeRunContext,
+    ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
-        Ok(BTreeMap::from([("text".to_owned(), Value::String(self.text.clone()))]))
+        Ok(NodeRunResult {
+            outputs: BTreeMap::from([("text".to_owned(), Value::String(self.text.clone()))]),
+            cost: Some(7),
+        })
     }
 }
 
@@ -251,14 +364,21 @@ impl Node for UpperCaseNode {
         &self.outputs
     }
 
-    fn run(&self, inputs: &ValueMap) -> Result<ValueMap, Box<dyn Error + Send + Sync>> {
+    fn run(
+        &self,
+        inputs: &ValueMap,
+        _context: &mut NodeRunContext,
+    ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         let Value::String(text) =
             inputs.get("text").ok_or_else(|| TestNodeError("missing text input".to_owned()))?
         else {
             return Err(Box::new(TestNodeError("text input was not a string".to_owned())));
         };
-        Ok(BTreeMap::from([("text".to_owned(), Value::String(text.to_uppercase()))]))
+        Ok(NodeRunResult {
+            outputs: BTreeMap::from([("text".to_owned(), Value::String(text.to_uppercase()))]),
+            cost: Some(7),
+        })
     }
 }
 
@@ -281,13 +401,17 @@ impl Node for CollectNode {
         &self.outputs
     }
 
-    fn run(&self, inputs: &ValueMap) -> Result<ValueMap, Box<dyn Error + Send + Sync>> {
+    fn run(
+        &self,
+        inputs: &ValueMap,
+        _context: &mut NodeRunContext,
+    ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         let text = inputs
             .get("text")
             .ok_or_else(|| TestNodeError("missing text input".to_owned()))?
             .clone();
-        Ok(BTreeMap::from([("text".to_owned(), text)]))
+        Ok(NodeRunResult { outputs: BTreeMap::from([("text".to_owned(), text)]), cost: Some(7) })
     }
 }
 
@@ -308,9 +432,52 @@ impl Node for ImageSourceNode {
         &self.outputs
     }
 
-    fn run(&self, _inputs: &ValueMap) -> Result<ValueMap, Box<dyn Error + Send + Sync>> {
-        Ok(BTreeMap::from([("image".to_owned(), Value::Image("asset://image".to_owned()))]))
+    fn run(
+        &self,
+        _inputs: &ValueMap,
+        _context: &mut NodeRunContext,
+    ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
+        Ok(NodeRunResult {
+            outputs: BTreeMap::from([(
+                "image".to_owned(),
+                Value::Image("asset://image".to_owned()),
+            )]),
+            cost: None,
+        })
     }
+}
+
+struct FailingNode;
+
+impl Node for FailingNode {
+    fn type_id(&self) -> &str {
+        "Failing"
+    }
+
+    fn inputs(&self) -> &[InputPort] {
+        &[]
+    }
+
+    fn outputs(&self) -> &[OutputPort] {
+        &[]
+    }
+
+    fn run(
+        &self,
+        _inputs: &ValueMap,
+        _context: &mut NodeRunContext,
+    ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
+        Err(Box::new(TestNodeError("boom".to_owned())))
+    }
+}
+
+fn event_summary(
+    events: &[NodeProgressEvent],
+) -> Vec<(String, NodeExecutionState, Option<f32>, Option<i64>)> {
+    events
+        .iter()
+        .map(|event| (event.node_id.clone(), event.state, event.progress, event.cost))
+        .collect()
 }
 
 #[derive(Debug)]

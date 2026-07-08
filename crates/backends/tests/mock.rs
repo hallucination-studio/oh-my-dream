@@ -1,6 +1,6 @@
 use backends::{
     BackendError, ImageToVideoRequest, InferenceBackend, MockBackend, TaskHandle, TaskProgress,
-    TaskStatus, TextToImageRequest,
+    TaskStatus, TextToAudioRequest, TextToImageRequest,
 };
 use std::future::Future;
 use std::sync::Arc;
@@ -18,11 +18,37 @@ fn submits_and_polls_text_to_image_task_to_success() {
     assert_eq!(block_on(backend.poll(&handle)).expect("poll should succeed"), TaskStatus::Queued);
     assert_eq!(
         block_on(backend.poll(&handle)).expect("poll should succeed"),
-        TaskStatus::Running { progress: TaskProgress(0.5) }
+        TaskStatus::Running { progress: TaskProgress(0.25) }
     );
     assert_eq!(
         block_on(backend.poll(&handle)).expect("poll should succeed"),
-        TaskStatus::Succeeded { output: "mock://mock/text-to-image/task-1".to_owned() }
+        TaskStatus::Running { progress: TaskProgress(0.75) }
+    );
+    assert_eq!(
+        block_on(backend.poll(&handle)).expect("poll should succeed"),
+        TaskStatus::Succeeded {
+            output: "mock://mock/text-to-image/task-1".to_owned(),
+            cost: Some(250)
+        }
+    );
+}
+
+#[test]
+fn submits_and_polls_text_to_audio_task_to_success_with_cost() {
+    let backend = MockBackend::new();
+
+    let handle = block_on(backend.text_to_audio(text_to_audio_request()))
+        .expect("text-to-audio submission should succeed");
+    block_on(backend.poll(&handle)).expect("queued poll should succeed");
+    block_on(backend.poll(&handle)).expect("running poll should succeed");
+    block_on(backend.poll(&handle)).expect("running poll should succeed");
+
+    assert_eq!(
+        block_on(backend.poll(&handle)).expect("poll should succeed"),
+        TaskStatus::Succeeded {
+            output: "mock://mock/text-to-audio/task-1".to_owned(),
+            cost: Some(125)
+        }
     );
 }
 
@@ -84,6 +110,14 @@ fn image_to_video_request() -> ImageToVideoRequest {
         image: "asset://image".to_owned(),
         duration_seconds: Some(2.0),
         fps: Some(12),
+    }
+}
+
+fn text_to_audio_request() -> TextToAudioRequest {
+    TextToAudioRequest {
+        model: "mock-audio-model".to_owned(),
+        prompt: "rain on glass".to_owned(),
+        seed: Some(7),
     }
 }
 

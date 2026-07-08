@@ -25,6 +25,7 @@
   --type-text: #7dd3c0; /* teal   — strings / prompts */
   --type-image: #f5a97f; /* amber  — images */
   --type-video: #a78bfa; /* violet — video */
+  --type-audio: #4ade80; /* green  — audio */
   --type-model: #f0a3c8; /* pink   — model ids */
   --type-number: #8fb8ff; /* blue   — int / float */
 

@@ -27,8 +27,8 @@ pub enum TaskStatus {
     Queued,
     /// Running, with best-effort progress.
     Running { progress: TaskProgress },
-    /// Finished; `output` references the produced media (asset id / URL).
-    Succeeded { output: String },
+    /// Finished; `output` references the produced media and `cost` is micro-USD.
+    Succeeded { output: String, cost: Option<i64> },
     /// Failed with a human-readable reason.
     Failed { reason: String },
     /// Cancelled by request.

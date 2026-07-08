@@ -4,7 +4,11 @@ pub mod commands;
 pub mod dto;
 pub mod state;
 
-use commands::{assets_root, get_asset, list_assets, run_workflow};
+use commands::{
+    assets_root, create_project, get_asset, get_providers, list_assets, list_projects,
+    load_workflow, open_project, run_workflow, save_workflow, set_active_provider,
+    set_provider_key,
+};
 use tauri::Manager;
 
 /// Runs the Tauri application.
@@ -17,7 +21,20 @@ pub fn run() -> tauri::Result<()> {
             app.manage(state);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![run_workflow, list_assets, get_asset, assets_root])
+        .invoke_handler(tauri::generate_handler![
+            run_workflow,
+            list_assets,
+            get_asset,
+            assets_root,
+            list_projects,
+            create_project,
+            open_project,
+            save_workflow,
+            load_workflow,
+            get_providers,
+            set_active_provider,
+            set_provider_key
+        ])
         .run(tauri::generate_context!())
 }
 

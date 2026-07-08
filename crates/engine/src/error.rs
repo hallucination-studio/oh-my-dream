@@ -44,6 +44,10 @@ pub enum EngineError {
     #[error("workflow graph contains a cycle involving node `{node_id}`")]
     Cycle { node_id: String },
 
+    /// The workflow shape could not be prepared for execution.
+    #[error("invalid workflow: {message}")]
+    InvalidWorkflow { message: String },
+
     /// A node's own execution failed. Wraps the underlying cause with context.
     #[error("execution of node `{node_id}` (`{type_id}`) failed: {source}")]
     NodeExecution {

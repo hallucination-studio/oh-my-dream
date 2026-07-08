@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::{debug, info};
 
 use crate::error::{BackendError, Result};
-use crate::request::{ImageToVideoRequest, TextToImageRequest};
+use crate::request::{ImageToVideoRequest, TextToAudioRequest, TextToImageRequest};
 use crate::task::{TaskHandle, TaskProgress, TaskStatus};
 use crate::traits::InferenceBackend;
 
@@ -86,6 +86,10 @@ impl InferenceBackend for MockBackend {
         self.submit(TaskKind::ImageToVideo)
     }
 
+    async fn text_to_audio(&self, _request: TextToAudioRequest) -> Result<TaskHandle> {
+        self.submit(TaskKind::TextToAudio)
+    }
+
     async fn poll(&self, handle: &TaskHandle) -> Result<TaskStatus> {
         let failure_reason = self.failure_reason.clone();
         let mut state = self.lock_state()?;
@@ -130,6 +134,7 @@ struct MockTask {
 enum TaskKind {
     TextToImage,
     ImageToVideo,
+    TextToAudio,
 }
 
 impl TaskKind {
@@ -137,6 +142,7 @@ impl TaskKind {
         match self {
             Self::TextToImage => "text-to-image",
             Self::ImageToVideo => "image-to-video",
+            Self::TextToAudio => "text-to-audio",
         }
     }
 }
@@ -161,13 +167,27 @@ fn status_for_poll(handle: &TaskHandle, task: &MockTask) -> TaskStatus {
         }
         2 => {
             debug!(backend = BACKEND_NAME, task_id = %handle.task_id, "mock task running");
-            TaskStatus::Running { progress: TaskProgress(0.5) }
+            TaskStatus::Running { progress: TaskProgress(0.25) }
+        }
+        3 => {
+            debug!(backend = BACKEND_NAME, task_id = %handle.task_id, "mock task running");
+            TaskStatus::Running { progress: TaskProgress(0.75) }
         }
         _ => {
             let output =
                 format!("mock://{}/{}/{}", BACKEND_NAME, task.kind.as_path(), handle.task_id);
             info!(backend = BACKEND_NAME, task_id = %handle.task_id, output = %output, "mock task succeeded");
-            TaskStatus::Succeeded { output }
+            TaskStatus::Succeeded { output, cost: Some(task.kind.cost_micro_usd()) }
+        }
+    }
+}
+
+impl TaskKind {
+    fn cost_micro_usd(self) -> i64 {
+        match self {
+            Self::TextToImage => 250,
+            Self::ImageToVideo => 900,
+            Self::TextToAudio => 125,
         }
     }
 }

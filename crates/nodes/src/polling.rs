@@ -1,5 +1,6 @@
 use crate::error::NodesError;
 use backends::{InferenceBackend, TaskHandle, TaskStatus};
+use engine::NodeRunContext;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, info, warn};
@@ -7,25 +8,34 @@ use tracing::{debug, info, warn};
 const MAX_POLLS: usize = 60;
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
+pub(crate) struct GeneratedOutput {
+    pub(crate) reference: String,
+    pub(crate) cost: Option<i64>,
+}
+
 pub(crate) fn wait_for_success(
     backend: &Arc<dyn InferenceBackend>,
     handle: &TaskHandle,
-) -> Result<String, NodesError> {
+    context: &mut NodeRunContext<'_>,
+) -> Result<GeneratedOutput, NodesError> {
     for poll_index in 0..MAX_POLLS {
         let status = pollster::block_on(backend.poll(handle))
             .map_err(|source| NodesError::Backend { operation: "poll backend task", source })?;
 
         match status {
             TaskStatus::Queued => log_pending(handle, poll_index, "queued"),
-            TaskStatus::Running { .. } => log_pending(handle, poll_index, "running"),
-            TaskStatus::Succeeded { output } => {
+            TaskStatus::Running { progress } => {
+                context.progress(progress.0);
+                log_pending(handle, poll_index, "running");
+            }
+            TaskStatus::Succeeded { output, cost } => {
                 info!(
                     backend = %handle.backend,
                     task_id = %handle.task_id,
                     output = %output,
                     "backend task succeeded"
                 );
-                return Ok(output);
+                return Ok(GeneratedOutput { reference: output, cost });
             }
             TaskStatus::Failed { reason } => {
                 warn!(

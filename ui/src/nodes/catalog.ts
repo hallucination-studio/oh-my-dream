@@ -26,8 +26,7 @@ export interface NodeTypeSpec {
   params: ParamSpec[];
 }
 
-// The first-milestone pipeline: text prompt -> text-to-image -> image-to-video,
-// with a terminal save node. Matches docs/DESIGN.md.
+// The first-milestone pipeline: producer nodes auto-save generated media.
 export const NODE_TYPES: NodeTypeSpec[] = [
   {
     type: "TextPrompt",
@@ -59,11 +58,14 @@ export const NODE_TYPES: NodeTypeSpec[] = [
     ],
   },
   {
-    type: "SaveAsset",
-    label: "Save Asset",
-    inputs: [{ name: "media", type: "video" }],
-    outputs: [],
-    params: [],
+    type: "TextToAudio",
+    label: "Text to Audio",
+    inputs: [{ name: "prompt", type: "string" }],
+    outputs: [{ name: "audio", type: "audio" }],
+    params: [
+      { name: "model", label: "Model", kind: "model", default: "mock-audio" },
+      { name: "seed", label: "Seed", kind: "int", default: 42 },
+    ],
   },
 ];
 

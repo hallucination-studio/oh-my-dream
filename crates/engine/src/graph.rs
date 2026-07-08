@@ -51,6 +51,13 @@ pub struct WorkflowNode {
 pub struct Workflow {
     /// Format version, for forward compatibility.
     pub version: String,
+    /// Project this workflow belongs to.
+    #[serde(default = "default_project_id")]
+    pub project_id: String,
     /// The nodes making up the graph.
     pub nodes: Vec<WorkflowNode>,
+}
+
+fn default_project_id() -> String {
+    "default".to_owned()
 }

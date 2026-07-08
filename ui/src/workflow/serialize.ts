@@ -9,6 +9,7 @@ import type { OutputRef, Workflow } from "./types.ts";
 export function toWorkflow(nodes: Node[], edges: Edge[]): Workflow {
   return {
     version: "1.0",
+    project_id: "default",
     nodes: nodes.map((node) => {
       const data = node.data as FlowNodeData;
       const inputs: Record<string, OutputRef> = {};

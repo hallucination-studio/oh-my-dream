@@ -18,7 +18,9 @@ pub(crate) fn generate_thumbnail(
     let thumbnail_path = thumbnails_dir.join(format!("{asset_id}.png"));
     match kind {
         AssetKind::Image => generate_image_thumbnail(asset_id, source_path, &thumbnail_path)?,
-        AssetKind::Video => generate_video_placeholder(asset_id, &thumbnail_path)?,
+        AssetKind::Video | AssetKind::Audio => {
+            generate_video_placeholder(asset_id, &thumbnail_path)?
+        }
     }
     Ok(thumbnail_path)
 }

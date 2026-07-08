@@ -2,7 +2,7 @@
 
 use crate::error::{EngineError, Result};
 use crate::graph::{OutputRef, Workflow, WorkflowNode};
-use crate::node::Node;
+use crate::node::{Node, NodeRunContext, NodeRunResult};
 use crate::registry::NodeRegistry;
 use crate::value::{Value, ValueMap};
 use std::collections::{BTreeMap, BTreeSet};
@@ -11,6 +11,34 @@ use tracing::{debug, info};
 
 /// Outputs produced by a single run, keyed by node id.
 pub type RunOutputs = BTreeMap<String, ValueMap>;
+
+/// Execution state for one workflow node.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeExecutionState {
+    /// Node is not currently running.
+    Idle,
+    /// Node is running.
+    Running,
+    /// Node finished successfully.
+    Done,
+    /// Node outputs were reused from cache.
+    Cached,
+    /// Node failed.
+    Error,
+}
+
+/// Synchronous node execution event emitted by the executor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeProgressEvent {
+    /// Workflow node id.
+    pub node_id: String,
+    /// Current execution state.
+    pub state: NodeExecutionState,
+    /// Best-effort progress in `[0.0, 1.0]`.
+    pub progress: Option<f32>,
+    /// Estimated cost in micro-USD.
+    pub cost: Option<i64>,
+}
 
 #[derive(Default)]
 pub struct ResultCache {
@@ -40,14 +68,30 @@ impl<'r> Executor<'r> {
 
     /// Validates and executes `workflow`, returning each node's outputs.
     pub fn execute(&self, workflow: &Workflow, cache: &mut ResultCache) -> Result<RunOutputs> {
+        let mut observer = |_event: &NodeProgressEvent| {};
+        self.execute_with_observer(workflow, cache, &mut observer)
+    }
+
+    /// Validates and executes `workflow`, synchronously reporting node events.
+    pub fn execute_with_observer(
+        &self,
+        workflow: &Workflow,
+        cache: &mut ResultCache,
+        observer: &mut impl FnMut(&NodeProgressEvent),
+    ) -> Result<RunOutputs> {
         let plan = self.build_plan(workflow)?;
         let order = topological_order(&plan)?;
         let mut outputs = RunOutputs::new();
+        let workflow_snapshot =
+            serde_json::to_value(workflow).map_err(|source| EngineError::InvalidWorkflow {
+                message: format!("serialize workflow snapshot: {source}"),
+            })?;
 
         for index in order {
             let node = &plan.nodes[index];
             let inputs = resolve_inputs(node, &outputs)?;
-            let fingerprint = cache_fingerprint(&node.type_id, &node.params, &inputs);
+            let fingerprint =
+                cache_fingerprint(&workflow.project_id, &node.type_id, &node.params, &inputs);
 
             if let Some(cached) = cache.get(&node.id, fingerprint) {
                 info!(
@@ -55,17 +99,56 @@ impl<'r> Executor<'r> {
                     type_id = %node.type_id,
                     "reusing cached node outputs"
                 );
-                outputs.insert(node.id.clone(), cached);
+                observer(&NodeProgressEvent {
+                    node_id: node.id.clone(),
+                    state: NodeExecutionState::Cached,
+                    progress: Some(1.0),
+                    cost: cached.cost,
+                });
+                outputs.insert(node.id.clone(), cached.outputs);
                 continue;
             }
 
+            observer(&NodeProgressEvent {
+                node_id: node.id.clone(),
+                state: NodeExecutionState::Running,
+                progress: Some(0.0),
+                cost: None,
+            });
             info!(node_id = %node.id, type_id = %node.type_id, "executing node");
-            let result = node.node.run(&inputs).map_err(|source| {
-                EngineError::from((node.id.as_str(), node.type_id.as_str(), source))
-            })?;
+            let result = {
+                let mut context = NodeRunContext::new(
+                    &node.id,
+                    &workflow.project_id,
+                    &workflow_snapshot,
+                    observer,
+                );
+                match node.node.run(&inputs, &mut context) {
+                    Ok(result) => result,
+                    Err(source) => {
+                        observer(&NodeProgressEvent {
+                            node_id: node.id.clone(),
+                            state: NodeExecutionState::Error,
+                            progress: None,
+                            cost: None,
+                        });
+                        return Err(EngineError::from((
+                            node.id.as_str(),
+                            node.type_id.as_str(),
+                            source,
+                        )));
+                    }
+                }
+            };
             info!(node_id = %node.id, type_id = %node.type_id, "node execution completed");
             cache.insert(node.id.clone(), fingerprint, result.clone());
-            outputs.insert(node.id.clone(), result);
+            observer(&NodeProgressEvent {
+                node_id: node.id.clone(),
+                state: NodeExecutionState::Done,
+                progress: Some(1.0),
+                cost: result.cost,
+            });
+            outputs.insert(node.id.clone(), result.outputs);
         }
 
         Ok(outputs)
@@ -93,19 +176,19 @@ impl<'r> Executor<'r> {
 #[derive(Clone)]
 struct CacheEntry {
     fingerprint: u64,
-    outputs: ValueMap,
+    result: NodeRunResult,
 }
 
 impl ResultCache {
-    fn get(&self, node_id: &str, fingerprint: u64) -> Option<ValueMap> {
+    fn get(&self, node_id: &str, fingerprint: u64) -> Option<NodeRunResult> {
         self.entries
             .get(node_id)
             .filter(|entry| entry.fingerprint == fingerprint)
-            .map(|entry| entry.outputs.clone())
+            .map(|entry| entry.result.clone())
     }
 
-    fn insert(&mut self, node_id: String, fingerprint: u64, outputs: ValueMap) {
-        self.entries.insert(node_id, CacheEntry { fingerprint, outputs });
+    fn insert(&mut self, node_id: String, fingerprint: u64, result: NodeRunResult) {
+        self.entries.insert(node_id, CacheEntry { fingerprint, result });
     }
 }
 
@@ -268,11 +351,13 @@ fn resolve_inputs(node: &PlanNode, outputs: &RunOutputs) -> Result<ValueMap> {
 }
 
 fn cache_fingerprint(
+    project_id: &str,
     type_id: &str,
     params: &crate::registry::NodeParams,
     inputs: &ValueMap,
 ) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    project_id.hash(&mut hasher);
     type_id.hash(&mut hasher);
     hash_params(params, &mut hasher);
     hash_value_map(inputs, &mut hasher);
@@ -337,13 +422,14 @@ fn hash_value(value: &Value, state: &mut impl Hasher) {
         Value::String(value) => hash_tagged_string(0, value, state),
         Value::Image(value) => hash_tagged_string(1, value, state),
         Value::Video(value) => hash_tagged_string(2, value, state),
-        Value::Model(value) => hash_tagged_string(3, value, state),
+        Value::Audio(value) => hash_tagged_string(3, value, state),
+        Value::Model(value) => hash_tagged_string(4, value, state),
         Value::Int(value) => {
-            4_u8.hash(state);
+            5_u8.hash(state);
             value.hash(state);
         }
         Value::Float(value) => {
-            5_u8.hash(state);
+            6_u8.hash(state);
             value.to_bits().hash(state);
         }
     }

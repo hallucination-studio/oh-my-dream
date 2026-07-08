@@ -8,6 +8,7 @@ export const TYPE_COLOR: Record<PortType, string> = {
   string: "var(--type-text)",
   image: "var(--type-image)",
   video: "var(--type-video)",
+  audio: "var(--type-audio)",
   model: "var(--type-model)",
   int: "var(--type-number)",
   float: "var(--type-number)",

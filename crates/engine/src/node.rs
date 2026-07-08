@@ -7,6 +7,7 @@
 //! `backends` crate, reached by concrete node implementations in `nodes`.
 
 use crate::error::EngineError;
+use crate::executor::{NodeExecutionState, NodeProgressEvent};
 use crate::port::PortType;
 use crate::value::{Value, ValueMap};
 
@@ -51,7 +52,11 @@ pub trait Node: Send + Sync {
     /// The executor guarantees that every required input is present and
     /// type-checked before calling this. Implementations return an error
     /// (boxed) rather than panicking; the executor wraps it with node context.
-    fn run(&self, inputs: &ValueMap) -> std::result::Result<ValueMap, NodeRunError>;
+    fn run(
+        &self,
+        inputs: &ValueMap,
+        context: &mut NodeRunContext<'_>,
+    ) -> std::result::Result<NodeRunResult, NodeRunError>;
 
     /// Looks up an output port declaration by name.
     fn output_port(&self, name: &str) -> Option<&OutputPort> {
@@ -69,6 +74,71 @@ pub trait Node: Send + Sync {
 /// The executor converts this into [`EngineError::NodeExecution`], attaching
 /// the node id and type id so the failure is actionable higher up.
 pub type NodeRunError = Box<dyn std::error::Error + Send + Sync>;
+
+/// Result returned by a node run.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeRunResult {
+    /// Named output values produced by the node.
+    pub outputs: ValueMap,
+    /// Estimated cost in micro-USD.
+    pub cost: Option<i64>,
+}
+
+impl NodeRunResult {
+    /// Creates a zero-cost result from output values.
+    #[must_use]
+    pub fn new(outputs: ValueMap) -> Self {
+        Self { outputs, cost: None }
+    }
+}
+
+/// Synchronous context passed into a running node.
+pub struct NodeRunContext<'a> {
+    node_id: &'a str,
+    project_id: &'a str,
+    workflow_snapshot: &'a serde_json::Value,
+    observer: &'a mut dyn FnMut(&NodeProgressEvent),
+}
+
+impl<'a> NodeRunContext<'a> {
+    /// Creates a context for `node_id`.
+    pub(crate) fn new(
+        node_id: &'a str,
+        project_id: &'a str,
+        workflow_snapshot: &'a serde_json::Value,
+        observer: &'a mut dyn FnMut(&NodeProgressEvent),
+    ) -> Self {
+        Self { node_id, project_id, workflow_snapshot, observer }
+    }
+
+    /// Current workflow node id.
+    #[must_use]
+    pub fn node_id(&self) -> &str {
+        self.node_id
+    }
+
+    /// Project id on the current workflow.
+    #[must_use]
+    pub fn project_id(&self) -> &str {
+        self.project_id
+    }
+
+    /// Serialized snapshot of the workflow currently being executed.
+    #[must_use]
+    pub fn workflow_snapshot(&self) -> &serde_json::Value {
+        self.workflow_snapshot
+    }
+
+    /// Emits best-effort progress for the current node.
+    pub fn progress(&mut self, progress: f32) {
+        (self.observer)(&NodeProgressEvent {
+            node_id: self.node_id.to_owned(),
+            state: NodeExecutionState::Running,
+            progress: Some(progress),
+            cost: None,
+        });
+    }
+}
 
 impl From<(&str, &str, NodeRunError)> for EngineError {
     fn from((node_id, type_id, source): (&str, &str, NodeRunError)) -> Self {

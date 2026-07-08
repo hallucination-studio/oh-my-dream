@@ -17,6 +17,8 @@ function outputForNodeType(
       return { name: "image", output: { kind: "image", value: `mock://image/${nodeId}` } };
     case "ImageToVideo":
       return { name: "video", output: { kind: "video", value: `mock://video/${nodeId}` } };
+    case "TextToAudio":
+      return { name: "audio", output: { kind: "audio", value: `mock://audio/${nodeId}` } };
     case "TextPrompt":
       return { name: "text", output: { kind: "string", value: `mock://text/${nodeId}` } };
     default:
@@ -77,4 +79,46 @@ async function getAsset(id: string): Promise<Asset> {
   throw new Error(`Mock backend has no asset store; cannot fetch asset ${id}`);
 }
 
-export const mockApi: WorkflowApi = { runWorkflow, assetsRoot, listAssets, getAsset };
+async function listProjects() {
+  return [{ id: "default", name: "Default", created_at: 0 }];
+}
+
+async function createProject(name: string) {
+  return { id: "default", name, created_at: 0 };
+}
+
+async function openProject(id: string) {
+  return {
+    project: { id, name: "Default", created_at: 0 },
+    workflow_json: { version: "1.0", project_id: id, nodes: [] },
+  };
+}
+
+async function saveWorkflow(): Promise<void> {}
+
+async function loadWorkflow(projectId: string): Promise<Workflow> {
+  return { version: "1.0", project_id: projectId, nodes: [] };
+}
+
+async function getProviders() {
+  return [{ id: "mock", name: "Mock", active: true, has_key: false }];
+}
+
+async function setActiveProvider(): Promise<void> {}
+
+async function setProviderKey(): Promise<void> {}
+
+export const mockApi: WorkflowApi = {
+  runWorkflow,
+  assetsRoot,
+  listAssets,
+  getAsset,
+  listProjects,
+  createProject,
+  openProject,
+  saveWorkflow,
+  loadWorkflow,
+  getProviders,
+  setActiveProvider,
+  setProviderKey,
+};

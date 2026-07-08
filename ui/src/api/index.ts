@@ -14,4 +14,14 @@ function isTauri(): boolean {
 export const api: WorkflowApi = isTauri() ? tauriApi : mockApi;
 
 export type { WorkflowApi } from "./types.ts";
-export type { Asset, RunHandle, RunObserver } from "./types.ts";
+export type {
+  Asset,
+  AssetKind,
+  AssetSort,
+  ListAssetsOptions,
+  Project,
+  ProjectWorkspace,
+  Provider,
+  RunHandle,
+  RunObserver,
+} from "./types.ts";

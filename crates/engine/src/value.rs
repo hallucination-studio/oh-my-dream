@@ -16,6 +16,8 @@ pub enum Value {
     Image(String),
     /// Reference to a video (asset id / URL), resolved outside the engine.
     Video(String),
+    /// Reference to an audio clip (asset id / URL), resolved outside the engine.
+    Audio(String),
     /// A cloud model identifier.
     Model(String),
     /// A signed integer.
@@ -32,6 +34,7 @@ impl Value {
             Value::String(_) => PortType::String,
             Value::Image(_) => PortType::Image,
             Value::Video(_) => PortType::Video,
+            Value::Audio(_) => PortType::Audio,
             Value::Model(_) => PortType::Model,
             Value::Int(_) => PortType::Int,
             Value::Float(_) => PortType::Float,

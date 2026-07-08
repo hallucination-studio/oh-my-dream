@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 
 use crate::error::Result;
-use crate::request::{ImageToVideoRequest, TextToImageRequest};
+use crate::request::{ImageToVideoRequest, TextToAudioRequest, TextToImageRequest};
 use crate::task::{TaskHandle, TaskStatus};
 
 /// A generation provider.
@@ -25,6 +25,9 @@ pub trait InferenceBackend: Send + Sync {
 
     /// Submits an image-to-video task.
     async fn image_to_video(&self, request: ImageToVideoRequest) -> Result<TaskHandle>;
+
+    /// Submits a text-to-audio task.
+    async fn text_to_audio(&self, request: TextToAudioRequest) -> Result<TaskHandle>;
 
     /// Returns the current status of a previously submitted task.
     async fn poll(&self, handle: &TaskHandle) -> Result<TaskStatus>;

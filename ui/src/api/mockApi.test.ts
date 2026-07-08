@@ -29,6 +29,7 @@ describe("mockApi", () => {
 function workflow(): Workflow {
   return {
     version: "1.0",
+    project_id: "default",
     nodes: [
       { id: "prompt", type: "TextPrompt", params: { text: "a red fox" }, inputs: {} },
       {

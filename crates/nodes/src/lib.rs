@@ -12,11 +12,12 @@
 
 mod error;
 mod image_to_video;
+mod media;
 mod params;
 mod polling;
 mod ports;
-mod save_asset;
 mod text_prompt;
+mod text_to_audio;
 mod text_to_image;
 
 use assets::AssetStore;
@@ -38,7 +39,7 @@ pub fn register_all(
     store: SharedAssetStore,
 ) {
     text_prompt::register(registry);
-    text_to_image::register(registry, Arc::clone(&backend));
-    image_to_video::register(registry, backend);
-    save_asset::register(registry, store);
+    text_to_image::register(registry, Arc::clone(&backend), Arc::clone(&store));
+    image_to_video::register(registry, Arc::clone(&backend), Arc::clone(&store));
+    text_to_audio::register(registry, backend, store);
 }

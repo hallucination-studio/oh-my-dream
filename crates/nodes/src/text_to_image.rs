@@ -1,10 +1,14 @@
+use crate::SharedAssetStore;
 use crate::error::{NodesError, boxed};
+use crate::media::{AssetMetadata, store_generated_asset};
 use crate::params::{optional_param, string_param, text_input};
 use crate::polling::wait_for_success;
 use crate::ports::{output, required_input};
+use assets::AssetKind;
 use backends::{InferenceBackend, TextToImageRequest};
 use engine::{
-    InputPort, Node, NodeParams, NodeRegistry, NodeRunError, OutputPort, PortType, Value, ValueMap,
+    InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
+    OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -12,11 +16,15 @@ use tracing::info;
 
 const TYPE_ID: &str = "TextToImage";
 
-pub(crate) fn register(registry: &mut NodeRegistry, backend: Arc<dyn InferenceBackend>) {
+pub(crate) fn register(
+    registry: &mut NodeRegistry,
+    backend: Arc<dyn InferenceBackend>,
+    store: SharedAssetStore,
+) {
     registry.register(
         TYPE_ID,
         Box::new(move |params| {
-            TextToImageNode::from_params(params, Arc::clone(&backend))
+            TextToImageNode::from_params(params, Arc::clone(&backend), Arc::clone(&store))
                 .map(boxed_node)
                 .map_err(boxed)
         }),
@@ -25,6 +33,7 @@ pub(crate) fn register(registry: &mut NodeRegistry, backend: Arc<dyn InferenceBa
 
 struct TextToImageNode {
     backend: Arc<dyn InferenceBackend>,
+    store: SharedAssetStore,
     model: String,
     negative_prompt: Option<String>,
     steps: Option<u32>,
@@ -37,9 +46,11 @@ impl TextToImageNode {
     fn from_params(
         params: &NodeParams,
         backend: Arc<dyn InferenceBackend>,
+        store: SharedAssetStore,
     ) -> Result<Self, NodesError> {
         Ok(Self {
             backend,
+            store,
             model: string_param(params, &["model"], "mock-image")?,
             negative_prompt: optional_param(params, &["negative_prompt"])?,
             steps: optional_param(params, &["steps"])?,
@@ -73,14 +84,35 @@ impl Node for TextToImageNode {
         &self.outputs
     }
 
-    fn run(&self, inputs: &ValueMap) -> Result<ValueMap, NodeRunError> {
+    fn run(
+        &self,
+        inputs: &ValueMap,
+        context: &mut NodeRunContext,
+    ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;
         info!(type_id = TYPE_ID, backend = self.backend.name(), "submitting text-to-image task");
         let handle = pollster::block_on(self.backend.text_to_image(self.request(prompt))).map_err(
             |source| boxed(NodesError::Backend { operation: "submit text-to-image task", source }),
         )?;
-        let output = wait_for_success(&self.backend, &handle).map_err(boxed)?;
-        Ok(BTreeMap::from([("image".to_owned(), Value::Image(output))]))
+        let output = wait_for_success(&self.backend, &handle, context).map_err(boxed)?;
+        let asset = store_generated_asset(
+            &self.store,
+            AssetKind::Image,
+            &output.reference,
+            TYPE_ID,
+            context,
+            AssetMetadata {
+                prompt: Some(prompt.to_owned()),
+                model: Some(self.model.clone()),
+                seed: self.seed,
+                cost: output.cost,
+            },
+        )
+        .map_err(boxed)?;
+        Ok(NodeRunResult {
+            outputs: BTreeMap::from([("image".to_owned(), Value::Image(asset.id))]),
+            cost: output.cost,
+        })
     }
 }
 

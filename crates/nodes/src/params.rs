@@ -25,14 +25,6 @@ where
         .map_err(|source| invalid_param(name, source.to_string()))
 }
 
-pub(crate) fn json_param(
-    params: &NodeParams,
-    name: &str,
-    default: serde_json::Value,
-) -> serde_json::Value {
-    params.get(name).cloned().unwrap_or(default)
-}
-
 pub(crate) fn text_input<'a>(inputs: &'a ValueMap, name: &str) -> Result<&'a str, NodesError> {
     match inputs.get(name) {
         Some(Value::String(value)) => Ok(value),
@@ -45,14 +37,6 @@ pub(crate) fn image_input<'a>(inputs: &'a ValueMap, name: &str) -> Result<&'a st
     match inputs.get(name) {
         Some(Value::Image(value)) => Ok(value),
         Some(_) => wrong_input(name, "image"),
-        None => Err(NodesError::MissingInput { name: name.to_owned() }),
-    }
-}
-
-pub(crate) fn video_input<'a>(inputs: &'a ValueMap, name: &str) -> Result<&'a str, NodesError> {
-    match inputs.get(name) {
-        Some(Value::Video(value)) => Ok(value),
-        Some(_) => wrong_input(name, "video"),
         None => Err(NodesError::MissingInput { name: name.to_owned() }),
     }
 }

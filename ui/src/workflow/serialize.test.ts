@@ -19,6 +19,7 @@ describe("toWorkflow", () => {
 
     expect(workflow).toEqual({
       version: "1.0",
+      project_id: "default",
       nodes: [
         {
           id: "prompt",

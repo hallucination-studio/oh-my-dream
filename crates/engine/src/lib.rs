@@ -16,9 +16,9 @@ pub mod registry;
 pub mod value;
 
 pub use error::{EngineError, Result};
-pub use executor::{Executor, ResultCache, RunOutputs};
+pub use executor::{Executor, NodeExecutionState, NodeProgressEvent, ResultCache, RunOutputs};
 pub use graph::{OutputRef, Workflow, WorkflowNode};
-pub use node::{InputPort, Node, NodeRunError, OutputPort};
+pub use node::{InputPort, Node, NodeRunContext, NodeRunError, NodeRunResult, OutputPort};
 pub use port::PortType;
 pub use registry::{NodeFactory, NodeParams, NodeRegistry};
 pub use value::{Value, ValueMap};

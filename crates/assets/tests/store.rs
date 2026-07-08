@@ -1,4 +1,4 @@
-use assets::{AssetError, AssetKind, AssetStore, NewAsset};
+use assets::{AssetError, AssetKind, AssetQuery, AssetSort, AssetStore, NewAsset};
 use image::{ImageBuffer, Rgba};
 use serde_json::json;
 use std::fs;
@@ -17,7 +17,14 @@ fn inserts_image_and_reads_it_back() {
             kind: AssetKind::Image,
             file_path: image_path.to_string_lossy().into_owned(),
             workflow_snapshot: snapshot.clone(),
+            prompt: Some("cover prompt".to_owned()),
+            project_id: Some("project-1".to_owned()),
+            project_name: Some("Launch".to_owned()),
             source_node_id: Some("node-image".to_owned()),
+            source_node_type: Some("TextToImage".to_owned()),
+            model: Some("mock-image".to_owned()),
+            seed: Some(42),
+            cost: Some(250),
             tags: vec!["cover".to_owned()],
         })
         .expect("asset should be inserted");
@@ -26,7 +33,14 @@ fn inserts_image_and_reads_it_back() {
 
     assert_eq!(stored.kind, AssetKind::Image);
     assert_eq!(stored.workflow_snapshot, snapshot);
+    assert_eq!(stored.prompt.as_deref(), Some("cover prompt"));
+    assert_eq!(stored.project_id.as_deref(), Some("project-1"));
+    assert_eq!(stored.project_name.as_deref(), Some("Launch"));
     assert_eq!(stored.source_node_id, Some("node-image".to_owned()));
+    assert_eq!(stored.source_node_type.as_deref(), Some("TextToImage"));
+    assert_eq!(stored.model.as_deref(), Some("mock-image"));
+    assert_eq!(stored.seed, Some(42));
+    assert_eq!(stored.cost, Some(250));
     assert_eq!(stored.tags, vec!["cover".to_owned()]);
     assert!(Path::new(&stored.file_path).exists());
     assert!(stored.thumbnail_path.as_deref().is_some_and(|path| Path::new(path).exists()));
@@ -34,6 +48,172 @@ fn inserts_image_and_reads_it_back() {
         fs::read(&stored.file_path).expect("stored file should be readable"),
         fs::read(&image_path).expect("source image should be readable")
     );
+}
+
+#[test]
+fn queries_assets_by_kind_project_model_prompt_and_sort() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let store = AssetStore::open(temp.path()).expect("store should open");
+    let cheap = store
+        .insert(NewAsset {
+            kind: AssetKind::Image,
+            file_path: write_test_image(temp.path().join("cheap.png"))
+                .to_string_lossy()
+                .into_owned(),
+            workflow_snapshot: json!({}),
+            prompt: Some("quiet ocean".to_owned()),
+            project_id: Some("project-a".to_owned()),
+            project_name: Some("A".to_owned()),
+            source_node_id: Some("image-a".to_owned()),
+            source_node_type: Some("TextToImage".to_owned()),
+            model: Some("mock-image".to_owned()),
+            seed: Some(1),
+            cost: Some(100),
+            tags: Vec::new(),
+        })
+        .expect("cheap asset should insert");
+    let expensive = store
+        .insert(NewAsset {
+            kind: AssetKind::Video,
+            file_path: write_test_video(temp.path().join("expensive.mp4"))
+                .to_string_lossy()
+                .into_owned(),
+            workflow_snapshot: json!({}),
+            prompt: Some("loud ocean".to_owned()),
+            project_id: Some("project-a".to_owned()),
+            project_name: Some("A".to_owned()),
+            source_node_id: Some("video-a".to_owned()),
+            source_node_type: Some("ImageToVideo".to_owned()),
+            model: Some("mock-video".to_owned()),
+            seed: Some(2),
+            cost: Some(900),
+            tags: Vec::new(),
+        })
+        .expect("expensive asset should insert");
+    store
+        .insert(NewAsset {
+            kind: AssetKind::Audio,
+            file_path: write_test_audio(temp.path().join("other.wav"))
+                .to_string_lossy()
+                .into_owned(),
+            workflow_snapshot: json!({}),
+            prompt: Some("city rain".to_owned()),
+            project_id: Some("project-b".to_owned()),
+            project_name: Some("B".to_owned()),
+            source_node_id: Some("audio-b".to_owned()),
+            source_node_type: Some("TextToAudio".to_owned()),
+            model: Some("mock-audio".to_owned()),
+            seed: Some(3),
+            cost: Some(300),
+            tags: Vec::new(),
+        })
+        .expect("audio asset should insert");
+
+    let query = AssetQuery {
+        kind: None,
+        project_id: Some("project-a".to_owned()),
+        model: None,
+        prompt: Some("ocean".to_owned()),
+        sort: AssetSort::CostDesc,
+    };
+    let assets = store.list_with_query(&query).expect("query should run");
+
+    assert_eq!(
+        assets.iter().map(|asset| asset.id.as_str()).collect::<Vec<_>>(),
+        vec![expensive.id.as_str(), cheap.id.as_str()]
+    );
+
+    let image_query = AssetQuery {
+        kind: Some(AssetKind::Image),
+        project_id: Some("project-a".to_owned()),
+        model: Some("mock-image".to_owned()),
+        prompt: Some("quiet".to_owned()),
+        sort: AssetSort::Newest,
+    };
+    let images = store.list_with_query(&image_query).expect("image query should run");
+    assert_eq!(images.iter().map(|asset| asset.id.as_str()).collect::<Vec<_>>(), vec![cheap.id]);
+}
+
+#[test]
+fn cost_ascending_sorts_known_costs_before_unknown_costs() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let store = AssetStore::open(temp.path()).expect("store should open");
+    let unknown = store
+        .insert(NewAsset {
+            kind: AssetKind::Video,
+            file_path: write_test_video(temp.path().join("unknown.mp4"))
+                .to_string_lossy()
+                .into_owned(),
+            workflow_snapshot: json!({}),
+            prompt: None,
+            project_id: None,
+            project_name: None,
+            source_node_id: None,
+            source_node_type: None,
+            model: None,
+            seed: None,
+            cost: None,
+            tags: Vec::new(),
+        })
+        .expect("unknown cost asset should insert");
+    let known = store
+        .insert(NewAsset {
+            kind: AssetKind::Video,
+            file_path: write_test_video(temp.path().join("known.mp4"))
+                .to_string_lossy()
+                .into_owned(),
+            workflow_snapshot: json!({}),
+            prompt: None,
+            project_id: None,
+            project_name: None,
+            source_node_id: None,
+            source_node_type: None,
+            model: None,
+            seed: None,
+            cost: Some(100),
+            tags: Vec::new(),
+        })
+        .expect("known cost asset should insert");
+
+    let assets = store
+        .list_with_query(&AssetQuery { sort: AssetSort::CostAsc, ..AssetQuery::default() })
+        .expect("query should run");
+
+    assert_eq!(
+        assets.iter().map(|asset| asset.id.as_str()).collect::<Vec<_>>(),
+        vec![known.id.as_str(), unknown.id.as_str()]
+    );
+}
+
+#[test]
+fn persists_projects_and_workflows_across_reopen() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let project_id = {
+        let store = AssetStore::open(temp.path()).expect("store should open");
+        let project = store.create_project("Launch").expect("project should create");
+        assert_eq!(project.name, "Launch");
+        store
+            .save_workflow(
+                &project.id,
+                serde_json::json!({
+                    "version": "1.0",
+                    "project_id": project.id,
+                    "nodes": []
+                }),
+            )
+            .expect("workflow should save");
+        project.id
+    };
+
+    let reopened = AssetStore::open(temp.path()).expect("store should reopen");
+    let projects = reopened.list_projects().expect("projects should list");
+    let workflow = reopened.load_workflow(&project_id).expect("workflow should load");
+
+    assert_eq!(
+        projects.iter().map(|project| project.name.as_str()).collect::<Vec<_>>(),
+        vec!["Launch"]
+    );
+    assert_eq!(workflow["project_id"], project_id);
 }
 
 #[test]
@@ -51,7 +231,14 @@ fn workflow_snapshot_round_trips() {
             kind: AssetKind::Image,
             file_path: image_path.to_string_lossy().into_owned(),
             workflow_snapshot: snapshot.clone(),
+            prompt: None,
+            project_id: None,
+            project_name: None,
             source_node_id: None,
+            source_node_type: None,
+            model: None,
+            seed: None,
+            cost: None,
             tags: Vec::new(),
         })
         .expect("asset should be inserted");
@@ -71,7 +258,14 @@ fn lists_by_kind_with_newest_assets_first() {
             kind: AssetKind::Image,
             file_path: image_path.to_string_lossy().into_owned(),
             workflow_snapshot: json!({"kind": "image"}),
+            prompt: None,
+            project_id: None,
+            project_name: None,
             source_node_id: Some("image-node".to_owned()),
+            source_node_type: Some("TextToImage".to_owned()),
+            model: None,
+            seed: None,
+            cost: None,
             tags: Vec::new(),
         })
         .expect("image should be inserted");
@@ -80,7 +274,14 @@ fn lists_by_kind_with_newest_assets_first() {
             kind: AssetKind::Video,
             file_path: video_path.to_string_lossy().into_owned(),
             workflow_snapshot: json!({"kind": "video"}),
+            prompt: None,
+            project_id: None,
+            project_name: None,
             source_node_id: Some("video-node".to_owned()),
+            source_node_type: Some("ImageToVideo".to_owned()),
+            model: None,
+            seed: None,
+            cost: None,
             tags: Vec::new(),
         })
         .expect("video should be inserted");
@@ -121,5 +322,10 @@ fn write_test_image(path: PathBuf) -> PathBuf {
 
 fn write_test_video(path: PathBuf) -> PathBuf {
     fs::write(&path, b"not a real video").expect("test video should be written");
+    path
+}
+
+fn write_test_audio(path: PathBuf) -> PathBuf {
+    fs::write(&path, b"not a real audio file").expect("test audio should be written");
     path
 }

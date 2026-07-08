@@ -37,3 +37,15 @@ pub struct ImageToVideoRequest {
     #[serde(default)]
     pub fps: Option<u32>,
 }
+
+/// A text-to-audio generation request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextToAudioRequest {
+    /// The (opaque) model identifier to run.
+    pub model: String,
+    /// Positive prompt.
+    pub prompt: String,
+    /// Seed for reproducibility, when supported.
+    #[serde(default)]
+    pub seed: Option<u64>,
+}

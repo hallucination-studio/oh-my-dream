@@ -1,5 +1,7 @@
-use engine::{RunOutputs, Value, ValueMap};
-use oh_my_dream_tauri::dto::{AssetDto, RunOutputDto, RunWorkflowResultDto};
+use engine::{NodeExecutionState, NodeProgressEvent, RunOutputs, Value, ValueMap, Workflow};
+use oh_my_dream_tauri::dto::{
+    AssetDto, NodeProgressEventDto, ProjectDto, RunOutputDto, RunWorkflowResultDto,
+};
 
 #[test]
 fn converts_engine_outputs_to_named_run_output_dto() {
@@ -20,11 +22,18 @@ fn converts_engine_outputs_to_named_run_output_dto() {
 fn asset_dto_serializes_asset_kind_as_frontend_string() {
     let asset = assets::Asset {
         id: "asset-1".to_owned(),
-        kind: assets::AssetKind::Video,
-        file_path: "/tmp/video.mp4".to_owned(),
+        kind: assets::AssetKind::Audio,
+        file_path: "/tmp/audio.wav".to_owned(),
         thumbnail_path: Some("/tmp/thumb.png".to_owned()),
         workflow_snapshot: serde_json::json!({"version": "1.0"}),
+        prompt: Some("ocean at night".to_owned()),
+        project_id: Some("project-1".to_owned()),
+        project_name: Some("Launch".to_owned()),
         source_node_id: Some("video".to_owned()),
+        source_node_type: Some("TextToAudio".to_owned()),
+        model: Some("mock-audio".to_owned()),
+        seed: Some(42),
+        cost: Some(1250),
         tags: vec!["saved".to_owned()],
         created_at: 123,
     };
@@ -32,6 +41,55 @@ fn asset_dto_serializes_asset_kind_as_frontend_string() {
     let dto = AssetDto::from(asset);
     let json = serde_json::to_value(dto).expect("asset dto should serialize");
 
-    assert_eq!(json["kind"], "video");
+    assert_eq!(json["kind"], "audio");
+    assert_eq!(json["prompt"], "ocean at night");
+    assert_eq!(json["project_id"], "project-1");
+    assert_eq!(json["project_name"], "Launch");
     assert_eq!(json["source_node_id"], "video");
+    assert_eq!(json["source_node_type"], "TextToAudio");
+    assert_eq!(json["model"], "mock-audio");
+    assert_eq!(json["seed"], 42);
+    assert_eq!(json["cost"], 1250);
+}
+
+#[test]
+fn serializes_project_and_node_progress_contracts() {
+    let project =
+        ProjectDto { id: "project-1".to_owned(), name: "Launch".to_owned(), created_at: 456 };
+    let progress = NodeProgressEventDto::from(NodeProgressEvent {
+        node_id: "audio".to_owned(),
+        state: NodeExecutionState::Running,
+        progress: Some(0.75),
+        cost: Some(1250),
+    });
+
+    assert_eq!(
+        serde_json::to_value(project).expect("project dto serializes"),
+        serde_json::json!({
+            "id": "project-1",
+            "name": "Launch",
+            "created_at": 456
+        })
+    );
+    assert_eq!(
+        serde_json::to_value(progress).expect("progress dto serializes"),
+        serde_json::json!({
+            "node_id": "audio",
+            "state": "running",
+            "progress": 0.75,
+            "cost": 1250
+        })
+    );
+}
+
+#[test]
+fn workflow_deserializes_project_id() {
+    let workflow: Workflow = serde_json::from_value(serde_json::json!({
+        "version": "1.0",
+        "project_id": "project-1",
+        "nodes": []
+    }))
+    .expect("workflow should deserialize with project id");
+
+    assert_eq!(workflow.project_id, "project-1");
 }

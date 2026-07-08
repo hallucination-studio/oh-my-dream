@@ -4,7 +4,14 @@
   "file_path": "/tmp/oh-my-dream/assets/files/asset-0000000000000001.mp4",
   "thumbnail_path": "/tmp/oh-my-dream/assets/thumbnails/asset-0000000000000001.png",
   "workflow_snapshot": {},
+  "prompt": "a red fox",
+  "project_id": "project-0000000000000001",
+  "project_name": "Default",
   "source_node_id": "video",
+  "source_node_type": "ImageToVideo",
+  "model": "mock-video",
+  "seed": null,
+  "cost": 900,
   "tags": [],
   "created_at": 0
 }

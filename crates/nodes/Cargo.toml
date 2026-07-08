@@ -1,6 +1,6 @@
 [package]
 name = "nodes"
-description = "oh-my-dream concrete nodes: TextPrompt, TextToImage, ImageToVideo, SaveAsset."
+description = "oh-my-dream concrete nodes: TextPrompt, TextToImage, ImageToVideo, TextToAudio."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
