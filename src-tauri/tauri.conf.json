@@ -5,7 +5,9 @@
   "identifier": "com.ohmydream.app",
   "build": {
     "frontendDist": "../ui/dist",
-    "devUrl": "http://localhost:5273"
+    "devUrl": "http://localhost:5273",
+    "beforeDevCommand": "npm --prefix ui run dev",
+    "beforeBuildCommand": "npm --prefix ui run build"
   },
   "app": {
     "security": {
