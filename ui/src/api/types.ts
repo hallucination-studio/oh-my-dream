@@ -2,7 +2,7 @@
 //
 // The App talks only to this interface, so switching backends is a one-line
 // change in `selectApi`. Method shapes mirror the src-tauri commands:
-// run_workflow / list_assets / get_asset.
+// run_workflow / list_assets / get_asset / assets_root.
 
 import type { RunStatus, Workflow } from "../workflow/types.ts";
 
@@ -29,6 +29,8 @@ export type RunObserver = (status: RunStatus) => void;
 export interface WorkflowApi {
   /** Runs a workflow, streaming status transitions to `observe`. */
   runWorkflow: (workflow: Workflow, observe: RunObserver) => RunHandle;
+  /** Returns the backend asset root when one exists. */
+  assetsRoot: () => Promise<string | null>;
   /** Lists stored assets, optionally filtered by kind. */
   listAssets: (kind?: "image" | "video") => Promise<Asset[]>;
   /** Fetches a single asset by id. */

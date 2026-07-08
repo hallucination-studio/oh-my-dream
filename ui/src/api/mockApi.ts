@@ -69,8 +69,12 @@ async function listAssets(): Promise<Asset[]> {
   return [];
 }
 
+async function assetsRoot(): Promise<string | null> {
+  return null;
+}
+
 async function getAsset(id: string): Promise<Asset> {
   throw new Error(`Mock backend has no asset store; cannot fetch asset ${id}`);
 }
 
-export const mockApi: WorkflowApi = { runWorkflow, listAssets, getAsset };
+export const mockApi: WorkflowApi = { runWorkflow, assetsRoot, listAssets, getAsset };

@@ -3,6 +3,10 @@ import { mockApi } from "./mockApi.ts";
 import type { RunStatus, Workflow } from "../workflow/types.ts";
 
 describe("mockApi", () => {
+  it("has no persistent asset root outside Tauri", async () => {
+    await expect(mockApi.assetsRoot()).resolves.toBeNull();
+  });
+
   it("emits running then succeeded with nested node outputs", () => {
     vi.useFakeTimers();
     const observed: RunStatus[] = [];

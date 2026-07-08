@@ -64,6 +64,22 @@ pub fn get_asset(id: String, state: State<'_, AppState>) -> Result<AssetDto, Str
     Ok(AssetDto::from(asset))
 }
 
+/// Returns the local asset store root path.
+#[tauri::command(rename_all = "snake_case")]
+pub fn assets_root(state: State<'_, AppState>) -> Result<String, String> {
+    info!(asset_root = %state.root.display(), "assets_root command received");
+    assets_root_with_state(&state)
+}
+
+/// Returns the configured asset root for tests and command adapters.
+pub fn assets_root_with_state(state: &AppState) -> Result<String, String> {
+    state
+        .root
+        .to_str()
+        .map(str::to_owned)
+        .ok_or_else(|| command_error("resolve asset root", "asset root path is not valid UTF-8"))
+}
+
 /// Adds execution-only metadata needed by `SaveAsset` nodes.
 pub fn enrich_save_asset_params(workflow: &Workflow) -> anyhow::Result<Workflow> {
     let snapshot = serde_json::to_value(workflow)?;

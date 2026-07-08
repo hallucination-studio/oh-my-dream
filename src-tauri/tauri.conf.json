@@ -8,6 +8,12 @@
     "devUrl": "http://localhost:5273"
   },
   "app": {
+    "security": {
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPDATA/assets/**", "$APPLOCALDATA/assets/**"]
+      }
+    },
     "windows": [
       {
         "title": "oh-my-dream",

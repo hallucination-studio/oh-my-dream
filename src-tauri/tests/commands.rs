@@ -1,8 +1,12 @@
 use assets::AssetKind;
 use engine::{NodeParams, OutputRef, Workflow, WorkflowNode};
-use oh_my_dream_tauri::commands::{enrich_save_asset_params, parse_asset_kind_filter};
+use oh_my_dream_tauri::commands::{
+    assets_root_with_state, enrich_save_asset_params, parse_asset_kind_filter,
+};
+use oh_my_dream_tauri::state::AppState;
 use serde_json::json;
 use std::collections::BTreeMap;
+use tempfile::tempdir;
 
 #[test]
 fn enriches_save_asset_nodes_with_snapshot_and_source_node() {
@@ -24,6 +28,16 @@ fn parses_asset_kind_filter_for_commands() {
         Some(AssetKind::Video)
     );
     assert!(parse_asset_kind_filter(Some("audio".to_owned())).is_err());
+}
+
+#[test]
+fn returns_configured_asset_root_for_commands() {
+    let root = tempdir().expect("create temp asset root");
+    let state = AppState::from_asset_root(root.path()).expect("build app state");
+
+    let returned = assets_root_with_state(&state).expect("asset root should be returned");
+
+    assert_eq!(returned, root.path().to_string_lossy());
 }
 
 fn workflow_with_save_asset() -> Workflow {

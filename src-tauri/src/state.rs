@@ -3,12 +3,14 @@ use assets::AssetStore;
 use backends::{InferenceBackend, MockBackend};
 use engine::NodeRegistry;
 use nodes::SharedAssetStore;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 /// Managed application state shared by Tauri commands.
 pub struct AppState {
+    /// Root directory for stored asset files and metadata.
+    pub root: PathBuf,
     /// Deterministic backend used for the first local integration.
     pub backend: Arc<MockBackend>,
     /// Local asset store.
@@ -36,11 +38,12 @@ impl AppState {
         root: impl AsRef<Path>,
         backend: Arc<MockBackend>,
     ) -> Result<Self> {
+        let root = root.as_ref().to_path_buf();
         let store =
-            Arc::new(Mutex::new(AssetStore::open(root.as_ref()).context("open asset store")?));
+            Arc::new(Mutex::new(AssetStore::open(root.as_path()).context("open asset store")?));
         let mut registry = NodeRegistry::new();
         let registry_backend: Arc<dyn InferenceBackend> = backend.clone();
         nodes::register_all(&mut registry, registry_backend, Arc::clone(&store));
-        Ok(Self { backend, store, registry })
+        Ok(Self { root, backend, store, registry })
     }
 }
