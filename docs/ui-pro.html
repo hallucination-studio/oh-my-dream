@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>oh-my-dream — pro glass</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #1b1a2b; --ink-2: #46435f; --ink-3: #85839c; --ink-faint: #b3b1c4;
+        --glass: rgba(255,255,255,.58); --glass-2: rgba(255,255,255,.76); --glass-hi: rgba(255,255,255,.92);
+        --glass-line: rgba(255,255,255,.8); --hair: rgba(27,26,43,.08); --hair-2: rgba(27,26,43,.13);
+        --accent: #6355e6; --accent-hot: #7566ff; --ok: #10b088;
+        --t-text: #0eae9b; --t-image: #e07f34; --t-video: #7150f5; --t-audio: #d94f92; --t-number: #3a76ff;
+        --font: "Inter", system-ui, sans-serif; --font-m: "JetBrains Mono", monospace;
+        --shadow: 0 6px 22px rgba(30,25,64,.12); --shadow-lg: 0 24px 70px rgba(30,25,64,.26);
+        --blur: saturate(160%) blur(22px);
+      }
+      * { box-sizing: border-box; } html, body { margin: 0; height: 100%; }
+      body { font-family: var(--font); color: var(--ink); font-size: 13px; overflow: hidden;
+        background:
+          radial-gradient(1200px 800px at 10% 4%, #ffe0cf 0%, transparent 52%),
+          radial-gradient(1100px 850px at 92% 16%, #cdd7ff 0%, transparent 52%),
+          radial-gradient(900px 900px at 74% 98%, #ddccff 0%, transparent 48%),
+          linear-gradient(140deg, #f5f1fb 0%, #edf2fb 100%);
+      }
+      .glass { background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border: 1px solid var(--glass-line); }
+
+      .bench { display: grid; grid-template-rows: 50px 1fr; height: 100vh; padding: 9px; gap: 9px; }
+      .body { display: grid; grid-template-columns: 48px 258px 1fr 280px; gap: 9px; min-height: 0; }
+
+      /* ── topbar: project switcher (no tabs) ── */
+      .topbar { display: flex; align-items: center; gap: 14px; padding: 0 12px 0 14px; border-radius: 14px; box-shadow: var(--shadow); }
+      .brand { display: flex; align-items: center; gap: 9px; }
+      .mark { width: 15px; height: 15px; border-radius: 5px; background: conic-gradient(from 210deg, var(--t-text), var(--t-image), var(--t-video), var(--t-audio), var(--t-text)); box-shadow: 0 2px 8px rgba(99,85,230,.4); }
+      .brand b { font-weight: 700; font-size: 14px; }
+      .proj { display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 12px; border-radius: 10px; background: rgba(255,255,255,.55); border: 1px solid var(--hair); cursor: pointer; }
+      .proj .pdot { width: 8px; height: 8px; border-radius: 3px; background: var(--t-video); }
+      .proj .pn { font-weight: 600; font-size: 13px; }
+      .proj .car { color: var(--ink-3); font-size: 10px; margin-left: 2px; }
+      .spacer { flex: 1; }
+      .state { font-family: var(--font-m); font-size: 12px; color: var(--accent); }
+      .gear { width: 33px; height: 33px; border-radius: 10px; background: rgba(255,255,255,.5); border: 1px solid var(--hair); color: var(--ink-2); cursor: pointer; font-size: 15px; }
+      .run { display: inline-flex; align-items: center; gap: 7px; height: 33px; padding: 0 17px; background: linear-gradient(135deg, var(--accent), var(--accent-hot)); color: #fff; border: none; border-radius: 10px; font-weight: 600; font-size: 13px; cursor: pointer; box-shadow: 0 5px 16px rgba(99,85,230,.4); }
+      .play { width: 0; height: 0; border-left: 8px solid #fff; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+
+      /* ── icon rail ── */
+      .rail { border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; padding-top: 9px; gap: 5px; }
+      .rbtn { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-3); cursor: pointer; font-size: 16px; border: 1px solid transparent; }
+      .rbtn.on { background: var(--glass-hi); color: var(--accent); border-color: var(--glass-line); box-shadow: var(--shadow); }
+      .rail .sp { flex: 1; }
+
+      /* ── side panel (node library, category tree) ── */
+      .side { border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+      .side-h { padding: 13px 14px 0; }
+      .side-title { font-weight: 700; font-size: 14px; margin-bottom: 10px; }
+      .search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 11px; border-radius: 9px; background: rgba(255,255,255,.62); border: 1px solid var(--hair); }
+      .search input { background: none; border: none; outline: none; color: var(--ink); font-family: var(--font); font-size: 12px; width: 100%; }
+      .search input::placeholder { color: var(--ink-faint); }
+      .side-tools { display: flex; gap: 7px; margin: 9px 0 4px; }
+      .tool { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; height: 28px; border-radius: 8px; background: rgba(255,255,255,.5); border: 1px solid var(--hair); font-size: 11px; color: var(--ink-2); cursor: pointer; }
+      .tree { flex: 1; overflow-y: auto; padding: 4px 8px 10px; }
+      .cat { margin-bottom: 2px; }
+      .cat-h { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+      .cat-h:hover { background: rgba(255,255,255,.5); }
+      .cat-h .tw { width: 0; height: 0; border-left: 5px solid var(--ink-3); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .12s; }
+      .cat-h.open .tw { transform: rotate(90deg); }
+      .cat-h .cdot { width: 8px; height: 8px; border-radius: 3px; }
+      .cat-h .cn { font-weight: 600; font-size: 12.5px; flex: 1; }
+      .cat-h .cc { font-family: var(--font-m); font-size: 10px; color: var(--ink-faint); }
+      .leaves { margin: 1px 0 3px 20px; display: flex; flex-direction: column; gap: 1px; }
+      .leaf { display: flex; align-items: center; gap: 9px; padding: 6px 9px; border-radius: 7px; font-size: 12.5px; color: var(--ink-2); cursor: grab; }
+      .leaf:hover { background: var(--glass-hi); color: var(--ink); box-shadow: var(--shadow); }
+      .leaf .ld { width: 7px; height: 7px; border-radius: 50%; }
+      .leaf .lg { margin-left: auto; color: var(--ink-faint); font-size: 11px; }
+
+      /* ── canvas ── */
+      .canvas { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--glass-line);
+        background: radial-gradient(circle at 1px 1px, rgba(27,26,43,.06) 1px, transparent 0) 0 0 / 24px 24px, rgba(255,255,255,.26); backdrop-filter: blur(6px); box-shadow: var(--shadow); }
+      .node { position: absolute; width: 204px; border-radius: 13px; box-shadow: var(--shadow); background: var(--glass-2); backdrop-filter: var(--blur); border: 1px solid var(--glass-line); }
+      .node .bar { position: absolute; inset: 0 auto 0 0; width: 4px; border-radius: 13px 0 0 13px; }
+      .node .title { display: flex; align-items: center; gap: 8px; padding: 9px 12px 8px 15px; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--hair); }
+      .node .save { margin-left: auto; font-size: 8.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ok); display: flex; align-items: center; gap: 3px; }
+      .node .save::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--ok); }
+      .node .b { padding: 11px 13px 12px; display: grid; grid-template-columns: 52px 1fr; gap: 8px 10px; align-items: center; }
+      .node .b .k { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); text-align: right; }
+      .node .b .v { background: rgba(255,255,255,.72); border: 1px solid var(--hair); border-radius: 7px; padding: 6px 9px; font-size: 12px; }
+      .node .b .v.mono { font-family: var(--font-m); }
+      .node.sel { border-color: var(--accent); box-shadow: var(--shadow), 0 0 0 3px rgba(99,85,230,.26); }
+      .port { position: absolute; width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,255,255,.95); box-shadow: var(--shadow); }
+      .port.in { left: -6px; } .port.out { right: -6px; }
+      svg.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+      .wire { fill: none; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 8 6; animation: flow .6s linear infinite; opacity: .9; }
+      @keyframes flow { to { stroke-dashoffset: -28; } }
+      .ctrls { position: absolute; left: 13px; bottom: 13px; display: flex; flex-direction: column; gap: 5px; }
+      .ctrl { width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,.6); backdrop-filter: var(--blur); border: 1px solid var(--glass-line); color: var(--ink-2); display: grid; place-items: center; font-size: 15px; cursor: pointer; box-shadow: var(--shadow); }
+      .mini { position: absolute; right: 13px; bottom: 13px; width: 148px; height: 90px; border-radius: 11px; background: rgba(255,255,255,.5); backdrop-filter: var(--blur); border: 1px solid var(--glass-line); box-shadow: var(--shadow); overflow: hidden; }
+      .mini .mn { position: absolute; border-radius: 3px; } .mini .vp { position: absolute; border: 1.5px solid var(--accent); border-radius: 4px; background: rgba(99,85,230,.12); }
+
+      /* ── inspector ── */
+      .insp { border-radius: 14px; box-shadow: var(--shadow); padding: 15px; overflow-y: auto; }
+      .insp-h { display: flex; align-items: center; gap: 9px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--hair); }
+      .insp-h .bd { width: 11px; height: 11px; border-radius: 4px; background: var(--t-image); }
+      .insp-h b { font-size: 14px; font-weight: 600; }
+      .fields { display: grid; grid-template-columns: 72px 1fr; gap: 12px 10px; align-items: center; }
+      .fields .k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); text-align: right; }
+      .fields .v { background: rgba(255,255,255,.72); border: 1px solid var(--hair); border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+      .fields .v.mono { font-family: var(--font-m); }
+      .note { margin-top: 15px; padding: 11px 12px; border-radius: 10px; background: rgba(16,176,136,.09); border: 1px solid rgba(16,176,136,.22); font-size: 11.5px; line-height: 1.5; color: #0a7a5f; }
+
+      /* ── settings dialog ── */
+      .scrim { position: fixed; inset: 0; background: rgba(38,34,66,.3); backdrop-filter: blur(4px); display: none; place-items: center; z-index: 30; }
+      .scrim.show { display: grid; }
+      .dialog { width: 640px; height: 456px; border-radius: 18px; overflow: hidden; box-shadow: var(--shadow-lg); background: var(--glass-hi); backdrop-filter: var(--blur); border: 1px solid var(--glass-line); display: grid; grid-template-rows: auto 1fr auto; }
+      .dh { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px; border-bottom: 1px solid var(--hair); }
+      .dh b { font-size: 18px; font-weight: 700; } .dh .cl { color: var(--ink-3); cursor: pointer; font-size: 19px; }
+      .db { display: grid; grid-template-columns: 152px 1fr; min-height: 0; }
+      .snav { border-right: 1px solid var(--hair); padding: 13px 11px; display: flex; flex-direction: column; gap: 4px; }
+      .snav .it { padding: 8px 12px; border-radius: 9px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+      .snav .it.on { background: var(--glass-hi); color: var(--ink); box-shadow: var(--shadow); font-weight: 500; }
+      .sp { padding: 19px 22px; overflow-y: auto; }
+      .sp .grp { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); margin: 0 0 12px; }
+      .prov { display: flex; flex-direction: column; gap: 10px; }
+      .prow { border: 1px solid var(--hair); border-radius: 12px; padding: 13px 15px; background: rgba(255,255,255,.5); }
+      .prow.on { border-color: var(--accent); background: rgba(99,85,230,.06); }
+      .prow .h { display: flex; align-items: center; gap: 10px; }
+      .prow .radio { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--ink-faint); }
+      .prow.on .radio { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 42%, transparent 46%); }
+      .prow .nm { font-weight: 600; font-size: 13px; flex: 1; } .prow .tag { font-size: 10px; text-transform: uppercase; color: var(--ok); font-weight: 600; }
+      .prow .key { margin-top: 11px; display: grid; grid-template-columns: 56px 1fr; gap: 10px; align-items: center; }
+      .prow .key .k { font-size: 11px; color: var(--ink-3); text-align: right; }
+      .prow .key .v { background: rgba(255,255,255,.8); border: 1px solid var(--hair); border-radius: 7px; padding: 7px 10px; font-family: var(--font-m); font-size: 12px; color: var(--ink-3); }
+      .df { display: flex; justify-content: flex-end; padding: 14px 22px; border-top: 1px solid var(--hair); }
+      .done { height: 35px; padding: 0 21px; background: linear-gradient(135deg, var(--accent), var(--accent-hot)); color: #fff; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 5px 16px rgba(99,85,230,.35); }
+    </style>
+  </head>
+  <body>
+    <div class="bench">
+      <!-- TOPBAR -->
+      <div class="topbar glass">
+        <div class="brand"><span class="mark"></span><b>oh-my-dream</b></div>
+        <div class="proj"><span class="pdot"></span><span class="pn">Chase sequence</span><span class="car">▾</span></div>
+        <div class="spacer"></div>
+        <span class="state">Running · Image to Video…</span>
+        <button class="gear" onclick="document.getElementById('scrim').classList.add('show')">⚙</button>
+        <button class="run"><span class="play"></span>Run</button>
+      </div>
+
+      <div class="body">
+        <!-- icon rail -->
+        <div class="rail glass">
+          <div class="rbtn on" title="Nodes">⬢</div>
+          <div class="rbtn" title="Assets">▦</div>
+          <div class="rbtn" title="History">⟲</div>
+          <div class="sp"></div>
+          <div class="rbtn" title="Help" style="margin-bottom:9px">?</div>
+        </div>
+
+        <!-- node library: category tree -->
+        <div class="side glass">
+          <div class="side-h">
+            <div class="side-title">Nodes</div>
+            <div class="search"><span>🔍</span><input placeholder="Search nodes…" /></div>
+            <div class="side-tools"><div class="tool">⤢ Filter</div><div class="tool">↕ Sort</div></div>
+          </div>
+          <div class="tree">
+            <div class="cat">
+              <div class="cat-h open"><span class="tw"></span><span class="cdot" style="background:var(--t-text)"></span><span class="cn">Input</span><span class="cc">2</span></div>
+              <div class="leaves">
+                <div class="leaf"><span class="ld" style="background:var(--t-text)"></span>Text Prompt<span class="lg">⠿</span></div>
+                <div class="leaf"><span class="ld" style="background:var(--t-image)"></span>Image Loader<span class="lg">⠿</span></div>
+              </div>
+            </div>
+            <div class="cat">
+              <div class="cat-h open"><span class="tw"></span><span class="cdot" style="background:var(--t-image)"></span><span class="cn">Image</span><span class="cc">4</span></div>
+              <div class="leaves">
+                <div class="leaf"><span class="ld" style="background:var(--t-image)"></span>Text to Image<span class="lg">⠿</span></div>
+                <div class="leaf"><span class="ld" style="background:var(--t-image)"></span>Image to Image<span class="lg">⠿</span></div>
+                <div class="leaf"><span class="ld" style="background:var(--t-image)"></span>Upscale<span class="lg">⠿</span></div>
+                <div class="leaf"><span class="ld" style="background:var(--t-image)"></span>Inpaint<span class="lg">⠿</span></div>
+              </div>
+            </div>
+            <div class="cat">
+              <div class="cat-h open"><span class="tw"></span><span class="cdot" style="background:var(--t-video)"></span><span class="cn">Video</span><span class="cc">2</span></div>
+              <div class="leaves">
+                <div class="leaf"><span class="ld" style="background:var(--t-video)"></span>Image to Video<span class="lg">⠿</span></div>
+                <div class="leaf"><span class="ld" style="background:var(--t-video)"></span>Video to Video<span class="lg">⠿</span></div>
+              </div>
+            </div>
+            <div class="cat">
+              <div class="cat-h"><span class="tw"></span><span class="cdot" style="background:var(--t-audio)"></span><span class="cn">Audio</span><span class="cc">2</span></div>
+            </div>
+            <div class="cat">
+              <div class="cat-h"><span class="tw"></span><span class="cdot" style="background:var(--ink-3)"></span><span class="cn">Utility</span><span class="cc">3</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- canvas -->
+        <div class="canvas">
+          <svg class="wires">
+            <path class="wire" style="stroke:var(--t-text)"  d="M 236 128 C 294 128, 294 172, 352 172" />
+            <path class="wire" style="stroke:var(--t-image)" d="M 560 172 C 614 172, 614 210, 668 210" />
+          </svg>
+          <div class="node" style="left:38px; top:90px;"><div class="bar" style="background:var(--t-text)"></div><div class="title">Text Prompt</div><div class="b"><span class="k">Prompt</span><span class="v">runner leaps between rooftops, dusk</span></div><span class="port out" style="background:var(--t-text); top:60%;"></span></div>
+          <div class="node sel" style="left:352px; top:108px;"><div class="bar" style="background:var(--t-image)"></div><div class="title">Text to Image<span class="save">saves</span></div><div class="b"><span class="k">Model</span><span class="v">flux-1</span><span class="k">Steps</span><span class="v mono">28</span><span class="k">Seed</span><span class="v mono">42</span></div><span class="port in" style="background:var(--t-text); top:64px;"></span><span class="port out" style="background:var(--t-image); top:64px;"></span></div>
+          <div class="node" style="left:668px; top:146px;"><div class="bar" style="background:var(--t-video)"></div><div class="title">Image to Video<span class="save">saves</span></div><div class="b"><span class="k">Model</span><span class="v">svd-xt</span><span class="k">Fps</span><span class="v mono">24</span></div><span class="port in" style="background:var(--t-image); top:64px;"></span><span class="port out" style="background:var(--t-video); top:64px;"></span></div>
+          <div class="ctrls"><div class="ctrl">+</div><div class="ctrl">−</div><div class="ctrl">⊡</div></div>
+          <div class="mini"><div class="mn" style="left:14px;top:24px;width:38px;height:16px;background:var(--t-text)"></div><div class="mn" style="left:60px;top:34px;width:38px;height:16px;background:var(--t-image)"></div><div class="mn" style="left:100px;top:48px;width:34px;height:16px;background:var(--t-video)"></div><div class="vp" style="left:8px;top:14px;width:72px;height:50px;"></div></div>
+        </div>
+
+        <!-- inspector -->
+        <div class="insp glass">
+          <div class="insp-h"><span class="bd"></span><b>Text to Image</b></div>
+          <div class="fields"><span class="k">Model</span><span class="v">flux-1</span><span class="k">Steps</span><span class="v mono">28</span><span class="k">Seed</span><span class="v mono">42</span><span class="k">Size</span><span class="v mono">1024×1024</span></div>
+          <div class="note">Generated media saves to the Library automatically, tagged with this project and prompt.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="scrim" id="scrim" onclick="if(event.target===this)this.classList.remove('show')">
+      <div class="dialog">
+        <div class="dh"><b>Settings</b><span class="cl" onclick="document.getElementById('scrim').classList.remove('show')">×</span></div>
+        <div class="db">
+          <div class="snav"><div class="it on">Providers</div><div class="it">Canvas</div><div class="it">Storage</div><div class="it">About</div></div>
+          <div class="sp"><p class="grp">Generation Providers</p><div class="prov">
+            <div class="prow on"><div class="h"><span class="radio"></span><span class="nm">Mock (local)</span><span class="tag">Active</span></div></div>
+            <div class="prow"><div class="h"><span class="radio"></span><span class="nm">fal.ai</span></div><div class="key"><span class="k">API key</span><span class="v">fal_••••••••••••••••</span></div></div>
+            <div class="prow"><div class="h"><span class="radio"></span><span class="nm">Replicate</span></div><div class="key"><span class="k">API key</span><span class="v">r8_••••••••••••••••</span></div></div>
+          </div></div>
+        </div>
+        <div class="df"><button class="done" onclick="document.getElementById('scrim').classList.remove('show')">Done</button></div>
+      </div>
+    </div>
+  </body>
+</html>

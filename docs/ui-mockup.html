@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>oh-my-dream — design mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --void: #0c0c14;
+        --surface: #15151f;
+        --raised: #1e1e2c;
+        --raised-2: #26263a;
+        --line: #2c2c40;
+        --line-2: #3c3c56;
+        --ink: #eceaf4;
+        --ink-dim: #9895b4;
+        --ink-faint: #5f5e78;
+        --accent: #7c6cff;
+        --accent-hot: #9a8bff;
+        --ok: #6fe3b0;
+        --danger: #ff6b8a;
+        --t-text: #7dd3c0;
+        --t-image: #f5a97f;
+        --t-video: #a78bfa;
+        --t-model: #f0a3c8;
+        --t-number: #8fb8ff;
+        --font-d: "Space Grotesk", system-ui, sans-serif;
+        --font-m: "JetBrains Mono", monospace;
+        --r-sm: 6px;
+        --r-md: 10px;
+        --r-lg: 16px;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        font-family: var(--font-d);
+        background: var(--void);
+        color: var(--ink);
+        font-size: 13px;
+        overflow: hidden;
+      }
+
+      /* ── shell ── */
+      .bench { display: grid; grid-template-rows: 48px 1fr auto; height: 100vh; }
+      .body { display: grid; grid-template-columns: 52px 240px 1fr 288px; min-height: 0; }
+
+      /* ── topbar ── */
+      .topbar {
+        display: flex; align-items: center; gap: 14px;
+        padding: 0 14px; background: var(--surface); border-bottom: 1px solid var(--line);
+      }
+      .brand { display: flex; align-items: center; gap: 9px; padding-right: 6px; }
+      .mark {
+        width: 15px; height: 15px; border-radius: 4px;
+        background: conic-gradient(from 210deg, var(--t-text), var(--t-image), var(--t-video), var(--t-text));
+        box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
+      }
+      .brand b { font-weight: 700; font-size: 14px; }
+      .tabs { display: flex; gap: 6px; flex: 1; overflow: hidden; }
+      .tab {
+        display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 12px;
+        background: var(--raised); border: 1px solid var(--line); border-radius: 8px;
+        color: var(--ink-dim); font-size: 12px; cursor: pointer;
+      }
+      .tab.active { background: var(--raised-2); border-color: var(--line-2); color: var(--ink); }
+      .tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--t-video); }
+      .tab .x { color: var(--ink-faint); font-size: 14px; }
+      .tab-add {
+        width: 30px; height: 30px; border-radius: 8px; background: var(--raised);
+        border: 1px solid var(--line); color: var(--ink-dim); font-size: 16px; cursor: pointer;
+      }
+      .top-actions { display: flex; align-items: center; gap: 12px; }
+      .gear { width: 32px; height: 32px; border-radius: 8px; background: var(--raised);
+        border: 1px solid var(--line); color: var(--ink-dim); cursor: pointer; font-size: 15px; }
+      .run {
+        display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 16px;
+        background: var(--accent); color: #fff; border: none; border-radius: 8px;
+        font-weight: 600; font-size: 13px; cursor: pointer;
+      }
+      .run:hover { background: var(--accent-hot); }
+      .play { width: 0; height: 0; border-left: 8px solid #fff; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+      .state { font-family: var(--font-m); font-size: 12px; color: var(--accent-hot); }
+
+      /* ── left rail ── */
+      .rail { background: var(--surface); border-right: 1px solid var(--line);
+        display: flex; flex-direction: column; align-items: center; padding-top: 10px; gap: 6px; }
+      .rail-btn { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center;
+        color: var(--ink-faint); cursor: pointer; font-size: 17px; border: 1px solid transparent; }
+      .rail-btn.active { background: var(--raised); color: var(--ink); border-color: var(--line); }
+
+      /* ── side panel (node library) ── */
+      .panel { background: var(--surface); border-right: 1px solid var(--line); padding: 12px; overflow-y: auto; }
+      .panel-head { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-faint); margin-bottom: 10px; }
+      .search { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px;
+        background: var(--raised); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+      .search input { background: none; border: none; outline: none; color: var(--ink); font-family: var(--font-d); font-size: 12px; width: 100%; }
+      .search input::placeholder { color: var(--ink-faint); }
+      .nlist { display: flex; flex-direction: column; gap: 6px; }
+      .nitem { display: flex; align-items: center; gap: 10px; padding: 9px 10px; background: var(--raised);
+        border: 1px solid var(--line); border-radius: 8px; cursor: grab; }
+      .nitem:hover { background: var(--raised-2); border-color: var(--line-2); }
+      .nitem .cdot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+      .nitem .lbl { flex: 1; font-size: 13px; font-weight: 500; }
+      .nitem .grab { color: var(--ink-faint); font-size: 12px; }
+
+      /* ── canvas ── */
+      .canvas { position: relative; overflow: hidden;
+        background: radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0) 0 0 / 22px 22px, var(--void); }
+
+      /* nodes */
+      .node { position: absolute; width: 210px; background: var(--raised);
+        border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+      .node .bar { position: absolute; inset: 0 auto 0 0; width: 3px; border-radius: var(--r-md) 0 0 var(--r-md); }
+      .node .title { padding: 9px 12px 8px 15px; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--line); }
+      .node .b { padding: 10px 12px 12px; display: grid; grid-template-columns: 64px 1fr; gap: 8px 10px; align-items: center; }
+      .node .b .k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-dim); text-align: right; }
+      .node .b .v { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm);
+        padding: 5px 8px; font-size: 12px; color: var(--ink); }
+      .node .b .v.mono { font-family: var(--font-m); }
+      .node .hint { grid-column: 1 / -1; margin: 0; font-size: 11px; color: var(--ink-faint); font-style: italic; }
+      .node.selected { border-color: var(--accent); box-shadow: 0 6px 20px rgba(0,0,0,.45), 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+      .port { position: absolute; width: 11px; height: 11px; border-radius: 50%; top: 46px; }
+      .port.in { left: -6px; } .port.out { right: -6px; }
+      .plabel { position: absolute; top: 38px; font-size: 10px; color: var(--ink-dim); }
+      .plabel.in { left: 12px; } .plabel.out { right: 12px; }
+
+      svg.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+      .wire { fill: none; stroke-width: 2.5; stroke-dasharray: 7 5; animation: flow .6s linear infinite; filter: drop-shadow(0 0 4px currentColor); }
+      @keyframes flow { to { stroke-dashoffset: -24; } }
+
+      /* search popover on canvas */
+      .pop { position: absolute; left: 300px; top: 250px; width: 220px; background: var(--surface);
+        border: 1px solid var(--line-2); border-radius: var(--r-md); box-shadow: 0 12px 40px rgba(0,0,0,.6); overflow: hidden; z-index: 5; }
+      .pop .s { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--ink-faint); font-size: 12px; }
+      .pop .row { padding: 9px 12px; font-size: 13px; display: flex; align-items: center; gap: 9px; cursor: pointer; }
+      .pop .row:hover, .pop .row.hi { background: var(--raised-2); }
+      .pop .row .cdot { width: 8px; height: 8px; border-radius: 50%; }
+      .badge { position: absolute; left: 300px; top: 218px; font-size: 11px; color: var(--ink-faint); font-family: var(--font-m); }
+
+      /* controls */
+      .ctrls { position: absolute; left: 14px; bottom: 14px; display: flex; flex-direction: column; gap: 4px; }
+      .ctrl { width: 30px; height: 30px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line);
+        color: var(--ink-dim); display: grid; place-items: center; font-size: 15px; cursor: pointer; }
+      .ctrl:hover { background: var(--raised-2); color: var(--ink); }
+
+      /* ── inspector ── */
+      .insp { background: var(--surface); border-left: 1px solid var(--line); padding: 14px; }
+      .insp-head { display: flex; align-items: center; gap: 9px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+      .insp-head .bd { width: 10px; height: 10px; border-radius: 3px; background: var(--t-image); }
+      .insp-head b { font-size: 14px; font-weight: 600; }
+      .fields { display: grid; grid-template-columns: 88px 1fr; gap: 12px 10px; align-items: center; }
+      .fields .k { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-dim); text-align: right; }
+      .fields .v { background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; font-size: 13px; color: var(--ink); }
+      .fields .v.mono { font-family: var(--font-m); }
+
+      /* ── asset drawer ── */
+      .drawer { background: var(--surface); border-top: 1px solid var(--line); }
+      .drawer-head { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
+      .chev { width: 0; height: 0; border-left: 6px solid var(--ink-dim); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transform: rotate(90deg); }
+      .drawer-head b { font-weight: 600; font-size: 13px; }
+      .count { font-family: var(--font-m); font-size: 11px; color: var(--void); background: var(--ink-dim); border-radius: 999px; padding: 1px 8px; }
+      .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; padding: 14px 16px; }
+      .card .prev { position: relative; aspect-ratio: 1; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line); }
+      .card .prev.v { background: linear-gradient(135deg, #2a2140, #3a2a52); }
+      .card .prev.i { background: linear-gradient(135deg, #402a20, #52402a); }
+      .card .kind { position: absolute; top: 7px; left: 7px; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--void); }
+      .card .kind.v { background: var(--t-video); } .card .kind.i { background: var(--t-image); }
+      .card .meta { font-family: var(--font-m); font-size: 11px; color: var(--ink-faint); margin-top: 6px; }
+
+      /* ── settings dialog ── */
+      .scrim { position: fixed; inset: 0; background: rgba(6,6,12,.66); display: grid; place-items: center; z-index: 20; }
+      .dialog { width: 620px; height: 440px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-lg);
+        box-shadow: 0 24px 80px rgba(0,0,0,.6); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
+      .dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+      .dialog-head b { font-size: 18px; font-weight: 600; }
+      .dialog-head .cl { color: var(--ink-faint); cursor: pointer; font-size: 18px; }
+      .dialog-body { display: grid; grid-template-columns: 150px 1fr; min-height: 0; }
+      .snav { border-right: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+      .snav .it { padding: 8px 12px; border-radius: 8px; font-size: 13px; color: var(--ink-dim); cursor: pointer; }
+      .snav .it.active { background: var(--raised); color: var(--ink); }
+      .spanel { padding: 18px 20px; overflow-y: auto; }
+      .spanel .grp { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-faint); margin: 0 0 12px; }
+      .prov { display: flex; flex-direction: column; gap: 10px; }
+      .prow { border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; background: var(--raised); }
+      .prow.on { border-color: var(--accent); }
+      .prow .h { display: flex; align-items: center; gap: 9px; }
+      .prow .radio { width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--line-2); }
+      .prow.on .radio { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 40%, transparent 45%); }
+      .prow .nm { font-weight: 600; font-size: 13px; flex: 1; }
+      .prow .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ok); }
+      .prow .key { margin-top: 10px; display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: center; }
+      .prow .key .k { font-size: 11px; color: var(--ink-dim); text-align: right; }
+      .prow .key .v { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 10px; font-family: var(--font-m); font-size: 12px; color: var(--ink-dim); }
+      .dialog-foot { display: flex; justify-content: flex-end; padding: 14px 20px; border-top: 1px solid var(--line); }
+      .done { height: 34px; padding: 0 20px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="bench">
+      <!-- TOPBAR -->
+      <div class="topbar">
+        <div class="brand"><span class="mark"></span><b>oh-my-dream</b></div>
+        <div class="tabs">
+          <div class="tab active"><span class="dot"></span>Sunset clip<span class="x">×</span></div>
+          <div class="tab"><span class="dot" style="background:var(--t-image)"></span>Portrait<span class="x">×</span></div>
+          <div class="tab"><span class="dot" style="background:var(--t-text)"></span>Logo idea<span class="x">×</span></div>
+          <div class="tab-add">+</div>
+        </div>
+        <div class="top-actions">
+          <span class="state">Running n2…</span>
+          <button class="gear" onclick="document.getElementById('scrim').style.display='grid'">⚙</button>
+          <button class="run"><span class="play"></span>Run</button>
+        </div>
+      </div>
+
+      <!-- BODY -->
+      <div class="body">
+        <!-- rail -->
+        <div class="rail">
+          <div class="rail-btn active" title="Nodes">⬢</div>
+          <div class="rail-btn" title="Library">▦</div>
+          <div class="rail-btn" title="History">⌘</div>
+        </div>
+
+        <!-- node library panel -->
+        <div class="panel">
+          <div class="panel-head">Node Library</div>
+          <div class="search"><span>🔍</span><input placeholder="Search nodes…" /></div>
+          <div class="nlist">
+            <div class="nitem"><span class="cdot" style="background:var(--t-text)"></span><span class="lbl">Text Prompt</span><span class="grab">⠿</span></div>
+            <div class="nitem"><span class="cdot" style="background:var(--t-image)"></span><span class="lbl">Text to Image</span><span class="grab">⠿</span></div>
+            <div class="nitem"><span class="cdot" style="background:var(--t-video)"></span><span class="lbl">Image to Video</span><span class="grab">⠿</span></div>
+            <div class="nitem"><span class="cdot" style="background:var(--t-model)"></span><span class="lbl">Save Asset</span><span class="grab">⠿</span></div>
+          </div>
+        </div>
+
+        <!-- canvas -->
+        <div class="canvas">
+          <svg class="wires">
+            <path class="wire" style="color:var(--t-text)"  d="M 250 106 C 300 106, 300 156, 350 156" />
+            <path class="wire" style="color:var(--t-image)" d="M 560 156 C 610 156, 610 206, 660 206" />
+          </svg>
+
+          <!-- node 1: Text Prompt -->
+          <div class="node" style="left:40px; top:70px;">
+            <div class="bar" style="background:var(--t-text)"></div>
+            <div class="title">Text Prompt</div>
+            <div class="b">
+              <span class="k">Prompt</span><span class="v">a fox at dusk</span>
+              <span class="port out" style="background:var(--t-text); box-shadow:0 0 0 3px color-mix(in srgb,var(--t-text) 25%,transparent)"></span>
+              <span class="plabel out">text</span>
+            </div>
+          </div>
+
+          <!-- node 2: Text to Image (selected, running) -->
+          <div class="node selected" style="left:350px; top:110px;">
+            <div class="bar" style="background:var(--t-image)"></div>
+            <div class="title">Text to Image</div>
+            <div class="b">
+              <span class="k">Model</span><span class="v">flux-1</span>
+              <span class="k">Steps</span><span class="v mono">28</span>
+              <span class="k">Seed</span><span class="v mono">42</span>
+              <span class="port in" style="background:var(--t-text); box-shadow:0 0 0 3px color-mix(in srgb,var(--t-text) 25%,transparent)"></span>
+              <span class="plabel in">prompt</span>
+              <span class="port out" style="background:var(--t-image); box-shadow:0 0 0 3px color-mix(in srgb,var(--t-image) 25%,transparent)"></span>
+              <span class="plabel out">image</span>
+            </div>
+          </div>
+
+          <!-- node 3: Image to Video -->
+          <div class="node" style="left:660px; top:160px;">
+            <div class="bar" style="background:var(--t-video)"></div>
+            <div class="title">Image to Video</div>
+            <div class="b">
+              <span class="k">Model</span><span class="v">svd-xt</span>
+              <span class="k">Fps</span><span class="v mono">24</span>
+              <span class="port in" style="background:var(--t-image); box-shadow:0 0 0 3px color-mix(in srgb,var(--t-image) 25%,transparent)"></span>
+              <span class="plabel in">image</span>
+              <span class="port out" style="background:var(--t-video); box-shadow:0 0 0 3px color-mix(in srgb,var(--t-video) 25%,transparent)"></span>
+              <span class="plabel out">video</span>
+            </div>
+          </div>
+
+          <!-- double-click search popover -->
+          <div class="badge">↑ double-click canvas to add a node</div>
+          <div class="pop">
+            <div class="s">🔍 search nodes…</div>
+            <div class="row hi"><span class="cdot" style="background:var(--t-text)"></span>Text Prompt</div>
+            <div class="row"><span class="cdot" style="background:var(--t-image)"></span>Text to Image</div>
+            <div class="row"><span class="cdot" style="background:var(--t-video)"></span>Image to Video</div>
+            <div class="row"><span class="cdot" style="background:var(--t-model)"></span>Save Asset</div>
+          </div>
+
+          <div class="ctrls">
+            <div class="ctrl">+</div><div class="ctrl">−</div><div class="ctrl">⊡</div>
+          </div>
+        </div>
+
+        <!-- inspector -->
+        <div class="insp">
+          <div class="insp-head"><span class="bd"></span><b>Text to Image</b></div>
+          <div class="fields">
+            <span class="k">Model</span><span class="v">flux-1</span>
+            <span class="k">Steps</span><span class="v mono">28</span>
+            <span class="k">Seed</span><span class="v mono">42</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- asset drawer -->
+      <div class="drawer">
+        <div class="drawer-head"><span class="chev"></span><b>Library</b><span class="count">5</span></div>
+        <div class="grid">
+          <div class="card"><div class="prev v"><span class="kind v">video</span></div><div class="meta">Jul 7 · 21:04</div></div>
+          <div class="card"><div class="prev i"><span class="kind i">image</span></div><div class="meta">Jul 7 · 20:58</div></div>
+          <div class="card"><div class="prev v"><span class="kind v">video</span></div><div class="meta">Jul 7 · 20:41</div></div>
+          <div class="card"><div class="prev i"><span class="kind i">image</span></div><div class="meta">Jul 7 · 20:33</div></div>
+          <div class="card"><div class="prev v"><span class="kind v">video</span></div><div class="meta">Jul 7 · 20:12</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS DIALOG -->
+    <div class="scrim" id="scrim" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+      <div class="dialog">
+        <div class="dialog-head"><b>Settings</b><span class="cl" onclick="document.getElementById('scrim').style.display='none'">×</span></div>
+        <div class="dialog-body">
+          <div class="snav">
+            <div class="it active">Providers</div>
+            <div class="it">Canvas</div>
+            <div class="it">About</div>
+          </div>
+          <div class="spanel">
+            <p class="grp">Image / Video Providers</p>
+            <div class="prov">
+              <div class="prow on">
+                <div class="h"><span class="radio"></span><span class="nm">Mock (local)</span><span class="tag">Active</span></div>
+              </div>
+              <div class="prow">
+                <div class="h"><span class="radio"></span><span class="nm">fal.ai</span></div>
+                <div class="key"><span class="k">API key</span><span class="v">fal_••••••••••••••••</span></div>
+              </div>
+              <div class="prow">
+                <div class="h"><span class="radio"></span><span class="nm">Replicate</span></div>
+                <div class="key"><span class="k">API key</span><span class="v">r8_••••••••••••••••</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-foot"><button class="done" onclick="document.getElementById('scrim').style.display='none'">Done</button></div>
+      </div>
+    </div>
+  </body>
+</html>

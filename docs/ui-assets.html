@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>oh-my-dream — assets view</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --ink: #1b1a2b; --ink-2: #46435f; --ink-3: #85839c; --ink-faint: #b3b1c4;
+        --glass: rgba(255,255,255,.58); --glass-2: rgba(255,255,255,.76); --glass-hi: rgba(255,255,255,.92);
+        --glass-line: rgba(255,255,255,.8); --hair: rgba(27,26,43,.08);
+        --accent: #6355e6; --accent-hot: #7566ff; --ok: #10b088;
+        --t-text: #0eae9b; --t-image: #e07f34; --t-video: #7150f5; --t-audio: #d94f92;
+        --font: "Inter", system-ui, sans-serif; --font-m: "JetBrains Mono", monospace;
+        --shadow: 0 6px 22px rgba(30,25,64,.12); --shadow-lg: 0 24px 70px rgba(30,25,64,.26);
+        --blur: saturate(160%) blur(22px);
+      }
+      * { box-sizing: border-box; } html, body { margin: 0; height: 100%; }
+      body { font-family: var(--font); color: var(--ink); font-size: 13px; overflow: hidden;
+        background:
+          radial-gradient(1200px 800px at 10% 4%, #ffe0cf 0%, transparent 52%),
+          radial-gradient(1100px 850px at 92% 16%, #cdd7ff 0%, transparent 52%),
+          radial-gradient(900px 900px at 74% 98%, #ddccff 0%, transparent 48%),
+          linear-gradient(140deg, #f5f1fb 0%, #edf2fb 100%); }
+      .glass { background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border: 1px solid var(--glass-line); }
+
+      .bench { display: grid; grid-template-rows: 50px 1fr; height: 100vh; padding: 9px; gap: 9px; }
+      .body { display: grid; grid-template-columns: 48px 1fr 300px; gap: 9px; min-height: 0; }
+
+      .topbar { display: flex; align-items: center; gap: 14px; padding: 0 12px 0 14px; border-radius: 14px; box-shadow: var(--shadow); }
+      .brand { display: flex; align-items: center; gap: 9px; }
+      .mark { width: 15px; height: 15px; border-radius: 5px; background: conic-gradient(from 210deg, var(--t-text), var(--t-image), var(--t-video), var(--t-audio), var(--t-text)); box-shadow: 0 2px 8px rgba(99,85,230,.4); }
+      .brand b { font-weight: 700; font-size: 14px; }
+      .proj { display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 12px; border-radius: 10px; background: rgba(255,255,255,.55); border: 1px solid var(--hair); cursor: pointer; }
+      .proj .pdot { width: 8px; height: 8px; border-radius: 3px; background: var(--t-video); } .proj .pn { font-weight: 600; } .proj .car { color: var(--ink-3); font-size: 10px; }
+      .spacer { flex: 1; }
+      .gear { width: 33px; height: 33px; border-radius: 10px; background: rgba(255,255,255,.5); border: 1px solid var(--hair); color: var(--ink-2); cursor: pointer; font-size: 15px; }
+      .run { display: inline-flex; align-items: center; gap: 7px; height: 33px; padding: 0 17px; background: linear-gradient(135deg, var(--accent), var(--accent-hot)); color: #fff; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 5px 16px rgba(99,85,230,.4); }
+      .play { width: 0; height: 0; border-left: 8px solid #fff; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+
+      .rail { border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; align-items: center; padding-top: 9px; gap: 5px; }
+      .rbtn { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-3); cursor: pointer; font-size: 16px; border: 1px solid transparent; }
+      .rbtn.on { background: var(--glass-hi); color: var(--accent); border-color: var(--glass-line); box-shadow: var(--shadow); }
+
+      /* ── assets main ── */
+      .assets { border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+      .a-top { padding: 14px 18px 12px; border-bottom: 1px solid var(--hair); display: flex; flex-direction: column; gap: 12px; }
+      .a-title-row { display: flex; align-items: center; gap: 12px; }
+      .a-title { font-weight: 700; font-size: 16px; } .a-count { font-family: var(--font-m); font-size: 11px; color: #fff; background: var(--accent); border-radius: 999px; padding: 2px 9px; }
+      .a-search-row { display: flex; gap: 10px; align-items: center; }
+      .a-search { flex: 1; display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 13px; border-radius: 10px; background: rgba(255,255,255,.66); border: 1px solid var(--hair); }
+      .a-search input { background: none; border: none; outline: none; color: var(--ink); font-family: var(--font); font-size: 13px; width: 100%; }
+      .a-search input::placeholder { color: var(--ink-faint); }
+      .a-kbd { font-family: var(--font-m); font-size: 10px; color: var(--ink-faint); border: 1px solid var(--hair); border-radius: 5px; padding: 2px 6px; }
+      .a-view { display: flex; gap: 3px; padding: 3px; border-radius: 9px; background: rgba(255,255,255,.5); border: 1px solid var(--hair); }
+      .a-view .vb { width: 30px; height: 28px; border-radius: 6px; display: grid; place-items: center; color: var(--ink-3); cursor: pointer; font-size: 13px; }
+      .a-view .vb.on { background: var(--glass-hi); color: var(--ink); box-shadow: var(--shadow); }
+      .a-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .fchip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 5px 12px; border-radius: 999px; background: rgba(255,255,255,.5); border: 1px solid var(--hair); color: var(--ink-2); cursor: pointer; }
+      .fchip.on { background: var(--accent); color: #fff; border-color: transparent; }
+      .fchip .fd { width: 7px; height: 7px; border-radius: 50%; }
+      .fdrop { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 5px 11px; border-radius: 999px; background: rgba(255,255,255,.5); border: 1px solid var(--hair); color: var(--ink-2); cursor: pointer; }
+      .fsep { width: 1px; height: 18px; background: var(--hair); }
+
+      .a-grid { flex: 1; overflow-y: auto; padding: 16px 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 16px; align-content: start; }
+      .ac { cursor: grab; }
+      .ac .prev { position: relative; aspect-ratio: 1; border-radius: 13px; overflow: hidden; border: 1px solid var(--glass-line); box-shadow: var(--shadow); }
+      .ac .prev.v { background: linear-gradient(135deg, #b6a3ff, #7150f5); }
+      .ac .prev.i { background: linear-gradient(135deg, #ffcb96, #e07f34); }
+      .ac .prev.a { background: linear-gradient(135deg, #ffb0d6, #d94f92); }
+      .ac:hover .prev { transform: translateY(-3px); transition: transform .14s; box-shadow: var(--shadow-lg); }
+      .ac .kind { position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 999px; font-size: 9px; font-weight: 700; text-transform: uppercase; color: #fff; background: rgba(0,0,0,.32); backdrop-filter: blur(6px); }
+      .ac .ov { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.55), transparent 45%); opacity: 0; display: flex; align-items: flex-end; justify-content: space-between; padding: 9px; }
+      .ac:hover .ov { opacity: 1; }
+      .ac .act { width: 26px; height: 26px; border-radius: 7px; background: rgba(255,255,255,.92); display: grid; place-items: center; font-size: 12px; color: var(--ink); }
+      .ac .prompt { font-size: 12px; color: var(--ink); margin: 9px 2px 3px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .ac .meta { display: flex; align-items: center; gap: 6px; margin: 0 2px; font-size: 10.5px; color: var(--ink-3); }
+      .ac .meta .pj { width: 7px; height: 7px; border-radius: 2px; } .ac .meta .dt { margin-left: auto; font-family: var(--font-m); }
+
+      /* ── detail panel ── */
+      .detail { border-radius: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+      .d-prev { aspect-ratio: 1; margin: 14px 14px 0; border-radius: 12px; background: linear-gradient(135deg, #b6a3ff, #7150f5); border: 1px solid var(--glass-line); box-shadow: var(--shadow); position: relative; }
+      .d-prev .play-o { position: absolute; inset: 0; display: grid; place-items: center; }
+      .d-prev .pcirc { width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,.9); display: grid; place-items: center; box-shadow: var(--shadow); }
+      .d-prev .pcirc .tri { width:0;height:0;border-left:14px solid var(--accent);border-top:9px solid transparent;border-bottom:9px solid transparent;margin-left:3px; }
+      .d-body { padding: 14px; overflow-y: auto; }
+      .d-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--t-video); }
+      .d-kind::before { content:""; width:7px;height:7px;border-radius:50%;background:var(--t-video); }
+      .d-prompt { font-size: 13px; line-height: 1.5; margin: 10px 0 14px; }
+      .d-row { display: grid; grid-template-columns: 70px 1fr; gap: 9px; padding: 8px 0; border-top: 1px solid var(--hair); align-items: center; }
+      .d-row .k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+      .d-row .v { font-size: 12px; } .d-row .v.mono { font-family: var(--font-m); }
+      .d-row .link { color: var(--accent); font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+      .d-actions { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--hair); }
+      .d-btn { flex: 1; height: 34px; border-radius: 9px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--hair); background: rgba(255,255,255,.6); color: var(--ink); }
+      .d-btn.pri { background: linear-gradient(135deg, var(--accent), var(--accent-hot)); color: #fff; border: none; box-shadow: 0 5px 14px rgba(99,85,230,.35); }
+    </style>
+  </head>
+  <body>
+    <div class="bench">
+      <div class="topbar glass">
+        <div class="brand"><span class="mark"></span><b>oh-my-dream</b></div>
+        <div class="proj"><span class="pdot"></span><span class="pn">Chase sequence</span><span class="car">▾</span></div>
+        <div class="spacer"></div>
+        <button class="gear">⚙</button>
+        <button class="run"><span class="play"></span>Run</button>
+      </div>
+
+      <div class="body">
+        <div class="rail glass">
+          <div class="rbtn" title="Nodes">⬢</div>
+          <div class="rbtn on" title="Assets">▦</div>
+          <div class="rbtn" title="History">⟲</div>
+        </div>
+
+        <!-- assets manager -->
+        <div class="assets glass">
+          <div class="a-top">
+            <div class="a-title-row"><span class="a-title">Library</span><span class="a-count">128</span></div>
+            <div class="a-search-row">
+              <div class="a-search"><span>🔍</span><input placeholder="Search by prompt, model, seed, tag…" /><span class="a-kbd">⌘K</span></div>
+              <div class="a-view"><span class="vb on">▦</span><span class="vb">≣</span></div>
+            </div>
+            <div class="a-filters">
+              <span class="fchip on">All</span>
+              <span class="fchip"><span class="fd" style="background:var(--t-image)"></span>Image</span>
+              <span class="fchip"><span class="fd" style="background:var(--t-video)"></span>Video</span>
+              <span class="fchip"><span class="fd" style="background:var(--t-audio)"></span>Audio</span>
+              <span class="fsep"></span>
+              <span class="fdrop">Project: All ▾</span>
+              <span class="fdrop">Model ▾</span>
+              <span class="fdrop">Newest ▾</span>
+            </div>
+          </div>
+
+          <div class="a-grid">
+            <div class="ac"><div class="prev v"><span class="kind">video</span><div class="ov"><span class="act">⤢</span><span class="act">↗</span></div></div><p class="prompt">runner leaps between rooftops at dusk, wide</p><div class="meta"><span class="pj" style="background:var(--t-video)"></span>Chase seq<span class="dt">21:04</span></div></div>
+            <div class="ac"><div class="prev i"><span class="kind">image</span><div class="ov"><span class="act">⤢</span><span class="act">↗</span></div></div><p class="prompt">rain-slick alley, neon signs reflecting</p><div class="meta"><span class="pj" style="background:var(--t-image)"></span>Chase seq<span class="dt">20:58</span></div></div>
+            <div class="ac"><div class="prev a"><span class="kind">audio</span><div class="ov"><span class="act">▶</span><span class="act">↗</span></div></div><p class="prompt">tense percussive chase cue, 120bpm</p><div class="meta"><span class="pj" style="background:var(--t-audio)"></span>Score demo<span class="dt">20:41</span></div></div>
+            <div class="ac"><div class="prev i"><span class="kind">image</span><div class="ov"><span class="act">⤢</span><span class="act">↗</span></div></div><p class="prompt">character sheet, three-quarter view</p><div class="meta"><span class="pj" style="background:var(--t-image)"></span>Character<span class="dt">20:33</span></div></div>
+            <div class="ac"><div class="prev v"><span class="kind">video</span><div class="ov"><span class="act">⤢</span><span class="act">↗</span></div></div><p class="prompt">establishing wide, city skyline at dawn</p><div class="meta"><span class="pj" style="background:var(--t-video)"></span>Chase seq<span class="dt">20:12</span></div></div>
+            <div class="ac"><div class="prev i"><span class="kind">image</span><div class="ov"><span class="act">⤢</span><span class="act">↗</span></div></div><p class="prompt">close-up, weathered hands gripping rope</p><div class="meta"><span class="pj" style="background:var(--t-image)"></span>Character<span class="dt">19:50</span></div></div>
+            <div class="ac"><div class="prev v"><span class="kind">video</span><div class="ov"><span class="act">⤢</span><span class="act">↗</span></div></div><p class="prompt">slow dolly across rooftop, golden hour</p><div class="meta"><span class="pj" style="background:var(--t-video)"></span>Chase seq<span class="dt">19:32</span></div></div>
+            <div class="ac"><div class="prev a"><span class="kind">audio</span><div class="ov"><span class="act">▶</span><span class="act">↗</span></div></div><p class="prompt">ambient rooftop wind bed, loopable</p><div class="meta"><span class="pj" style="background:var(--t-audio)"></span>Score demo<span class="dt">19:20</span></div></div>
+          </div>
+        </div>
+
+        <!-- detail panel -->
+        <div class="detail glass">
+          <div class="d-prev"><div class="play-o"><div class="pcirc"><span class="tri"></span></div></div></div>
+          <div class="d-body">
+            <span class="d-kind">Video</span>
+            <p class="d-prompt">runner leaps between rooftops at dusk, wide cinematic shot</p>
+            <div class="d-row"><span class="k">Model</span><span class="v">svd-xt</span></div>
+            <div class="d-row"><span class="k">Seed</span><span class="v mono">42</span></div>
+            <div class="d-row"><span class="k">Duration</span><span class="v mono">4.0s · 24fps</span></div>
+            <div class="d-row"><span class="k">Project</span><span class="v"><span class="link">Chase sequence ↗</span></span></div>
+            <div class="d-row"><span class="k">From node</span><span class="v"><span class="link">Image to Video ↗</span></span></div>
+            <div class="d-row"><span class="k">Created</span><span class="v mono">Jul 7, 21:04</span></div>
+          </div>
+          <div class="d-actions">
+            <button class="d-btn">Export</button>
+            <button class="d-btn pri">＋ Add to canvas</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
