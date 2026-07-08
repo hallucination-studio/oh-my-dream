@@ -23,7 +23,9 @@ const asset: Asset = {
 
 describe("AssetCard", () => {
   it("renders the kind badge and preview image", () => {
-    render(<AssetCard asset={asset} />);
+    render(
+      <AssetCard asset={asset} selected={false} onSelect={() => {}} onJump={() => {}} />,
+    );
     expect(screen.getByText("video")).toBeTruthy();
     const img = screen.getByRole("img") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe("/tmp/a.png");

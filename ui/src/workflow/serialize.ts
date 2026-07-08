@@ -6,10 +6,10 @@ import type { Edge, Node } from "@xyflow/react";
 import type { FlowNodeData } from "../nodes/WorkflowFlowNode.tsx";
 import type { OutputRef, Workflow } from "./types.ts";
 
-export function toWorkflow(nodes: Node[], edges: Edge[]): Workflow {
+export function toWorkflow(nodes: Node[], edges: Edge[], projectId = "default"): Workflow {
   return {
     version: "1.0",
-    project_id: "default",
+    project_id: projectId,
     nodes: nodes.map((node) => {
       const data = node.data as FlowNodeData;
       const inputs: Record<string, OutputRef> = {};

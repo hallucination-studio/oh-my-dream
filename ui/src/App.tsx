@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addEdge,
   Background,
   BackgroundVariant,
   Controls,
+  MiniMap,
   ReactFlow,
   useEdgesState,
   useNodesState,
@@ -17,13 +18,17 @@ import { WorkflowEdge } from "./nodes/WorkflowEdge.tsx";
 import { typeColor } from "./nodes/typeColor.ts";
 import { toWorkflow } from "./workflow/serialize.ts";
 import { isValidConnection } from "./workflow/validate.ts";
-import { api, type RunHandle } from "./api/index.ts";
+import { api, type Project, type RunHandle } from "./api/index.ts";
 import type { RunStatus } from "./workflow/types.ts";
 import { TopBar } from "./components/TopBar.tsx";
-import { NodePalette } from "./components/NodePalette.tsx";
+import { IconRail, type RailTab } from "./components/IconRail.tsx";
+import { NodeLibrary } from "./components/NodeLibrary.tsx";
 import { InspectorPanel, type SelectedNode } from "./components/InspectorPanel.tsx";
-import { AssetDrawer } from "./assets/AssetDrawer.tsx";
+import { ProjectSwitcher } from "./components/ProjectSwitcher.tsx";
+import { SettingsDialog } from "./components/SettingsDialog.tsx";
+import { AssetLibrary } from "./assets/AssetLibrary.tsx";
 import { useAssets } from "./assets/useAssets.ts";
+import { useRunProjection } from "./canvas/useRunProjection.ts";
 
 let idCounter = 0;
 const nextId = () => `n${++idCounter}`;
@@ -36,8 +41,23 @@ export function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [status, setStatus] = useState<RunStatus>({ state: "idle" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tab, setTab] = useState<RailTab>("nodes");
+  const [project, setProject] = useState<Project | null>(null);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const runHandle = useRef<RunHandle | null>(null);
   const { assets, error: assetError, refresh } = useAssets();
+  const { apply: projectRun, reset: resetRun } = useRunProjection(setNodes, setEdges);
+
+  // Load (or create) an initial project on mount.
+  useEffect(() => {
+    api.listProjects().then((list) => {
+      const first = list[0];
+      if (first) {
+        setProject(first);
+      }
+    });
+  }, []);
 
   const setParam = useCallback(
     (nodeId: string, name: string, value: unknown) => {
@@ -59,7 +79,7 @@ export function App() {
   );
 
   const addNode = useCallback(
-    (type: string) => {
+    (type: string, position?: { x: number; y: number }) => {
       const spec = NODE_TYPES.find((s) => s.type === type);
       if (!spec) {
         return;
@@ -71,7 +91,7 @@ export function App() {
         {
           id,
           type: "workflow",
-          position: { x: 120 + current.length * 60, y: 90 + current.length * 40 },
+          position: position ?? { x: 140 + current.length * 60, y: 100 + current.length * 40 },
           data: {
             type,
             params,
@@ -93,10 +113,7 @@ export function App() {
       const spec = source ? findNodeType((source.data as FlowNodeData).type) : undefined;
       const outType = spec?.outputs.find((p) => p.name === connection.sourceHandle)?.type;
       setEdges((current) =>
-        addEdge(
-          { ...connection, type: "workflow", data: { color: typeColor(outType) } },
-          current,
-        ),
+        addEdge({ ...connection, type: "workflow", data: { color: typeColor(outType) } }, current),
       );
     },
     [nodes, setEdges],
@@ -111,69 +128,95 @@ export function App() {
     return { id: node.id, type: data.type, params: data.params };
   }, [nodes, selectedId]);
 
-  const markRunning = useCallback(
-    (nodeId: string) => {
-      setNodes((current) =>
-        current.map((n) => ({ ...n, data: { ...n.data, running: n.id === nodeId } })),
-      );
-      setEdges((current) => current.map((e) => ({ ...e, data: { ...e.data, running: true } })));
-    },
-    [setNodes, setEdges],
-  );
-
-  const settle = useCallback(() => {
-    setNodes((current) =>
-      current.map((n) => ({ ...n, data: { ...n.data, running: false, done: true } })),
-    );
-    setEdges((current) => current.map((e) => ({ ...e, data: { ...e.data, running: false } })));
-  }, [setNodes, setEdges]);
-
   const run = useCallback(() => {
-    const workflow = toWorkflow(nodes, edges);
+    const workflow = toWorkflow(nodes, edges, project?.id ?? "default");
+    resetRun();
     const observe = (next: RunStatus) => {
       setStatus(next);
-      if (next.state === "running") {
-        markRunning(next.nodeId);
-      } else if (next.state === "succeeded") {
-        settle();
+      projectRun(next);
+      if (next.state === "succeeded") {
         void refresh();
-      } else if (next.state === "failed") {
-        settle();
       }
     };
     setStatus({ state: "running", nodeId: workflow.nodes[0]?.id ?? "", progress: 0 });
     runHandle.current = api.runWorkflow(workflow, observe);
-  }, [nodes, edges, markRunning, settle, refresh]);
+  }, [nodes, edges, project, resetRun, projectRun, refresh]);
 
   const cancel = useCallback(() => runHandle.current?.cancel(), []);
 
+  const openProject = useCallback((id: string) => {
+    setProjectsOpen(false);
+    api.openProject(id).then((ws) => setProject(ws.project));
+  }, []);
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData("application/oh-node");
+      if (type) {
+        addNode(type, { x: e.clientX - 320, y: e.clientY - 90 });
+      }
+    },
+    [addNode],
+  );
+
   return (
     <div className="bench">
-      <TopBar status={status} onRun={run} onCancel={cancel} />
-      <div className="bench__body">
-        <NodePalette onAdd={addNode} />
-        <div className="bench__canvas">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={(_, node) => setSelectedId(node.id)}
-            onPaneClick={() => setSelectedId(null)}
-            defaultEdgeOptions={{ type: "workflow" }}
-            proOptions={{ hideAttribution: false }}
-            fitView
-          >
-            <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="transparent" />
-            <Controls />
-          </ReactFlow>
-        </div>
-        <InspectorPanel node={selected} onParamChange={setParam} />
+      <TopBar
+        project={project}
+        status={status}
+        onOpenProjects={() => setProjectsOpen((v) => !v)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onRun={run}
+        onCancel={cancel}
+      />
+      <ProjectSwitcher
+        current={project}
+        open={projectsOpen}
+        onClose={() => setProjectsOpen(false)}
+        onOpenProject={openProject}
+      />
+
+      <div className={`bench__body${tab === "assets" ? " bench__body--assets" : ""}`}>
+        <IconRail tab={tab} onSelect={setTab} />
+        {tab === "nodes" ? (
+          <NodeLibrary onAdd={(type) => addNode(type)} />
+        ) : (
+          <AssetLibrary
+            assets={assets}
+            error={assetError}
+            onAddToCanvas={() => setTab("nodes")}
+            onJumpToNode={() => setTab("nodes")}
+          />
+        )}
+
+        {tab === "nodes" && (
+          <>
+            <div className="bench__canvas" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={(_, node) => setSelectedId(node.id)}
+                onPaneClick={() => setSelectedId(null)}
+                defaultEdgeOptions={{ type: "workflow" }}
+                fitView
+              >
+                <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="transparent" />
+                <Controls showInteractive={false} />
+                <MiniMap pannable className="bench__minimap" />
+              </ReactFlow>
+            </div>
+            <InspectorPanel node={selected} onParamChange={setParam} />
+          </>
+        )}
       </div>
-      <AssetDrawer assets={assets} error={assetError} />
+
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

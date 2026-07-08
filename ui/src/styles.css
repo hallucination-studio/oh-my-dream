@@ -9,45 +9,87 @@ body,
 #root {
   margin: 0;
   height: 100%;
-  font-family: var(--font-body);
-  background: var(--void);
+  font-family: var(--font);
   color: var(--ink);
+  font-size: 13px;
+}
+
+body {
+  /* Ambient wallpaper the glass floats over. */
+  background:
+    radial-gradient(1200px 800px at 10% 4%, #ffe0cf 0%, transparent 52%),
+    radial-gradient(1100px 850px at 92% 16%, #cdd7ff 0%, transparent 52%),
+    radial-gradient(900px 900px at 74% 98%, #ddccff 0%, transparent 48%),
+    linear-gradient(140deg, #f5f1fb 0%, #edf2fb 100%);
+  background-attachment: fixed;
 }
 
 button {
-  font-family: var(--font-body);
+  font-family: var(--font);
   cursor: pointer;
   border: none;
   color: inherit;
   background: none;
 }
 
-/* ── App shell: top bar / [palette | canvas | inspector] / asset drawer ── */
+input {
+  font-family: var(--font);
+}
+
+/* App shell: top bar / [rail | side | canvas | inspector]. */
 .bench {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: 50px 1fr;
   height: 100vh;
-  background: var(--void);
+  padding: 9px;
+  gap: 9px;
 }
 
 .bench__body {
   display: grid;
-  grid-template-columns: 220px 1fr 280px;
+  grid-template-columns: 48px 258px 1fr 288px;
+  gap: 9px;
   min-height: 0;
+}
+
+/* Assets view: rail + full library + detail panel. */
+.bench__body--assets {
+  grid-template-columns: 48px 1fr 300px;
 }
 
 .bench__canvas {
   position: relative;
   min-width: 0;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--glass-line);
   background:
-    radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0) 0 0 / 22px 22px,
-    var(--void);
+    radial-gradient(circle at 1px 1px, rgba(27, 26, 43, 0.06) 1px, transparent 0) 0 0 / 24px 24px,
+    rgba(255, 255, 255, 0.26);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow);
 }
 
-/* Let the React Flow attribution blend into the dark ground. */
+/* React Flow overrides to fit the glass ground. */
 .react-flow__attribution {
   background: transparent;
 }
 .react-flow__attribution a {
   color: var(--ink-faint);
+}
+.react-flow__controls {
+  box-shadow: var(--shadow);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: var(--glass-hi);
+  border-bottom: 1px solid var(--hair);
+  color: var(--ink-2);
+}
+.react-flow__controls-button:hover {
+  background: #fff;
+}
+.react-flow__controls-button svg {
+  fill: var(--ink-2);
 }

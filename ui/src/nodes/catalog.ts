@@ -21,6 +21,7 @@ export interface ParamSpec {
 export interface NodeTypeSpec {
   type: string;
   label: string;
+  category: string;
   inputs: PortSpec[];
   outputs: PortSpec[];
   params: ParamSpec[];
@@ -31,6 +32,7 @@ export const NODE_TYPES: NodeTypeSpec[] = [
   {
     type: "TextPrompt",
     label: "Text Prompt",
+    category: "Input",
     inputs: [],
     outputs: [{ name: "text", type: "string" }],
     params: [{ name: "text", label: "Prompt", kind: "text", default: "" }],
@@ -38,6 +40,7 @@ export const NODE_TYPES: NodeTypeSpec[] = [
   {
     type: "TextToImage",
     label: "Text to Image",
+    category: "Image",
     inputs: [{ name: "prompt", type: "string" }],
     outputs: [{ name: "image", type: "image" }],
     params: [
@@ -49,6 +52,7 @@ export const NODE_TYPES: NodeTypeSpec[] = [
   {
     type: "ImageToVideo",
     label: "Image to Video",
+    category: "Video",
     inputs: [{ name: "image", type: "image" }],
     outputs: [{ name: "video", type: "video" }],
     params: [
@@ -60,6 +64,7 @@ export const NODE_TYPES: NodeTypeSpec[] = [
   {
     type: "TextToAudio",
     label: "Text to Audio",
+    category: "Audio",
     inputs: [{ name: "prompt", type: "string" }],
     outputs: [{ name: "audio", type: "audio" }],
     params: [
@@ -71,4 +76,18 @@ export const NODE_TYPES: NodeTypeSpec[] = [
 
 export function findNodeType(type: string): NodeTypeSpec | undefined {
   return NODE_TYPES.find((spec) => spec.type === type);
+}
+
+/** Node types grouped by category, preserving declaration order. */
+export function nodesByCategory(): { category: string; nodes: NodeTypeSpec[] }[] {
+  const groups: { category: string; nodes: NodeTypeSpec[] }[] = [];
+  for (const spec of NODE_TYPES) {
+    let group = groups.find((g) => g.category === spec.category);
+    if (!group) {
+      group = { category: spec.category, nodes: [] };
+      groups.push(group);
+    }
+    group.nodes.push(spec);
+  }
+  return groups;
 }

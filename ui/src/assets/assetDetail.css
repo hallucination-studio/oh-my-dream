@@ -1,0 +1,113 @@
+.adet {
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.adet__empty {
+  padding: 20px 16px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.adet__prev {
+  aspect-ratio: 1;
+  margin: 14px 14px 0;
+  border-radius: 12px;
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+.adet__prev--image { background: linear-gradient(135deg, #ffcb96, #e07f34); }
+.adet__prev--video { background: linear-gradient(135deg, #b6a3ff, #7150f5); }
+.adet__prev--audio { background: linear-gradient(135deg, #ffb0d6, #d94f92); }
+.adet__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.adet__glyph {
+  color: #fff;
+  font-size: 34px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.adet__body {
+  padding: 14px;
+  overflow-y: auto;
+  flex: 1;
+}
+.adet__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.adet__kind--image { color: var(--t-image); }
+.adet__kind--video { color: var(--t-video); }
+.adet__kind--audio { color: var(--t-audio); }
+.adet__prompt {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 10px 0 14px;
+}
+
+.adet__row {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 9px;
+  padding: 8px 0;
+  border-top: 1px solid var(--hair);
+  align-items: center;
+}
+.adet__k {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+.adet__v {
+  font-size: 12px;
+}
+.adet__v.is-mono {
+  font-family: var(--font-mono);
+}
+.adet__link {
+  color: var(--accent);
+  font-weight: 600;
+}
+.adet__link--btn {
+  background: none;
+  padding: 0;
+  font-size: 12px;
+}
+
+.adet__actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--hair);
+}
+.adet__btn {
+  flex: 1;
+  height: 34px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--hair);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink);
+}
+.adet__btn--pri {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hot));
+  color: #fff;
+  border: none;
+  box-shadow: 0 5px 14px rgba(99, 85, 230, 0.35);
+}

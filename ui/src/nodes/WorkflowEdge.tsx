@@ -1,6 +1,5 @@
 // Typed workflow edge: colored by the source port's data type, with a flowing
-// dash animation while the workflow is running so you can watch data move
-// between nodes. This is the visual payoff of the typed-wiring signature.
+// dash animation while the workflow is running.
 
 import { BaseEdge, getBezierPath, type EdgeProps } from "@xyflow/react";
 import "./edgeStyles.css";
@@ -22,8 +21,7 @@ export function WorkflowEdge(props: EdgeProps) {
     targetY,
     targetPosition,
   });
-
-  const color = data.color ?? "var(--line-strong)";
+  const color = data.color ?? "var(--ink-3)";
   return (
     <BaseEdge
       id={props.id}

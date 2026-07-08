@@ -1,23 +1,54 @@
-// A single asset tile: square media preview with the kind badge, hover to
-// reveal the created time. Mirrors ComfyUI's media card (rounded, aspect
-// square, hover affordances) in our own palette.
+// A single asset tile: media preview with kind badge and hover actions
+// (jump to source). Draggable onto the canvas.
 
 import type { Asset } from "../api/index.ts";
 import "./assetCard.css";
 
-export function AssetCard({ asset }: { asset: Asset }) {
+export function AssetCard({
+  asset,
+  selected,
+  onSelect,
+  onJump,
+}: {
+  asset: Asset;
+  selected: boolean;
+  onSelect: () => void;
+  onJump: () => void;
+}) {
   const src = asset.thumbnail_path ?? asset.file_path;
   return (
-    <figure className="asset-card" data-kind={asset.kind}>
-      <div className="asset-card__preview">
-        {src ? (
-          <img className="asset-card__img" src={src} alt={`${asset.kind} asset`} loading="lazy" />
+    <figure
+      className={`ac${selected ? " is-selected" : ""}`}
+      draggable
+      onClick={onSelect}
+      onDragStart={(e) => e.dataTransfer.setData("application/oh-asset", asset.id)}
+    >
+      <div className={`ac__prev ac__prev--${asset.kind}`}>
+        {src && asset.kind !== "audio" ? (
+          <img className="ac__img" src={src} alt={asset.kind} loading="lazy" />
         ) : (
-          <div className="asset-card__placeholder" />
+          <span className="ac__glyph">{asset.kind === "audio" ? "♪" : asset.kind}</span>
         )}
-        <span className={`asset-card__kind asset-card__kind--${asset.kind}`}>{asset.kind}</span>
+        <span className="ac__kind">{asset.kind}</span>
+        <div className="ac__ov">
+          <button
+            className="ac__act"
+            onClick={(e) => {
+              e.stopPropagation();
+              onJump();
+            }}
+            aria-label="Jump to source node"
+          >
+            ↗
+          </button>
+        </div>
       </div>
-      <figcaption className="asset-card__meta">{formatTime(asset.created_at)}</figcaption>
+      <figcaption className="ac__prompt">{asset.prompt ?? "Untitled"}</figcaption>
+      <div className="ac__meta">
+        <span className="ac__pj" />
+        {asset.project_name ?? "—"}
+        <span className="ac__dt">{formatTime(asset.created_at)}</span>
+      </div>
     </figure>
   );
 }

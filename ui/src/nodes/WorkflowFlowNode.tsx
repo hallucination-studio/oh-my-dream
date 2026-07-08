@@ -1,23 +1,30 @@
-// Custom workflow node: a titled card with type-colored port "gems" on each
-// side and an inline parameter list. The left accent bar and the port colors
-// come from the data types, making a patched graph legible at a glance.
+// Custom workflow node: a glass card with a type-colored accent, typed port
+// gems, an inline parameter grid, and — once run — a status pill, progress bar,
+// result preview, and a cost/time footer. Mirrors the states in docs/ui-pro.
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { findNodeType } from "./catalog.ts";
-import { typeColor } from "./typeColor.ts";
+import { typeColor, nodeAccent } from "./typeColor.ts";
+import type { NodeExecutionState } from "../workflow/types.ts";
 import "./nodeStyles.css";
+
+export interface NodeRuntime {
+  state: NodeExecutionState;
+  progress?: number;
+  cost?: number;
+  preview?: { kind: "image" | "video" | "audio"; url: string | null };
+  durationMs?: number;
+}
 
 export interface FlowNodeData {
   type: string;
   params: Record<string, unknown>;
-  running?: boolean;
-  done?: boolean;
+  runtime?: NodeRuntime;
   onParamChange: (name: string, value: unknown) => void;
   [key: string]: unknown;
 }
 
-const PORT_TOP = 46;
-const PORT_GAP = 26;
+const PORT_TOP = 64;
 
 export function WorkflowFlowNode({ data, selected }: NodeProps) {
   const nodeData = data as FlowNodeData;
@@ -26,66 +33,134 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
     return <div className="wf-node wf-node--error">Unknown node: {nodeData.type}</div>;
   }
 
-  const accent = typeColor(spec.outputs[0]?.type ?? spec.inputs[0]?.type);
-  const stateClass = nodeData.running ? " is-running" : nodeData.done ? " is-done" : "";
+  const accent = nodeAccent(spec.outputs, spec.inputs);
+  const rt = nodeData.runtime;
+  const state = rt?.state ?? "idle";
 
   return (
     <div
-      className={`wf-node${selected ? " is-selected" : ""}${stateClass}`}
-      style={{ ["--node-accent" as string]: accent }}
+      className={`wf-node is-${state}${selected ? " is-selected" : ""}`}
+      style={{ ["--accent" as string]: accent }}
     >
       <div className="wf-node__bar" />
-      <div className="wf-node__title">{spec.label}</div>
+      <div className="wf-node__title">
+        {spec.label}
+        <StatePill state={state} />
+      </div>
+
+      {state === "running" && (
+        <div className="wf-node__prog">
+          <i style={{ width: `${Math.round((rt?.progress ?? 0) * 100)}%` }} />
+        </div>
+      )}
+
+      {rt?.preview && <Preview preview={rt.preview} />}
+
+      {spec.params.length > 0 && (
+        <div className="wf-node__body">
+          {spec.params.map((param) => (
+            <Fragment key={param.name} label={param.label} numeric={param.kind === "int" || param.kind === "float"}>
+              <input
+                className={`wf-param__input${param.kind === "int" || param.kind === "float" ? " is-mono" : ""}`}
+                value={String(nodeData.params[param.name] ?? param.default)}
+                onChange={(e) => nodeData.onParamChange(param.name, e.target.value)}
+              />
+            </Fragment>
+          ))}
+        </div>
+      )}
+
+      {state !== "idle" && <Footer rt={rt} />}
 
       {spec.inputs.map((port, i) => (
-        <PortRow key={`in-${port.name}`} side="target" name={port.name} type={port.type} y={PORT_TOP + i * PORT_GAP} />
+        <Handle
+          key={`in-${port.name}`}
+          type="target"
+          position={Position.Left}
+          id={port.name}
+          className="wf-port"
+          style={{ top: PORT_TOP + i * 24, background: typeColor(port.type) }}
+        />
       ))}
       {spec.outputs.map((port, i) => (
-        <PortRow key={`out-${port.name}`} side="source" name={port.name} type={port.type} y={PORT_TOP + i * PORT_GAP} />
+        <Handle
+          key={`out-${port.name}`}
+          type="source"
+          position={Position.Right}
+          id={port.name}
+          className="wf-port"
+          style={{ top: PORT_TOP + i * 24, background: typeColor(port.type) }}
+        />
       ))}
-
-      <div className="wf-node__body">
-        {spec.params.map((param) => (
-          <label key={param.name} className="wf-param">
-            <span className="wf-param__label">{param.label}</span>
-            <input
-              className={`wf-param__input${param.kind === "int" || param.kind === "float" ? " is-mono" : ""}`}
-              value={String(nodeData.params[param.name] ?? param.default)}
-              onChange={(e) => nodeData.onParamChange(param.name, e.target.value)}
-            />
-          </label>
-        ))}
-        {spec.params.length === 0 && <p className="wf-node__hint">Terminal — saves to library</p>}
-      </div>
     </div>
   );
 }
 
-function PortRow({
-  side,
-  name,
-  type,
-  y,
-}: {
-  side: "source" | "target";
-  name: string;
-  type: import("../workflow/types.ts").PortType;
-  y: number;
-}) {
-  const isSource = side === "source";
-  const color = typeColor(type);
+function Fragment({ label, children }: { label: string; numeric: boolean; children: React.ReactNode }) {
   return (
-    <>
-      <Handle
-        type={side}
-        position={isSource ? Position.Right : Position.Left}
-        id={name}
-        className="wf-port"
-        style={{ top: y, background: color, boxShadow: `0 0 0 3px color-mix(in srgb, ${color} 25%, transparent)` }}
-      />
-      <span className={`wf-port__label wf-port__label--${side}`} style={{ top: y - 9 }}>
-        {name}
-      </span>
-    </>
+    <label className="wf-param">
+      <span className="wf-param__label">{label}</span>
+      {children}
+    </label>
   );
+}
+
+function StatePill({ state }: { state: NodeExecutionState }) {
+  const text: Record<NodeExecutionState, string> = {
+    idle: "Idle",
+    running: "Running",
+    done: "Done",
+    cached: "Cached",
+    error: "Error",
+  };
+  return (
+    <span className={`wf-pill wf-pill--${state}`}>
+      <span className="wf-pill__dot" />
+      {text[state]}
+    </span>
+  );
+}
+
+function Preview({ preview }: { preview: NonNullable<NodeRuntime["preview"]> }) {
+  if (preview.kind === "audio") {
+    return <div className="wf-preview wf-preview--audio">♪ audio</div>;
+  }
+  return (
+    <div className={`wf-preview wf-preview--${preview.kind}`}>
+      {preview.url ? (
+        <img className="wf-preview__img" src={preview.url} alt={preview.kind} />
+      ) : (
+        <span className="wf-preview__tag">{preview.kind}</span>
+      )}
+      {preview.kind === "video" && (
+        <span className="wf-preview__play" aria-hidden="true">
+          <span className="wf-preview__tri" />
+        </span>
+      )}
+    </div>
+  );
+}
+
+function Footer({ rt }: { rt?: NodeRuntime }) {
+  const cost = rt?.cost;
+  return (
+    <div className="wf-node__foot">
+      {typeof cost === "number" && (
+        <span className="wf-credit">
+          <span className="wf-credit__coin" />
+          {formatCost(cost, rt?.state === "cached")}
+        </span>
+      )}
+      {typeof rt?.durationMs === "number" && (
+        <span className="wf-node__time">{(rt.durationMs / 1000).toFixed(1)}s</span>
+      )}
+    </div>
+  );
+}
+
+function formatCost(microUsd: number, cached: boolean): string {
+  if (cached) {
+    return "0 · reused";
+  }
+  return `$${(microUsd / 1_000_000).toFixed(4)}`;
 }

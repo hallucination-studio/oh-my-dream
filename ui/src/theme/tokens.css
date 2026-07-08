@@ -1,49 +1,59 @@
 /*
- * Design tokens for oh-my-dream — a local creation bench.
+ * Design tokens — oh-my-dream, a local creation bench.
  *
- * Direction: a dark "studio" surface where generated media glows against a
- * deep blue-violet ground (not ComfyUI's flat engineer-grey). The one loud
- * idea is DATA-TYPED WIRING: every port and edge is colored by the data it
- * carries, so a workflow reads as instruments patched together.
+ * Direction: Apple-style liquid glass on a light, ambient-gradient ground.
+ * Frosted panels float over a soft wallpaper; generated media glows on them.
+ * The signature is DATA-TYPED WIRING — every port and edge is colored by the
+ * data it carries, so a workflow reads as instruments patched together.
  */
 
 :root {
-  /* Ground — deep blue-violet, not neutral black */
-  --void: #0b0b12;
-  --surface: #14141f;
-  --raised: #1d1d2b;
-  --raised-hover: #24243528;
-  --line: #2a2a3d;
-  --line-strong: #3a3a52;
-
   /* Ink */
-  --ink: #e8e6f0;
-  --ink-dim: #9a97b4;
-  --ink-faint: #61607a;
+  --ink: #1b1a2b;
+  --ink-2: #46435f;
+  --ink-3: #85839c;
+  --ink-faint: #b3b1c4;
 
-  /* Data-type channels — the signature palette. Ports/edges inherit these. */
-  --type-text: #7dd3c0; /* teal   — strings / prompts */
-  --type-image: #f5a97f; /* amber  — images */
-  --type-video: #a78bfa; /* violet — video */
-  --type-audio: #4ade80; /* green  — audio */
-  --type-model: #f0a3c8; /* pink   — model ids */
-  --type-number: #8fb8ff; /* blue   — int / float */
+  /* Glass surfaces */
+  --glass: rgba(255, 255, 255, 0.58);
+  --glass-2: rgba(255, 255, 255, 0.76);
+  --glass-hi: rgba(255, 255, 255, 0.92);
+  --glass-line: rgba(255, 255, 255, 0.8);
+  --hair: rgba(27, 26, 43, 0.08);
+  --hair-2: rgba(27, 26, 43, 0.13);
 
-  /* Accent — the Run action and focus rings */
-  --accent: #7c6cff;
-  --accent-hot: #9a8bff;
-  --danger: #ff6b8a;
-  --ok: #6fe3b0;
+  /* Accent + status */
+  --accent: #6355e6;
+  --accent-hot: #7566ff;
+  --ok: #10b088;
+  --warn: #e8a13c;
+  --err: #e5556f;
+
+  /* Data-type channels — tuned for light glass */
+  --t-text: #0eae9b;
+  --t-image: #e07f34;
+  --t-video: #7150f5;
+  --t-audio: #d94f92;
+  --t-model: #d24f8f;
+  --t-number: #3a76ff;
 
   /* Type */
-  --font-display: "Space Grotesk", system-ui, sans-serif;
-  --font-body: "Space Grotesk", system-ui, sans-serif;
+  --font: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* Scale */
-  --r-sm: 6px;
+  --r-sm: 7px;
   --r-md: 10px;
-  --r-lg: 16px;
-  --shadow-node: 0 6px 20px rgba(0, 0, 0, 0.45);
-  --shadow-panel: 0 2px 24px rgba(0, 0, 0, 0.5);
+  --r-lg: 14px;
+  --r-xl: 18px;
+  --shadow: 0 6px 22px rgba(30, 25, 64, 0.12);
+  --shadow-lg: 0 24px 70px rgba(30, 25, 64, 0.26);
+  --blur: saturate(160%) blur(22px);
+}
+
+.glass {
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-line);
 }

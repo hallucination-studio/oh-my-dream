@@ -1,0 +1,74 @@
+.psw {
+  position: absolute;
+  top: 50px;
+  left: 160px;
+  width: 240px;
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 25;
+  overflow: hidden;
+}
+.psw__head {
+  padding: 11px 14px 7px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+}
+.psw__list {
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px;
+  gap: 1px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.psw__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  text-align: left;
+}
+.psw__item:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+.psw__item.is-on {
+  color: var(--ink);
+  font-weight: 600;
+}
+.psw__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--t-video);
+}
+.psw__new {
+  display: flex;
+  gap: 7px;
+  padding: 9px;
+  border-top: 1px solid var(--hair);
+  margin-top: 6px;
+}
+.psw__new input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--hair);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 12px;
+  color: var(--ink);
+  outline: none;
+}
+.psw__add {
+  padding: 0 12px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
