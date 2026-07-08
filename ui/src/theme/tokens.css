@@ -1,0 +1,48 @@
+/*
+ * Design tokens for oh-my-dream — a local creation bench.
+ *
+ * Direction: a dark "studio" surface where generated media glows against a
+ * deep blue-violet ground (not ComfyUI's flat engineer-grey). The one loud
+ * idea is DATA-TYPED WIRING: every port and edge is colored by the data it
+ * carries, so a workflow reads as instruments patched together.
+ */
+
+:root {
+  /* Ground — deep blue-violet, not neutral black */
+  --void: #0b0b12;
+  --surface: #14141f;
+  --raised: #1d1d2b;
+  --raised-hover: #24243528;
+  --line: #2a2a3d;
+  --line-strong: #3a3a52;
+
+  /* Ink */
+  --ink: #e8e6f0;
+  --ink-dim: #9a97b4;
+  --ink-faint: #61607a;
+
+  /* Data-type channels — the signature palette. Ports/edges inherit these. */
+  --type-text: #7dd3c0; /* teal   — strings / prompts */
+  --type-image: #f5a97f; /* amber  — images */
+  --type-video: #a78bfa; /* violet — video */
+  --type-model: #f0a3c8; /* pink   — model ids */
+  --type-number: #8fb8ff; /* blue   — int / float */
+
+  /* Accent — the Run action and focus rings */
+  --accent: #7c6cff;
+  --accent-hot: #9a8bff;
+  --danger: #ff6b8a;
+  --ok: #6fe3b0;
+
+  /* Type */
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Scale */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --shadow-node: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-panel: 0 2px 24px rgba(0, 0, 0, 0.5);
+}

@@ -1,0 +1,19 @@
+/* Typed edges: 2px, type-colored, dash-flow while running. */
+
+.wf-edge {
+  stroke-width: 2;
+  fill: none;
+}
+
+.wf-edge.is-running {
+  stroke-width: 2.5;
+  stroke-dasharray: 7 5;
+  animation: wf-edge-flow 0.6s linear infinite;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+@keyframes wf-edge-flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}

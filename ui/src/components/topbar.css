@@ -1,0 +1,91 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.topbar__mark {
+  width: 14px;
+  height: 14px;
+  align-self: center;
+  border-radius: 4px;
+  background: conic-gradient(from 210deg, var(--type-text), var(--type-image), var(--type-video), var(--type-text));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.topbar__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+.topbar__doc {
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.topbar__state {
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+.topbar__state--run {
+  color: var(--accent-hot);
+}
+.topbar__state--ok {
+  color: var(--ok);
+}
+.topbar__state--err {
+  color: var(--danger);
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 16px;
+  border-radius: var(--r-sm);
+  font-weight: 600;
+  font-size: 13px;
+  transition: background 0.12s ease, transform 0.06s ease;
+}
+.topbar__btn:active {
+  transform: translateY(1px);
+}
+.topbar__btn--run {
+  background: var(--accent);
+  color: #fff;
+}
+.topbar__btn--run:hover {
+  background: var(--accent-hot);
+}
+.topbar__btn--cancel {
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+}
+.topbar__play {
+  width: 0;
+  height: 0;
+  border-left: 8px solid currentColor;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}

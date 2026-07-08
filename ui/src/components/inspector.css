@@ -1,0 +1,80 @@
+.inspector {
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  padding: 14px 14px;
+  overflow-y: auto;
+}
+
+.inspector__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+  color: var(--ink-faint);
+  font-size: 12px;
+  line-height: 1.6;
+  padding-top: 20px;
+}
+.inspector__empty-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  border: 1px dashed var(--line-strong);
+}
+
+.inspector__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.inspector__badge {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.inspector__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.inspector__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.inspector__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.inspector__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+.inspector__input {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+}
+.inspector__input:focus {
+  border-color: var(--accent);
+}
+.inspector__input.is-mono {
+  font-family: var(--font-mono);
+}
+
+.inspector__note {
+  font-size: 12px;
+  color: var(--ink-faint);
+}

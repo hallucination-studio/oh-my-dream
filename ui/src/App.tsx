@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   addEdge,
   Background,
+  BackgroundVariant,
   Controls,
   ReactFlow,
   useEdgesState,
@@ -10,30 +11,46 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
-import { NODE_TYPES } from "./nodes/catalog.ts";
+import { NODE_TYPES, findNodeType } from "./nodes/catalog.ts";
 import { WorkflowFlowNode, type FlowNodeData } from "./nodes/WorkflowFlowNode.tsx";
+import { WorkflowEdge } from "./nodes/WorkflowEdge.tsx";
+import { typeColor } from "./nodes/typeColor.ts";
 import { toWorkflow } from "./workflow/serialize.ts";
+import { isValidConnection } from "./workflow/validate.ts";
 import { api, type RunHandle } from "./api/index.ts";
 import type { RunStatus } from "./workflow/types.ts";
-import { isValidConnection } from "./workflow/validate.ts";
+import { TopBar } from "./components/TopBar.tsx";
+import { NodePalette } from "./components/NodePalette.tsx";
+import { InspectorPanel, type SelectedNode } from "./components/InspectorPanel.tsx";
+import { AssetDrawer } from "./assets/AssetDrawer.tsx";
+import { useAssets } from "./assets/useAssets.ts";
 
 let idCounter = 0;
 const nextId = () => `n${++idCounter}`;
+
+const nodeTypes = { workflow: WorkflowFlowNode };
+const edgeTypes = { workflow: WorkflowEdge };
 
 export function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [status, setStatus] = useState<RunStatus>({ state: "idle" });
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const runHandle = useRef<RunHandle | null>(null);
-
-  const nodeTypes = useMemo(() => ({ workflow: WorkflowFlowNode }), []);
+  const { assets, error: assetError, refresh } = useAssets();
 
   const setParam = useCallback(
     (nodeId: string, name: string, value: unknown) => {
       setNodes((current) =>
         current.map((node) =>
           node.id === nodeId
-            ? { ...node, data: { ...node.data, params: { ...(node.data as FlowNodeData).params, [name]: value } } }
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  params: { ...(node.data as FlowNodeData).params, [name]: value },
+                },
+              }
             : node,
         ),
       );
@@ -54,8 +71,12 @@ export function App() {
         {
           id,
           type: "workflow",
-          position: { x: 80 + current.length * 40, y: 80 + current.length * 30 },
-          data: { type, params, onParamChange: (n: string, v: unknown) => setParam(id, n, v) } as FlowNodeData,
+          position: { x: 120 + current.length * 60, y: 90 + current.length * 40 },
+          data: {
+            type,
+            params,
+            onParamChange: (n: string, v: unknown) => setParam(id, n, v),
+          } as FlowNodeData,
         },
       ]);
     },
@@ -68,61 +89,91 @@ export function App() {
         setStatus({ state: "failed", reason: "Incompatible port types — connection rejected" });
         return;
       }
-      setEdges((current) => addEdge(connection, current));
+      const source = nodes.find((n) => n.id === connection.source);
+      const spec = source ? findNodeType((source.data as FlowNodeData).type) : undefined;
+      const outType = spec?.outputs.find((p) => p.name === connection.sourceHandle)?.type;
+      setEdges((current) =>
+        addEdge(
+          { ...connection, type: "workflow", data: { color: typeColor(outType) } },
+          current,
+        ),
+      );
     },
     [nodes, setEdges],
   );
 
+  const selected: SelectedNode | null = useMemo(() => {
+    const node = nodes.find((n) => n.id === selectedId);
+    if (!node) {
+      return null;
+    }
+    const data = node.data as FlowNodeData;
+    return { id: node.id, type: data.type, params: data.params };
+  }, [nodes, selectedId]);
+
+  const markRunning = useCallback(
+    (nodeId: string) => {
+      setNodes((current) =>
+        current.map((n) => ({ ...n, data: { ...n.data, running: n.id === nodeId } })),
+      );
+      setEdges((current) => current.map((e) => ({ ...e, data: { ...e.data, running: true } })));
+    },
+    [setNodes, setEdges],
+  );
+
+  const settle = useCallback(() => {
+    setNodes((current) =>
+      current.map((n) => ({ ...n, data: { ...n.data, running: false, done: true } })),
+    );
+    setEdges((current) => current.map((e) => ({ ...e, data: { ...e.data, running: false } })));
+  }, [setNodes, setEdges]);
+
   const run = useCallback(() => {
     const workflow = toWorkflow(nodes, edges);
+    const observe = (next: RunStatus) => {
+      setStatus(next);
+      if (next.state === "running") {
+        markRunning(next.nodeId);
+      } else if (next.state === "succeeded") {
+        settle();
+        void refresh();
+      } else if (next.state === "failed") {
+        settle();
+      }
+    };
     setStatus({ state: "running", nodeId: workflow.nodes[0]?.id ?? "", progress: 0 });
-    runHandle.current = api.runWorkflow(workflow, setStatus);
-  }, [nodes, edges]);
+    runHandle.current = api.runWorkflow(workflow, observe);
+  }, [nodes, edges, markRunning, settle, refresh]);
 
   const cancel = useCallback(() => runHandle.current?.cancel(), []);
 
   return (
-    <div className="app">
-      <aside className="palette">
-        <h2>Nodes</h2>
-        {NODE_TYPES.map((spec) => (
-          <button key={spec.type} onClick={() => addNode(spec.type)}>
-            + {spec.label}
-          </button>
-        ))}
-        <div className="palette__run">
-          <button className="run" onClick={run}>Run</button>
-          <button onClick={cancel}>Cancel</button>
-          <StatusBar status={status} />
+    <div className="bench">
+      <TopBar status={status} onRun={run} onCancel={cancel} />
+      <div className="bench__body">
+        <NodePalette onAdd={addNode} />
+        <div className="bench__canvas">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={(_, node) => setSelectedId(node.id)}
+            onPaneClick={() => setSelectedId(null)}
+            defaultEdgeOptions={{ type: "workflow" }}
+            proOptions={{ hideAttribution: false }}
+            fitView
+          >
+            <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="transparent" />
+            <Controls />
+          </ReactFlow>
         </div>
-      </aside>
-      <div className="canvas">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          fitView
-        >
-          <Background />
-          <Controls />
-        </ReactFlow>
+        <InspectorPanel node={selected} onParamChange={setParam} />
       </div>
+      <AssetDrawer assets={assets} error={assetError} />
     </div>
   );
-}
-
-function StatusBar({ status }: { status: RunStatus }) {
-  switch (status.state) {
-    case "idle":
-      return <p className="status">Idle</p>;
-    case "running":
-      return <p className="status status--running">Running {status.nodeId}…</p>;
-    case "succeeded":
-      return <p className="status status--ok">Done — {Object.keys(status.outputs).length} outputs</p>;
-    case "failed":
-      return <p className="status status--err">{status.reason}</p>;
-  }
 }

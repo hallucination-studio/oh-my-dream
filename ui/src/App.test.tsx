@@ -3,22 +3,24 @@ import { describe, expect, it, vi } from "vitest";
 import { App } from "./App.tsx";
 
 describe("App", () => {
-  it("adds a node and runs it through the mock API", () => {
+  it("adds a node from the palette and runs it through the mock API", () => {
     vi.useFakeTimers();
-    const { container } = render(<App />);
+    render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "+ Text Prompt" }));
+    // The palette lists node types; add one, then run the workflow.
+    fireEvent.click(screen.getByRole("button", { name: /Text Prompt/ }));
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
 
-    expect(statusText(container)).toContain("Running n1");
+    expect(runState()).toContain("Running");
     act(() => {
       vi.runAllTimers();
     });
-    expect(statusText(container)).toContain("Done");
+    expect(runState()).toContain("Done");
     vi.useRealTimers();
   });
 });
 
-function statusText(container: HTMLElement): string {
-  return container.querySelector(".status")?.textContent ?? "";
+function runState(): string {
+  const bar = document.querySelector(".topbar__state");
+  return bar?.textContent ?? "";
 }
