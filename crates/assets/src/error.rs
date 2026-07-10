@@ -16,6 +16,16 @@ pub enum AssetError {
     /// Thumbnail generation failed for an asset.
     #[error("failed to generate thumbnail for asset `{id}`: {message}")]
     Thumbnail { id: String, message: String },
+
+    /// A failed operation was followed by a failed cleanup attempt.
+    #[error("{operation} failed: {source}; cleanup `{path}` also failed: {cleanup}")]
+    Cleanup {
+        operation: &'static str,
+        #[source]
+        source: Box<AssetError>,
+        path: std::path::PathBuf,
+        cleanup: std::io::Error,
+    },
 }
 
 /// Convenient result alias for asset operations.

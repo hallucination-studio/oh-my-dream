@@ -42,11 +42,14 @@ impl AssetStore {
 
     /// Inserts a new asset, copying the source file into the store.
     pub fn insert(&self, asset: NewAsset) -> Result<Asset> {
+        let project_name = self.project_name(asset.project_id.as_deref())?;
         let id = self.next_asset_id()?;
         let created_at = unix_timestamp(&id)?;
         let stored_path = self.copy_asset_file(&id, &asset.file_path)?;
         let thumbnail_path =
-            generate_thumbnail(&id, asset.kind, &stored_path, &self.thumbnails_dir)?;
+            generate_thumbnail(&id, asset.kind, &stored_path, &self.thumbnails_dir).map_err(
+                |source| cleanup_after_failure("generate thumbnail", &stored_path, source),
+            )?;
         let stored = Asset {
             id,
             kind: asset.kind,
@@ -55,7 +58,7 @@ impl AssetStore {
             workflow_snapshot: asset.workflow_snapshot,
             prompt: asset.prompt,
             project_id: asset.project_id,
-            project_name: asset.project_name,
+            project_name,
             source_node_id: asset.source_node_id,
             source_node_type: asset.source_node_type,
             model: asset.model,
@@ -64,7 +67,10 @@ impl AssetStore {
             tags: asset.tags,
             created_at,
         };
-        self.insert_metadata(&stored)?;
+        if let Err(source) = self.insert_metadata(&stored) {
+            let source = cleanup_after_failure("insert asset metadata", &stored_path, source);
+            return Err(cleanup_after_failure("insert asset metadata", &thumbnail_path, source));
+        }
         info!(asset_id = %stored.id, kind = kind_as_str(stored.kind), "asset stored");
         Ok(stored)
     }
@@ -227,16 +233,14 @@ impl AssetStore {
     }
 
     fn next_asset_id(&self) -> Result<String> {
-        let next: i64 = self
-            .connection
-            .query_row(
-                "SELECT COALESCE(MAX(CAST(SUBSTR(id, 7) AS INTEGER)), 0) + 1 \
-                 FROM assets WHERE id LIKE 'asset-%'",
-                [],
-                |row| row.get(0),
-            )
-            .map_err(|source| storage_error(format!("allocate next asset id: {source}")))?;
-        Ok(format!("asset-{next:016}"))
+        let mut bytes = [0_u8; 16];
+        getrandom::getrandom(&mut bytes)
+            .map_err(|source| storage_error(format!("generate asset id: {source}")))?;
+        Ok(format!("asset-{}", encode_hex(&bytes)))
+    }
+
+    fn project_name(&self, project_id: Option<&str>) -> Result<Option<String>> {
+        project_id.map(|id| self.get_project(id).map(|project| project.name)).transpose()
     }
 
     fn next_project_id(&self) -> Result<String> {
@@ -459,10 +463,10 @@ fn non_empty(value: Option<&str>) -> Option<&str> {
 
 fn order_clause(sort: AssetSort) -> &'static str {
     match sort {
-        AssetSort::Newest => " ORDER BY created_at DESC, id DESC",
-        AssetSort::Oldest => " ORDER BY created_at ASC, id ASC",
-        AssetSort::CostDesc => " ORDER BY cost DESC, created_at DESC, id DESC",
-        AssetSort::CostAsc => " ORDER BY cost IS NULL ASC, cost ASC, created_at DESC, id DESC",
+        AssetSort::Newest => " ORDER BY created_at DESC, rowid DESC",
+        AssetSort::Oldest => " ORDER BY created_at ASC, rowid ASC",
+        AssetSort::CostDesc => " ORDER BY cost DESC, created_at DESC, rowid DESC",
+        AssetSort::CostAsc => " ORDER BY cost IS NULL ASC, cost ASC, created_at DESC, rowid DESC",
     }
 }
 
@@ -521,4 +525,27 @@ fn path_to_string(path: &Path) -> String {
 
 fn storage_error(message: String) -> AssetError {
     AssetError::Storage { message }
+}
+
+fn cleanup_after_failure(operation: &'static str, path: &Path, source: AssetError) -> AssetError {
+    match fs::remove_file(path) {
+        Ok(()) => source,
+        Err(cleanup) if cleanup.kind() == std::io::ErrorKind::NotFound => source,
+        Err(cleanup) => AssetError::Cleanup {
+            operation,
+            source: Box::new(source),
+            path: path.to_path_buf(),
+            cleanup,
+        },
+    }
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(HEX[(byte >> 4) as usize] as char);
+        encoded.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    encoded
 }

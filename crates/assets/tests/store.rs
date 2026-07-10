@@ -9,6 +9,7 @@ use tempfile::TempDir;
 fn inserts_image_and_reads_it_back() {
     let temp = TempDir::new().expect("temp dir should be created");
     let store = AssetStore::open(temp.path()).expect("store should open");
+    store.create_project_with_id("project-1", "Launch").expect("project should be created");
     let image_path = write_test_image(temp.path().join("source.png"));
     let snapshot = json!({"workflow": "image", "seed": 42});
 
@@ -54,6 +55,8 @@ fn inserts_image_and_reads_it_back() {
 fn queries_assets_by_kind_project_model_prompt_and_sort() {
     let temp = TempDir::new().expect("temp dir should be created");
     let store = AssetStore::open(temp.path()).expect("store should open");
+    store.create_project_with_id("project-a", "A").expect("project A should be created");
+    store.create_project_with_id("project-b", "B").expect("project B should be created");
     let cheap = store
         .insert(NewAsset {
             kind: AssetKind::Image,
