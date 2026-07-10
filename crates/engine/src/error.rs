@@ -8,6 +8,14 @@ use thiserror::Error;
 /// Errors raised while building or executing a workflow graph.
 #[derive(Debug, Error)]
 pub enum EngineError {
+    /// The workflow uses a format version this engine does not understand.
+    #[error("unsupported workflow version `{version}`; expected `1.0`")]
+    UnsupportedWorkflowVersion { version: String },
+
+    /// Two workflow entries use the same node id.
+    #[error("duplicate node id `{node_id}`")]
+    DuplicateNodeId { node_id: String },
+
     /// A node referenced a type id that is not present in the registry.
     #[error("unknown node type `{type_id}` for node `{node_id}`")]
     UnknownNodeType { node_id: String, type_id: String },
@@ -21,6 +29,10 @@ pub enum EngineError {
         "node `{node_id}` input `{input}` references unknown output `{output}` on node `{source_node}`"
     )]
     UnknownSourceOutput { node_id: String, input: String, source_node: String, output: String },
+
+    /// A wire targets an input the destination node does not declare.
+    #[error("node `{node_id}` wiring targets undeclared input `{input}`")]
+    UnknownTargetInput { node_id: String, input: String },
 
     /// A wire connected two ports whose types do not match.
     #[error(
@@ -39,6 +51,36 @@ pub enum EngineError {
     /// A required input on a node was left unconnected and has no default.
     #[error("node `{node_id}` is missing required input `{input}`")]
     MissingRequiredInput { node_id: String, input: String },
+
+    /// A declared input default has a different runtime type from its port.
+    #[error(
+        "node `{node_id}` default for input `{input}` expected {input_type:?} but was {default_type:?}"
+    )]
+    DefaultTypeMismatch {
+        node_id: String,
+        input: String,
+        input_type: crate::port::PortType,
+        default_type: crate::port::PortType,
+    },
+
+    /// A node did not return one of its declared outputs.
+    #[error("node `{node_id}` missing declared output `{output}`")]
+    MissingNodeOutput { node_id: String, output: String },
+
+    /// A node returned an output it did not declare.
+    #[error("node `{node_id}` produced undeclared output `{output}`")]
+    UnexpectedNodeOutput { node_id: String, output: String },
+
+    /// A node returned a value whose runtime type differs from its output port.
+    #[error(
+        "node `{node_id}` output `{output}` expected {output_type:?} but produced {actual_type:?}"
+    )]
+    OutputTypeMismatch {
+        node_id: String,
+        output: String,
+        output_type: crate::port::PortType,
+        actual_type: crate::port::PortType,
+    },
 
     /// The graph contains a cycle and cannot be ordered for execution.
     #[error("workflow graph contains a cycle involving node `{node_id}`")]

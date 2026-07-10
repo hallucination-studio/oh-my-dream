@@ -13,6 +13,7 @@ pub mod graph;
 pub mod node;
 pub mod port;
 pub mod registry;
+mod validation;
 pub mod value;
 
 pub use error::{EngineError, Result};

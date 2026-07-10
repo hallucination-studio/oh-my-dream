@@ -1,9 +1,10 @@
 //! Workflow executor and deterministic result cache.
 
 use crate::error::{EngineError, Result};
-use crate::graph::{OutputRef, Workflow, WorkflowNode};
-use crate::node::{Node, NodeRunContext, NodeRunResult};
+use crate::graph::Workflow;
+use crate::node::{NodeRunContext, NodeRunResult};
 use crate::registry::NodeRegistry;
+use crate::validation::{ExecutionPlan, PlanNode, build_plan, validate_node_outputs};
 use crate::value::{Value, ValueMap};
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{Hash, Hasher};
@@ -79,7 +80,7 @@ impl<'r> Executor<'r> {
         cache: &mut ResultCache,
         observer: &mut impl FnMut(&NodeProgressEvent),
     ) -> Result<RunOutputs> {
-        let plan = self.build_plan(workflow)?;
+        let plan = build_plan(self.registry, workflow)?;
         let order = topological_order(&plan)?;
         let mut outputs = RunOutputs::new();
         let workflow_snapshot =
@@ -88,89 +89,91 @@ impl<'r> Executor<'r> {
             })?;
 
         for index in order {
-            let node = &plan.nodes[index];
-            let inputs = resolve_inputs(node, &outputs)?;
-            let fingerprint =
-                cache_fingerprint(&workflow.project_id, &node.type_id, &node.params, &inputs);
-
-            if let Some(cached) = cache.get(&node.id, fingerprint) {
-                info!(
-                    node_id = %node.id,
-                    type_id = %node.type_id,
-                    "reusing cached node outputs"
-                );
-                observer(&NodeProgressEvent {
-                    node_id: node.id.clone(),
-                    state: NodeExecutionState::Cached,
-                    progress: Some(1.0),
-                    cost: cached.cost,
-                });
-                outputs.insert(node.id.clone(), cached.outputs);
-                continue;
-            }
-
-            observer(&NodeProgressEvent {
-                node_id: node.id.clone(),
-                state: NodeExecutionState::Running,
-                progress: Some(0.0),
-                cost: None,
-            });
-            info!(node_id = %node.id, type_id = %node.type_id, "executing node");
-            let result = {
-                let mut context = NodeRunContext::new(
-                    &node.id,
-                    &workflow.project_id,
-                    &workflow_snapshot,
-                    observer,
-                );
-                match node.node.run(&inputs, &mut context) {
-                    Ok(result) => result,
-                    Err(source) => {
-                        observer(&NodeProgressEvent {
-                            node_id: node.id.clone(),
-                            state: NodeExecutionState::Error,
-                            progress: None,
-                            cost: None,
-                        });
-                        return Err(EngineError::from((
-                            node.id.as_str(),
-                            node.type_id.as_str(),
-                            source,
-                        )));
-                    }
-                }
-            };
-            info!(node_id = %node.id, type_id = %node.type_id, "node execution completed");
-            cache.insert(node.id.clone(), fingerprint, result.clone());
-            observer(&NodeProgressEvent {
-                node_id: node.id.clone(),
-                state: NodeExecutionState::Done,
-                progress: Some(1.0),
-                cost: result.cost,
-            });
-            outputs.insert(node.id.clone(), result.outputs);
+            execute_plan_node(
+                &plan.nodes[index],
+                &workflow.project_id,
+                &workflow_snapshot,
+                cache,
+                &mut outputs,
+                observer,
+            )?;
         }
 
         Ok(outputs)
     }
+}
 
-    fn build_plan(&self, workflow: &Workflow) -> Result<ExecutionPlan> {
-        let mut nodes = Vec::with_capacity(workflow.nodes.len());
-        for workflow_node in &workflow.nodes {
-            nodes.push(PlanNode::from_workflow_node(
-                workflow_node,
-                self.registry.instantiate(
-                    &workflow_node.id,
-                    &workflow_node.type_id,
-                    &workflow_node.params,
-                )?,
-            ));
-        }
-
-        let node_indexes = node_indexes(&nodes);
-        validate_wiring(&nodes, &node_indexes)?;
-        Ok(ExecutionPlan { nodes })
+fn execute_plan_node(
+    node: &PlanNode,
+    project_id: &str,
+    workflow_snapshot: &serde_json::Value,
+    cache: &mut ResultCache,
+    outputs: &mut RunOutputs,
+    observer: &mut dyn FnMut(&NodeProgressEvent),
+) -> Result<()> {
+    let inputs = resolve_inputs(node, outputs)?;
+    let fingerprint = cache_fingerprint(project_id, &node.type_id, &node.params, &inputs);
+    if reuse_cached_output(node, fingerprint, cache, outputs, observer) {
+        return Ok(());
     }
+
+    emit_node_event(observer, node, NodeExecutionState::Running, Some(0.0), None);
+    info!(node_id = %node.id, type_id = %node.type_id, "executing node");
+    let result = run_plan_node(node, project_id, workflow_snapshot, &inputs, observer)?;
+    info!(node_id = %node.id, type_id = %node.type_id, "node execution completed");
+    cache.insert(node.id.clone(), fingerprint, result.clone());
+    emit_node_event(observer, node, NodeExecutionState::Done, Some(1.0), result.cost);
+    outputs.insert(node.id.clone(), result.outputs);
+    Ok(())
+}
+
+fn reuse_cached_output(
+    node: &PlanNode,
+    fingerprint: u64,
+    cache: &ResultCache,
+    outputs: &mut RunOutputs,
+    observer: &mut dyn FnMut(&NodeProgressEvent),
+) -> bool {
+    let Some(cached) = cache.get(&node.id, fingerprint) else {
+        return false;
+    };
+    info!(node_id = %node.id, type_id = %node.type_id, "reusing cached node outputs");
+    emit_node_event(observer, node, NodeExecutionState::Cached, Some(1.0), cached.cost);
+    outputs.insert(node.id.clone(), cached.outputs);
+    true
+}
+
+fn run_plan_node(
+    node: &PlanNode,
+    project_id: &str,
+    workflow_snapshot: &serde_json::Value,
+    inputs: &ValueMap,
+    observer: &mut dyn FnMut(&NodeProgressEvent),
+) -> Result<NodeRunResult> {
+    let run_result = {
+        let mut context = NodeRunContext::new(&node.id, project_id, workflow_snapshot, observer);
+        node.node.run(inputs, &mut context)
+    };
+    let result = run_result
+        .map_err(|source| EngineError::from((node.id.as_str(), node.type_id.as_str(), source)))
+        .and_then(|result| {
+            validate_node_outputs(node, &result.outputs)?;
+            Ok(result)
+        });
+    if result.is_err() {
+        emit_node_event(observer, node, NodeExecutionState::Error, None, None);
+    }
+    result
+}
+
+fn emit_node_event(
+    observer: &mut dyn FnMut(&NodeProgressEvent),
+    node: &PlanNode,
+    state: NodeExecutionState,
+    progress: Option<f32>,
+    cost: Option<i64>,
+) {
+    observer(&NodeProgressEvent { node_id: node.id.clone(), state, progress, cost });
 }
 
 #[derive(Clone)]
@@ -190,92 +193,6 @@ impl ResultCache {
     fn insert(&mut self, node_id: String, fingerprint: u64, result: NodeRunResult) {
         self.entries.insert(node_id, CacheEntry { fingerprint, result });
     }
-}
-
-struct ExecutionPlan {
-    nodes: Vec<PlanNode>,
-}
-
-struct PlanNode {
-    id: String,
-    type_id: String,
-    params: crate::registry::NodeParams,
-    inputs: BTreeMap<String, OutputRef>,
-    node: Box<dyn Node>,
-}
-
-impl PlanNode {
-    fn from_workflow_node(workflow_node: &WorkflowNode, node: Box<dyn Node>) -> Self {
-        Self {
-            id: workflow_node.id.clone(),
-            type_id: workflow_node.type_id.clone(),
-            params: workflow_node.params.clone(),
-            inputs: workflow_node.inputs.clone(),
-            node,
-        }
-    }
-}
-
-fn node_indexes(nodes: &[PlanNode]) -> BTreeMap<String, usize> {
-    nodes.iter().enumerate().map(|(index, node)| (node.id.clone(), index)).collect()
-}
-
-fn validate_wiring(nodes: &[PlanNode], node_indexes: &BTreeMap<String, usize>) -> Result<()> {
-    for node in nodes {
-        for input in node.node.inputs() {
-            if input.required && input.default.is_none() && !node.inputs.contains_key(&input.name) {
-                return Err(EngineError::MissingRequiredInput {
-                    node_id: node.id.clone(),
-                    input: input.name.clone(),
-                });
-            }
-        }
-
-        for (input_name, source) in &node.inputs {
-            let source_index = node_indexes.get(source.node_id()).ok_or_else(|| {
-                EngineError::UnknownSourceNode {
-                    node_id: node.id.clone(),
-                    input: input_name.clone(),
-                    source_node: source.node_id().to_owned(),
-                }
-            })?;
-            validate_source_output(nodes, node, input_name, source, *source_index)?;
-        }
-    }
-    Ok(())
-}
-
-fn validate_source_output(
-    nodes: &[PlanNode],
-    node: &PlanNode,
-    input_name: &str,
-    source: &OutputRef,
-    source_index: usize,
-) -> Result<()> {
-    let source_node = &nodes[source_index];
-    let source_output = source_node.node.output_port(source.output_name()).ok_or_else(|| {
-        EngineError::UnknownSourceOutput {
-            node_id: node.id.clone(),
-            input: input_name.to_owned(),
-            source_node: source.node_id().to_owned(),
-            output: source.output_name().to_owned(),
-        }
-    })?;
-
-    if let Some(input_port) = node.node.input_port(input_name)
-        && !source_output.port_type.is_compatible_with(input_port.port_type)
-    {
-        return Err(EngineError::TypeMismatch {
-            node_id: node.id.clone(),
-            input: input_name.to_owned(),
-            input_type: input_port.port_type,
-            source_node: source.node_id().to_owned(),
-            output: source.output_name().to_owned(),
-            source_type: source_output.port_type,
-        });
-    }
-
-    Ok(())
 }
 
 fn topological_order(plan: &ExecutionPlan) -> Result<Vec<usize>> {
