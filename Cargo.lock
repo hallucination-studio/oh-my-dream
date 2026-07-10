@@ -1944,9 +1944,7 @@ name = "nodes"
 version = "0.1.0"
 dependencies = [
  "assets",
- "backends",
  "engine",
- "pollster",
  "serde",
  "serde_json",
  "tempfile",
@@ -2205,6 +2203,7 @@ dependencies = [
  "engine",
  "getrandom 0.2.17",
  "nodes",
+ "pollster",
  "serde",
  "serde_json",
  "tauri",

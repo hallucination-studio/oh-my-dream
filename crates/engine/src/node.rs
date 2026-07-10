@@ -3,8 +3,8 @@
 //! A node mirrors ComfyUI's INPUT_TYPES / RETURN_TYPES / FUNCTION idea in
 //! idiomatic Rust: it declares typed input and output ports and exposes a
 //! synchronous execution method. Execution here is deliberately synchronous —
-//! the engine is pure logic, and any async cloud work lives behind the
-//! `backends` crate, reached by concrete node implementations in `nodes`.
+//! the engine is pure logic, and concrete node implementations consume
+//! synchronous capability contracts whose adapters own any async cloud work.
 
 use crate::error::EngineError;
 use crate::executor::{NodeExecutionState, NodeProgressEvent};

@@ -1,29 +1,34 @@
 //! oh-my-dream concrete nodes.
 //!
 //! These are the real workflow nodes for the first milestone. They implement
-//! the `engine::Node` trait and, where they generate media, call into a
-//! `backends::InferenceBackend` (a mock in the first milestone).
+//! the `engine::Node` trait and consume modality-scoped generation contracts
+//! owned by this crate.
 //!
 //! Wave 2 (Track E) implements the node bodies and a `register_all` that
 //! populates an `engine::NodeRegistry`. This crate depends on `engine`,
-//! `backends`, and `assets`, which are built first.
+//! `assets`, which are built first.
 
 #![forbid(unsafe_code)]
 
 mod error;
+mod generation;
 mod image_to_video;
 mod media;
 mod params;
-mod polling;
 mod ports;
 mod text_prompt;
 mod text_to_audio;
 mod text_to_image;
 
 use assets::AssetStore;
-use backends::InferenceBackend;
 use engine::NodeRegistry;
 use std::sync::{Arc, Mutex};
+
+pub use generation::{
+    GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGenerator,
+    ImageToVideoRequest, InlineMedia, MediaFormat, MediaKind, TextToAudioGenerator,
+    TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+};
 
 /// Shared asset store used by node instances.
 ///
@@ -35,11 +40,13 @@ pub type SharedAssetStore = Arc<Mutex<AssetStore>>;
 /// Registers all first-milestone node factories into `registry`.
 pub fn register_all(
     registry: &mut NodeRegistry,
-    backend: Arc<dyn InferenceBackend>,
+    text_to_image_generator: Arc<dyn TextToImageGenerator>,
+    image_to_video_generator: Arc<dyn ImageToVideoGenerator>,
+    text_to_audio_generator: Arc<dyn TextToAudioGenerator>,
     store: SharedAssetStore,
 ) {
     text_prompt::register(registry);
-    text_to_image::register(registry, Arc::clone(&backend), Arc::clone(&store));
-    image_to_video::register(registry, Arc::clone(&backend), Arc::clone(&store));
-    text_to_audio::register(registry, backend, store);
+    text_to_image::register(registry, text_to_image_generator, Arc::clone(&store));
+    image_to_video::register(registry, image_to_video_generator, Arc::clone(&store));
+    text_to_audio::register(registry, text_to_audio_generator, store);
 }

@@ -1,11 +1,9 @@
-use crate::SharedAssetStore;
 use crate::error::{NodesError, boxed};
 use crate::media::{AssetMetadata, store_generated_asset};
 use crate::params::{optional_param, string_param, text_input};
-use crate::polling::wait_for_success;
 use crate::ports::{output, required_input};
+use crate::{SharedAssetStore, TextToAudioGenerator, TextToAudioRequest};
 use assets::AssetKind;
-use backends::{InferenceBackend, TextToAudioRequest};
 use engine::{
     InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
     OutputPort, PortType, Value, ValueMap,
@@ -18,13 +16,13 @@ const TYPE_ID: &str = "TextToAudio";
 
 pub(crate) fn register(
     registry: &mut NodeRegistry,
-    backend: Arc<dyn InferenceBackend>,
+    generator: Arc<dyn TextToAudioGenerator>,
     store: SharedAssetStore,
 ) {
     registry.register(
         TYPE_ID,
         Box::new(move |params| {
-            TextToAudioNode::from_params(params, Arc::clone(&backend), Arc::clone(&store))
+            TextToAudioNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))
                 .map(boxed_node)
                 .map_err(boxed)
         }),
@@ -32,7 +30,7 @@ pub(crate) fn register(
 }
 
 struct TextToAudioNode {
-    backend: Arc<dyn InferenceBackend>,
+    generator: Arc<dyn TextToAudioGenerator>,
     store: SharedAssetStore,
     model: String,
     seed: Option<u64>,
@@ -43,11 +41,11 @@ struct TextToAudioNode {
 impl TextToAudioNode {
     fn from_params(
         params: &NodeParams,
-        backend: Arc<dyn InferenceBackend>,
+        generator: Arc<dyn TextToAudioGenerator>,
         store: SharedAssetStore,
     ) -> Result<Self, NodesError> {
         Ok(Self {
-            backend,
+            generator,
             store,
             model: string_param(params, &["model"], "mock-audio")?,
             seed: optional_param(params, &["seed"])?,
@@ -80,22 +78,22 @@ impl Node for TextToAudioNode {
         context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;
-        info!(type_id = TYPE_ID, backend = self.backend.name(), "submitting text-to-audio task");
-        let handle = pollster::block_on(self.backend.text_to_audio(self.request(prompt))).map_err(
-            |source| boxed(NodesError::Backend { operation: "submit text-to-audio task", source }),
-        )?;
-        let output = wait_for_success(&self.backend, &handle, context).map_err(boxed)?;
+        info!(type_id = TYPE_ID, "generating audio from text");
+        let output = {
+            let mut on_progress = |progress| context.progress(progress);
+            self.generator.generate(self.request(prompt), &mut on_progress)
+        }
+        .map_err(|source| boxed(NodesError::Generation { operation: "generate audio", source }))?;
         let asset = store_generated_asset(
             &self.store,
             AssetKind::Audio,
-            &output.reference,
+            &output,
             TYPE_ID,
             context,
             AssetMetadata {
                 prompt: Some(prompt.to_owned()),
                 model: Some(self.model.clone()),
                 seed: self.seed,
-                cost: output.cost,
             },
         )
         .map_err(boxed)?;

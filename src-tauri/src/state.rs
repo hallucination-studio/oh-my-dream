@@ -1,7 +1,8 @@
 use crate::dto::AssistantSessionDto;
+use crate::mock_generation::MockGenerationAdapter;
 use anyhow::{Context, Result};
 use assets::AssetStore;
-use backends::{InferenceBackend, MockBackend};
+use backends::MockBackend;
 use engine::NodeRegistry;
 use nodes::SharedAssetStore;
 use std::path::{Path, PathBuf};
@@ -101,8 +102,11 @@ impl AppState {
             Arc::new(Mutex::new(AssetStore::open(root.as_path()).context("open asset store")?));
         seed_default_project(&store)?;
         let mut registry = NodeRegistry::new();
-        let registry_backend: Arc<dyn InferenceBackend> = backend.clone();
-        nodes::register_all(&mut registry, registry_backend, Arc::clone(&store));
+        let adapter = Arc::new(MockGenerationAdapter::new(Arc::clone(&backend)));
+        let image: Arc<dyn nodes::TextToImageGenerator> = adapter.clone();
+        let video: Arc<dyn nodes::ImageToVideoGenerator> = adapter.clone();
+        let audio: Arc<dyn nodes::TextToAudioGenerator> = adapter;
+        nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store));
         Ok(Self {
             root,
             config_root,

@@ -5,6 +5,7 @@ pub mod assistant_capabilities;
 pub mod assistant_sidecar;
 pub mod commands;
 pub mod dto;
+mod mock_generation;
 pub mod state;
 
 use commands::{

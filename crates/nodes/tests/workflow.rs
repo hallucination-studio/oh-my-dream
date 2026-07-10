@@ -1,11 +1,17 @@
 use assets::{AssetKind, AssetStore};
-use backends::{InferenceBackend, MockBackend};
 use engine::{
     EngineError, Executor, NodeParams, NodeRegistry, OutputRef, ResultCache, Value, Workflow,
     WorkflowNode,
 };
+use nodes::{
+    GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGenerator,
+    ImageToVideoRequest, InlineMedia, TextToAudioGenerator, TextToAudioRequest,
+    TextToImageGenerator, TextToImageRequest,
+};
 use serde_json::json;
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
 
@@ -14,9 +20,12 @@ fn executes_full_generation_workflow_and_persists_video_asset() {
     let temp_dir = TempDir::new().expect("temp dir should be created");
     let store = shared_store(temp_dir.path());
     store.lock().expect("store lock should succeed").create_project("Default").expect("project");
-    let backend: Arc<dyn InferenceBackend> = Arc::new(MockBackend::new());
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, backend, Arc::clone(&store));
+    register_test_generators(
+        &mut registry,
+        Arc::new(TestGenerators::succeeds()),
+        Arc::clone(&store),
+    );
     let workflow = full_workflow();
 
     let outputs = Executor::new(&registry)
@@ -48,6 +57,15 @@ fn executes_full_generation_workflow_and_persists_video_asset() {
         .get(&saved_assets[0].id)
         .expect("asset should be retrievable");
     assert_eq!(stored.source_node_id, Some("video".to_owned()));
+    assert_eq!(
+        Path::new(&stored.file_path).extension().and_then(|value| value.to_str()),
+        Some("video-data")
+    );
+    assert!(
+        fs::read(&stored.file_path)
+            .expect("stored mock video artifact")
+            .starts_with(b"OH_MY_DREAM_MOCK_VIDEO_V1\n")
+    );
 }
 
 #[test]
@@ -55,9 +73,12 @@ fn executes_text_to_audio_and_persists_audio_asset() {
     let temp_dir = TempDir::new().expect("temp dir should be created");
     let store = shared_store(temp_dir.path());
     store.lock().expect("store lock should succeed").create_project("Default").expect("project");
-    let backend: Arc<dyn InferenceBackend> = Arc::new(MockBackend::new());
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, backend, Arc::clone(&store));
+    register_test_generators(
+        &mut registry,
+        Arc::new(TestGenerators::succeeds()),
+        Arc::clone(&store),
+    );
 
     let outputs = Executor::new(&registry)
         .execute(&audio_workflow(), &mut ResultCache::new())
@@ -76,15 +97,17 @@ fn executes_text_to_audio_and_persists_audio_asset() {
     assert_eq!(saved_assets[0].source_node_type.as_deref(), Some("TextToAudio"));
     assert_eq!(saved_assets[0].prompt.as_deref(), Some("rain on glass"));
     assert_eq!(saved_assets[0].cost, Some(125));
+    let audio = fs::read(&saved_assets[0].file_path).expect("stored WAV fixture");
+    assert_eq!(&audio[0..4], b"RIFF");
+    assert_eq!(&audio[8..12], b"WAVE");
 }
 
 #[test]
 fn save_asset_node_is_not_registered() {
     let temp_dir = TempDir::new().expect("temp dir should be created");
     let store = shared_store(temp_dir.path());
-    let backend: Arc<dyn InferenceBackend> = Arc::new(MockBackend::new());
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, backend, store);
+    register_test_generators(&mut registry, Arc::new(TestGenerators::succeeds()), store);
 
     let error = Executor::new(&registry)
         .execute(&workflow_with_save_asset(), &mut ResultCache::new())
@@ -94,16 +117,19 @@ fn save_asset_node_is_not_registered() {
 }
 
 #[test]
-fn failed_backend_task_surfaces_as_execution_error() {
+fn failed_generation_task_surfaces_as_execution_error() {
     let temp_dir = TempDir::new().expect("temp dir should be created");
     let store = shared_store(temp_dir.path());
-    let backend: Arc<dyn InferenceBackend> = Arc::new(MockBackend::always_fails("provider failed"));
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, backend, store);
+    register_test_generators(
+        &mut registry,
+        Arc::new(TestGenerators::fails("provider failed")),
+        store,
+    );
 
     let error = Executor::new(&registry)
         .execute(&image_workflow(), &mut ResultCache::new())
-        .expect_err("backend failure should fail workflow execution");
+        .expect_err("generation failure should fail workflow execution");
 
     assert!(matches!(
         error,
@@ -217,4 +243,97 @@ fn params(value: serde_json::Value) -> NodeParams {
         serde_json::Value::Object(params) => params,
         _ => NodeParams::new(),
     }
+}
+
+fn register_test_generators(
+    registry: &mut NodeRegistry,
+    generators: Arc<TestGenerators>,
+    store: nodes::SharedAssetStore,
+) {
+    let image: Arc<dyn TextToImageGenerator> = generators.clone();
+    let video: Arc<dyn ImageToVideoGenerator> = generators.clone();
+    let audio: Arc<dyn TextToAudioGenerator> = generators;
+    nodes::register_all(registry, image, video, audio, store);
+}
+
+struct TestGenerators {
+    failure_reason: Option<String>,
+}
+
+impl TestGenerators {
+    fn succeeds() -> Self {
+        Self { failure_reason: None }
+    }
+
+    fn fails(reason: &str) -> Self {
+        Self { failure_reason: Some(reason.to_owned()) }
+    }
+
+    fn result(&self, media: InlineMedia, cost: i64) -> Result<GeneratedOutput, GenerationError> {
+        if let Some(reason) = &self.failure_reason {
+            return Err(GenerationError::TaskFailed { reason: reason.clone() });
+        }
+        Ok(GeneratedOutput { artifact: GeneratedArtifact::InlineMedia(media), cost: Some(cost) })
+    }
+}
+
+impl TextToImageGenerator for TestGenerators {
+    fn generate(
+        &self,
+        _request: TextToImageRequest,
+        on_progress: &mut dyn FnMut(f32),
+    ) -> Result<GeneratedOutput, GenerationError> {
+        on_progress(0.25);
+        on_progress(0.75);
+        self.result(InlineMedia::png(MOCK_IMAGE_PNG.to_vec()), 250)
+    }
+}
+
+impl ImageToVideoGenerator for TestGenerators {
+    fn generate(
+        &self,
+        request: ImageToVideoRequest,
+        on_progress: &mut dyn FnMut(f32),
+    ) -> Result<GeneratedOutput, GenerationError> {
+        assert!(Path::new(&request.image).is_file(), "source image must resolve to a local asset");
+        on_progress(0.25);
+        on_progress(0.75);
+        self.result(InlineMedia::opaque_video(b"OH_MY_DREAM_MOCK_VIDEO_V1\n".to_vec()), 900)
+    }
+}
+
+impl TextToAudioGenerator for TestGenerators {
+    fn generate(
+        &self,
+        _request: TextToAudioRequest,
+        on_progress: &mut dyn FnMut(f32),
+    ) -> Result<GeneratedOutput, GenerationError> {
+        on_progress(0.25);
+        on_progress(0.75);
+        self.result(InlineMedia::wav(silent_pcm_wave()), 125)
+    }
+}
+
+const MOCK_IMAGE_PNG: &[u8] = &[
+    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0,
+    0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 240, 31, 0,
+    5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+];
+
+fn silent_pcm_wave() -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(46);
+    bytes.extend_from_slice(b"RIFF");
+    bytes.extend_from_slice(&38_u32.to_le_bytes());
+    bytes.extend_from_slice(b"WAVEfmt ");
+    bytes.extend_from_slice(&16_u32.to_le_bytes());
+    bytes.extend_from_slice(&1_u16.to_le_bytes());
+    bytes.extend_from_slice(&1_u16.to_le_bytes());
+    bytes.extend_from_slice(&8_000_u32.to_le_bytes());
+    bytes.extend_from_slice(&16_000_u32.to_le_bytes());
+    bytes.extend_from_slice(&2_u16.to_le_bytes());
+    bytes.extend_from_slice(&16_u16.to_le_bytes());
+    bytes.extend_from_slice(b"data");
+    bytes.extend_from_slice(&2_u32.to_le_bytes());
+    bytes.extend_from_slice(&[0, 0]);
+    bytes
 }

@@ -1,13 +1,9 @@
-use crate::SharedAssetStore;
 use crate::error::{NodesError, boxed};
-use crate::media::{
-    AssetMetadata, prompt_from_asset, resolve_media_reference, store_generated_asset,
-};
+use crate::media::{AssetMetadata, ResolvedImageInput, resolve_image_input, store_generated_asset};
 use crate::params::{image_input, optional_param, string_param};
-use crate::polling::wait_for_success;
 use crate::ports::{output, required_input};
+use crate::{ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore};
 use assets::AssetKind;
-use backends::{ImageToVideoRequest, InferenceBackend};
 use engine::{
     InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
     OutputPort, PortType, Value, ValueMap,
@@ -20,13 +16,13 @@ const TYPE_ID: &str = "ImageToVideo";
 
 pub(crate) fn register(
     registry: &mut NodeRegistry,
-    backend: Arc<dyn InferenceBackend>,
+    generator: Arc<dyn ImageToVideoGenerator>,
     store: SharedAssetStore,
 ) {
     registry.register(
         TYPE_ID,
         Box::new(move |params| {
-            ImageToVideoNode::from_params(params, Arc::clone(&backend), Arc::clone(&store))
+            ImageToVideoNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))
                 .map(boxed_node)
                 .map_err(boxed)
         }),
@@ -34,7 +30,7 @@ pub(crate) fn register(
 }
 
 struct ImageToVideoNode {
-    backend: Arc<dyn InferenceBackend>,
+    generator: Arc<dyn ImageToVideoGenerator>,
     store: SharedAssetStore,
     model: String,
     duration_seconds: Option<f32>,
@@ -46,11 +42,11 @@ struct ImageToVideoNode {
 impl ImageToVideoNode {
     fn from_params(
         params: &NodeParams,
-        backend: Arc<dyn InferenceBackend>,
+        generator: Arc<dyn ImageToVideoGenerator>,
         store: SharedAssetStore,
     ) -> Result<Self, NodesError> {
         Ok(Self {
-            backend,
+            generator,
             store,
             model: string_param(params, &["model"], "mock-video")?,
             duration_seconds: optional_param(params, &["duration", "duration_seconds"])?,
@@ -60,10 +56,10 @@ impl ImageToVideoNode {
         })
     }
 
-    fn request(&self, image: &str) -> ImageToVideoRequest {
+    fn request(&self, image: String) -> ImageToVideoRequest {
         ImageToVideoRequest {
             model: self.model.clone(),
-            image: image.to_owned(),
+            image,
             duration_seconds: self.duration_seconds,
             fps: self.fps,
         }
@@ -89,26 +85,21 @@ impl Node for ImageToVideoNode {
         context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         let image = image_input(inputs, "image").map_err(boxed)?;
-        let prompt = prompt_from_asset(&self.store, image).map_err(boxed)?;
-        let image = resolve_media_reference(&self.store, image).map_err(boxed)?;
-        info!(type_id = TYPE_ID, backend = self.backend.name(), "submitting image-to-video task");
-        let handle = pollster::block_on(self.backend.image_to_video(self.request(&image)))
-            .map_err(|source| {
-                boxed(NodesError::Backend { operation: "submit image-to-video task", source })
-            })?;
-        let output = wait_for_success(&self.backend, &handle, context).map_err(boxed)?;
+        let ResolvedImageInput { file_path, prompt } =
+            resolve_image_input(&self.store, image).map_err(boxed)?;
+        info!(type_id = TYPE_ID, "generating video from image");
+        let output = {
+            let mut on_progress = |progress| context.progress(progress);
+            self.generator.generate(self.request(file_path), &mut on_progress)
+        }
+        .map_err(|source| boxed(NodesError::Generation { operation: "generate video", source }))?;
         let asset = store_generated_asset(
             &self.store,
             AssetKind::Video,
-            &output.reference,
+            &output,
             TYPE_ID,
             context,
-            AssetMetadata {
-                prompt,
-                model: Some(self.model.clone()),
-                seed: None,
-                cost: output.cost,
-            },
+            AssetMetadata { prompt, model: Some(self.model.clone()), seed: None },
         )
         .map_err(boxed)?;
         Ok(NodeRunResult {
