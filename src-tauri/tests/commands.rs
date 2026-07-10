@@ -89,6 +89,12 @@ fn workflow_commands_reject_unknown_project_ids() {
 fn list_assets_command_applies_filters_and_search() {
     let root = tempdir().expect("create temp asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
+    state
+        .store
+        .lock()
+        .expect("store lock")
+        .create_project_with_id("project-a", "A")
+        .expect("project should be created");
     let image_path = root.path().join("source.png");
     write_png(&image_path);
     state
