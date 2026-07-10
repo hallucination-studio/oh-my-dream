@@ -2,7 +2,64 @@
 
 ## Project Structure & Module Organization
 
-`oh-my-dream` is a Rust workspace for a local desktop AI creation client. Keep workflow logic in `crates/engine`; it must remain pure logic and must not depend on UI, network, filesystem, or specific vendors. Planned crates follow `docs/DESIGN.md`: `crates/nodes`, `crates/backends`, `crates/assets`, plus future `src-tauri/` and `ui/`. The root `Cargo.toml` owns workspace metadata and shared dependency versions. Do not commit `target/`, `data/`, local config, or generated runtime artifacts.
+`oh-my-dream` is a Rust workspace for a local desktop AI creation client. Keep workflow logic in `crates/engine`; it must remain pure logic and must not depend on UI, network, filesystem, or specific vendors. Workspace modules follow `docs/DESIGN.md`: `crates/nodes`, `crates/backends`, `crates/assets`, `src-tauri/`, and `ui/`. The root `Cargo.toml` owns workspace metadata and shared dependency versions. Do not commit `target/`, `data/`, local config, or generated runtime artifacts.
+
+## Architecture and Dependency Rules
+
+> **Core principle:** Business code depends on stable abstractions, and concrete adapters depend inward on interfaces owned by the business code that consumes them. Each business concept has one authoritative source of semantics; every other form is only a boundary representation.
+
+In this section, an interface means a Rust trait or an equivalent explicit protocol in another repository language.
+
+1. **Organize code by business capability.** Group modules by the business reason they change, not by horizontal technical roles such as `controller`, `service`, or `store`. Technology-specific adapters and entry points belong at system boundaries.
+
+2. **Give each concept one semantic owner.** Status predicates, legal state transitions, invariants, and business validation must be implemented exactly once by the authoritative domain type or domain service. Persistence rows, API DTOs, and view models may represent the same data but must not reimplement those rules. Boundary-shape validation is allowed, but it must not become a second source of business semantics.
+
+3. **Define a trait for every real substitution boundary.** A trait is required when multiple implementations already exist, multiple implementations are explicitly planned, the dependency crosses an external boundary such as a database, third-party API, filesystem, process, or clock, or tests require a fake or fault-injection implementation. A vague possibility of replacement is not enough.
+
+4. **The consumer owns the trait.** Define the trait in the business or application capability that consumes it. PostgreSQL, JSON, cloud-provider, and other adapters depend inward on that trait and implement it. Never define a provider-shaped contract that forces business code to adapt to a concrete technology.
+
+5. **Domain and application code depend on boundary traits, not concrete adapters.** For every dependency that meets the substitution criteria above, use generic trait bounds or trait objects as appropriate:
+
+   ```rust
+   pub struct ManagedRunService<R: ManagedRunRepository> {
+       repository: R,
+   }
+   ```
+
+   Do not name `PostgresManagedRunStore` or any other concrete adapter in a domain or application constructor, field, or function signature.
+
+6. **Select concrete adapters only in the composition root.** Concrete types and their trait implementations live in adapter modules, but their construction, selection, and wiring belong only in an application entry point or a dedicated composition or dependency-injection module. Business code must not downcast concrete types, inspect implementation names, or branch on adapter-specific configuration or capability flags.
+
+7. **Make all implementations behaviorally equivalent.** Matching method signatures is insufficient. Every implementation of a trait must preserve the same return values, error types, idempotency, concurrency semantics, transaction boundaries, ordering, and pagination rules. Run the same parameterized contract test suite against every implementation.
+
+8. **Keep traits small and capability-scoped.** Prefer focused traits such as `ManagedRunRepository`, `DispatchRepository`, and `InstallationRepository`. Do not grow a global `Store`, `Database`, or `Repository` trait with unrelated methods.
+
+9. **Do not disguise unsupported behavior as an optional trait method.** An implementation must not satisfy a trait with `todo!()`, `unimplemented!()`, a panic, an `Unsupported` error, or a probe such as `supports_leases`. If some implementations cannot provide an operation, split that capability into a separate, semantically complete trait.
+
+10. **Separate domain, persistence, API, and UI models.** Each representation has one responsibility:
+
+    | Representation | Responsibility |
+    | --- | --- |
+    | Domain model | Business meaning and invariants |
+    | Persistence row | Storage format |
+    | API DTO | Boundary protocol |
+    | View model | Presentation needs |
+
+    Convert between them at boundaries through explicit, named translators such as `AssetDto::from_domain` or `TryFrom<AssetRow> for Asset`. Never pass or serialize a persistence row directly into an API response or UI model.
+
+11. **Centralize state transitions.** All state changes go through the owning aggregate or a dedicated transition service. Repositories persist transitions that have already been validated; they must not expose arbitrary status setters to callers.
+
+12. **Use structured types instead of magic strings.** Represent business concepts with enums, structs, newtypes, or tagged unions such as `BlockReason`, `GateOutcome`, and `RuntimeWait`. Never infer business state from string prefixes, human-readable error text, or implicit combinations of fields. Strings may carry ordinary domain text, but they must not stand in for structured business concepts.
+
+13. **Persist state inside the transaction and perform side effects after it.** When a use case couples durable state with external effects, atomically persist the aggregate state, revision, domain events, outbox entries, and idempotency record. Execute provider calls, notifications, reports, and other external effects after commit by consuming the outbox.
+
+14. **Do not abstract speculatively.** Pure functions, value objects, and stable internal implementations with no replacement requirement may remain concrete. Introduce a trait only for a real substitution boundary described above, not because replacement might someday be useful.
+
+15. **Classify duplication before removing it.** Similar code may be the authoritative domain definition, a legitimate boundary DTO, a legitimate projection, a separate adapter implementation, or an accidental duplicate or legacy implementation. Only the last category should be merged or deleted solely because it is duplicated.
+
+16. **Keep field semantics local to the authoritative model.** Define the business meaning of a new field exactly once in its owning domain model. Persistence, API, and UI changes should be mechanical translations and must not independently reinterpret that meaning.
+
+17. **Protect dependency direction with automation.** Static architecture or import-boundary tests must reject domain or application code importing a concrete adapter, one capability accessing another capability's private implementation, cyclic module or crate dependencies, and concrete adapter selection outside the composition root.
 
 ## Build, Test, and Development Commands
 
@@ -28,7 +85,7 @@ The suite is layered — know which layer a change touches so you update the rig
 **When you MUST update tests (do this in the same change, never defer):**
 
 - **Change a Tauri command signature or a DTO** (`RunWorkflowResultDto`, `AssetDto`, or the nested run-output shape) → regenerate the fixtures via `contract.rs` and update `contract.test.ts` and the affected frontend types. A DTO change with stale fixtures is a broken contract.
-- **Add or change a node type, port, or the `Workflow` JSON schema** → update the engine/nodes tests and the frontend `serialize`/`validate` tests that mirror them.
+- **Add or change a node type, port, or the `Workflow` JSON schema** → update the authoritative engine/nodes tests plus frontend serialization and contract-conformance tests. Frontend UX preflight must consume or be mechanically derived from the engine-owned contract; it must not independently reimplement port compatibility or workflow business rules.
 - **Add a new Tauri command** → add a backend test exercising it and, if the frontend calls it, a `WorkflowApi` test.
 - **Change error/cancellation/cache behavior** → extend the backend E2E cases that assert propagation, cancellation, and cache reuse.
 - **Fix a bug** → add a regression test that fails before the fix and passes after.
