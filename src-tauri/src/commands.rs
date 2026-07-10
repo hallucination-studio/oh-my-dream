@@ -325,8 +325,8 @@ impl Default for ProviderConfig {
     }
 }
 
-fn provider_catalog() -> [(&'static str, &'static str); 3] {
-    [("mock", "Mock"), ("fal", "fal.ai"), ("replicate", "Replicate")]
+fn provider_catalog() -> [(&'static str, &'static str); 1] {
+    [("mock", "Mock")]
 }
 
 fn ensure_provider(provider_id: &str) -> Result<(), String> {

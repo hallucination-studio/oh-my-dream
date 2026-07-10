@@ -133,29 +133,25 @@ fn list_assets_command_applies_filters_and_search() {
 }
 
 #[test]
-fn provider_config_commands_persist_without_returning_keys() {
+fn unavailable_providers_cannot_be_selected_or_configured() {
     let root = tempdir().expect("create temp asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
 
-    set_active_provider_with_state("replicate".to_owned(), &state).expect("set active provider");
-    set_provider_key_with_state("replicate".to_owned(), "secret-token".to_owned(), &state)
-        .expect("set provider key");
+    let selection_error = set_active_provider_with_state("replicate".to_owned(), &state)
+        .expect_err("unavailable provider should not be selected");
+    let key_error =
+        set_provider_key_with_state("replicate".to_owned(), "secret-token".to_owned(), &state)
+            .expect_err("unavailable provider should not accept credentials");
 
     let providers = get_providers_with_state(&state).expect("get providers");
-    let replicate = providers.iter().find(|provider| provider.id == "replicate").expect("provider");
     let config_path = state.config_root.join("provider_config.json");
-    let config = fs::read_to_string(&config_path).expect("config file");
 
-    assert!(replicate.active);
-    assert!(replicate.has_key);
-    assert!(
-        !serde_json::to_value(replicate)
-            .expect("provider serializes")
-            .to_string()
-            .contains("secret-token")
-    );
-    assert!(config.contains("secret-token"));
-    assert!(!config_path.starts_with(&state.root));
+    assert!(selection_error.contains("unknown provider `replicate`"));
+    assert!(key_error.contains("unknown provider `replicate`"));
+    assert_eq!(providers.len(), 1);
+    assert_eq!(providers[0].id, "mock");
+    assert!(providers[0].active);
+    assert!(!config_path.exists());
 }
 
 #[test]
