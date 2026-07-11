@@ -1,0 +1,12 @@
+{
+  "status": "succeeded",
+  "run_id": "run-01",
+  "outputs": {
+    "image": {
+      "image": {
+        "kind": "image",
+        "value": "asset-01"
+      }
+    }
+  }
+}

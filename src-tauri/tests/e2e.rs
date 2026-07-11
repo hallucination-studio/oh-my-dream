@@ -56,14 +56,10 @@ fn reuses_result_cache_without_resubmitting_backend_tasks() {
     let root = tempdir().expect("create temp asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
     state.store.lock().expect("lock store").create_project("Default").expect("project");
-    let workflow = parsed_enriched_workflow();
-    let mut cache = ResultCache::new();
-    let executor = Executor::new(&state.registry);
-
-    executor.execute(&workflow, &mut cache).expect("first run should complete");
+    run_workflow_with_state(WORKFLOW_JSON.to_owned(), &state).expect("first run should complete");
     assert_eq!(state.backend.submitted_task_count(), 2);
 
-    executor.execute(&workflow, &mut cache).expect("second run should complete");
+    run_workflow_with_state(WORKFLOW_JSON.to_owned(), &state).expect("second run should complete");
 
     assert_eq!(state.backend.submitted_task_count(), 2);
     let assets = state.store.lock().expect("lock store").list(None).expect("list assets");
@@ -131,10 +127,6 @@ fn stored_asset_can_be_read_back_with_original_workflow_snapshot() {
         stored.workflow_snapshot,
         serde_json::to_value(&workflow).expect("serialize submitted workflow")
     );
-}
-
-fn parsed_enriched_workflow() -> Workflow {
-    serde_json::from_str(WORKFLOW_JSON).expect("parse workflow json")
 }
 
 const TYPE_MISMATCH_WORKFLOW_JSON: &str = r#"{

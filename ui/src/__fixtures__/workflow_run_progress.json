@@ -1,0 +1,10 @@
+{
+  "event": "progress",
+  "run_id": "run-01",
+  "node": {
+    "node_id": "image",
+    "state": "running",
+    "progress": 0.25,
+    "cost": null
+  }
+}

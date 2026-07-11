@@ -1,5 +1,6 @@
 use crate::dto::AssistantSessionDto;
 use crate::mock_generation::MockGenerationAdapter;
+use crate::workflow_runs::WorkflowRuns;
 use anyhow::{Context, Result};
 use assets::AssetStore;
 use backends::MockBackend;
@@ -21,7 +22,9 @@ pub struct AppState {
     /// Local asset store.
     pub store: SharedAssetStore,
     /// Registry populated with all concrete workflow nodes.
-    pub registry: NodeRegistry,
+    pub registry: Arc<NodeRegistry>,
+    /// App-lifetime workflow run coordinator and project result caches.
+    pub workflow_runs: Arc<WorkflowRuns>,
     /// Local assistant sidecar session for this app lifetime.
     pub assistant_session: Mutex<Option<AssistantSessionDto>>,
     /// Running assistant sidecar process in app builds.
@@ -107,12 +110,15 @@ impl AppState {
         let video: Arc<dyn nodes::ImageToVideoGenerator> = adapter.clone();
         let audio: Arc<dyn nodes::TextToAudioGenerator> = adapter;
         nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store));
+        let registry = Arc::new(registry);
+        let workflow_runs = Arc::new(WorkflowRuns::new(Arc::clone(&registry)));
         Ok(Self {
             root,
             config_root,
             backend,
             store,
             registry,
+            workflow_runs,
             assistant_session: Mutex::new(None),
             assistant_process: Mutex::new(None),
             assistant_sidecar_enabled,

@@ -1,15 +1,13 @@
-use crate::dto::{
-    AssetDto, NodeProgressEventDto, ProjectDto, ProjectWorkspaceDto, ProviderDto,
-    RunWorkflowResultDto,
-};
+use crate::command_error::command_error;
+use crate::dto::{AssetDto, ProjectDto, ProjectWorkspaceDto, ProviderDto};
 use crate::state::AppState;
 use assets::{AssetKind, AssetQuery, AssetSort};
-use engine::{Executor, NodeProgressEvent, ResultCache, Workflow};
+use engine::Workflow;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
-use tauri::{Emitter, State};
-use tracing::{error, info};
+use tauri::State;
+use tracing::info;
 
 pub use crate::assistant::{
     get_assistant_config, get_assistant_config_with_state, get_assistant_session,
@@ -18,49 +16,10 @@ pub use crate::assistant::{
     set_assistant_config, set_assistant_config_with_state, set_skill_enabled,
     set_skill_enabled_with_state, uninstall_skill, uninstall_skill_with_state,
 };
-
-/// Runs a workflow JSON payload to completion and returns final node outputs.
-#[tauri::command(rename_all = "snake_case")]
-pub fn run_workflow(
-    workflow_json: String,
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-) -> Result<RunWorkflowResultDto, String> {
-    run_workflow_with_state_and_observer(workflow_json, &state, &mut |event| {
-        if let Err(source) = app.emit("node_progress", NodeProgressEventDto::from(event.clone())) {
-            error!(error = %source, "failed to emit node_progress event");
-        }
-    })
-}
-
-/// Runs a workflow through the command path against an explicit app state.
-pub fn run_workflow_with_state(
-    workflow_json: String,
-    state: &AppState,
-) -> Result<RunWorkflowResultDto, String> {
-    run_workflow_with_state_and_observer(workflow_json, state, &mut |_event| {})
-}
-
-/// Runs a workflow through the command path with a testable observer hook.
-pub fn run_workflow_with_state_and_observer(
-    workflow_json: String,
-    state: &AppState,
-    observer: &mut impl FnMut(&NodeProgressEvent),
-) -> Result<RunWorkflowResultDto, String> {
-    info!("run_workflow command received");
-    let workflow = serde_json::from_str::<Workflow>(&workflow_json)
-        .map_err(|source| command_error("deserialize workflow", source))?;
-    if workflow.project_id.is_empty() {
-        return Err(command_error("validate workflow", "workflow project_id is empty"));
-    }
-    ensure_project_exists(state, &workflow.project_id)?;
-    let mut cache = ResultCache::new();
-    let outputs = Executor::new(&state.registry)
-        .execute_with_observer(&workflow, &mut cache, observer)
-        .map_err(|source| command_error("run workflow", source))?;
-    info!(node_count = outputs.len(), "run_workflow command completed");
-    Ok(RunWorkflowResultDto::from_outputs(&outputs))
-}
+pub use crate::workflow_run_commands::{
+    cancel_workflow_run, cancel_workflow_run_with_state, run_workflow, run_workflow_with_state,
+    run_workflow_with_state_and_observer, start_workflow_run, start_workflow_run_with_state,
+};
 
 /// Lists assets using optional library filters.
 #[tauri::command(rename_all = "snake_case")]
@@ -355,9 +314,4 @@ fn write_provider_config(state: &AppState, config: &ProviderConfig) -> Result<()
 
 fn provider_config_path(state: &AppState) -> std::path::PathBuf {
     state.config_root.join("provider_config.json")
-}
-
-fn command_error(operation: &str, error: impl std::fmt::Display) -> String {
-    error!(operation, error = %error, "tauri command failed");
-    format!("{operation}: {error}")
 }

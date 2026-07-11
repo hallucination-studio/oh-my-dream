@@ -4,7 +4,12 @@
 // change in `selectApi`. Method shapes mirror the src-tauri commands:
 // run_workflow / list_assets / get_asset / assets_root.
 
-import type { RunStatus, Workflow } from "../workflow/types.ts";
+import type {
+  NodeProgressEvent,
+  RunOutputs,
+  RunStatus,
+  Workflow,
+} from "../workflow/types.ts";
 
 export type AssetKind = "image" | "video" | "audio";
 export type AssetSort = "newest" | "oldest" | "cost_desc" | "cost_asc";
@@ -111,6 +116,19 @@ export interface ListAssetsOptions {
   prompt?: string;
   sort?: AssetSort;
 }
+
+export type WorkflowRunEvent =
+  | { event: "started"; run_id: string; project_id: string }
+  | { event: "progress"; run_id: string; node: NodeProgressEvent };
+
+export type WorkflowRunResult =
+  | { status: "succeeded"; run_id: string; outputs: RunOutputs }
+  | { status: "cancelled"; run_id: string }
+  | { status: "failed"; run_id: string; reason: string };
+
+export type CancelWorkflowRunResult =
+  | { status: "requested"; run_id: string }
+  | { status: "not_active"; run_id: string };
 
 /** A handle allowing the caller to cancel an in-flight run. */
 export interface RunHandle {

@@ -7,7 +7,7 @@ use std::error::Error;
 use std::fmt;
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
 };
 use thiserror::Error;
 use tracing::error;
@@ -37,6 +37,10 @@ impl RunId {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    fn legacy(sequence: u64) -> Self {
+        Self(format!("legacy:{sequence}"))
     }
 }
 
@@ -125,6 +129,7 @@ pub struct WorkflowRuns {
     registry: Arc<NodeRegistry>,
     active: Mutex<ActiveRuns>,
     caches: Mutex<HashMap<String, Arc<Mutex<ResultCache>>>>,
+    legacy_sequence: AtomicU64,
 }
 
 impl WorkflowRuns {
@@ -135,6 +140,7 @@ impl WorkflowRuns {
             registry,
             active: Mutex::new(ActiveRuns::default()),
             caches: Mutex::new(HashMap::new()),
+            legacy_sequence: AtomicU64::new(0),
         }
     }
 
@@ -200,6 +206,18 @@ impl WorkflowRuns {
         };
         run.cancellation.request();
         Ok(CancellationRequest::Requested)
+    }
+
+    pub(crate) fn run_legacy(
+        self: &Arc<Self>,
+        workflow: Workflow,
+        sink: &mut dyn WorkflowRunEventSink,
+    ) -> Result<WorkflowRunOutcome, WorkflowRunsError> {
+        let sequence = self
+            .legacy_sequence
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| value.checked_add(1))
+            .map_err(|_| WorkflowRunsError::GenerationExhausted)?;
+        self.run(RunId::legacy(sequence), workflow, sink)
     }
 
     fn register(
