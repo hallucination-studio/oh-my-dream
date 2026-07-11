@@ -16,6 +16,9 @@ export function toWorkflow(nodes: Node[], edges: Edge[], projectId = "default"):
       for (const edge of edges) {
         // An edge into this node maps target handle -> [source node, source handle].
         if (edge.target === node.id && edge.targetHandle && edge.sourceHandle) {
+          if (Object.hasOwn(inputs, edge.targetHandle)) {
+            throw new Error(`multiple edges target \`${node.id}.${edge.targetHandle}\``);
+          }
           inputs[edge.targetHandle] = [edge.source, edge.sourceHandle];
         }
       }

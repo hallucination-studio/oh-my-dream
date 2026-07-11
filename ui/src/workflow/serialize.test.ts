@@ -45,6 +45,22 @@ describe("toWorkflow", () => {
       ],
     });
   });
+
+  it("rejects multiple edges targeting the same input", () => {
+    const nodes: Node[] = [
+      flowNode("prompt-a", "TextPrompt", { text: "first" }, [0, 0]),
+      flowNode("prompt-b", "TextPrompt", { text: "second" }, [0, 100]),
+      flowNode("image", "TextToImage", {}, [200, 0]),
+    ];
+    const edges: Edge[] = [
+      edge("a-to-image", "prompt-a", "text", "image", "prompt"),
+      edge("b-to-image", "prompt-b", "text", "image", "prompt"),
+    ];
+
+    expect(() => toWorkflow(nodes, edges)).toThrow(
+      "multiple edges target `image.prompt`",
+    );
+  });
 });
 
 function flowNode(

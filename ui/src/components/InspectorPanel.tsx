@@ -2,6 +2,7 @@
 // a note that generated media auto-saves to the library.
 
 import { findNodeType } from "../nodes/catalog.ts";
+import { ParameterInput } from "../nodes/ParameterInput.tsx";
 import { nodeAccent } from "../nodes/typeColor.ts";
 import "./inspector.css";
 
@@ -52,10 +53,11 @@ export function InspectorPanel({
             {spec.params.map((param) => (
               <label key={param.name} className="insp__field">
                 <span className="insp__label">{param.label}</span>
-                <input
+                <ParameterInput
+                  spec={param}
                   className={`insp__input${param.kind === "int" || param.kind === "float" ? " is-mono" : ""}`}
-                  value={String(node.params[param.name] ?? param.default)}
-                  onChange={(e) => onParamChange(node.id, param.name, e.target.value)}
+                  value={node.params[param.name] ?? param.default}
+                  onChange={(value) => onParamChange(node.id, param.name, value)}
                 />
               </label>
             ))}

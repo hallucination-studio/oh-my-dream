@@ -4,6 +4,7 @@
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { findNodeType } from "./catalog.ts";
+import { ParameterInput } from "./ParameterInput.tsx";
 import { typeColor, nodeAccent } from "./typeColor.ts";
 import type { NodeExecutionState } from "../workflow/types.ts";
 import "./nodeStyles.css";
@@ -59,11 +60,12 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
       {spec.params.length > 0 && (
         <div className="wf-node__body">
           {spec.params.map((param) => (
-            <Fragment key={param.name} label={param.label} numeric={param.kind === "int" || param.kind === "float"}>
-              <input
+            <Fragment key={param.name} label={param.label}>
+              <ParameterInput
+                spec={param}
                 className={`wf-param__input${param.kind === "int" || param.kind === "float" ? " is-mono" : ""}`}
-                value={String(nodeData.params[param.name] ?? param.default)}
-                onChange={(e) => nodeData.onParamChange(param.name, e.target.value)}
+                value={nodeData.params[param.name] ?? param.default}
+                onChange={(value) => nodeData.onParamChange(param.name, value)}
               />
             </Fragment>
           ))}
@@ -96,7 +98,7 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
   );
 }
 
-function Fragment({ label, children }: { label: string; numeric: boolean; children: React.ReactNode }) {
+function Fragment({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="wf-param">
       <span className="wf-param__label">{label}</span>
