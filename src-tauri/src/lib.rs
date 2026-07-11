@@ -7,6 +7,7 @@ pub mod commands;
 pub mod dto;
 mod mock_generation;
 pub mod state;
+pub mod workflow_runs;
 
 use commands::{
     assets_root, create_project, get_asset, get_assistant_config, get_assistant_session,
