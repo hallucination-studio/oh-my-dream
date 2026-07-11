@@ -7,6 +7,7 @@
 
 #![forbid(unsafe_code)]
 
+mod cache;
 pub mod error;
 pub mod executor;
 pub mod graph;
@@ -16,9 +17,10 @@ pub mod registry;
 mod validation;
 pub mod value;
 
+pub use cache::ResultCache;
 pub use error::{EngineError, Result};
 pub use executor::{
-    CancellationSignal, Executor, NodeExecutionState, NodeProgressEvent, ResultCache, RunOutputs,
+    CancellationSignal, Executor, NodeExecutionState, NodeProgressEvent, RunOutputs,
 };
 pub use graph::{OutputRef, Workflow, WorkflowNode};
 pub use node::{InputPort, Node, NodeRunContext, NodeRunError, NodeRunResult, OutputPort};
