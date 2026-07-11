@@ -7,7 +7,7 @@
 //! synchronous capability contracts whose adapters own any async cloud work.
 
 use crate::error::EngineError;
-use crate::executor::{NodeExecutionState, NodeProgressEvent};
+use crate::executor::{CancellationSignal, NodeExecutionState, NodeProgressEvent};
 use crate::port::PortType;
 use crate::value::{Value, ValueMap};
 
@@ -97,6 +97,7 @@ pub struct NodeRunContext<'a> {
     node_id: &'a str,
     project_id: &'a str,
     workflow_snapshot: &'a serde_json::Value,
+    cancellation: &'a dyn CancellationSignal,
     observer: &'a mut dyn FnMut(&NodeProgressEvent),
 }
 
@@ -106,9 +107,10 @@ impl<'a> NodeRunContext<'a> {
         node_id: &'a str,
         project_id: &'a str,
         workflow_snapshot: &'a serde_json::Value,
+        cancellation: &'a dyn CancellationSignal,
         observer: &'a mut dyn FnMut(&NodeProgressEvent),
     ) -> Self {
-        Self { node_id, project_id, workflow_snapshot, observer }
+        Self { node_id, project_id, workflow_snapshot, cancellation, observer }
     }
 
     /// Current workflow node id.
@@ -129,8 +131,17 @@ impl<'a> NodeRunContext<'a> {
         self.workflow_snapshot
     }
 
+    /// Returns whether the caller has cancelled the current workflow run.
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.cancellation.is_cancelled()
+    }
+
     /// Emits best-effort progress for the current node.
     pub fn progress(&mut self, progress: f32) {
+        if self.is_cancelled() {
+            return;
+        }
         (self.observer)(&NodeProgressEvent {
             node_id: self.node_id.to_owned(),
             state: NodeExecutionState::Running,

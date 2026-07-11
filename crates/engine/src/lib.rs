@@ -17,7 +17,9 @@ mod validation;
 pub mod value;
 
 pub use error::{EngineError, Result};
-pub use executor::{Executor, NodeExecutionState, NodeProgressEvent, ResultCache, RunOutputs};
+pub use executor::{
+    CancellationSignal, Executor, NodeExecutionState, NodeProgressEvent, ResultCache, RunOutputs,
+};
 pub use graph::{OutputRef, Workflow, WorkflowNode};
 pub use node::{InputPort, Node, NodeRunContext, NodeRunError, NodeRunResult, OutputPort};
 pub use port::PortType;

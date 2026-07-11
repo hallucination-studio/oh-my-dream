@@ -41,9 +41,15 @@ pub struct NodeProgressEvent {
     pub cost: Option<i64>,
 }
 
+/// Caller-owned signal consulted while a workflow is executing.
+pub trait CancellationSignal: Send + Sync {
+    /// Returns whether the current workflow run should stop.
+    fn is_cancelled(&self) -> bool;
+}
+
 #[derive(Default)]
 pub struct ResultCache {
-    entries: BTreeMap<String, CacheEntry>,
+    entries: BTreeMap<CacheKey, CacheEntry>,
 }
 
 impl ResultCache {
@@ -70,7 +76,7 @@ impl<'r> Executor<'r> {
     /// Validates and executes `workflow`, returning each node's outputs.
     pub fn execute(&self, workflow: &Workflow, cache: &mut ResultCache) -> Result<RunOutputs> {
         let mut observer = |_event: &NodeProgressEvent| {};
-        self.execute_with_observer(workflow, cache, &mut observer)
+        self.execute_interruptible(workflow, cache, &NeverCancelled, &mut observer)
     }
 
     /// Validates and executes `workflow`, synchronously reporting node events.
@@ -80,6 +86,18 @@ impl<'r> Executor<'r> {
         cache: &mut ResultCache,
         observer: &mut impl FnMut(&NodeProgressEvent),
     ) -> Result<RunOutputs> {
+        self.execute_interruptible(workflow, cache, &NeverCancelled, observer)
+    }
+
+    /// Executes `workflow` while consulting a caller-owned cancellation signal.
+    pub fn execute_interruptible(
+        &self,
+        workflow: &Workflow,
+        cache: &mut ResultCache,
+        cancellation: &dyn CancellationSignal,
+        observer: &mut impl FnMut(&NodeProgressEvent),
+    ) -> Result<RunOutputs> {
+        ensure_not_cancelled(cancellation)?;
         let plan = build_plan(self.registry, workflow)?;
         let order = topological_order(&plan)?;
         let mut outputs = RunOutputs::new();
@@ -89,14 +107,17 @@ impl<'r> Executor<'r> {
             })?;
 
         for index in order {
+            ensure_not_cancelled(cancellation)?;
             execute_plan_node(
                 &plan.nodes[index],
                 &workflow.project_id,
                 &workflow_snapshot,
                 cache,
                 &mut outputs,
+                cancellation,
                 observer,
             )?;
+            ensure_not_cancelled(cancellation)?;
         }
 
         Ok(outputs)
@@ -109,19 +130,22 @@ fn execute_plan_node(
     workflow_snapshot: &serde_json::Value,
     cache: &mut ResultCache,
     outputs: &mut RunOutputs,
+    cancellation: &dyn CancellationSignal,
     observer: &mut dyn FnMut(&NodeProgressEvent),
 ) -> Result<()> {
     let inputs = resolve_inputs(node, outputs)?;
     let fingerprint = cache_fingerprint(project_id, &node.type_id, &node.params, &inputs);
-    if reuse_cached_output(node, fingerprint, cache, outputs, observer) {
+    if reuse_cached_output(node, project_id, fingerprint, cache, outputs, observer) {
         return Ok(());
     }
 
     emit_node_event(observer, node, NodeExecutionState::Running, Some(0.0), None);
     info!(node_id = %node.id, type_id = %node.type_id, "executing node");
-    let result = run_plan_node(node, project_id, workflow_snapshot, &inputs, observer)?;
+    let result =
+        run_plan_node(node, project_id, workflow_snapshot, &inputs, cancellation, observer)?;
+    ensure_not_cancelled(cancellation)?;
     info!(node_id = %node.id, type_id = %node.type_id, "node execution completed");
-    cache.insert(node.id.clone(), fingerprint, result.clone());
+    cache.insert(project_id, &node.id, fingerprint, result.clone());
     emit_node_event(observer, node, NodeExecutionState::Done, Some(1.0), result.cost);
     outputs.insert(node.id.clone(), result.outputs);
     Ok(())
@@ -129,12 +153,13 @@ fn execute_plan_node(
 
 fn reuse_cached_output(
     node: &PlanNode,
+    project_id: &str,
     fingerprint: u64,
     cache: &ResultCache,
     outputs: &mut RunOutputs,
     observer: &mut dyn FnMut(&NodeProgressEvent),
 ) -> bool {
-    let Some(cached) = cache.get(&node.id, fingerprint) else {
+    let Some(cached) = cache.get(project_id, &node.id, fingerprint) else {
         return false;
     };
     info!(node_id = %node.id, type_id = %node.type_id, "reusing cached node outputs");
@@ -148,10 +173,12 @@ fn run_plan_node(
     project_id: &str,
     workflow_snapshot: &serde_json::Value,
     inputs: &ValueMap,
+    cancellation: &dyn CancellationSignal,
     observer: &mut dyn FnMut(&NodeProgressEvent),
 ) -> Result<NodeRunResult> {
     let run_result = {
-        let mut context = NodeRunContext::new(&node.id, project_id, workflow_snapshot, observer);
+        let mut context =
+            NodeRunContext::new(&node.id, project_id, workflow_snapshot, cancellation, observer);
         node.node.run(inputs, &mut context)
     };
     let result = run_result
@@ -182,17 +209,37 @@ struct CacheEntry {
     result: NodeRunResult,
 }
 
+#[derive(Clone, Eq, Ord, PartialEq, PartialOrd)]
+struct CacheKey {
+    project_id: String,
+    node_id: String,
+}
+
 impl ResultCache {
-    fn get(&self, node_id: &str, fingerprint: u64) -> Option<NodeRunResult> {
+    fn get(&self, project_id: &str, node_id: &str, fingerprint: u64) -> Option<NodeRunResult> {
+        let key = CacheKey { project_id: project_id.to_owned(), node_id: node_id.to_owned() };
         self.entries
-            .get(node_id)
+            .get(&key)
             .filter(|entry| entry.fingerprint == fingerprint)
             .map(|entry| entry.result.clone())
     }
 
-    fn insert(&mut self, node_id: String, fingerprint: u64, result: NodeRunResult) {
-        self.entries.insert(node_id, CacheEntry { fingerprint, result });
+    fn insert(&mut self, project_id: &str, node_id: &str, fingerprint: u64, result: NodeRunResult) {
+        let key = CacheKey { project_id: project_id.to_owned(), node_id: node_id.to_owned() };
+        self.entries.insert(key, CacheEntry { fingerprint, result });
     }
+}
+
+struct NeverCancelled;
+
+impl CancellationSignal for NeverCancelled {
+    fn is_cancelled(&self) -> bool {
+        false
+    }
+}
+
+fn ensure_not_cancelled(cancellation: &dyn CancellationSignal) -> Result<()> {
+    if cancellation.is_cancelled() { Err(EngineError::Cancelled) } else { Ok(()) }
 }
 
 fn topological_order(plan: &ExecutionPlan) -> Result<Vec<usize>> {

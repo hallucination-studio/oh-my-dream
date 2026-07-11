@@ -8,6 +8,10 @@ use thiserror::Error;
 /// Errors raised while building or executing a workflow graph.
 #[derive(Debug, Error)]
 pub enum EngineError {
+    /// The caller cancelled the workflow before execution completed.
+    #[error("workflow execution was cancelled")]
+    Cancelled,
+
     /// The workflow uses a format version this engine does not understand.
     #[error("unsupported workflow version `{version}`; expected `1.0`")]
     UnsupportedWorkflowVersion { version: String },

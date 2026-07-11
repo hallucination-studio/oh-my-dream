@@ -1,12 +1,12 @@
 mod executor_support;
 
 use engine::{
-    EngineError, Executor, NodeExecutionState, NodeParams, NodeRegistry, OutputRef, PortType,
-    ResultCache, Value, Workflow, WorkflowNode,
+    CancellationSignal, EngineError, Executor, NodeExecutionState, NodeParams, NodeRegistry,
+    OutputRef, PortType, ResultCache, Value, Workflow, WorkflowNode,
 };
 use executor_support::{FailingNode, RunCounters, event_summary, linear_workflow, registry};
 use std::collections::BTreeMap;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[test]
 fn executes_text_prompt_uppercase_collect_workflow() {
@@ -112,6 +112,48 @@ fn does_not_reuse_cached_outputs_across_projects() {
 }
 
 #[test]
+fn preserves_each_project_cache_namespace() {
+    let counters = RunCounters::default();
+    let registry = registry(counters.clone());
+    let mut first = linear_workflow("hello");
+    first.project_id = "project-a".to_owned();
+    let mut second = linear_workflow("hello");
+    second.project_id = "project-b".to_owned();
+    let mut cache = ResultCache::new();
+    let executor = Executor::new(&registry);
+
+    executor.execute(&first, &mut cache).expect("first project should execute");
+    executor.execute(&second, &mut cache).expect("second project should execute");
+    executor.execute(&first, &mut cache).expect("first project should remain cached");
+
+    assert_eq!(counters.text_prompt.load(Ordering::SeqCst), 2);
+    assert_eq!(counters.upper_case.load(Ordering::SeqCst), 2);
+    assert_eq!(counters.collect.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn cancellation_stops_before_the_next_node() {
+    let counters = RunCounters::default();
+    let registry = registry(counters.clone());
+    let workflow = linear_workflow("hello");
+    let mut cache = ResultCache::new();
+    let cancellation = TestCancellation::default();
+
+    let error = Executor::new(&registry)
+        .execute_interruptible(&workflow, &mut cache, &cancellation, &mut |event| {
+            if event.node_id == "prompt" && event.state == NodeExecutionState::Done {
+                cancellation.cancel();
+            }
+        })
+        .expect_err("execution should observe cancellation");
+
+    assert!(matches!(error, EngineError::Cancelled));
+    assert_eq!(counters.text_prompt.load(Ordering::SeqCst), 1);
+    assert_eq!(counters.upper_case.load(Ordering::SeqCst), 0);
+    assert_eq!(counters.collect.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn emits_error_event_before_returning_node_failure() {
     let mut registry = NodeRegistry::new();
     registry.register("Failing", Box::new(|_| Ok(Box::new(FailingNode))));
@@ -156,6 +198,23 @@ fn rejects_cycles_before_execution() {
         .expect_err("cycle should fail");
 
     assert!(matches!(error, EngineError::Cycle { .. }));
+}
+
+#[derive(Default)]
+struct TestCancellation {
+    cancelled: AtomicBool,
+}
+
+impl TestCancellation {
+    fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+    }
+}
+
+impl CancellationSignal for TestCancellation {
+    fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
 }
 
 #[test]
