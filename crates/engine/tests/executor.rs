@@ -1,12 +1,18 @@
 mod executor_support;
 
 use engine::{
-    CancellationSignal, EngineError, Executor, NodeExecutionState, NodeParams, NodeRegistry,
-    OutputRef, PortType, ResultCache, Value, Workflow, WorkflowNode,
+    EngineError, Executor, NodeExecutionState, NodeParams, NodeRegistry, OutputRef, PortType,
+    ResultCache, Value, Workflow, WorkflowNode,
 };
-use executor_support::{FailingNode, RunCounters, event_summary, linear_workflow, registry};
+use executor_support::{
+    FailingNode, RunCounters, TestCancellation, commit_then_cancel_registry, event_summary,
+    fail_then_cancel_registry, linear_workflow, registry, single_node_workflow,
+};
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 #[test]
 fn executes_text_prompt_uppercase_collect_workflow() {
@@ -154,6 +160,58 @@ fn cancellation_stops_before_the_next_node() {
 }
 
 #[test]
+fn successful_final_node_commit_wins_over_late_cancellation() {
+    let cancellation = Arc::new(TestCancellation::default());
+    let runs = Arc::new(AtomicUsize::new(0));
+    let registry = commit_then_cancel_registry(Arc::clone(&cancellation), Arc::clone(&runs));
+    let workflow = single_node_workflow("CommitThenCancel");
+    let mut cache = ResultCache::new();
+    let mut events = Vec::new();
+
+    let outputs = Executor::new(&registry)
+        .execute_interruptible(&workflow, &mut cache, cancellation.as_ref(), &mut |event| {
+            events.push(event.clone());
+        })
+        .expect("successful node return should commit the final result");
+    Executor::new(&registry).execute(&workflow, &mut cache).expect("cache should be reusable");
+
+    assert_eq!(outputs["commit"]["text"], Value::String("committed".to_owned()));
+    assert_eq!(runs.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        event_summary(&events),
+        vec![
+            ("commit".to_owned(), NodeExecutionState::Running, Some(0.0), None),
+            ("commit".to_owned(), NodeExecutionState::Done, Some(1.0), None),
+        ]
+    );
+}
+
+#[test]
+fn node_failure_wins_over_concurrent_cancellation() {
+    let cancellation = Arc::new(TestCancellation::default());
+    let registry = fail_then_cancel_registry(Arc::clone(&cancellation));
+    let mut events = Vec::new();
+
+    let error = Executor::new(&registry)
+        .execute_interruptible(
+            &single_node_workflow("FailThenCancel"),
+            &mut ResultCache::new(),
+            cancellation.as_ref(),
+            &mut |event| events.push(event.clone()),
+        )
+        .expect_err("node failure should remain actionable");
+
+    assert!(matches!(error, EngineError::NodeExecution { .. }));
+    assert_eq!(
+        event_summary(&events),
+        vec![
+            ("commit".to_owned(), NodeExecutionState::Running, Some(0.0), None),
+            ("commit".to_owned(), NodeExecutionState::Error, None, None),
+        ]
+    );
+}
+
+#[test]
 fn emits_error_event_before_returning_node_failure() {
     let mut registry = NodeRegistry::new();
     registry.register("Failing", Box::new(|_| Ok(Box::new(FailingNode))));
@@ -198,23 +256,6 @@ fn rejects_cycles_before_execution() {
         .expect_err("cycle should fail");
 
     assert!(matches!(error, EngineError::Cycle { .. }));
-}
-
-#[derive(Default)]
-struct TestCancellation {
-    cancelled: AtomicBool,
-}
-
-impl TestCancellation {
-    fn cancel(&self) {
-        self.cancelled.store(true, Ordering::SeqCst);
-    }
-}
-
-impl CancellationSignal for TestCancellation {
-    fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::SeqCst)
-    }
 }
 
 #[test]

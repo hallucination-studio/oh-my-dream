@@ -23,7 +23,9 @@ pub use executor::{
     CancellationSignal, Executor, NodeExecutionState, NodeProgressEvent, RunOutputs,
 };
 pub use graph::{OutputRef, Workflow, WorkflowNode};
-pub use node::{InputPort, Node, NodeRunContext, NodeRunError, NodeRunResult, OutputPort};
+pub use node::{
+    InputPort, Node, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, cancelled_node_run,
+};
 pub use port::PortType;
 pub use registry::{NodeFactory, NodeParams, NodeRegistry};
 pub use value::{Value, ValueMap};

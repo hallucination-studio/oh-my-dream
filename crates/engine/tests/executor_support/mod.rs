@@ -1,3 +1,9 @@
+mod cancellation;
+
+pub(crate) use cancellation::{
+    TestCancellation, commit_then_cancel_registry, fail_then_cancel_registry, single_node_workflow,
+};
+
 use engine::{
     InputPort, Node, NodeExecutionState, NodeParams, NodeProgressEvent, NodeRegistry,
     NodeRunContext, NodeRunResult, OutputPort, OutputRef, PortType, Value, ValueMap, Workflow,

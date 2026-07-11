@@ -4,7 +4,7 @@ use backends::{
     TextToImageRequest as BackendTextToImageRequest,
 };
 use nodes::{
-    GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGenerator,
+    GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
     ImageToVideoRequest, InlineMedia, TextToAudioGenerator, TextToAudioRequest,
     TextToImageGenerator, TextToImageRequest,
 };
@@ -34,18 +34,20 @@ impl MockGenerationAdapter {
         &self,
         handle: &TaskHandle,
         media: MockMedia,
-        on_progress: &mut dyn FnMut(f32),
+        context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         for poll_index in 0..MAX_POLLS {
+            self.cancel_if_requested(handle, context)?;
             let status = pollster::block_on(self.backend.poll(handle))
                 .map_err(|source| operation_error("poll generation task", source))?;
             match status {
                 TaskStatus::Queued => log_pending(handle, poll_index, "queued"),
                 TaskStatus::Running { progress } => {
-                    on_progress(progress.0);
+                    context.progress(progress.0);
                     log_pending(handle, poll_index, "running");
                 }
                 TaskStatus::Succeeded { output, cost } => {
+                    context.ensure_active()?;
                     info!(task_id = %handle.task_id, "mock generation task succeeded");
                     return translate_success(media, handle, &output, cost);
                 }
@@ -62,18 +64,32 @@ impl MockGenerationAdapter {
         }
         Err(GenerationError::PollLimit { max_polls: MAX_POLLS })
     }
+
+    fn cancel_if_requested(
+        &self,
+        handle: &TaskHandle,
+        context: &dyn GenerationContext,
+    ) -> Result<(), GenerationError> {
+        if !context.is_cancelled() {
+            return Ok(());
+        }
+        pollster::block_on(self.backend.cancel(handle))
+            .map_err(|source| operation_error("cancel generation task", source))?;
+        Err(GenerationError::TaskCancelled)
+    }
 }
 
 impl TextToImageGenerator for MockGenerationAdapter {
     fn generate(
         &self,
         request: TextToImageRequest,
-        on_progress: &mut dyn FnMut(f32),
+        context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
+        context.ensure_active()?;
         let request = to_backend_text_to_image(request);
         let handle = pollster::block_on(self.backend.text_to_image(request))
             .map_err(|source| operation_error("submit text-to-image task", source))?;
-        self.wait_for_success(&handle, MockMedia::Image, on_progress)
+        self.wait_for_success(&handle, MockMedia::Image, context)
     }
 }
 
@@ -81,12 +97,13 @@ impl ImageToVideoGenerator for MockGenerationAdapter {
     fn generate(
         &self,
         request: ImageToVideoRequest,
-        on_progress: &mut dyn FnMut(f32),
+        context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
+        context.ensure_active()?;
         let request = to_backend_image_to_video(request);
         let handle = pollster::block_on(self.backend.image_to_video(request))
             .map_err(|source| operation_error("submit image-to-video task", source))?;
-        self.wait_for_success(&handle, MockMedia::Video, on_progress)
+        self.wait_for_success(&handle, MockMedia::Video, context)
     }
 }
 
@@ -94,12 +111,13 @@ impl TextToAudioGenerator for MockGenerationAdapter {
     fn generate(
         &self,
         request: TextToAudioRequest,
-        on_progress: &mut dyn FnMut(f32),
+        context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
+        context.ensure_active()?;
         let request = to_backend_text_to_audio(request);
         let handle = pollster::block_on(self.backend.text_to_audio(request))
             .map_err(|source| operation_error("submit text-to-audio task", source))?;
-        self.wait_for_success(&handle, MockMedia::Audio, on_progress)
+        self.wait_for_success(&handle, MockMedia::Audio, context)
     }
 }
 
@@ -192,163 +210,4 @@ fn silent_pcm_wave() -> Vec<u8> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        MockGenerationAdapter, MockMedia, to_backend_image_to_video, to_backend_text_to_audio,
-        to_backend_text_to_image, translate_success,
-    };
-    use backends::{MockBackend, TaskHandle};
-    use nodes::{
-        GeneratedArtifact, GenerationError, ImageToVideoGenerator, ImageToVideoRequest,
-        MediaFormat, MediaKind, TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator,
-        TextToImageRequest,
-    };
-    use std::sync::Arc;
-
-    #[test]
-    fn translates_nodes_owned_requests_field_for_field() {
-        let image = to_backend_text_to_image(TextToImageRequest {
-            model: "image-model".to_owned(),
-            prompt: "bright sky".to_owned(),
-            negative_prompt: Some("clouds".to_owned()),
-            steps: Some(17),
-            seed: Some(23),
-        });
-        assert_eq!(image.model, "image-model");
-        assert_eq!(image.prompt, "bright sky");
-        assert_eq!(image.negative_prompt.as_deref(), Some("clouds"));
-        assert_eq!(image.steps, Some(17));
-        assert_eq!(image.seed, Some(23));
-
-        let video = to_backend_image_to_video(ImageToVideoRequest {
-            model: "video-model".to_owned(),
-            image: "/tmp/source.png".to_owned(),
-            duration_seconds: Some(3.5),
-            fps: Some(24),
-        });
-        assert_eq!(video.model, "video-model");
-        assert_eq!(video.image, "/tmp/source.png");
-        assert_eq!(video.duration_seconds, Some(3.5));
-        assert_eq!(video.fps, Some(24));
-
-        let audio = to_backend_text_to_audio(TextToAudioRequest {
-            model: "audio-model".to_owned(),
-            prompt: "soft rain".to_owned(),
-            seed: Some(29),
-        });
-        assert_eq!(audio.model, "audio-model");
-        assert_eq!(audio.prompt, "soft rain");
-        assert_eq!(audio.seed, Some(29));
-    }
-
-    #[test]
-    fn text_to_image_translates_mock_success_and_progress() {
-        let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-        let mut progress = Vec::new();
-
-        let output = TextToImageGenerator::generate(
-            &adapter,
-            TextToImageRequest {
-                model: "mock-image".to_owned(),
-                prompt: "a bright sky".to_owned(),
-                negative_prompt: None,
-                steps: Some(4),
-                seed: Some(7),
-            },
-            &mut |value| progress.push(value),
-        )
-        .expect("mock image generation");
-
-        let media = expect_inline(output.artifact, MediaKind::Image, MediaFormat::Png);
-        assert_eq!(output.cost, Some(250));
-        assert_eq!(progress, vec![0.25, 0.75]);
-        assert!(media.bytes().starts_with(b"\x89PNG\r\n\x1a\n"));
-    }
-
-    #[test]
-    fn image_to_video_translates_mock_success_to_inline_video() {
-        let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-
-        let output = ImageToVideoGenerator::generate(
-            &adapter,
-            ImageToVideoRequest {
-                model: "mock-video".to_owned(),
-                image: "/tmp/source.png".to_owned(),
-                duration_seconds: Some(2.0),
-                fps: Some(12),
-            },
-            &mut |_| {},
-        )
-        .expect("mock video generation");
-
-        let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::OpaqueVideo);
-        assert_eq!(output.cost, Some(900));
-        assert!(media.bytes().starts_with(b"OH_MY_DREAM_MOCK_VIDEO_V1\n"));
-    }
-
-    #[test]
-    fn text_to_audio_translates_mock_success_to_inline_wave() {
-        let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-
-        let output = TextToAudioGenerator::generate(
-            &adapter,
-            TextToAudioRequest {
-                model: "mock-audio".to_owned(),
-                prompt: "rain on glass".to_owned(),
-                seed: Some(7),
-            },
-            &mut |_| {},
-        )
-        .expect("mock audio generation");
-
-        let media = expect_inline(output.artifact, MediaKind::Audio, MediaFormat::Wav);
-        assert_eq!(output.cost, Some(125));
-        assert_eq!(&media.bytes()[0..4], b"RIFF");
-        assert_eq!(&media.bytes()[8..12], b"WAVE");
-    }
-
-    #[test]
-    fn failed_mock_task_maps_to_generation_failure() {
-        let adapter =
-            MockGenerationAdapter::new(Arc::new(MockBackend::always_fails("provider outage")));
-
-        let error = TextToAudioGenerator::generate(
-            &adapter,
-            TextToAudioRequest {
-                model: "mock-audio".to_owned(),
-                prompt: "rain".to_owned(),
-                seed: None,
-            },
-            &mut |_| {},
-        )
-        .expect_err("failed mock task");
-
-        assert_eq!(error, GenerationError::TaskFailed { reason: "provider outage".to_owned() });
-    }
-
-    #[test]
-    fn invalid_mock_output_is_rejected_without_echoing_credentials() {
-        let output = "https://media.example/image.png?token=secret";
-        let handle = TaskHandle { backend: "mock".to_owned(), task_id: "task-1".to_owned() };
-
-        let error = translate_success(MockMedia::Image, &handle, output, None)
-            .expect_err("unexpected mock output");
-
-        assert_eq!(error, GenerationError::InvalidOutput);
-        assert!(!error.to_string().contains(output));
-        assert!(!error.to_string().contains("secret"));
-    }
-
-    fn expect_inline(
-        artifact: GeneratedArtifact,
-        kind: MediaKind,
-        format: MediaFormat,
-    ) -> nodes::InlineMedia {
-        let GeneratedArtifact::InlineMedia(media) = artifact else {
-            panic!("expected inline media");
-        };
-        assert_eq!(media.kind(), kind);
-        assert_eq!(media.format(), format);
-        media
-    }
-}
+mod tests;

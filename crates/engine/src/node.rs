@@ -52,6 +52,8 @@ pub trait Node: Send + Sync {
     /// The executor guarantees that every required input is present and
     /// type-checked before calling this. Implementations return an error
     /// (boxed) rather than panicking; the executor wraps it with node context.
+    /// A successful return is the node commit point: implementations must
+    /// observe cancellation before starting irreversible side effects.
     fn run(
         &self,
         inputs: &ValueMap,
@@ -74,6 +76,20 @@ pub trait Node: Send + Sync {
 /// The executor converts this into [`EngineError::NodeExecution`], attaching
 /// the node id and type id so the failure is actionable higher up.
 pub type NodeRunError = Box<dyn std::error::Error + Send + Sync>;
+
+#[derive(Debug, thiserror::Error)]
+#[error("node execution was cancelled")]
+struct NodeRunCancelled;
+
+/// Creates the structured node outcome used when cancellation was observed.
+#[must_use]
+pub fn cancelled_node_run() -> NodeRunError {
+    Box::new(NodeRunCancelled)
+}
+
+pub(crate) fn is_cancelled_node_run(error: &NodeRunError) -> bool {
+    error.downcast_ref::<NodeRunCancelled>().is_some()
+}
 
 /// Result returned by a node run.
 #[derive(Debug, Clone, PartialEq)]

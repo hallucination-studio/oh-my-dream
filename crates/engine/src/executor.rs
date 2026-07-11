@@ -3,7 +3,7 @@
 use crate::cache::{ResultCache, cache_fingerprint};
 use crate::error::{EngineError, Result};
 use crate::graph::Workflow;
-use crate::node::{NodeRunContext, NodeRunResult};
+use crate::node::{NodeRunContext, NodeRunResult, is_cancelled_node_run};
 use crate::registry::NodeRegistry;
 use crate::validation::{ExecutionPlan, PlanNode, build_plan, validate_node_outputs};
 use crate::value::ValueMap;
@@ -104,7 +104,6 @@ impl<'r> Executor<'r> {
                 cancellation,
                 observer,
             )?;
-            ensure_not_cancelled(cancellation)?;
         }
 
         Ok(outputs)
@@ -130,7 +129,6 @@ fn execute_plan_node(
     info!(node_id = %node.id, type_id = %node.type_id, "executing node");
     let result =
         run_plan_node(node, project_id, workflow_snapshot, &inputs, cancellation, observer)?;
-    ensure_not_cancelled(cancellation)?;
     info!(node_id = %node.id, type_id = %node.type_id, "node execution completed");
     cache.insert(project_id, &node.id, fingerprint, result.clone());
     emit_node_event(observer, node, NodeExecutionState::Done, Some(1.0), result.cost);
@@ -168,13 +166,12 @@ fn run_plan_node(
             NodeRunContext::new(&node.id, project_id, workflow_snapshot, cancellation, observer);
         node.node.run(inputs, &mut context)
     };
-    let result = run_result
-        .map_err(|source| EngineError::from((node.id.as_str(), node.type_id.as_str(), source)))
-        .and_then(|result| {
-            validate_node_outputs(node, &result.outputs)?;
-            Ok(result)
-        });
-    if result.is_err() {
+    let result = match run_result {
+        Ok(result) => validate_node_outputs(node, &result.outputs).map(|()| result),
+        Err(source) if is_cancelled_node_run(&source) => Err(EngineError::Cancelled),
+        Err(source) => Err(EngineError::from((node.id.as_str(), node.type_id.as_str(), source))),
+    };
+    if result.as_ref().is_err_and(|error| !matches!(error, EngineError::Cancelled)) {
         emit_node_event(observer, node, NodeExecutionState::Error, None, None);
     }
     result

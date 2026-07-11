@@ -281,10 +281,10 @@ impl TextToImageGenerator for TestGenerators {
     fn generate(
         &self,
         _request: TextToImageRequest,
-        on_progress: &mut dyn FnMut(f32),
+        context: &mut dyn nodes::GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
-        on_progress(0.25);
-        on_progress(0.75);
+        context.progress(0.25);
+        context.progress(0.75);
         self.result(InlineMedia::png(MOCK_IMAGE_PNG.to_vec()), 250)
     }
 }
@@ -293,11 +293,11 @@ impl ImageToVideoGenerator for TestGenerators {
     fn generate(
         &self,
         request: ImageToVideoRequest,
-        on_progress: &mut dyn FnMut(f32),
+        context: &mut dyn nodes::GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         assert!(Path::new(&request.image).is_file(), "source image must resolve to a local asset");
-        on_progress(0.25);
-        on_progress(0.75);
+        context.progress(0.25);
+        context.progress(0.75);
         self.result(InlineMedia::opaque_video(b"OH_MY_DREAM_MOCK_VIDEO_V1\n".to_vec()), 900)
     }
 }
@@ -306,10 +306,10 @@ impl TextToAudioGenerator for TestGenerators {
     fn generate(
         &self,
         _request: TextToAudioRequest,
-        on_progress: &mut dyn FnMut(f32),
+        context: &mut dyn nodes::GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
-        on_progress(0.25);
-        on_progress(0.75);
+        context.progress(0.25);
+        context.progress(0.75);
         self.result(InlineMedia::wav(silent_pcm_wave()), 125)
     }
 }

@@ -66,3 +66,13 @@ pub enum NodesError {
 pub(crate) fn boxed(error: NodesError) -> engine::NodeRunError {
     Box::new(error)
 }
+
+pub(crate) fn generation_error(
+    operation: &'static str,
+    source: GenerationError,
+) -> engine::NodeRunError {
+    match source {
+        GenerationError::TaskCancelled => engine::cancelled_node_run(),
+        source => boxed(NodesError::Generation { operation, source }),
+    }
+}

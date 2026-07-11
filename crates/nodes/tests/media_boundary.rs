@@ -1,16 +1,19 @@
 use assets::AssetStore;
 use engine::{
-    Executor, InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError,
-    NodeRunResult, OutputPort, OutputRef, PortType, ResultCache, Value, ValueMap, Workflow,
-    WorkflowNode,
+    CancellationSignal, EngineError, Executor, InputPort, Node, NodeParams, NodeRegistry,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache,
+    Value, ValueMap, Workflow, WorkflowNode,
 };
 use nodes::{
-    GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGenerator,
+    GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
     ImageToVideoRequest, InlineMedia, TextToAudioGenerator, TextToAudioRequest,
     TextToImageGenerator, TextToImageRequest,
 };
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 use tempfile::TempDir;
 
 #[test]
@@ -81,6 +84,39 @@ fn asset_prefixed_local_image_reaches_the_video_generator() {
             fps: None,
         }]
     );
+}
+
+#[test]
+fn cancellation_before_persistence_does_not_store_an_asset() {
+    let directory = TempDir::new().expect("temp directory");
+    let store = Arc::new(Mutex::new(AssetStore::open(directory.path()).expect("asset store")));
+    let project = store.lock().expect("store lock").create_project("Default").expect("project");
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let cancelling = Arc::new(CancellingImageGenerator { cancelled: Arc::clone(&cancelled) });
+    let fixed = Arc::new(FixedGenerators {
+        image_output: GeneratedOutput {
+            artifact: GeneratedArtifact::RemoteUrl(String::new()),
+            cost: None,
+        },
+    });
+    let image: Arc<dyn TextToImageGenerator> = cancelling;
+    let video: Arc<dyn ImageToVideoGenerator> = fixed.clone();
+    let audio: Arc<dyn TextToAudioGenerator> = fixed;
+    let mut registry = NodeRegistry::new();
+    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store));
+    let signal = AtomicCancellation { cancelled };
+
+    let error = Executor::new(&registry)
+        .execute_interruptible(
+            &text_to_image_workflow(project.id),
+            &mut ResultCache::new(),
+            &signal,
+            &mut |_| {},
+        )
+        .expect_err("workflow should be cancelled before persistence");
+
+    assert!(matches!(error, EngineError::Cancelled));
+    assert!(store.lock().expect("store lock").list(None).expect("asset list").is_empty());
 }
 
 fn execute_text_to_image(
@@ -171,6 +207,34 @@ struct FixedGenerators {
     image_output: GeneratedOutput,
 }
 
+struct CancellingImageGenerator {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl TextToImageGenerator for CancellingImageGenerator {
+    fn generate(
+        &self,
+        _request: TextToImageRequest,
+        _context: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        self.cancelled.store(true, Ordering::SeqCst);
+        Ok(GeneratedOutput {
+            artifact: GeneratedArtifact::InlineMedia(InlineMedia::png(vec![1, 2, 3])),
+            cost: None,
+        })
+    }
+}
+
+struct AtomicCancellation {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl CancellationSignal for AtomicCancellation {
+    fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
+}
+
 struct LocalImageNode {
     reference: String,
     outputs: Vec<OutputPort>,
@@ -219,7 +283,7 @@ impl ImageToVideoGenerator for RecordingVideoGenerator {
     fn generate(
         &self,
         request: ImageToVideoRequest,
-        _on_progress: &mut dyn FnMut(f32),
+        _context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         self.requests.lock().expect("request lock").push(request);
         Ok(GeneratedOutput {
@@ -235,7 +299,7 @@ impl TextToImageGenerator for FixedGenerators {
     fn generate(
         &self,
         _request: TextToImageRequest,
-        _on_progress: &mut dyn FnMut(f32),
+        _context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         Ok(self.image_output.clone())
     }
@@ -245,7 +309,7 @@ impl ImageToVideoGenerator for FixedGenerators {
     fn generate(
         &self,
         _request: ImageToVideoRequest,
-        _on_progress: &mut dyn FnMut(f32),
+        _context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         Ok(GeneratedOutput {
             artifact: GeneratedArtifact::InlineMedia(InlineMedia::opaque_video(Vec::new())),
@@ -258,7 +322,7 @@ impl TextToAudioGenerator for FixedGenerators {
     fn generate(
         &self,
         _request: TextToAudioRequest,
-        _on_progress: &mut dyn FnMut(f32),
+        _context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         Ok(GeneratedOutput {
             artifact: GeneratedArtifact::InlineMedia(InlineMedia::wav(Vec::new())),

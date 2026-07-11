@@ -25,7 +25,7 @@ use engine::NodeRegistry;
 use std::sync::{Arc, Mutex};
 
 pub use generation::{
-    GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGenerator,
+    GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
     ImageToVideoRequest, InlineMedia, MediaFormat, MediaKind, TextToAudioGenerator,
     TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };

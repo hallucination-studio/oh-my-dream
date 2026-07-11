@@ -1,7 +1,7 @@
 use engine::{
-    EngineError, Executor, InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError,
-    NodeRunResult, OutputPort, OutputRef, PortType, ResultCache, Value, ValueMap, Workflow,
-    WorkflowNode,
+    EngineError, Executor, InputPort, Node, NodeExecutionState, NodeParams, NodeRegistry,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache,
+    Value, ValueMap, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -172,12 +172,17 @@ fn assert_invalid_output_is_not_cached(
     let workflow = single_node_workflow("BrokenOutput");
     let executor = Executor::new(&registry);
     let mut cache = ResultCache::new();
+    let mut events = Vec::new();
 
-    for _ in 0..2 {
-        let error =
-            executor.execute(&workflow, &mut cache).expect_err("invalid node output should fail");
-        assert!(matches_expected_error(&error), "unexpected error: {error}");
-    }
+    let error = executor
+        .execute_with_observer(&workflow, &mut cache, &mut |event| events.push(event.clone()))
+        .expect_err("invalid node output should fail");
+    assert!(matches_expected_error(&error), "unexpected error: {error}");
+    assert_eq!(events[0].state, NodeExecutionState::Running);
+    assert_eq!(events[1].state, NodeExecutionState::Error);
+
+    let error = executor.execute(&workflow, &mut cache).expect_err("invalid output must not cache");
+    assert!(matches_expected_error(&error), "unexpected error: {error}");
     assert_eq!(runs.load(Ordering::SeqCst), 2);
 }
 

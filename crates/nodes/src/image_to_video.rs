@@ -1,8 +1,8 @@
-use crate::error::{NodesError, boxed};
+use crate::error::{NodesError, boxed, generation_error};
 use crate::media::{AssetMetadata, ResolvedImageInput, resolve_image_input, store_generated_asset};
 use crate::params::{image_input, optional_param, string_param};
 use crate::ports::{output, required_input};
-use crate::{ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore};
+use crate::{GenerationContext, ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore};
 use assets::AssetKind;
 use engine::{
     InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
@@ -88,11 +88,12 @@ impl Node for ImageToVideoNode {
         let ResolvedImageInput { file_path, prompt } =
             resolve_image_input(&self.store, image).map_err(boxed)?;
         info!(type_id = TYPE_ID, "generating video from image");
-        let output = {
-            let mut on_progress = |progress| context.progress(progress);
-            self.generator.generate(self.request(file_path), &mut on_progress)
-        }
-        .map_err(|source| boxed(NodesError::Generation { operation: "generate video", source }))?;
+        let output = self
+            .generator
+            .generate(self.request(file_path), context)
+            .map_err(|source| generation_error("generate video", source))?;
+        GenerationContext::ensure_active(context)
+            .map_err(|source| generation_error("generate video", source))?;
         let asset = store_generated_asset(
             &self.store,
             AssetKind::Video,

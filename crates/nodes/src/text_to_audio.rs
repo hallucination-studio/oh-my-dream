@@ -1,8 +1,8 @@
-use crate::error::{NodesError, boxed};
+use crate::error::{NodesError, boxed, generation_error};
 use crate::media::{AssetMetadata, store_generated_asset};
 use crate::params::{optional_param, string_param, text_input};
 use crate::ports::{output, required_input};
-use crate::{SharedAssetStore, TextToAudioGenerator, TextToAudioRequest};
+use crate::{GenerationContext, SharedAssetStore, TextToAudioGenerator, TextToAudioRequest};
 use assets::AssetKind;
 use engine::{
     InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
@@ -79,11 +79,12 @@ impl Node for TextToAudioNode {
     ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;
         info!(type_id = TYPE_ID, "generating audio from text");
-        let output = {
-            let mut on_progress = |progress| context.progress(progress);
-            self.generator.generate(self.request(prompt), &mut on_progress)
-        }
-        .map_err(|source| boxed(NodesError::Generation { operation: "generate audio", source }))?;
+        let output = self
+            .generator
+            .generate(self.request(prompt), context)
+            .map_err(|source| generation_error("generate audio", source))?;
+        GenerationContext::ensure_active(context)
+            .map_err(|source| generation_error("generate audio", source))?;
         let asset = store_generated_asset(
             &self.store,
             AssetKind::Audio,
