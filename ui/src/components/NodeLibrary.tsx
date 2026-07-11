@@ -30,6 +30,8 @@ export function NodeLibrary({ onAdd }: { onAdd: (type: string) => void }) {
             <path d="M21 21l-4-4" />
           </svg>
           <input
+            aria-label="Search nodes"
+            name="node-search"
             value={query}
             placeholder="Search nodes…"
             onChange={(e) => setQuery(e.target.value)}

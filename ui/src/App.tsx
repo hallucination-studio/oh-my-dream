@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  addEdge,
   Background,
   BackgroundVariant,
   Controls,
@@ -16,9 +15,10 @@ import { NODE_TYPES, findNodeType } from "./nodes/catalog.ts";
 import { WorkflowFlowNode, type FlowNodeData } from "./nodes/WorkflowFlowNode.tsx";
 import { WorkflowEdge } from "./nodes/WorkflowEdge.tsx";
 import { typeColor } from "./nodes/typeColor.ts";
+import { nextNodeId, upsertIncomingEdge } from "./workflow/editor.ts";
 import { toWorkflow } from "./workflow/serialize.ts";
 import { isValidConnection } from "./workflow/validate.ts";
-import { api, type Project, type RunHandle } from "./api/index.ts";
+import { api, type Project } from "./api/index.ts";
 import type { RunStatus } from "./workflow/types.ts";
 import { TopBar } from "./components/TopBar.tsx";
 import { IconRail, type RailTab } from "./components/IconRail.tsx";
@@ -29,14 +29,17 @@ import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { AssetLibrary } from "./assets/AssetLibrary.tsx";
 import { useAssets } from "./assets/useAssets.ts";
 import { useRunProjection } from "./canvas/useRunProjection.ts";
+import { useProjectWorkspace } from "./workflow/useProjectWorkspace.ts";
+import { useRunController } from "./workflow/useRunController.ts";
 import { AssistantDock } from "./assistant/AssistantDock.tsx";
 import { createCapabilityExecutor, type CanvasActions } from "./assistant/capabilityExecutor.ts";
 
-let idCounter = 0;
-const nextId = () => `n${++idCounter}`;
-
 const nodeTypes = { workflow: WorkflowFlowNode };
 const edgeTypes = { workflow: WorkflowEdge };
+
+function isGraphMutation(change: { type: string }): boolean {
+  return change.type === "add" || change.type === "remove" || change.type === "replace" || change.type === "position";
+}
 
 export function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -49,9 +52,29 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantEnabled, setAssistantEnabled] = useState(false);
-  const runHandle = useRef<RunHandle | null>(null);
   const { assets, error: assetError, refresh } = useAssets();
   const { apply: projectRun, reset: resetRun } = useRunProjection(setNodes, setEdges);
+  const { cancel, invalidateRun, run } = useRunController({
+    nodes,
+    edges,
+    projectId: project?.id ?? null,
+    setStatus,
+    resetProjection: resetRun,
+    applyProjection: projectRun,
+    onSucceeded: () => void refresh(),
+  });
+  const { markWorkflowMutation, openProject, setParam } = useProjectWorkspace({
+    project,
+    setProject,
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    setSelectedId,
+    setProjectsOpen,
+    setStatus,
+    invalidateRun,
+  });
 
   // Reflect the assistant enable flag: the rail button and dock only appear
   // when the assistant is enabled in settings. Re-read after settings closes.
@@ -68,58 +91,32 @@ export function App() {
     }
   }, [assistantEnabled, assistantOpen]);
 
-  // Load (or create) an initial project on mount.
-  useEffect(() => {
-    api.listProjects().then((list) => {
-      const first = list[0];
-      if (first) {
-        setProject(first);
-      }
-    });
-  }, []);
-
-  const setParam = useCallback(
-    (nodeId: string, name: string, value: unknown) => {
-      setNodes((current) =>
-        current.map((node) =>
-          node.id === nodeId
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  params: { ...(node.data as FlowNodeData).params, [name]: value },
-                },
-              }
-            : node,
-        ),
-      );
-    },
-    [setNodes],
-  );
-
   const addNode = useCallback(
     (type: string, position?: { x: number; y: number }) => {
       const spec = NODE_TYPES.find((s) => s.type === type);
       if (!spec) {
         return;
       }
-      const id = nextId();
       const params = Object.fromEntries(spec.params.map((p) => [p.name, p.default]));
-      setNodes((current) => [
-        ...current,
-        {
-          id,
-          type: "workflow",
-          position: position ?? { x: 140 + current.length * 60, y: 100 + current.length * 40 },
-          data: {
-            type,
-            params,
-            onParamChange: (n: string, v: unknown) => setParam(id, n, v),
-          } as FlowNodeData,
-        },
-      ]);
+      markWorkflowMutation();
+      setNodes((current) => {
+        const id = nextNodeId(current);
+        return [
+          ...current,
+          {
+            id,
+            type: "workflow",
+            position: position ?? { x: 140 + current.length * 60, y: 100 + current.length * 40 },
+            data: {
+              type,
+              params,
+              onParamChange: (n: string, v: unknown) => setParam(id, n, v),
+            } as FlowNodeData,
+          },
+        ];
+      });
     },
-    [setNodes, setParam],
+    [markWorkflowMutation, setNodes, setParam],
   );
 
   const onConnect = useCallback(
@@ -131,11 +128,12 @@ export function App() {
       const source = nodes.find((n) => n.id === connection.source);
       const spec = source ? findNodeType((source.data as FlowNodeData).type) : undefined;
       const outType = spec?.outputs.find((p) => p.name === connection.sourceHandle)?.type;
+      markWorkflowMutation();
       setEdges((current) =>
-        addEdge({ ...connection, type: "workflow", data: { color: typeColor(outType) } }, current),
+        upsertIncomingEdge(current, connection, { color: typeColor(outType) }),
       );
     },
-    [nodes, setEdges],
+    [markWorkflowMutation, nodes, setEdges],
   );
 
   const connectNodes = useCallback(
@@ -152,11 +150,32 @@ export function App() {
 
   const deleteNode = useCallback(
     (nodeId: string) => {
+      markWorkflowMutation();
       setNodes((current) => current.filter((node) => node.id !== nodeId));
       setEdges((current) => current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
       setSelectedId((current) => (current === nodeId ? null : current));
     },
-    [setEdges, setNodes],
+    [markWorkflowMutation, setEdges, setNodes],
+  );
+
+  const handleNodesChange = useCallback(
+    (changes: Parameters<typeof onNodesChange>[0]) => {
+      if (changes.some(isGraphMutation)) {
+        markWorkflowMutation();
+      }
+      onNodesChange(changes);
+    },
+    [markWorkflowMutation, onNodesChange],
+  );
+
+  const handleEdgesChange = useCallback(
+    (changes: Parameters<typeof onEdgesChange>[0]) => {
+      if (changes.some(isGraphMutation)) {
+        markWorkflowMutation();
+      }
+      onEdgesChange(changes);
+    },
+    [markWorkflowMutation, onEdgesChange],
   );
 
   const selected: SelectedNode | null = useMemo(() => {
@@ -194,27 +213,6 @@ export function App() {
     [edges, nodes, project, selected],
   );
 
-  const run = useCallback(() => {
-    const workflow = toWorkflow(nodes, edges, project?.id ?? "default");
-    resetRun();
-    const observe = (next: RunStatus) => {
-      setStatus(next);
-      projectRun(next);
-      if (next.state === "succeeded") {
-        void refresh();
-      }
-    };
-    setStatus({ state: "running", nodeId: workflow.nodes[0]?.id ?? "", progress: 0 });
-    runHandle.current = api.runWorkflow(workflow, observe);
-  }, [nodes, edges, project, resetRun, projectRun, refresh]);
-
-  const cancel = useCallback(() => runHandle.current?.cancel(), []);
-
-  const openProject = useCallback((id: string) => {
-    setProjectsOpen(false);
-    api.openProject(id).then((ws) => setProject(ws.project));
-  }, []);
-
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -243,7 +241,7 @@ export function App() {
         onOpenProject={openProject}
       />
 
-      <div
+      <main
         className={`bench__body${tab === "assets" ? " bench__body--assets" : ""}${
           assistantOpen ? " bench__body--assistant" : ""
         }`}
@@ -274,8 +272,8 @@ export function App() {
                 edges={edges}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
+                onNodesChange={handleNodesChange}
+                onEdgesChange={handleEdgesChange}
                 onConnect={onConnect}
                 onNodeClick={(_, node) => setSelectedId(node.id)}
                 onPaneClick={() => setSelectedId(null)}
@@ -304,7 +302,7 @@ export function App() {
             getContext={assistantContext}
           />
         )}
-      </div>
+      </main>
 
       <SettingsDialog
         open={settingsOpen}

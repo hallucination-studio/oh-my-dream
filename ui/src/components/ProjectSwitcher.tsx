@@ -71,6 +71,8 @@ export function ProjectSwitcher({
       </div>
       <div className="psw__new">
         <input
+          aria-label="New project name"
+          name="project-name"
           value={name}
           placeholder="New project…"
           onChange={(e) => setName(e.target.value)}

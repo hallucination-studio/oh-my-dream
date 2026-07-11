@@ -16,7 +16,7 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--ink-3);
+  color: var(--ink-2);
   margin-bottom: 9px;
 }
 .nlib__search {
@@ -141,7 +141,7 @@
 .nlib__foot {
   font-size: 11px;
   line-height: 1.5;
-  color: var(--ink-3);
+  color: var(--ink-2);
   padding: 8px 12px;
 }
 .nlib__foot {
