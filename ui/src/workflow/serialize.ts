@@ -25,6 +25,7 @@ export function toWorkflow(nodes: Node[], edges: Edge[], projectId = "default"):
       return {
         id: node.id,
         type: data.type,
+        contract_version: data.contractVersion ?? "1.0",
         params: data.params,
         inputs,
         position: [node.position.x, node.position.y] as [number, number],

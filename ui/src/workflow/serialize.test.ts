@@ -24,6 +24,7 @@ describe("toWorkflow", () => {
         {
           id: "prompt",
           type: "TextPrompt",
+          contract_version: "1.0",
           params: { text: "a red fox" },
           inputs: {},
           position: [10, 20],
@@ -31,6 +32,7 @@ describe("toWorkflow", () => {
         {
           id: "image",
           type: "TextToImage",
+          contract_version: "1.0",
           params: { model: "mock-image" },
           inputs: { prompt: ["prompt", "text"] },
           position: [30, 40],
@@ -38,6 +40,7 @@ describe("toWorkflow", () => {
         {
           id: "video",
           type: "ImageToVideo",
+          contract_version: "1.0",
           params: { model: "mock-video" },
           inputs: { image: ["image", "image"] },
           position: [50, 60],

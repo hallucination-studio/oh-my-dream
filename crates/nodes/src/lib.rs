@@ -16,9 +16,11 @@ mod image_to_video;
 mod media;
 mod params;
 mod ports;
+mod registry;
 mod text_prompt;
 mod text_to_audio;
 mod text_to_image;
+mod video_concat;
 
 use assets::AssetStore;
 use engine::NodeRegistry;
@@ -44,9 +46,12 @@ pub fn register_all(
     image_to_video_generator: Arc<dyn ImageToVideoGenerator>,
     text_to_audio_generator: Arc<dyn TextToAudioGenerator>,
     store: SharedAssetStore,
-) {
-    text_prompt::register(registry);
-    text_to_image::register(registry, text_to_image_generator, Arc::clone(&store));
-    image_to_video::register(registry, image_to_video_generator, Arc::clone(&store));
-    text_to_audio::register(registry, text_to_audio_generator, store);
+) -> Result<(), engine::CapabilityRegistryError> {
+    registry::register_all(
+        registry,
+        text_to_image_generator,
+        image_to_video_generator,
+        text_to_audio_generator,
+        store,
+    )
 }

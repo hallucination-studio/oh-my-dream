@@ -2,19 +2,52 @@ use crate::error::boxed;
 use crate::params::string_param;
 use crate::ports::output;
 use engine::{
-    InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
-    OutputPort, PortType, Value, ValueMap,
+    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, CapabilityRegistration,
+    InputPort, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType,
+    Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use tracing::info;
 
 const TYPE_ID: &str = "TextPrompt";
 
-pub(crate) fn register(registry: &mut NodeRegistry) {
-    registry.register(
-        TYPE_ID,
-        Box::new(|params| TextPromptNode::from_params(params).map(boxed_node).map_err(boxed)),
+pub(crate) fn registration() -> CapabilityRegistration {
+    let contract = CapabilityContract::new(
+        CapabilityRef::new(TYPE_ID, engine::DEFAULT_CAPABILITY_VERSION),
+        vec![],
+        vec![CapabilityPort::output("text", PortType::String)],
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "default": ""},
+                "prompt": {"type": "string"}
+            },
+            "additionalProperties": false
+        }),
+        NodeParams::from_iter([("text".to_owned(), serde_json::Value::String(String::new()))]),
+        vec![CapabilityEffect::Pure],
     );
+    CapabilityRegistration::new(
+        contract,
+        Box::new(normalize_params),
+        Box::new(|params| TextPromptNode::from_params(params).map(boxed_node).map_err(boxed)),
+    )
+}
+
+fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
+    let text = string_param(params, &["text", "prompt"], "").map_err(boxed)?;
+    reject_unknown_params(params, &["text", "prompt"])?;
+    Ok(NodeParams::from_iter([("text".to_owned(), serde_json::Value::String(text))]))
+}
+
+fn reject_unknown_params(params: &NodeParams, allowed: &[&str]) -> Result<(), NodeRunError> {
+    if let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) {
+        return Err(boxed(crate::error::NodesError::InvalidParam {
+            name: name.clone(),
+            reason: "unknown parameter".to_owned(),
+        }));
+    }
+    Ok(())
 }
 
 struct TextPromptNode {

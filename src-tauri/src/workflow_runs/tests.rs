@@ -218,6 +218,7 @@ fn immediate_workflow(project_id: &str) -> Workflow {
         nodes: vec![WorkflowNode {
             id: "node".to_owned(),
             type_id: "Immediate".to_owned(),
+            contract_version: "1.0".to_owned(),
             params: engine::NodeParams::new(),
             inputs: BTreeMap::new(),
             position: None,

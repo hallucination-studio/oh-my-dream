@@ -6,8 +6,8 @@ pub(crate) use cancellation::{
 
 use engine::{
     InputPort, Node, NodeExecutionState, NodeParams, NodeProgressEvent, NodeRegistry,
-    NodeRunContext, NodeRunResult, OutputPort, OutputRef, PortType, Value, ValueMap, Workflow,
-    WorkflowNode,
+    NodeRunContext, NodeRunResult, OutputPort, OutputRef, PortCardinality, PortType, Value,
+    ValueMap, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -77,7 +77,13 @@ pub(crate) fn registry(counters: RunCounters) -> NodeRegistry {
 }
 
 fn required_input(name: &str, port_type: PortType) -> InputPort {
-    InputPort { name: name.to_owned(), port_type, required: true, default: None }
+    InputPort {
+        name: name.to_owned(),
+        port_type,
+        cardinality: PortCardinality::One,
+        required: true,
+        default: None,
+    }
 }
 
 fn output(name: &str, port_type: PortType) -> OutputPort {
@@ -92,6 +98,7 @@ pub(crate) fn linear_workflow(text: &str) -> Workflow {
             WorkflowNode {
                 id: "prompt".to_owned(),
                 type_id: "TextPrompt".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: BTreeMap::from([(
                     "text".to_owned(),
                     serde_json::Value::String(text.to_owned()),
@@ -104,6 +111,7 @@ pub(crate) fn linear_workflow(text: &str) -> Workflow {
             WorkflowNode {
                 id: "upper".to_owned(),
                 type_id: "UpperCase".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: NodeParams::new(),
                 inputs: BTreeMap::from([(
                     "text".to_owned(),
@@ -114,6 +122,7 @@ pub(crate) fn linear_workflow(text: &str) -> Workflow {
             WorkflowNode {
                 id: "collect".to_owned(),
                 type_id: "Collect".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: NodeParams::new(),
                 inputs: BTreeMap::from([(
                     "text".to_owned(),

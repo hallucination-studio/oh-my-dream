@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 mod cache;
+pub mod capability;
 pub mod error;
 pub mod executor;
 pub mod graph;
@@ -18,6 +19,10 @@ mod validation;
 pub mod value;
 
 pub use cache::ResultCache;
+pub use capability::{
+    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, CapabilityRegistration,
+    CapabilityRegistry, CapabilityRegistryError, DEFAULT_CAPABILITY_VERSION,
+};
 pub use error::{EngineError, Result};
 pub use executor::{
     CancellationSignal, Executor, NodeExecutionState, NodeProgressEvent, RunOutputs,
@@ -26,6 +31,6 @@ pub use graph::{OutputRef, Workflow, WorkflowNode};
 pub use node::{
     InputPort, Node, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, cancelled_node_run,
 };
-pub use port::PortType;
+pub use port::{PortCardinality, PortType};
 pub use registry::{NodeFactory, NodeParams, NodeRegistry};
 pub use value::{Value, ValueMap};

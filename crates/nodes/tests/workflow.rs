@@ -151,6 +151,7 @@ fn full_workflow() -> Workflow {
     nodes.push(WorkflowNode {
         id: "video".to_owned(),
         type_id: "ImageToVideo".to_owned(),
+        contract_version: "1.0".to_owned(),
         params: params(json!({
             "model": "mock-video",
             "duration": 4.0,
@@ -173,6 +174,7 @@ fn image_workflow() -> Workflow {
             WorkflowNode {
                 id: "prompt".to_owned(),
                 type_id: "TextPrompt".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: params(json!({"text": "a small moonlit house"})),
                 inputs: BTreeMap::new(),
                 position: None,
@@ -180,6 +182,7 @@ fn image_workflow() -> Workflow {
             WorkflowNode {
                 id: "image".to_owned(),
                 type_id: "TextToImage".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: params(json!({
                     "model": "mock-image",
                     "steps": 28,
@@ -203,6 +206,7 @@ fn audio_workflow() -> Workflow {
             WorkflowNode {
                 id: "prompt".to_owned(),
                 type_id: "TextPrompt".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: params(json!({"text": "rain on glass"})),
                 inputs: BTreeMap::new(),
                 position: None,
@@ -210,6 +214,7 @@ fn audio_workflow() -> Workflow {
             WorkflowNode {
                 id: "audio".to_owned(),
                 type_id: "TextToAudio".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: params(json!({
                     "model": "mock-audio",
                     "seed": 7
@@ -231,6 +236,7 @@ fn workflow_with_save_asset() -> Workflow {
         nodes: vec![WorkflowNode {
             id: "save".to_owned(),
             type_id: "SaveAsset".to_owned(),
+            contract_version: "1.0".to_owned(),
             params: NodeParams::new(),
             inputs: BTreeMap::new(),
             position: None,
@@ -253,7 +259,8 @@ fn register_test_generators(
     let image: Arc<dyn TextToImageGenerator> = generators.clone();
     let video: Arc<dyn ImageToVideoGenerator> = generators.clone();
     let audio: Arc<dyn TextToAudioGenerator> = generators;
-    nodes::register_all(registry, image, video, audio, store);
+    nodes::register_all(registry, image, video, audio, store)
+        .expect("register workflow capabilities");
 }
 
 struct TestGenerators {

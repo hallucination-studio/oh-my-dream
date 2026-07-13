@@ -21,6 +21,7 @@ export function fromWorkflow(
     position: positionFor(workflowNode.position, index),
     data: {
       type: workflowNode.type,
+      contractVersion: workflowNode.contract_version ?? "1.0",
       params: { ...workflowNode.params },
       onParamChange: (name: string, value: unknown) =>
         onParamChange(workflowNode.id, name, value),

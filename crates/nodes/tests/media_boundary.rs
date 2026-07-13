@@ -67,7 +67,8 @@ fn asset_prefixed_local_image_reaches_the_video_generator() {
     let video: Arc<dyn ImageToVideoGenerator> = recorder.clone();
     let audio: Arc<dyn TextToAudioGenerator> = fixed;
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store));
+    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store))
+        .expect("register workflow capabilities");
     register_local_image(&mut registry, reference);
 
     Executor::new(&registry)
@@ -103,7 +104,8 @@ fn cancellation_before_persistence_does_not_store_an_asset() {
     let video: Arc<dyn ImageToVideoGenerator> = fixed.clone();
     let audio: Arc<dyn TextToAudioGenerator> = fixed;
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store));
+    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store))
+        .expect("register workflow capabilities");
     let signal = AtomicCancellation { cancelled };
 
     let error = Executor::new(&registry)
@@ -130,7 +132,8 @@ fn execute_text_to_image(
     let video: Arc<dyn ImageToVideoGenerator> = generators.clone();
     let audio: Arc<dyn TextToAudioGenerator> = generators;
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store));
+    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store))
+        .expect("register workflow capabilities");
     let workflow = text_to_image_workflow(project.id);
     let result = Executor::new(&registry).execute(&workflow, &mut ResultCache::new());
     (result, store, directory)
@@ -144,6 +147,7 @@ fn text_to_image_workflow(project_id: String) -> Workflow {
             WorkflowNode {
                 id: "prompt".to_owned(),
                 type_id: "TextPrompt".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: params(serde_json::json!({"text": "a bright sky"})),
                 inputs: BTreeMap::new(),
                 position: None,
@@ -151,6 +155,7 @@ fn text_to_image_workflow(project_id: String) -> Workflow {
             WorkflowNode {
                 id: "image".to_owned(),
                 type_id: "TextToImage".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: params(serde_json::json!({"model": "fixed-output"})),
                 inputs: BTreeMap::from([(
                     "prompt".to_owned(),
@@ -170,6 +175,7 @@ fn local_image_workflow(project_id: String) -> Workflow {
             WorkflowNode {
                 id: "source".to_owned(),
                 type_id: "LocalImage".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: NodeParams::new(),
                 inputs: BTreeMap::new(),
                 position: None,
@@ -177,6 +183,7 @@ fn local_image_workflow(project_id: String) -> Workflow {
             WorkflowNode {
                 id: "video".to_owned(),
                 type_id: "ImageToVideo".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: params(serde_json::json!({"model": "fixed-video"})),
                 inputs: BTreeMap::from([(
                     "image".to_owned(),

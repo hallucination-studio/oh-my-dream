@@ -5,8 +5,9 @@ use crate::ports::{output, required_input};
 use crate::{GenerationContext, SharedAssetStore, TextToImageGenerator, TextToImageRequest};
 use assets::AssetKind;
 use engine::{
-    InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
-    OutputPort, PortType, Value, ValueMap,
+    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, CapabilityRegistration,
+    InputPort, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType,
+    Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -14,19 +15,76 @@ use tracing::info;
 
 const TYPE_ID: &str = "TextToImage";
 
-pub(crate) fn register(
-    registry: &mut NodeRegistry,
+pub(crate) fn registration(
     generator: Arc<dyn TextToImageGenerator>,
     store: SharedAssetStore,
-) {
-    registry.register(
-        TYPE_ID,
+) -> CapabilityRegistration {
+    let contract = CapabilityContract::new(
+        CapabilityRef::new(TYPE_ID, engine::DEFAULT_CAPABILITY_VERSION),
+        vec![CapabilityPort::input("prompt", PortType::String, true)],
+        vec![CapabilityPort::output("image", PortType::Image)],
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "model": {"type": "string", "default": "mock-image"},
+                "negative_prompt": {"type": "string"},
+                "steps": {"type": "integer", "minimum": 1},
+                "seed": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+        }),
+        NodeParams::from_iter([(
+            "model".to_owned(),
+            serde_json::Value::String("mock-image".to_owned()),
+        )]),
+        vec![CapabilityEffect::External],
+    );
+    CapabilityRegistration::new(
+        contract,
+        Box::new(normalize_params),
         Box::new(move |params| {
             TextToImageNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))
                 .map(boxed_node)
                 .map_err(boxed)
         }),
-    );
+    )
+}
+
+fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
+    reject_unknown_params(params)?;
+    let model = string_param(params, &["model"], "mock-image").map_err(boxed)?;
+    let negative_prompt = optional_param::<String>(params, &["negative_prompt"]).map_err(boxed)?;
+    let steps = optional_param::<u32>(params, &["steps"]).map_err(boxed)?;
+    let seed = optional_param::<u64>(params, &["seed"]).map_err(boxed)?;
+    if steps == Some(0) {
+        return Err(boxed(NodesError::InvalidParam {
+            name: "steps".to_owned(),
+            reason: "must be at least 1".to_owned(),
+        }));
+    }
+    let mut normalized =
+        NodeParams::from_iter([("model".to_owned(), serde_json::Value::String(model))]);
+    if let Some(value) = negative_prompt {
+        normalized.insert("negative_prompt".to_owned(), serde_json::Value::String(value));
+    }
+    if let Some(value) = steps {
+        normalized.insert("steps".to_owned(), serde_json::json!(value));
+    }
+    if let Some(value) = seed {
+        normalized.insert("seed".to_owned(), serde_json::json!(value));
+    }
+    Ok(normalized)
+}
+
+fn reject_unknown_params(params: &NodeParams) -> Result<(), NodeRunError> {
+    let allowed = ["model", "negative_prompt", "steps", "seed"];
+    if let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) {
+        return Err(boxed(NodesError::InvalidParam {
+            name: name.clone(),
+            reason: "unknown parameter".to_owned(),
+        }));
+    }
+    Ok(())
 }
 
 struct TextToImageNode {

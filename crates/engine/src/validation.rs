@@ -89,7 +89,12 @@ fn instantiate_nodes(registry: &NodeRegistry, workflow: &Workflow) -> Result<Vec
         .iter()
         .map(|workflow_node| {
             registry
-                .instantiate(&workflow_node.id, &workflow_node.type_id, &workflow_node.params)
+                .instantiate_workflow_node(
+                    &workflow_node.id,
+                    &workflow_node.type_id,
+                    &workflow_node.contract_version,
+                    &workflow_node.params,
+                )
                 .map(|node| PlanNode::from_workflow_node(workflow_node, node))
         })
         .collect()

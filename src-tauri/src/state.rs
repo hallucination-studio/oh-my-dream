@@ -116,7 +116,8 @@ impl AppState {
         let image: Arc<dyn nodes::TextToImageGenerator> = adapter.clone();
         let video: Arc<dyn nodes::ImageToVideoGenerator> = adapter.clone();
         let audio: Arc<dyn nodes::TextToAudioGenerator> = adapter;
-        nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store));
+        nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store))
+            .context("register workflow capabilities")?;
         let registry = Arc::new(registry);
         let workflow_runs = Arc::new(WorkflowRuns::new(Arc::clone(&registry)));
         Ok(Self {

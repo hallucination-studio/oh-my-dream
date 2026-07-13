@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::DEFAULT_CAPABILITY_VERSION;
 use crate::registry::NodeParams;
 
 /// A reference to a specific output of an upstream node: `[node_id, output]`.
@@ -35,6 +36,9 @@ pub struct WorkflowNode {
     /// The node type, resolved against the registry.
     #[serde(rename = "type")]
     pub type_id: String,
+    /// Exact capability contract version used to construct this node.
+    #[serde(default = "default_contract_version")]
+    pub contract_version: String,
     /// Constructor parameters / widget values for this node.
     #[serde(default)]
     pub params: NodeParams,
@@ -60,4 +64,49 @@ pub struct Workflow {
 
 fn default_project_id() -> String {
     "default".to_owned()
+}
+
+fn default_contract_version() -> String {
+    DEFAULT_CAPABILITY_VERSION.to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WorkflowNode;
+    use serde_json::json;
+
+    #[test]
+    fn workflow_nodes_persist_exact_contract_versions() {
+        let node = WorkflowNode {
+            id: "prompt".to_owned(),
+            type_id: "TextPrompt".to_owned(),
+            contract_version: "1.0".to_owned(),
+            params: serde_json::Map::new(),
+            inputs: std::collections::BTreeMap::new(),
+            position: None,
+        };
+        assert_eq!(
+            serde_json::to_value(node).expect("workflow node JSON"),
+            json!({
+                "id": "prompt",
+                "type": "TextPrompt",
+                "contract_version": "1.0",
+                "params": {},
+                "inputs": {},
+                "position": null
+            })
+        );
+    }
+
+    #[test]
+    fn legacy_nodes_default_to_the_first_contract_version_when_read() {
+        let node: WorkflowNode = serde_json::from_value(json!({
+            "id": "prompt",
+            "type": "TextPrompt",
+            "params": {},
+            "inputs": {}
+        }))
+        .expect("legacy workflow node");
+        assert_eq!(node.contract_version, "1.0");
+    }
 }

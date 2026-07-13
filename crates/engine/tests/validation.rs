@@ -1,7 +1,7 @@
 use engine::{
     EngineError, Executor, InputPort, Node, NodeExecutionState, NodeParams, NodeRegistry,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache,
-    Value, ValueMap, Workflow, WorkflowNode,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortCardinality, PortType,
+    ResultCache, Value, ValueMap, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -88,6 +88,7 @@ fn rejects_default_value_with_wrong_port_type() {
         inputs: vec![InputPort {
             name: "text".to_owned(),
             port_type: PortType::String,
+            cardinality: PortCardinality::One,
             required: true,
             default: Some(Value::Image("asset://image".to_owned())),
         }],
@@ -229,6 +230,7 @@ fn workflow_node(id: &str, type_id: &str) -> WorkflowNode {
     WorkflowNode {
         id: id.to_owned(),
         type_id: type_id.to_owned(),
+        contract_version: "1.0".to_owned(),
         params: NodeParams::new(),
         inputs: BTreeMap::new(),
         position: None,

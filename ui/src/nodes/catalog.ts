@@ -75,6 +75,12 @@ const NODE_PRESENTATION: NodePresentation[] = [
     ],
   },
   {
+    type: "VideoConcat",
+    label: "Video Concat",
+    category: "Video",
+    params: [],
+  },
+  {
     type: "TextToAudio",
     label: "Text to Audio",
     category: "Audio",

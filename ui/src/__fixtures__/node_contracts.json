@@ -96,6 +96,22 @@
           "port_type": "image"
         }
       ]
+    },
+    {
+      "type_id": "VideoConcat",
+      "inputs": [
+        {
+          "name": "clips",
+          "port_type": "video",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "port_type": "video"
+        }
+      ]
     }
   ]
 }

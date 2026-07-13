@@ -221,6 +221,7 @@ fn emits_error_event_before_returning_node_failure() {
         nodes: vec![WorkflowNode {
             id: "fail".to_owned(),
             type_id: "Failing".to_owned(),
+            contract_version: "1.0".to_owned(),
             params: NodeParams::new(),
             inputs: BTreeMap::new(),
             position: None,
@@ -269,6 +270,7 @@ fn rejects_type_mismatches_while_building_plan() {
             WorkflowNode {
                 id: "image".to_owned(),
                 type_id: "ImageSource".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: NodeParams::new(),
                 inputs: BTreeMap::new(),
                 position: None,
@@ -276,6 +278,7 @@ fn rejects_type_mismatches_while_building_plan() {
             WorkflowNode {
                 id: "upper".to_owned(),
                 type_id: "UpperCase".to_owned(),
+                contract_version: "1.0".to_owned(),
                 params: NodeParams::new(),
                 inputs: BTreeMap::from([(
                     "text".to_owned(),

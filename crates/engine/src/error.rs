@@ -24,6 +24,26 @@ pub enum EngineError {
     #[error("unknown node type `{type_id}` for node `{node_id}`")]
     UnknownNodeType { node_id: String, type_id: String },
 
+    /// A versioned capability id was present but that exact contract was not registered.
+    #[error("unknown capability `{type_id}` version `{contract_version}` for node `{node_id}`")]
+    UnknownCapabilityVersion { node_id: String, type_id: String, contract_version: String },
+
+    /// A capability's normalized params could not be decoded or validated.
+    #[error(
+        "invalid params for capability `{type_id}` version `{contract_version}` on node `{node_id}`"
+    )]
+    InvalidCapabilityParams {
+        node_id: String,
+        type_id: String,
+        contract_version: String,
+        #[source]
+        source: crate::node::NodeRunError,
+    },
+
+    /// The executable node did not match its registered immutable contract.
+    #[error("capability `{type_id}` does not match its registered contract: {message}")]
+    CapabilityContractMismatch { type_id: String, message: String },
+
     /// A wire referenced a source node that does not exist in the graph.
     #[error("node `{node_id}` input `{input}` references unknown source node `{source_node}`")]
     UnknownSourceNode { node_id: String, input: String, source_node: String },

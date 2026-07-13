@@ -19,6 +19,7 @@ export interface NodeRuntime {
 
 export interface FlowNodeData {
   type: string;
+  contractVersion?: string;
   params: Record<string, unknown>;
   runtime?: NodeRuntime;
   onParamChange: (name: string, value: unknown) => void;

@@ -8,7 +8,7 @@
 
 use crate::error::EngineError;
 use crate::executor::{CancellationSignal, NodeExecutionState, NodeProgressEvent};
-use crate::port::PortType;
+use crate::port::{PortCardinality, PortType};
 use crate::value::{Value, ValueMap};
 
 /// Declaration of a single input port on a node.
@@ -18,6 +18,8 @@ pub struct InputPort {
     pub name: String,
     /// The data type this port accepts.
     pub port_type: PortType,
+    /// Number of values the input accepts.
+    pub cardinality: PortCardinality,
     /// Whether the port must be satisfied (by a wire or a default) to run.
     pub required: bool,
     /// Optional default value used when the port is left unconnected.

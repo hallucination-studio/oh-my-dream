@@ -6,6 +6,21 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Cardinality of a named workflow port.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PortCardinality {
+    /// Exactly one value is accepted or produced.
+    One,
+    /// An ordered collection with explicit bounds is accepted.
+    Many {
+        /// Inclusive minimum number of values.
+        minimum: usize,
+        /// Inclusive maximum number of values, when bounded.
+        maximum: Option<usize>,
+    },
+}
+
 /// The data type flowing through a single port.
 ///
 /// This is intentionally small: the first product milestone only needs to move

@@ -60,6 +60,7 @@ pub(crate) fn single_node_workflow(type_id: &str) -> Workflow {
         nodes: vec![WorkflowNode {
             id: "commit".to_owned(),
             type_id: type_id.to_owned(),
+            contract_version: "1.0".to_owned(),
             params: NodeParams::new(),
             inputs: BTreeMap::new(),
             position: None,

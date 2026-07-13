@@ -5,8 +5,9 @@ use crate::ports::{output, required_input};
 use crate::{GenerationContext, ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore};
 use assets::AssetKind;
 use engine::{
-    InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
-    OutputPort, PortType, Value, ValueMap,
+    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, CapabilityRegistration,
+    InputPort, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType,
+    Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -14,19 +15,79 @@ use tracing::info;
 
 const TYPE_ID: &str = "ImageToVideo";
 
-pub(crate) fn register(
-    registry: &mut NodeRegistry,
+pub(crate) fn registration(
     generator: Arc<dyn ImageToVideoGenerator>,
     store: SharedAssetStore,
-) {
-    registry.register(
-        TYPE_ID,
+) -> CapabilityRegistration {
+    let contract = CapabilityContract::new(
+        CapabilityRef::new(TYPE_ID, engine::DEFAULT_CAPABILITY_VERSION),
+        vec![CapabilityPort::input("image", PortType::Image, true)],
+        vec![CapabilityPort::output("video", PortType::Video)],
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "model": {"type": "string", "default": "mock-video"},
+                "duration": {"type": "number", "exclusiveMinimum": 0},
+                "duration_seconds": {"type": "number", "exclusiveMinimum": 0},
+                "fps": {"type": "integer", "minimum": 1}
+            },
+            "additionalProperties": false
+        }),
+        NodeParams::from_iter([(
+            "model".to_owned(),
+            serde_json::Value::String("mock-video".to_owned()),
+        )]),
+        vec![CapabilityEffect::External],
+    );
+    CapabilityRegistration::new(
+        contract,
+        Box::new(normalize_params),
         Box::new(move |params| {
             ImageToVideoNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))
                 .map(boxed_node)
                 .map_err(boxed)
         }),
-    );
+    )
+}
+
+fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
+    reject_unknown_params(params)?;
+    let model = string_param(params, &["model"], "mock-video").map_err(boxed)?;
+    let duration =
+        optional_param::<f32>(params, &["duration", "duration_seconds"]).map_err(boxed)?;
+    let fps = optional_param::<u32>(params, &["fps"]).map_err(boxed)?;
+    if duration.is_some_and(|value| !value.is_finite() || value <= 0.0) {
+        return Err(boxed(NodesError::InvalidParam {
+            name: "duration".to_owned(),
+            reason: "must be a positive finite number".to_owned(),
+        }));
+    }
+    if fps == Some(0) {
+        return Err(boxed(NodesError::InvalidParam {
+            name: "fps".to_owned(),
+            reason: "must be at least 1".to_owned(),
+        }));
+    }
+    let mut normalized =
+        NodeParams::from_iter([("model".to_owned(), serde_json::Value::String(model))]);
+    if let Some(value) = duration {
+        normalized.insert("duration".to_owned(), serde_json::json!(value));
+    }
+    if let Some(value) = fps {
+        normalized.insert("fps".to_owned(), serde_json::json!(value));
+    }
+    Ok(normalized)
+}
+
+fn reject_unknown_params(params: &NodeParams) -> Result<(), NodeRunError> {
+    let allowed = ["model", "duration", "duration_seconds", "fps"];
+    if let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) {
+        return Err(boxed(NodesError::InvalidParam {
+            name: name.clone(),
+            reason: "unknown parameter".to_owned(),
+        }));
+    }
+    Ok(())
 }
 
 struct ImageToVideoNode {

@@ -9,6 +9,8 @@ export type OutputRef = [string, string];
 export interface WorkflowNode {
   id: string;
   type: string;
+  /** Exact capability contract version; omitted only for legacy input. */
+  contract_version?: string;
   params: Record<string, unknown>;
   inputs: Record<string, OutputRef>;
   position?: [number, number];
