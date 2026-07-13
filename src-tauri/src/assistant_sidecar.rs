@@ -106,6 +106,27 @@ impl AssistantStdioSidecar {
         self.wait().await
     }
 
+    /// Closes stdin, requires immediate protocol EOF, and waits for child exit.
+    pub async fn shutdown_strict(
+        &mut self,
+    ) -> Result<std::process::ExitStatus, AssistantStdioSidecarError> {
+        drop(self.writer.take());
+        let reader = &mut self.reader;
+        let child = &mut self.child;
+        let eof = async {
+            reader
+                .expect_eof()
+                .await
+                .map_err(|source| AssistantStdioSidecarError::Transport { source })
+        };
+        let wait = async {
+            child.wait().await.map_err(|source| AssistantStdioSidecarError::Wait { source })
+        };
+        let (eof_result, wait_result) = tokio::join!(eof, wait);
+        eof_result?;
+        wait_result
+    }
+
     /// Kills the child process and waits for termination.
     pub async fn kill(&mut self) -> Result<(), AssistantStdioSidecarError> {
         drop(self.writer.take());

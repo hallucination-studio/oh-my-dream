@@ -12,6 +12,8 @@ pub enum AssistantTransportError {
     SequenceExhausted,
     #[error("assistant transport expected sequence {expected_sequence}, received EOF")]
     UnexpectedEof { expected_sequence: u64 },
+    #[error("assistant transport received frame {sequence} after a terminal frame")]
+    TrailingFrame { sequence: u64 },
     #[error("assistant transport frame ended after {bytes_read} bytes without a newline")]
     PartialFrameAtEof { bytes_read: usize },
     #[error("assistant transport frame is too large: observed {observed_size} bytes, max {max}")]

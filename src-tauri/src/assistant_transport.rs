@@ -151,6 +151,24 @@ impl<R: AsyncBufRead + Unpin> AssistantFrameReader<R> {
         }
     }
 
+    pub(crate) async fn expect_eof(&mut self) -> Result<(), AssistantTransportError> {
+        if self.closed {
+            return Err(AssistantTransportError::Closed);
+        }
+        let expected = self.next_sequence.ok_or(AssistantTransportError::SequenceExhausted)?;
+        match self.read_frame_or_eof(expected).await {
+            Ok(None) => {
+                self.closed = true;
+                Ok(())
+            }
+            Ok(Some(frame)) => {
+                let error = AssistantTransportError::TrailingFrame { sequence: frame.sequence() };
+                self.raw_drain_after_error(error).await
+            }
+            Err(error) => self.raw_drain_after_error(error).await,
+        }
+    }
+
     async fn raw_drain_after_error(
         &mut self,
         original_error: AssistantTransportError,
