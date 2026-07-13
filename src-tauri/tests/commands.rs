@@ -2,9 +2,10 @@ use assets::{AssetKind, NewAsset};
 use engine::NodeProgressEvent;
 use oh_my_dream_tauri::commands::{
     assets_root_with_state, create_project_with_state, get_providers_with_state,
-    list_assets_with_state, list_projects_with_state, open_project_with_state,
-    parse_asset_kind_filter, parse_asset_sort, run_workflow_with_state_and_observer,
-    save_workflow_with_state, set_active_provider_with_state, set_provider_key_with_state,
+    list_assets_with_state, list_projects_with_state, load_workflow_with_state,
+    open_project_with_state, parse_asset_kind_filter, parse_asset_sort,
+    run_workflow_with_state_and_observer, save_workflow_with_state, set_active_provider_with_state,
+    set_provider_key_with_state,
 };
 use oh_my_dream_tauri::state::AppState;
 use serde_json::json;
@@ -83,6 +84,27 @@ fn workflow_commands_reject_unknown_project_ids() {
 
     assert!(save_error.contains("validate project"));
     assert!(run_error.contains("validate project"));
+}
+
+#[test]
+fn workflow_commands_reject_invalid_persisted_workflows() {
+    let root = tempdir().expect("create temp asset root");
+    let state = AppState::from_asset_root(root.path()).expect("build app state");
+    let project = create_project_with_state("Broken".to_owned(), &state).expect("create project");
+    state
+        .store
+        .lock()
+        .expect("store lock")
+        .save_workflow(&project.id, json!({"version": "1.0", "project_id": project.id}))
+        .expect("persist invalid workflow fixture");
+
+    let open_error = open_project_with_state(project.id.clone(), &state)
+        .expect_err("open should reject invalid workflow");
+    let load_error = load_workflow_with_state(project.id, &state)
+        .expect_err("load should reject invalid workflow");
+
+    assert!(open_error.contains("deserialize stored workflow"));
+    assert!(load_error.contains("deserialize stored workflow"));
 }
 
 #[test]

@@ -19,6 +19,39 @@ fn converts_engine_outputs_to_named_run_output_dto() {
 }
 
 #[test]
+fn preserves_every_engine_value_kind_in_run_output_dto() {
+    let values = ValueMap::from([
+        ("audio".to_owned(), Value::Audio("audio-ref".to_owned())),
+        ("float".to_owned(), Value::Float(1.5)),
+        ("image".to_owned(), Value::Image("image-ref".to_owned())),
+        ("int".to_owned(), Value::Int(42)),
+        ("model".to_owned(), Value::Model("model-id".to_owned())),
+        ("string".to_owned(), Value::String("hello".to_owned())),
+        ("video".to_owned(), Value::Video("video-ref".to_owned())),
+    ]);
+    let outputs = RunOutputs::from([("node".to_owned(), values)]);
+
+    let dto = RunWorkflowResultDto::from_outputs(&outputs);
+    let kinds = dto.outputs["node"]
+        .iter()
+        .map(|(name, output)| (name.as_str(), output.kind.as_str()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        kinds,
+        vec![
+            ("audio", "audio"),
+            ("float", "float"),
+            ("image", "image"),
+            ("int", "int"),
+            ("model", "model"),
+            ("string", "string"),
+            ("video", "video"),
+        ]
+    );
+}
+
+#[test]
 fn asset_dto_serializes_asset_kind_as_frontend_string() {
     let asset = assets::Asset {
         id: "asset-1".to_owned(),

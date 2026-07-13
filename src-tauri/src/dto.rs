@@ -26,7 +26,7 @@ impl RunWorkflowResultDto {
 /// A single output value as consumed by the frontend seam.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunOutputDto {
-    /// Frontend output kind: `string`, `image`, or `video`.
+    /// Engine value kind preserved for the frontend contract.
     pub kind: String,
     /// String representation of the produced value.
     pub value: String,
@@ -267,20 +267,17 @@ fn value_map_to_dto(values: &ValueMap) -> BTreeMap<String, RunOutputDto> {
 
 fn run_output_to_dto(value: &Value) -> RunOutputDto {
     match value {
-        Value::String(value) | Value::Model(value) => string_output(value),
-        Value::Image(value) => media_output("image", value),
-        Value::Video(value) => media_output("video", value),
-        Value::Audio(value) => media_output("audio", value),
-        Value::Int(value) => string_output(&value.to_string()),
-        Value::Float(value) => string_output(&value.to_string()),
+        Value::String(value) => output("string", value),
+        Value::Image(value) => output("image", value),
+        Value::Video(value) => output("video", value),
+        Value::Audio(value) => output("audio", value),
+        Value::Model(value) => output("model", value),
+        Value::Int(value) => output("int", &value.to_string()),
+        Value::Float(value) => output("float", &value.to_string()),
     }
 }
 
-fn string_output(value: &str) -> RunOutputDto {
-    media_output("string", value)
-}
-
-fn media_output(kind: &str, value: &str) -> RunOutputDto {
+fn output(kind: &str, value: &str) -> RunOutputDto {
     RunOutputDto { kind: kind.to_owned(), value: value.to_owned() }
 }
 

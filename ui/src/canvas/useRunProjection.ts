@@ -5,7 +5,7 @@
 import { useCallback } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import type { FlowNodeData, NodeRuntime } from "../nodes/WorkflowFlowNode.tsx";
-import type { RunProgress, RunTerminalStatus } from "../workflow/types.ts";
+import type { RunOutputs, RunProgress, RunTerminalStatus } from "../workflow/types.ts";
 
 export function useRunProjection(
   setNodes: (updater: (nodes: Node[]) => Node[]) => void,
@@ -77,15 +77,20 @@ function settleNode(node: Node, status: RunTerminalStatus): Node {
       ? { ...node, data: { ...data, runtime: { ...data.runtime, state: "done" } } }
       : node;
   }
-  const first = Object.values(outputs)[0];
-  const preview =
-    first && (first.kind === "image" || first.kind === "video" || first.kind === "audio")
-      ? { kind: first.kind, url: mediaUrl(first.value) }
-      : undefined;
+  const preview = mediaPreviewFrom(outputs);
   return {
     ...node,
     data: { ...data, runtime: { state: "done", progress: 1, cost: data.runtime?.cost, preview } },
   };
+}
+
+function mediaPreviewFrom(outputs: RunOutputs[string]): NodeRuntime["preview"] {
+  for (const output of Object.values(outputs)) {
+    if (output.kind === "image" || output.kind === "video" || output.kind === "audio") {
+      return { kind: output.kind, url: mediaUrl(output.value) };
+    }
+  }
+  return undefined;
 }
 
 function mediaUrl(value: string): string | null {

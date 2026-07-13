@@ -137,7 +137,7 @@ pub fn open_project_with_state(
         .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?;
     let project = store.get_project(&id).map_err(|source| command_error("open project", source))?;
     let workflow_json = match store.load_workflow(&id) {
-        Ok(workflow) => workflow,
+        Ok(workflow) => validate_stored_workflow(workflow)?,
         Err(assets::AssetError::NotFound { .. }) => default_workflow_json(&id),
         Err(source) => return Err(command_error("load workflow", source)),
     };
@@ -171,12 +171,21 @@ pub fn load_workflow(
     project_id: String,
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
-    state
+    load_workflow_with_state(project_id, &state)
+}
+
+/// Loads and validates persisted workflow JSON against an explicit app state.
+pub fn load_workflow_with_state(
+    project_id: String,
+    state: &AppState,
+) -> Result<serde_json::Value, String> {
+    let workflow = state
         .store
         .lock()
         .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?
         .load_workflow(&project_id)
-        .map_err(|source| command_error("load workflow", source))
+        .map_err(|source| command_error("load workflow", source))?;
+    validate_stored_workflow(workflow)
 }
 
 /// Returns provider summaries without raw keys.
@@ -259,6 +268,13 @@ pub fn parse_asset_sort(sort: Option<String>) -> anyhow::Result<AssetSort> {
 
 fn default_workflow_json(project_id: &str) -> serde_json::Value {
     serde_json::json!({ "version": "1.0", "project_id": project_id, "nodes": [] })
+}
+
+fn validate_stored_workflow(value: serde_json::Value) -> Result<serde_json::Value, String> {
+    let workflow = serde_json::from_value::<Workflow>(value)
+        .map_err(|source| command_error("deserialize stored workflow", source))?;
+    serde_json::to_value(workflow)
+        .map_err(|source| command_error("serialize validated workflow", source))
 }
 
 fn ensure_project_exists(state: &AppState, project_id: &str) -> Result<(), String> {

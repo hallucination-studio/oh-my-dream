@@ -28,6 +28,30 @@ describe("useRunProjection", () => {
     expect(runtimeOf(view.result.current.nodes, "active")).toBeUndefined();
     expect(view.result.current.edges[0]?.data?.running).toBe(false);
   });
+
+  it("selects a media preview even when a non-media output comes first", () => {
+    const view = renderHook(() => {
+      const [nodes, setNodes] = useState([nodeWithState("result", "running")]);
+      const [, setEdges] = useState<Edge[]>([]);
+      const projection = useRunProjection(setNodes, setEdges);
+      return { nodes, projection };
+    });
+
+    act(() => view.result.current.projection.settle({
+      state: "succeeded",
+      outputs: {
+        result: {
+          description: { kind: "string", value: "finished" },
+          image: { kind: "image", value: "asset://image-1" },
+        },
+      },
+    }));
+
+    expect(runtimeOf(view.result.current.nodes, "result")?.preview).toEqual({
+      kind: "image",
+      url: "asset://image-1",
+    });
+  });
 });
 
 function nodeWithState(id: string, state: "done" | "running"): Node {
