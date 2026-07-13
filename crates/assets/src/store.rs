@@ -1,20 +1,20 @@
 //! SQLite metadata plus managed on-disk asset files.
 
 use crate::error::{AssetError, Result};
+use crate::file_support::{
+    cleanup_after_failure, create_dir, encode_hex, file_name_for_id, path_to_string, unix_timestamp,
+};
 use crate::model::{Asset, AssetKind, AssetQuery, AssetSort, NewAsset, Project};
+use crate::persistence::{
+    ASSET_COLUMNS, AssetRow, asset_row, collect_assets, collect_projects, kind_as_str, project_row,
+};
 use crate::thumbnail::generate_thumbnail;
-use rusqlite::types::{Type, ValueRef};
-use rusqlite::{Connection, OptionalExtension, Row, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::info;
 
 const DATABASE_FILE: &str = "assets.sqlite";
-const ASSET_COLUMNS: &str = "id, kind, file_path, thumbnail_path, workflow_snapshot, \
-    prompt, project_id, project_name, source_node_id, source_node_type, model, seed, cost, \
-    tags, created_at";
-
 /// Local asset store backed by SQLite metadata and copied media files.
 pub struct AssetStore {
     connection: Connection,
@@ -368,120 +368,6 @@ impl AssetStore {
     }
 }
 
-struct AssetRow {
-    id: String,
-    kind: String,
-    file_path: String,
-    thumbnail_path: Option<String>,
-    workflow_snapshot: String,
-    prompt: Option<String>,
-    project_id: Option<String>,
-    project_name: Option<String>,
-    source_node_id: Option<String>,
-    source_node_type: Option<String>,
-    model: Option<String>,
-    seed: Option<u64>,
-    cost: Option<i64>,
-    tags: String,
-    created_at: i64,
-}
-
-impl AssetRow {
-    fn into_asset(self) -> Result<Asset> {
-        let kind = parse_kind(&self.id, &self.kind)?;
-        let workflow_snapshot = parse_json(&self.id, &self.workflow_snapshot, "workflow snapshot")?;
-        let tags = parse_json(&self.id, &self.tags, "tags")?;
-        Ok(Asset {
-            id: self.id,
-            kind,
-            file_path: self.file_path,
-            thumbnail_path: self.thumbnail_path,
-            workflow_snapshot,
-            prompt: self.prompt,
-            project_id: self.project_id,
-            project_name: self.project_name,
-            source_node_id: self.source_node_id,
-            source_node_type: self.source_node_type,
-            model: self.model,
-            seed: self.seed,
-            cost: self.cost,
-            tags,
-            created_at: self.created_at,
-        })
-    }
-}
-
-fn asset_row(row: &Row<'_>) -> rusqlite::Result<AssetRow> {
-    Ok(AssetRow {
-        id: row.get(0)?,
-        kind: row.get(1)?,
-        file_path: row.get(2)?,
-        thumbnail_path: row.get(3)?,
-        workflow_snapshot: row.get(4)?,
-        prompt: row.get(5)?,
-        project_id: row.get(6)?,
-        project_name: row.get(7)?,
-        source_node_id: row.get(8)?,
-        source_node_type: row.get(9)?,
-        model: row.get(10)?,
-        seed: seed_from_row(row, 11)?,
-        cost: row.get(12)?,
-        tags: row.get(13)?,
-        created_at: row.get(14)?,
-    })
-}
-
-fn seed_from_row(row: &Row<'_>, index: usize) -> rusqlite::Result<Option<u64>> {
-    match row.get_ref(index)? {
-        ValueRef::Null => Ok(None),
-        ValueRef::Integer(value) => Ok(Some(value as u64)),
-        ValueRef::Text(value) => {
-            let encoded = std::str::from_utf8(value).map_err(|source| {
-                rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(source))
-            })?;
-            let parsed = match encoded.strip_prefix("u64:") {
-                Some(digits) => digits.parse(),
-                None => {
-                    encoded.parse().or_else(|_| encoded.parse::<i64>().map(|value| value as u64))
-                }
-            };
-            parsed.map(Some).map_err(|source| {
-                rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(source))
-            })
-        }
-        value => {
-            Err(rusqlite::Error::InvalidColumnType(index, "seed".to_owned(), value.data_type()))
-        }
-    }
-}
-
-fn collect_assets<F>(rows: rusqlite::MappedRows<'_, F>) -> Result<Vec<Asset>>
-where
-    F: FnMut(&Row<'_>) -> rusqlite::Result<AssetRow>,
-{
-    let mut assets = Vec::new();
-    for row in rows {
-        let row = row.map_err(|source| storage_error(format!("read asset row: {source}")))?;
-        assets.push(row.into_asset()?);
-    }
-    Ok(assets)
-}
-
-fn project_row(row: &Row<'_>) -> rusqlite::Result<Project> {
-    Ok(Project { id: row.get(0)?, name: row.get(1)?, created_at: row.get(2)? })
-}
-
-fn collect_projects<F>(rows: rusqlite::MappedRows<'_, F>) -> Result<Vec<Project>>
-where
-    F: FnMut(&Row<'_>) -> rusqlite::Result<Project>,
-{
-    let mut projects = Vec::new();
-    for row in rows {
-        projects.push(row.map_err(|source| storage_error(format!("read project row: {source}")))?);
-    }
-    Ok(projects)
-}
-
 fn non_empty(value: Option<&str>) -> Option<&str> {
     value.and_then(|value| (!value.is_empty()).then_some(value))
 }
@@ -492,23 +378,6 @@ fn order_clause(sort: AssetSort) -> &'static str {
         AssetSort::Oldest => " ORDER BY created_at ASC, rowid ASC",
         AssetSort::CostDesc => " ORDER BY cost DESC, created_at DESC, rowid DESC",
         AssetSort::CostAsc => " ORDER BY cost IS NULL ASC, cost ASC, created_at DESC, rowid DESC",
-    }
-}
-
-fn kind_as_str(kind: AssetKind) -> &'static str {
-    match kind {
-        AssetKind::Image => "image",
-        AssetKind::Video => "video",
-        AssetKind::Audio => "audio",
-    }
-}
-
-fn parse_kind(asset_id: &str, value: &str) -> Result<AssetKind> {
-    match value {
-        "image" => Ok(AssetKind::Image),
-        "video" => Ok(AssetKind::Video),
-        "audio" => Ok(AssetKind::Audio),
-        _ => Err(storage_error(format!("asset `{asset_id}` has unknown kind `{value}`"))),
     }
 }
 
@@ -525,52 +394,6 @@ fn parse_json<T: serde::de::DeserializeOwned>(
         .map_err(|source| storage_error(format!("parse {field} for asset `{asset_id}`: {source}")))
 }
 
-fn create_dir(path: &Path, operation: &str) -> Result<()> {
-    fs::create_dir_all(path)
-        .map_err(|source| storage_error(format!("{operation} `{}`: {source}", path.display())))
-}
-
-fn file_name_for_id(id: &str, source_path: &Path) -> String {
-    source_path
-        .extension()
-        .and_then(std::ffi::OsStr::to_str)
-        .map_or_else(|| id.to_owned(), |extension| format!("{id}.{extension}"))
-}
-
-fn unix_timestamp(asset_id: &str) -> Result<i64> {
-    let duration = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|source| {
-        storage_error(format!("read timestamp for asset `{asset_id}`: {source}"))
-    })?;
-    Ok(duration.as_secs() as i64)
-}
-
-fn path_to_string(path: &Path) -> String {
-    path.to_string_lossy().into_owned()
-}
-
 fn storage_error(message: String) -> AssetError {
     AssetError::Storage { message }
-}
-
-fn cleanup_after_failure(operation: &'static str, path: &Path, source: AssetError) -> AssetError {
-    match fs::remove_file(path) {
-        Ok(()) => source,
-        Err(cleanup) if cleanup.kind() == std::io::ErrorKind::NotFound => source,
-        Err(cleanup) => AssetError::Cleanup {
-            operation,
-            source: Box::new(source),
-            path: path.to_path_buf(),
-            cleanup,
-        },
-    }
-}
-
-fn encode_hex(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut encoded = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        encoded.push(HEX[(byte >> 4) as usize] as char);
-        encoded.push(HEX[(byte & 0x0f) as usize] as char);
-    }
-    encoded
 }

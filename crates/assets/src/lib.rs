@@ -10,7 +10,9 @@
 #![forbid(unsafe_code)]
 
 pub mod error;
+mod file_support;
 pub mod model;
+mod persistence;
 pub mod store;
 pub mod thumbnail;
 
