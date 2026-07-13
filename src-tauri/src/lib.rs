@@ -6,6 +6,7 @@ pub mod assistant_operations;
 pub mod assistant_runtime;
 pub mod assistant_sidecar;
 pub mod assistant_transport;
+pub mod capability_catalog;
 mod command_error;
 pub mod commands;
 pub mod dto;
@@ -17,10 +18,10 @@ pub mod workflow_runs;
 
 use commands::{
     assets_root, cancel_workflow_run, create_project, get_asset, get_assistant_config,
-    get_assistant_session, get_capability_manifest, get_providers, install_skill, list_assets,
-    list_projects, list_skills, load_workflow, open_project, run_workflow, save_workflow,
-    set_active_provider, set_assistant_config, set_provider_key, set_skill_enabled,
-    start_workflow_run, uninstall_skill,
+    get_assistant_session, get_capability_catalog, get_capability_manifest, get_providers,
+    install_skill, list_assets, list_projects, list_skills, load_workflow, open_project,
+    run_workflow, save_workflow, set_active_provider, set_assistant_config, set_provider_key,
+    set_skill_enabled, start_workflow_run, uninstall_skill,
 };
 use tauri::Manager;
 
@@ -49,6 +50,7 @@ pub fn run() -> tauri::Result<()> {
             get_providers,
             set_active_provider,
             set_provider_key,
+            get_capability_catalog,
             get_capability_manifest,
             get_assistant_config,
             set_assistant_config,

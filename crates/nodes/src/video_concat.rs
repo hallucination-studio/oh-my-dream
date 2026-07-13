@@ -1,9 +1,9 @@
 use crate::error::boxed;
 use crate::ports::{output, required_many_input};
 use engine::{
-    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, CapabilityRegistration,
-    Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortCardinality,
-    PortType, Value, ValueMap,
+    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
+    CapabilityRegistration, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult,
+    OutputPort, PortCardinality, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 
@@ -29,6 +29,12 @@ pub(crate) fn registration() -> CapabilityRegistration {
     );
     CapabilityRegistration::new(
         contract,
+        CapabilityPresentation::new(
+            "Video Concat",
+            "Join ordered video clips into one sequence.",
+            "video",
+            vec!["concat".to_owned(), "sequence".to_owned(), "video".to_owned()],
+        ),
         Box::new(normalize_params),
         Box::new(|_| Ok(Box::new(VideoConcatNode::new()))),
     )

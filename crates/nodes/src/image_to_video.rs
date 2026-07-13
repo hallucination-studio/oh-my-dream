@@ -5,9 +5,9 @@ use crate::ports::{output, required_input};
 use crate::{GenerationContext, ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore};
 use assets::AssetKind;
 use engine::{
-    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, CapabilityRegistration,
-    InputPort, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType,
-    Value, ValueMap,
+    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
+    CapabilityRegistration, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
+    NodeRunResult, OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -41,6 +41,12 @@ pub(crate) fn registration(
     );
     CapabilityRegistration::new(
         contract,
+        CapabilityPresentation::new(
+            "Image to Video",
+            "Generate a video clip from an image.",
+            "video",
+            vec!["video".to_owned(), "generation".to_owned(), "image to video".to_owned()],
+        ),
         Box::new(normalize_params),
         Box::new(move |params| {
             ImageToVideoNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))

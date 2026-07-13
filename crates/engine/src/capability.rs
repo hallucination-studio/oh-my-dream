@@ -103,9 +103,41 @@ impl CapabilityContract {
     }
 }
 
+/// Mutable, non-authoritative display metadata derived from a registration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CapabilityPresentation {
+    /// Short label shown in palettes and node headers.
+    pub label: String,
+    /// User-facing description of the capability.
+    pub description: String,
+    /// Presentation grouping, not an execution identity.
+    pub category: String,
+    /// Search terms used by discovery and UI filtering.
+    pub search_terms: Vec<String>,
+}
+
+impl CapabilityPresentation {
+    /// Creates display metadata for one registration.
+    #[must_use]
+    pub fn new(
+        label: impl Into<String>,
+        description: impl Into<String>,
+        category: impl Into<String>,
+        search_terms: Vec<String>,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            description: description.into(),
+            category: category.into(),
+            search_terms,
+        }
+    }
+}
+
 /// One capability's normalization policy and executable node factory.
 pub struct CapabilityRegistration {
     contract: CapabilityContract,
+    presentation: CapabilityPresentation,
     normalizer: CapabilityNormalizer,
     factory: NodeFactory,
 }
@@ -119,10 +151,11 @@ impl CapabilityRegistration {
     #[must_use]
     pub fn new(
         contract: CapabilityContract,
+        presentation: CapabilityPresentation,
         normalizer: CapabilityNormalizer,
         factory: NodeFactory,
     ) -> Self {
-        Self { contract, normalizer, factory }
+        Self { contract, presentation, normalizer, factory }
     }
 
     /// Returns the exact capability reference.
@@ -135,6 +168,12 @@ impl CapabilityRegistration {
     #[must_use]
     pub fn contract(&self) -> &CapabilityContract {
         &self.contract
+    }
+
+    /// Returns non-authoritative display metadata for this exact ref.
+    #[must_use]
+    pub fn presentation(&self) -> &CapabilityPresentation {
+        &self.presentation
     }
 
     /// Normalizes raw params once at the registration boundary.

@@ -10,10 +10,12 @@
 
 #![forbid(unsafe_code)]
 
+mod contracts;
 mod error;
 mod generation;
 mod image_to_video;
 mod media;
+mod migrations;
 mod params;
 mod ports;
 mod registry;
@@ -26,10 +28,15 @@ use assets::AssetStore;
 use engine::NodeRegistry;
 use std::sync::{Arc, Mutex};
 
+pub use contracts::{CapabilityProjection, CapabilityProjectionError, project_capabilities};
 pub use generation::{
     GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
     ImageToVideoRequest, InlineMedia, MediaFormat, MediaKind, TextToAudioGenerator,
     TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+};
+pub use migrations::{
+    CapabilityMigrationError, CapabilityNodeResolution, CapabilityNodeStatus,
+    DegradedCapabilityReason, frozen_legacy_examples, migrate_legacy_node, resolve_workflow_node,
 };
 
 /// Shared asset store used by node instances.

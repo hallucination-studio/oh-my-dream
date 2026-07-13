@@ -1,0 +1,32 @@
+[
+  {
+    "name": "text_prompt_prompt_alias",
+    "raw": {
+      "id": "prompt",
+      "type": "TextPrompt",
+      "params": {"prompt": "a moonlit house"},
+      "inputs": {}
+    },
+    "expected_params": {"text": "a moonlit house"}
+  },
+  {
+    "name": "text_to_image_defaults",
+    "raw": {
+      "id": "image",
+      "type": "TextToImage",
+      "params": {},
+      "inputs": {}
+    },
+    "expected_params": {"model": "mock-image"}
+  },
+  {
+    "name": "image_to_video_duration_alias",
+    "raw": {
+      "id": "video",
+      "type": "ImageToVideo",
+      "params": {"duration_seconds": 4.0},
+      "inputs": {}
+    },
+    "expected_params": {"model": "mock-video", "duration": 4.0}
+  }
+]

@@ -5,9 +5,9 @@ use crate::ports::{output, required_input};
 use crate::{GenerationContext, SharedAssetStore, TextToImageGenerator, TextToImageRequest};
 use assets::AssetKind;
 use engine::{
-    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, CapabilityRegistration,
-    InputPort, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType,
-    Value, ValueMap,
+    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
+    CapabilityRegistration, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
+    NodeRunResult, OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -41,6 +41,12 @@ pub(crate) fn registration(
     );
     CapabilityRegistration::new(
         contract,
+        CapabilityPresentation::new(
+            "Text to Image",
+            "Generate an image from a text prompt.",
+            "image",
+            vec!["image".to_owned(), "generation".to_owned(), "text to image".to_owned()],
+        ),
         Box::new(normalize_params),
         Box::new(move |params| {
             TextToImageNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))

@@ -20,8 +20,9 @@ pub mod value;
 
 pub use cache::ResultCache;
 pub use capability::{
-    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, CapabilityRegistration,
-    CapabilityRegistry, CapabilityRegistryError, DEFAULT_CAPABILITY_VERSION,
+    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
+    CapabilityRegistration, CapabilityRegistry, CapabilityRegistryError,
+    DEFAULT_CAPABILITY_VERSION,
 };
 pub use error::{EngineError, Result};
 pub use executor::{

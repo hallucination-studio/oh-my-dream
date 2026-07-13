@@ -192,6 +192,126 @@ pub struct CapabilityManifestDto {
     pub capabilities: Vec<CapabilityDto>,
 }
 
+/// Exact identity of one versioned workflow capability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CapabilityRefDto {
+    /// Stable capability identifier.
+    pub id: String,
+    /// Exact semantic contract version.
+    pub version: String,
+}
+
+/// Cardinality of a capability port at the application boundary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityCardinalityDto {
+    /// Exactly one value is accepted or produced.
+    One,
+    /// An ordered collection with explicit bounds is accepted.
+    Many {
+        /// Inclusive minimum number of values.
+        minimum: usize,
+        /// Inclusive maximum number of values, when bounded.
+        maximum: Option<usize>,
+    },
+}
+
+/// Execution port metadata exposed by a capability contract.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CapabilityPortDto {
+    /// Stable named port.
+    pub name: String,
+    /// Canonical engine port type in snake case.
+    pub port_type: String,
+    /// Port cardinality and bounds.
+    pub cardinality: CapabilityCardinalityDto,
+    /// Whether the input must be connected or have a default.
+    pub required: bool,
+}
+
+/// Immutable execution contract for one exact capability reference.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapabilityContractDto {
+    /// Exact capability identity represented by this contract.
+    pub reference: CapabilityRefDto,
+    /// Named input ports.
+    pub inputs: Vec<CapabilityPortDto>,
+    /// Named output ports.
+    pub outputs: Vec<CapabilityPortDto>,
+    /// JSON Schema for the normalized params object.
+    pub params_schema: serde_json::Value,
+    /// Canonical params used when no params are supplied.
+    pub default_params: BTreeMap<String, serde_json::Value>,
+    /// Policy-relevant execution effects.
+    pub effects: Vec<CapabilityEffectDto>,
+}
+
+/// Effect classification owned by an immutable capability contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityEffectDto {
+    /// Deterministic local transformation with no external effect.
+    Pure,
+    /// Provider, filesystem, or other external effect.
+    External,
+}
+
+/// Non-authoritative display metadata for one exact capability reference.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CapabilityPresentationDto {
+    /// Short label shown in palettes and node headers.
+    pub label: String,
+    /// User-facing description.
+    pub description: String,
+    /// Presentation grouping.
+    pub category: String,
+    /// Search terms used by discovery and UI filtering.
+    pub search_terms: Vec<String>,
+}
+
+/// Live availability projection kept separate from execution identity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CapabilityAvailabilityDto {
+    /// The exact registration is available for admission or execution.
+    Available,
+    /// The exact registration is known but currently unavailable.
+    Unavailable,
+    /// The registration can be inspected but needs repair or migration.
+    Degraded,
+}
+
+/// Status metadata supplied independently of a capability contract.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CapabilityStatusDto {
+    /// Current availability state.
+    pub availability: CapabilityAvailabilityDto,
+    /// Safe explanation when availability is not fully ready.
+    pub reason: Option<String>,
+    /// Provider health marker, when the capability has an external effect.
+    pub provider_health: Option<String>,
+    /// Monotonic status revision for cache revalidation.
+    pub status_revision: u64,
+}
+
+/// One catalog entry combining independent contract, presentation, and status projections.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapabilityCatalogEntryDto {
+    /// Immutable execution contract.
+    pub contract: CapabilityContractDto,
+    /// Non-authoritative presentation metadata.
+    pub presentation: CapabilityPresentationDto,
+    /// Current availability metadata.
+    pub status: CapabilityStatusDto,
+}
+
+/// Capability catalog returned to the application and UI boundaries.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapabilityCatalogDto {
+    /// Entries in stable exact-reference order.
+    pub capabilities: Vec<CapabilityCatalogEntryDto>,
+}
+
 /// One assistant-callable capability.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapabilityDto {

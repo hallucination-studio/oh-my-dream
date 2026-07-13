@@ -2,9 +2,9 @@ use crate::error::boxed;
 use crate::params::string_param;
 use crate::ports::output;
 use engine::{
-    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, CapabilityRegistration,
-    InputPort, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType,
-    Value, ValueMap,
+    CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
+    CapabilityRegistration, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
+    NodeRunResult, OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use tracing::info;
@@ -29,6 +29,12 @@ pub(crate) fn registration() -> CapabilityRegistration {
     );
     CapabilityRegistration::new(
         contract,
+        CapabilityPresentation::new(
+            "Text Prompt",
+            "Provide a reusable text prompt to downstream nodes.",
+            "input",
+            vec!["prompt".to_owned(), "text".to_owned()],
+        ),
         Box::new(normalize_params),
         Box::new(|params| TextPromptNode::from_params(params).map(boxed_node).map_err(boxed)),
     )

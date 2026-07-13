@@ -16,6 +16,7 @@ pub use crate::assistant::{
     set_assistant_config, set_assistant_config_with_state, set_skill_enabled,
     set_skill_enabled_with_state, uninstall_skill, uninstall_skill_with_state,
 };
+pub use crate::capability_catalog::{get_capability_catalog, get_capability_catalog_with_state};
 pub use crate::workflow_run_commands::{
     cancel_workflow_run, cancel_workflow_run_with_state, run_workflow, run_workflow_with_state,
     run_workflow_with_state_and_observer, start_workflow_run, start_workflow_run_with_state,
