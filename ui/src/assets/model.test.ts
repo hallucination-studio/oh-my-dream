@@ -16,7 +16,7 @@ describe("assetFromDto", () => {
       source_node_id: "image",
       source_node_type: "TextToImage",
       model: "mock-image",
-      seed: 42,
+      seed: "18446744073709551615",
       cost: 250,
       tags: ["saved"],
       created_at: 123,
@@ -31,7 +31,7 @@ describe("assetFromDto", () => {
       projectName: "Launch",
       sourceNodeType: "TextToImage",
       model: "mock-image",
-      seed: 42,
+      seed: "18446744073709551615",
       cost: 250,
       createdAt: 123,
     });

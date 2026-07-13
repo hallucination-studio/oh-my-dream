@@ -60,7 +60,7 @@ function isAsset(value: unknown): value is AssetDto {
     (value.source_node_id === null || typeof value.source_node_id === "string") &&
     (value.source_node_type === null || typeof value.source_node_type === "string") &&
     (value.model === null || typeof value.model === "string") &&
-    (value.seed === null || typeof value.seed === "number") &&
+    (value.seed === null || typeof value.seed === "string") &&
     (value.cost === null || typeof value.cost === "number") &&
     Array.isArray(value.tags) &&
     value.tags.every((tag) => typeof tag === "string") &&

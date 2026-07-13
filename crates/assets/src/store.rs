@@ -3,6 +3,7 @@
 use crate::error::{AssetError, Result};
 use crate::model::{Asset, AssetKind, AssetQuery, AssetSort, NewAsset, Project};
 use crate::thumbnail::generate_thumbnail;
+use rusqlite::types::{Type, ValueRef};
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -212,7 +213,7 @@ impl AssetStore {
                     source_node_id TEXT,
                     source_node_type TEXT,
                     model TEXT,
-                    seed INTEGER,
+                    seed TEXT,
                     cost INTEGER,
                     tags TEXT NOT NULL,
                     created_at INTEGER NOT NULL
@@ -291,7 +292,7 @@ impl AssetStore {
                     asset.source_node_id,
                     asset.source_node_type,
                     asset.model,
-                    asset.seed.map(|value| value as i64),
+                    asset.seed.map(|value| format!("u64:{value}")),
                     asset.cost,
                     tags,
                     asset.created_at
@@ -334,7 +335,7 @@ impl AssetStore {
             ("project_name", "project_name TEXT"),
             ("source_node_type", "source_node_type TEXT"),
             ("model", "model TEXT"),
-            ("seed", "seed INTEGER"),
+            ("seed", "seed TEXT"),
             ("cost", "cost INTEGER"),
         ] {
             if !self.asset_column_exists(name)? {
@@ -379,7 +380,7 @@ struct AssetRow {
     source_node_id: Option<String>,
     source_node_type: Option<String>,
     model: Option<String>,
-    seed: Option<i64>,
+    seed: Option<u64>,
     cost: Option<i64>,
     tags: String,
     created_at: i64,
@@ -402,7 +403,7 @@ impl AssetRow {
             source_node_id: self.source_node_id,
             source_node_type: self.source_node_type,
             model: self.model,
-            seed: self.seed.map(|value| value as u64),
+            seed: self.seed,
             cost: self.cost,
             tags,
             created_at: self.created_at,
@@ -423,11 +424,35 @@ fn asset_row(row: &Row<'_>) -> rusqlite::Result<AssetRow> {
         source_node_id: row.get(8)?,
         source_node_type: row.get(9)?,
         model: row.get(10)?,
-        seed: row.get(11)?,
+        seed: seed_from_row(row, 11)?,
         cost: row.get(12)?,
         tags: row.get(13)?,
         created_at: row.get(14)?,
     })
+}
+
+fn seed_from_row(row: &Row<'_>, index: usize) -> rusqlite::Result<Option<u64>> {
+    match row.get_ref(index)? {
+        ValueRef::Null => Ok(None),
+        ValueRef::Integer(value) => Ok(Some(value as u64)),
+        ValueRef::Text(value) => {
+            let encoded = std::str::from_utf8(value).map_err(|source| {
+                rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(source))
+            })?;
+            let parsed = match encoded.strip_prefix("u64:") {
+                Some(digits) => digits.parse(),
+                None => {
+                    encoded.parse().or_else(|_| encoded.parse::<i64>().map(|value| value as u64))
+                }
+            };
+            parsed.map(Some).map_err(|source| {
+                rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(source))
+            })
+        }
+        value => {
+            Err(rusqlite::Error::InvalidColumnType(index, "seed".to_owned(), value.data_type()))
+        }
+    }
 }
 
 fn collect_assets<F>(rows: rusqlite::MappedRows<'_, F>) -> Result<Vec<Asset>>

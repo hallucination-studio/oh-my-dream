@@ -28,7 +28,7 @@ export interface AssetDto {
   source_node_id: string | null;
   source_node_type: string | null;
   model: string | null;
-  seed: number | null;
+  seed: string | null; // Decimal u64; never decode through a JavaScript number.
   cost: number | null;
   tags: string[];
   created_at: number;

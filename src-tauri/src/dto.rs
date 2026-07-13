@@ -57,8 +57,8 @@ pub struct AssetDto {
     pub source_node_type: Option<String>,
     /// Model identifier used to produce this asset.
     pub model: Option<String>,
-    /// Seed used to produce this asset.
-    pub seed: Option<u64>,
+    /// Seed used to produce this asset, encoded as decimal text for JavaScript safety.
+    pub seed: Option<String>,
     /// Estimated cost in micro-USD.
     pub cost: Option<i64>,
     /// Free-form asset tags.
@@ -81,7 +81,7 @@ impl From<Asset> for AssetDto {
             source_node_id: asset.source_node_id,
             source_node_type: asset.source_node_type,
             model: asset.model,
-            seed: asset.seed,
+            seed: asset.seed.map(|seed| seed.to_string()),
             cost: asset.cost,
             tags: asset.tags,
             created_at: asset.created_at,

@@ -10,7 +10,7 @@
   "source_node_id": "video",
   "source_node_type": "ImageToVideo",
   "model": "mock-video",
-  "seed": null,
+  "seed": "18446744073709551615",
   "cost": 900,
   "tags": [],
   "created_at": 0

@@ -48,7 +48,7 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
             "source_node_id": "video",
             "source_node_type": "ImageToVideo",
             "model": "mock-video",
-            "seed": null,
+            "seed": "18446744073709551615",
             "cost": 900,
             "tags": [],
             "created_at": 0
@@ -226,7 +226,7 @@ fn asset_fixture() -> AssetDto {
         source_node_id: Some("video".to_owned()),
         source_node_type: Some("ImageToVideo".to_owned()),
         model: Some("mock-video".to_owned()),
-        seed: None,
+        seed: Some("18446744073709551615".to_owned()),
         cost: Some(900),
         tags: Vec::new(),
         created_at: 0,

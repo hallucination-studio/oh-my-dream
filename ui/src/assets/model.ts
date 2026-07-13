@@ -9,7 +9,7 @@ export interface AssetViewModel {
   projectName: string | null;
   sourceNodeType: string | null;
   model: string | null;
-  seed: number | null;
+  seed: string | null;
   cost: number | null;
   createdAt: number;
 }

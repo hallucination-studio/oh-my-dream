@@ -53,7 +53,24 @@ fn preserves_every_engine_value_kind_in_run_output_dto() {
 
 #[test]
 fn asset_dto_serializes_asset_kind_as_frontend_string() {
-    let asset = assets::Asset {
+    let asset = test_asset();
+
+    let dto = AssetDto::from(asset);
+    let json = serde_json::to_value(dto).expect("asset dto should serialize");
+
+    assert_eq!(json["kind"], "audio");
+    assert_eq!(json["prompt"], "ocean at night");
+    assert_eq!(json["project_id"], "project-1");
+    assert_eq!(json["project_name"], "Launch");
+    assert_eq!(json["source_node_id"], "video");
+    assert_eq!(json["source_node_type"], "TextToAudio");
+    assert_eq!(json["model"], "mock-audio");
+    assert_eq!(json["seed"], "42");
+    assert_eq!(json["cost"], 1250);
+}
+
+fn test_asset() -> assets::Asset {
+    assets::Asset {
         id: "asset-1".to_owned(),
         kind: assets::AssetKind::Audio,
         file_path: "/tmp/audio.wav".to_owned(),
@@ -69,20 +86,17 @@ fn asset_dto_serializes_asset_kind_as_frontend_string() {
         cost: Some(1250),
         tags: vec!["saved".to_owned()],
         created_at: 123,
-    };
+    }
+}
 
-    let dto = AssetDto::from(asset);
-    let json = serde_json::to_value(dto).expect("asset dto should serialize");
+#[test]
+fn asset_dto_serializes_seed_without_javascript_precision_loss() {
+    let mut asset = test_asset();
+    asset.seed = Some(u64::MAX);
 
-    assert_eq!(json["kind"], "audio");
-    assert_eq!(json["prompt"], "ocean at night");
-    assert_eq!(json["project_id"], "project-1");
-    assert_eq!(json["project_name"], "Launch");
-    assert_eq!(json["source_node_id"], "video");
-    assert_eq!(json["source_node_type"], "TextToAudio");
-    assert_eq!(json["model"], "mock-audio");
-    assert_eq!(json["seed"], 42);
-    assert_eq!(json["cost"], 1250);
+    let json = serde_json::to_value(AssetDto::from(asset)).expect("asset dto should serialize");
+
+    assert_eq!(json["seed"], u64::MAX.to_string());
 }
 
 #[test]

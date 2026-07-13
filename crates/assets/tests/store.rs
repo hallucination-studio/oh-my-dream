@@ -52,6 +52,69 @@ fn inserts_image_and_reads_it_back() {
 }
 
 #[test]
+fn seed_round_trips_the_full_u64_range() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let store = AssetStore::open(temp.path()).expect("store should open");
+    store.create_project_with_id("project-1", "Launch").expect("project should be created");
+    let asset = store
+        .insert(NewAsset {
+            kind: AssetKind::Image,
+            file_path: write_test_image(temp.path().join("max-seed.png"))
+                .to_string_lossy()
+                .into_owned(),
+            workflow_snapshot: json!({}),
+            prompt: None,
+            project_id: Some("project-1".to_owned()),
+            project_name: None,
+            source_node_id: None,
+            source_node_type: None,
+            model: None,
+            seed: Some(u64::MAX),
+            cost: None,
+            tags: Vec::new(),
+        })
+        .expect("asset should be inserted");
+
+    assert_eq!(store.get(&asset.id).expect("asset should load").seed, Some(u64::MAX));
+}
+
+#[test]
+fn reads_legacy_signed_integer_seed_encoding() {
+    let temp = TempDir::new().expect("temp dir should be created");
+    let store = AssetStore::open(temp.path()).expect("store should open");
+    store.create_project_with_id("project-1", "Launch").expect("project should be created");
+    let asset = store
+        .insert(NewAsset {
+            kind: AssetKind::Image,
+            file_path: write_test_image(temp.path().join("legacy-seed.png"))
+                .to_string_lossy()
+                .into_owned(),
+            workflow_snapshot: json!({}),
+            prompt: None,
+            project_id: Some("project-1".to_owned()),
+            project_name: None,
+            source_node_id: None,
+            source_node_type: None,
+            model: None,
+            seed: Some(1),
+            cost: None,
+            tags: Vec::new(),
+        })
+        .expect("asset should be inserted");
+    drop(store);
+    let connection = rusqlite::Connection::open(temp.path().join("assets.sqlite"))
+        .expect("legacy database should open");
+    connection
+        .execute("UPDATE assets SET seed = -1 WHERE id = ?1", [&asset.id])
+        .expect("legacy seed should update");
+    drop(connection);
+
+    let reopened = AssetStore::open(temp.path()).expect("store should reopen");
+
+    assert_eq!(reopened.get(&asset.id).expect("asset should load").seed, Some(u64::MAX));
+}
+
+#[test]
 fn queries_assets_by_kind_project_model_prompt_and_sort() {
     let temp = TempDir::new().expect("temp dir should be created");
     let store = AssetStore::open(temp.path()).expect("store should open");
