@@ -2,9 +2,11 @@ use schemars::JsonSchema;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
+mod contract;
 mod dispatch;
 mod schema_policy;
 
+pub use contract::OperationContract;
 use dispatch::{ErasedOperationHandler, TypedOperationHandler};
 pub use dispatch::{
     OperationDispatchError, OperationHandler, OperationHandlerError, OperationSchemaViolation,
@@ -12,7 +14,8 @@ pub use dispatch::{
 use schema_policy::operation_schemas;
 pub use schema_policy::{OperationInputSchemaMode, OperationRegistrationError};
 /// The durable category of effect produced by an assistant operation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum OperationEffect {
     /// Reads local state without changing it.
     LocalRead,
@@ -202,6 +205,11 @@ impl OperationRegistration {
     #[must_use]
     pub fn output_schema(&self) -> &Value {
         &self.output_schema
+    }
+    /// Projects model-facing metadata and schemas without the bound handler.
+    #[must_use]
+    pub fn contract(&self) -> OperationContract {
+        OperationContract::from_registration(self)
     }
     /// Validates model JSON, invokes the bound handler, and returns output JSON.
     pub async fn dispatch(

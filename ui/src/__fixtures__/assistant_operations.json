@@ -1,0 +1,119 @@
+{
+  "operations": [
+    {
+      "description": "Read local workspace state.",
+      "effect": "local_read",
+      "id": "workspace_get_snapshot",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "ReadInput",
+        "type": "object"
+      },
+      "needs_approval": false,
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "Output",
+        "type": "object"
+      },
+      "strict_json_schema": true,
+      "version": 1
+    },
+    {
+      "description": "Apply a visible reversible Workflow patch.",
+      "effect": "visible_reversible_workflow_patch",
+      "id": "workflow_apply_patch",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "params"
+        ],
+        "title": "PatchInput",
+        "type": "object"
+      },
+      "needs_approval": false,
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "Output",
+        "type": "object"
+      },
+      "strict_json_schema": false,
+      "version": 2
+    },
+    {
+      "description": "Execute a previously prepared proposal.",
+      "effect": "prepared_approval_execution",
+      "id": "proposal_execute",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "proposal_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id"
+        ],
+        "title": "PreparedInput",
+        "type": "object"
+      },
+      "needs_approval": true,
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "Output",
+        "type": "object"
+      },
+      "strict_json_schema": true,
+      "version": 3
+    }
+  ]
+}

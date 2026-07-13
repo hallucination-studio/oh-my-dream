@@ -1,15 +1,23 @@
 import { describe, expect, it } from "vitest";
 import assetFixture from "../__fixtures__/asset.json";
 import assistantConfigFixture from "../__fixtures__/assistant_config.json";
+import assistantOperationsFixture from "../__fixtures__/assistant_operations.json";
 import assistantSessionFixture from "../__fixtures__/assistant_session.json";
 import capabilityManifestFixture from "../__fixtures__/capability_manifest.json";
 import progressFixture from "../__fixtures__/node_progress_event.json";
 import projectFixture from "../__fixtures__/project.json";
 import runWorkflowFixture from "../__fixtures__/run_workflow_result.json";
 import skillFixture from "../__fixtures__/skill.json";
+import {
+  fixtureFingerprint,
+  hasAssistantOperationsShape,
+  hasTrustedContextInModelInputs,
+  isAssistantOperationsFixture,
+} from "./assistantOperationContract.testHelpers.ts";
 import type {
   AssetDto,
   AssistantConfig,
+  AssistantOperationsFixture,
   AssistantSession,
   CapabilityManifest,
   Project,
@@ -29,6 +37,157 @@ describe("backend DTO fixtures", () => {
     expect(isSkill(skillFixture)).toBe(true);
   });
 });
+
+describe("assistant operation contract fixture", () => {
+  it("matches the exact generated operation contract", () => {
+    expect(hasAssistantOperationsShape(assistantOperationsFixture)).toBe(true);
+    expect(isAssistantOperationsFixture(assistantOperationsFixture)).toBe(true);
+    expect(isExactAssistantOperationsFixture(assistantOperationsFixture)).toBe(true);
+  });
+
+  it("rejects a canonical model input field rename", () => {
+    const fixture = cloneFixture();
+    const schema = operationInputSchemaAt(fixture, 0);
+    const properties = requiredRecord(schema.properties);
+    const [canonicalName] = Object.keys(properties);
+    if (canonicalName === undefined) {
+      throw new Error("expected a model input property");
+    }
+
+    properties.renamed_field = properties[canonicalName];
+    delete properties[canonicalName];
+    schema.required = requiredStringArray(schema.required).map((name) =>
+      name === canonicalName ? "renamed_field" : name,
+    );
+
+    expect(isAssistantOperationsFixture(fixture)).toBe(true);
+    expect(fixtureFingerprint(fixture)).not.toBe(FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT);
+    expect(isExactAssistantOperationsFixture(fixture)).toBe(false);
+  });
+
+  it("rejects a removed required model input field", () => {
+    const fixture = cloneFixture();
+    const schema = operationInputSchemaAt(fixture, 1);
+    const required = requiredStringArray(schema.required);
+
+    schema.required = required.slice(0, -1);
+
+    expect(isAssistantOperationsFixture(fixture)).toBe(true);
+    expect(fixtureFingerprint(fixture)).not.toBe(FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT);
+    expect(isExactAssistantOperationsFixture(fixture)).toBe(false);
+  });
+
+  it("rejects operation metadata drift", () => {
+    const fixture = cloneFixture();
+    const [operation] = fixture.operations;
+    if (operation === undefined) {
+      throw new Error("expected an operation");
+    }
+    operation.description = "changed";
+
+    expect(isAssistantOperationsFixture(fixture)).toBe(true);
+    expect(fixtureFingerprint(fixture)).not.toBe(FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT);
+    expect(isExactAssistantOperationsFixture(fixture)).toBe(false);
+  });
+
+  it("rejects trusted context through the recursive safety validator", () => {
+    const fixture = cloneFixture();
+    const schema = operationInputSchemaAt(fixture, 2);
+    const properties = requiredRecord(schema.properties);
+    const [propertyName] = Object.keys(properties);
+    if (propertyName === undefined) {
+      throw new Error("expected a model input property");
+    }
+    const propertySchema = requiredRecord(properties[propertyName]);
+
+    propertySchema.description = "project_id";
+    expect(hasTrustedContextInModelInputs(fixture)).toBe(false);
+
+    propertySchema.type = "object";
+    propertySchema.properties = { project_id: { type: "string" } };
+    propertySchema.required = ["project_id"];
+    propertySchema.additionalProperties = false;
+
+    expect(hasAssistantOperationsShape(fixture)).toBe(true);
+    expect(hasTrustedContextInModelInputs(fixture)).toBe(true);
+    expect(isAssistantOperationsFixture(fixture)).toBe(false);
+  });
+
+  it("ignores trusted names inside annotation instance data", () => {
+    const fixture = cloneFixture();
+    const schema = operationInputSchemaAt(fixture, 0);
+    const properties = requiredRecord(schema.properties);
+    const propertySchema = requiredRecord(properties[Object.keys(properties)[0] ?? ""]);
+
+    propertySchema.default = {
+      properties: { project_id: "instance value" },
+      required: ["project_id"],
+    };
+    propertySchema.examples = [{ properties: { project_id: "example value" } }];
+
+    expect(hasAssistantOperationsShape(fixture)).toBe(true);
+    expect(hasTrustedContextInModelInputs(fixture)).toBe(false);
+  });
+
+  it("detects trusted fields beneath contains", () => {
+    const fixture = cloneFixture();
+    const schema = operationInputSchemaAt(fixture, 0);
+    const properties = requiredRecord(schema.properties);
+    const propertySchema = requiredRecord(properties[Object.keys(properties)[0] ?? ""]);
+
+    propertySchema.contains = {
+      type: "object",
+      properties: { project_id: { type: "string" } },
+      required: ["project_id"],
+      additionalProperties: false,
+    };
+
+    expect(hasAssistantOperationsShape(fixture)).toBe(true);
+    expect(hasTrustedContextInModelInputs(fixture)).toBe(true);
+  });
+});
+
+// Freezes the generated fixture as an opaque artifact, not a semantic source.
+const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:da6c9d64de49cc21";
+
+function isExactAssistantOperationsFixture(value: unknown): value is AssistantOperationsFixture {
+  return (
+    isAssistantOperationsFixture(value) &&
+    fixtureFingerprint(value) === FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT
+  );
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function cloneFixture(): AssistantOperationsFixture {
+  return JSON.parse(JSON.stringify(assistantOperationsFixture)) as AssistantOperationsFixture;
+}
+
+function operationInputSchemaAt(value: unknown, index: number): Record<string, unknown> {
+  const fixture = requiredRecord(value);
+  const operations = fixture.operations;
+  if (!Array.isArray(operations)) {
+    throw new Error("fixture operations must be an array");
+  }
+  const operation = operations[index];
+  return requiredRecord(requiredRecord(operation).input_schema);
+}
+
+function requiredStringArray(value: unknown): string[] {
+  if (!isStringArray(value)) {
+    throw new Error("expected a string array");
+  }
+  return value;
+}
+
+function requiredRecord(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) {
+    throw new Error("expected an object");
+  }
+  return value;
+}
 
 function isRunOutputs(value: unknown): value is RunOutputs {
   return isRecord(value) && Object.values(value).every(isNodeOutputs);

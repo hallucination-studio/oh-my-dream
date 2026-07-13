@@ -96,6 +96,38 @@ export interface CapabilityManifest {
   capabilities: Capability[];
 }
 
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | JsonObject;
+
+export interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+export type AssistantOperationEffect =
+  | "local_read"
+  | "visible_reversible_workflow_patch"
+  | "prepared_approval_execution";
+
+export interface AssistantOperationContract {
+  id: string;
+  version: number;
+  description: string;
+  effect: AssistantOperationEffect;
+  strict_json_schema: boolean;
+  needs_approval: boolean;
+  input_schema: JsonObject;
+  output_schema: JsonObject;
+}
+
+export interface AssistantOperationsFixture {
+  operations: AssistantOperationContract[];
+}
+
 export interface AssistantSession {
   port: number;
   token: string;

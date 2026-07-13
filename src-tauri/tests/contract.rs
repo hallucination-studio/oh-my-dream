@@ -9,6 +9,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
+#[path = "contract/assistant_operation_contract.rs"]
+mod assistant_operation_contract;
+
 #[test]
 fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let run_result = run_workflow_fixture();
@@ -20,6 +23,7 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let capability_manifest = capability_manifest_fixture();
     let skill = skill_fixture();
     let node_contracts = node_contract_fixture();
+    let assistant_operations = assistant_operation_contract::fixture();
 
     assert_eq!(
         serde_json::to_value(&run_result).expect("serialize run workflow result"),
@@ -114,7 +118,7 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
             "status": "disabled"
         })
     );
-
+    assistant_operation_contract::assert_fixture(&assistant_operations);
     write_fixture("run_workflow_result.json", &run_result);
     write_fixture("asset.json", &asset);
     write_fixture("project.json", &project);
@@ -124,6 +128,7 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     write_fixture("capability_manifest.json", &capability_manifest);
     write_fixture("skill.json", &skill);
     write_fixture("node_contracts.json", &node_contracts);
+    write_fixture("assistant_operations.json", &assistant_operations);
 }
 
 #[derive(serde::Serialize)]
