@@ -31,6 +31,10 @@ pub enum PortType {
 }
 
 impl PortType {
+    /// Every supported port type in stable contract order.
+    pub const ALL: [Self; 7] =
+        [Self::String, Self::Image, Self::Video, Self::Audio, Self::Model, Self::Int, Self::Float];
+
     /// Returns whether a value of `self` may feed a port declared as `other`.
     ///
     /// Wiring is exact-match only for now; there is no implicit coercion. Kept

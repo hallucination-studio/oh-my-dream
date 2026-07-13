@@ -57,4 +57,26 @@ impl NodeRegistry {
     pub fn contains(&self, type_id: &str) -> bool {
         self.factories.contains_key(type_id)
     }
+
+    /// Returns registered node type ids in stable lexical order.
+    #[must_use]
+    pub fn registered_type_ids(&self) -> Vec<&str> {
+        let mut type_ids = self.factories.keys().map(String::as_str).collect::<Vec<_>>();
+        type_ids.sort_unstable();
+        type_ids
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registered_type_ids_are_stable_and_sorted() {
+        let mut registry = NodeRegistry::new();
+        registry.register("Video", Box::new(|_| unreachable!()));
+        registry.register("Audio", Box::new(|_| unreachable!()));
+
+        assert_eq!(registry.registered_type_ids(), vec!["Audio", "Video"]);
+    }
 }

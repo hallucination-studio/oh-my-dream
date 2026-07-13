@@ -4,7 +4,7 @@
 
 import type { Connection, Node } from "@xyflow/react";
 import type { FlowNodeData } from "../nodes/WorkflowFlowNode.tsx";
-import { findNodeType } from "../nodes/catalog.ts";
+import { arePortTypesCompatible, findNodeType } from "../nodes/catalog.ts";
 import type { PortType } from "./types.ts";
 
 function outputType(node: Node, handle: string | null | undefined): PortType | undefined {
@@ -25,6 +25,5 @@ export function isValidConnection(connection: Connection, nodes: Node[]): boolea
   }
   const from = outputType(source, connection.sourceHandle);
   const to = inputType(target, connection.targetHandle);
-  // Exact-match only, matching engine PortType::is_compatible_with.
-  return from !== undefined && from === to;
+  return from !== undefined && to !== undefined && arePortTypesCompatible(from, to);
 }

@@ -4,11 +4,16 @@
 // register in the engine. Keeping it declarative lets the palette, the node
 // body, and wiring validation all read from one source.
 
+import nodeContractsFixture from "../__fixtures__/node_contracts.json";
 import type { PortType } from "../workflow/types.ts";
 
 export interface PortSpec {
   name: string;
   type: PortType;
+}
+
+export interface InputPortSpec extends PortSpec {
+  required: boolean;
 }
 
 export interface ParamSpec {
@@ -22,27 +27,37 @@ export interface NodeTypeSpec {
   type: string;
   label: string;
   category: string;
-  inputs: PortSpec[];
+  inputs: InputPortSpec[];
   outputs: PortSpec[];
   params: ParamSpec[];
 }
 
-// The first-milestone pipeline: producer nodes auto-save generated media.
-export const NODE_TYPES: NodeTypeSpec[] = [
+type GeneratedNodeContracts = {
+  port_types: PortType[];
+  compatible: [PortType, PortType][];
+  nodes: {
+    type_id: string;
+    inputs: { name: string; port_type: PortType; required: boolean }[];
+    outputs: { name: string; port_type: PortType }[];
+  }[];
+};
+
+const nodeContracts = nodeContractsFixture as GeneratedNodeContracts;
+
+type NodePresentation = Omit<NodeTypeSpec, "inputs" | "outputs">;
+
+// UI presentation metadata stays local; executable ports come from Rust.
+const NODE_PRESENTATION: NodePresentation[] = [
   {
     type: "TextPrompt",
     label: "Text Prompt",
     category: "Input",
-    inputs: [],
-    outputs: [{ name: "text", type: "string" }],
     params: [{ name: "text", label: "Prompt", kind: "text", default: "" }],
   },
   {
     type: "TextToImage",
     label: "Text to Image",
     category: "Image",
-    inputs: [{ name: "prompt", type: "string" }],
-    outputs: [{ name: "image", type: "image" }],
     params: [
       { name: "model", label: "Model", kind: "model", default: "mock-image" },
       { name: "steps", label: "Steps", kind: "int", default: 28 },
@@ -53,8 +68,6 @@ export const NODE_TYPES: NodeTypeSpec[] = [
     type: "ImageToVideo",
     label: "Image to Video",
     category: "Video",
-    inputs: [{ name: "image", type: "image" }],
-    outputs: [{ name: "video", type: "video" }],
     params: [
       { name: "model", label: "Model", kind: "model", default: "mock-video" },
       { name: "duration", label: "Duration (s)", kind: "float", default: 4 },
@@ -65,14 +78,32 @@ export const NODE_TYPES: NodeTypeSpec[] = [
     type: "TextToAudio",
     label: "Text to Audio",
     category: "Audio",
-    inputs: [{ name: "prompt", type: "string" }],
-    outputs: [{ name: "audio", type: "audio" }],
     params: [
       { name: "model", label: "Model", kind: "model", default: "mock-audio" },
       { name: "seed", label: "Seed", kind: "int", default: 42 },
     ],
   },
 ];
+
+export const NODE_TYPES: NodeTypeSpec[] = NODE_PRESENTATION.map((presentation) => {
+  const contract = nodeContracts.nodes.find((node) => node.type_id === presentation.type);
+  if (!contract) {
+    throw new Error(`Missing Rust node contract for ${presentation.type}`);
+  }
+  return {
+    ...presentation,
+    inputs: contract.inputs.map((port) => ({
+      name: port.name,
+      type: port.port_type,
+      required: port.required,
+    })),
+    outputs: contract.outputs.map((port) => ({ name: port.name, type: port.port_type })),
+  };
+});
+
+export function arePortTypesCompatible(from: PortType, to: PortType): boolean {
+  return nodeContracts.compatible.some(([source, target]) => source === from && target === to);
+}
 
 export function findNodeType(type: string): NodeTypeSpec | undefined {
   return NODE_TYPES.find((spec) => spec.type === type);

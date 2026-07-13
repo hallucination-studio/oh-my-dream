@@ -1,4 +1,4 @@
-use engine::{NodeExecutionState, NodeProgressEvent, RunOutputs, Value, ValueMap};
+use engine::{NodeExecutionState, NodeProgressEvent, PortType, RunOutputs, Value, ValueMap};
 use oh_my_dream_tauri::dto::{
     AssetDto, AssistantConfigDto, AssistantSessionDto, AssistantSkillsDto, CapabilityDto,
     CapabilityManifestDto, NodeProgressEventDto, ProjectDto, RunWorkflowResultDto, SkillDto,
@@ -7,6 +7,7 @@ use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use tempfile::tempdir;
 
 #[test]
 fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
@@ -18,6 +19,7 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let assistant_session = assistant_session_fixture();
     let capability_manifest = capability_manifest_fixture();
     let skill = skill_fixture();
+    let node_contracts = node_contract_fixture();
 
     assert_eq!(
         serde_json::to_value(&run_result).expect("serialize run workflow result"),
@@ -121,6 +123,81 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     write_fixture("assistant_session.json", &assistant_session);
     write_fixture("capability_manifest.json", &capability_manifest);
     write_fixture("skill.json", &skill);
+    write_fixture("node_contracts.json", &node_contracts);
+}
+
+#[derive(serde::Serialize)]
+struct NodeContractsFixture {
+    port_types: Vec<PortType>,
+    compatible: Vec<(PortType, PortType)>,
+    nodes: Vec<NodeContractFixture>,
+}
+
+#[derive(serde::Serialize)]
+struct NodeContractFixture {
+    type_id: String,
+    inputs: Vec<InputContractFixture>,
+    outputs: Vec<PortContractFixture>,
+}
+
+#[derive(serde::Serialize)]
+struct InputContractFixture {
+    name: String,
+    port_type: PortType,
+    required: bool,
+}
+
+#[derive(serde::Serialize)]
+struct PortContractFixture {
+    name: String,
+    port_type: PortType,
+}
+
+fn node_contract_fixture() -> NodeContractsFixture {
+    let root = tempdir().expect("create node contract asset root");
+    let state = oh_my_dream_tauri::state::AppState::from_asset_root(root.path())
+        .expect("build node contract app state");
+    let nodes = state
+        .registry
+        .registered_type_ids()
+        .into_iter()
+        .map(|type_id| {
+            let node = state
+                .registry
+                .instantiate("contract", type_id, &serde_json::Map::new())
+                .expect("instantiate node contract");
+            NodeContractFixture {
+                type_id: type_id.to_owned(),
+                inputs: node
+                    .inputs()
+                    .iter()
+                    .map(|port| InputContractFixture {
+                        name: port.name.clone(),
+                        port_type: port.port_type,
+                        required: port.required,
+                    })
+                    .collect(),
+                outputs: node
+                    .outputs()
+                    .iter()
+                    .map(|port| PortContractFixture {
+                        name: port.name.clone(),
+                        port_type: port.port_type,
+                    })
+                    .collect(),
+            }
+        })
+        .collect();
+    let compatible = PortType::ALL
+        .into_iter()
+        .flat_map(|from| {
+            PortType::ALL
+                .into_iter()
+                .filter(move |to| from.is_compatible_with(*to))
+                .map(move |to| (from, to))
+        })
+        .collect();
+    NodeContractsFixture { port_types: PortType::ALL.to_vec(), compatible, nodes }
 }
 
 fn run_workflow_fixture() -> RunWorkflowResultDto {
