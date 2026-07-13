@@ -19,6 +19,26 @@ impl AssistantSidecarCommand {
         Self { program: program.into(), args: Vec::new(), env: BTreeMap::new(), current_dir: None }
     }
 
+    /// Creates the development command using the same framed stdio entrypoint.
+    pub fn development(python: impl Into<OsString>, repository_root: impl AsRef<Path>) -> Self {
+        Self::new(python).args(["-m", "assistant.stdio_app"]).current_dir(repository_root)
+    }
+
+    /// Creates a command for a frozen executable shipped with the desktop app.
+    pub fn packaged(executable: impl AsRef<Path>) -> Self {
+        Self::new(executable.as_ref().as_os_str().to_owned())
+    }
+
+    /// Resolves the target-triple-suffixed executable beside the desktop binary.
+    pub fn packaged_executable_path(
+        current_executable: impl AsRef<Path>,
+        target_triple: &str,
+    ) -> PathBuf {
+        let filename =
+            format!("oh-my-dream-assistant-{target_triple}{}", std::env::consts::EXE_SUFFIX);
+        current_executable.as_ref().parent().unwrap_or_else(|| Path::new(".")).join(filename)
+    }
+
     /// Appends command-line arguments.
     #[must_use]
     pub fn args<I, S>(mut self, args: I) -> Self
@@ -51,5 +71,33 @@ impl AssistantSidecarCommand {
             command.current_dir(current_dir);
         }
         command
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AssistantSidecarCommand;
+    use std::path::Path;
+
+    #[test]
+    fn packaged_path_uses_target_triple_next_to_desktop_binary() {
+        let path = AssistantSidecarCommand::packaged_executable_path(
+            "/Applications/oh-my-dream.app/Contents/MacOS/oh-my-dream",
+            "aarch64-apple-darwin",
+        );
+        assert_eq!(
+            path,
+            Path::new(
+                "/Applications/oh-my-dream.app/Contents/MacOS/oh-my-dream-assistant-aarch64-apple-darwin"
+            )
+        );
+    }
+
+    #[test]
+    fn development_command_uses_stdio_module() {
+        let command = AssistantSidecarCommand::development("python3", "/workspace");
+        let debug = format!("{command:?}");
+        assert!(debug.contains("assistant.stdio_app"));
+        assert!(debug.contains("/workspace"));
     }
 }

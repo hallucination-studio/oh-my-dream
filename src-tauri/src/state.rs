@@ -1,3 +1,5 @@
+use crate::assistant_runtime::AssistantSidecarCommand;
+use crate::assistant_sidecar::configured_assistant_command;
 use crate::dto::AssistantSessionDto;
 use crate::mock_generation::MockGenerationAdapter;
 use crate::workflow_runs::WorkflowRuns;
@@ -31,6 +33,8 @@ pub struct AppState {
     pub assistant_process: Mutex<Option<Child>>,
     /// Whether this state should spawn the Python assistant.
     pub assistant_sidecar_enabled: bool,
+    /// Command selected by the composition root for the framed stdio runtime.
+    pub assistant_sidecar_command: AssistantSidecarCommand,
 }
 
 impl AppState {
@@ -101,6 +105,9 @@ impl AppState {
         let root = root.as_ref().to_path_buf();
         let config_root = config_root.as_ref().to_path_buf();
         std::fs::create_dir_all(&config_root).context("create config root")?;
+        let assistant_sidecar_command = configured_assistant_command()
+            .map_err(anyhow::Error::msg)
+            .context("resolve assistant stdio command")?;
         let store =
             Arc::new(Mutex::new(AssetStore::open(root.as_path()).context("open asset store")?));
         seed_default_project(&store)?;
@@ -122,7 +129,13 @@ impl AppState {
             assistant_session: Mutex::new(None),
             assistant_process: Mutex::new(None),
             assistant_sidecar_enabled,
+            assistant_sidecar_command,
         })
+    }
+
+    /// Returns the composition-root command for the framed stdio runtime.
+    pub fn assistant_sidecar_command(&self) -> &AssistantSidecarCommand {
+        &self.assistant_sidecar_command
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::assistant_runtime::AssistantSidecarCommand;
 use crate::assistant_transport::{
     AssistantFrameReader, AssistantFrameWriter, AssistantTransportError,
 };
@@ -5,6 +6,7 @@ use crate::dto::AssistantSessionDto;
 use crate::state::AppState;
 use std::io::{self, BufRead};
 use std::net::TcpListener;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use thiserror::Error;
 use tokio::io::{BufReader as AsyncBufReader, BufWriter as AsyncBufWriter};
@@ -178,6 +180,29 @@ pub fn create_assistant_session(
         (reserve_loopback_port()?, None)
     };
     Ok((AssistantSessionDto { port, token }, process))
+}
+
+/// Resolves the shared stdio command for development or a packaged app.
+///
+/// The legacy TCP session remains available until the Task 19 cutover. New
+/// runtime code must consume this command instead of `create_assistant_session`.
+pub fn configured_assistant_command() -> Result<AssistantSidecarCommand, String> {
+    if cfg!(debug_assertions) {
+        let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .ok_or_else(|| assistant_error("resolve assistant repository", "missing parent"))?;
+        return Ok(AssistantSidecarCommand::development(
+            std::env::var_os("OH_MY_DREAM_PYTHON").unwrap_or_else(|| "python3".into()),
+            repository_root,
+        ));
+    }
+
+    let current_executable = std::env::current_exe()
+        .map_err(|source| assistant_error("resolve assistant executable", source))?;
+    let target = option_env!("OH_MY_DREAM_TARGET_TRIPLE")
+        .ok_or_else(|| assistant_error("resolve assistant target", "target triple is missing"))?;
+    let executable = AssistantSidecarCommand::packaged_executable_path(current_executable, target);
+    Ok(AssistantSidecarCommand::packaged(executable))
 }
 
 fn reserve_loopback_port() -> Result<u16, String> {

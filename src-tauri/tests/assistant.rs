@@ -85,6 +85,14 @@ fn assistant_session_returns_stable_port_and_secret_token_shape() {
 }
 
 #[test]
+fn app_state_wires_the_framed_stdio_command() {
+    let root = tempdir().expect("create asset root");
+    let state = AppState::from_asset_root(root.path()).expect("build app state");
+
+    assert!(format!("{:?}", state.assistant_sidecar_command()).contains("assistant.stdio_app"));
+}
+
+#[test]
 fn declarative_skills_install_enable_list_and_uninstall() {
     let root = tempdir().expect("create asset root");
     let source = tempdir().expect("create skill package");
