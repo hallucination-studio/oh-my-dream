@@ -2,6 +2,7 @@
 
 pub mod assistant;
 pub mod assistant_capabilities;
+pub mod assistant_operations;
 pub mod assistant_sidecar;
 mod command_error;
 pub mod commands;

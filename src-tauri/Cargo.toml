@@ -16,11 +16,14 @@ tauri-build.workspace = true
 [dependencies]
 anyhow.workspace = true
 assets.workspace = true
+async-trait.workspace = true
 backends.workspace = true
 engine.workspace = true
 getrandom.workspace = true
+jsonschema.workspace = true
 nodes.workspace = true
 pollster.workspace = true
+schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { workspace = true, features = ["protocol-asset"] }
@@ -30,3 +33,4 @@ tracing-subscriber.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+tokio.workspace = true
