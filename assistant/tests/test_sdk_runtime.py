@@ -17,7 +17,7 @@ from agents import (
     UserError,
 )
 from agents.run_config import ModelInputData
-from tests.sdk_runtime_fakes import (
+from assistant.tests.sdk_runtime_fakes import (
     DeterministicToolModel,
     NonMappingContext,
     RecordingFinalModel,
@@ -37,17 +37,17 @@ class SdkDependencyTests(unittest.TestCase):
 
 class SdkRuntimeModuleTests(unittest.TestCase):
     def test_sdk_runtime_module_exists(self) -> None:
-        self.assertIsNotNone(importlib.util.find_spec("sdk_runtime"))
+        self.assertIsNotNone(importlib.util.find_spec("assistant.sdk_runtime"))
 
     def test_build_run_config_disables_sdk_tracing(self) -> None:
-        sdk_runtime = importlib.import_module("sdk_runtime")
+        sdk_runtime = importlib.import_module("assistant.sdk_runtime")
         build_run_config = getattr(sdk_runtime, "build_run_config", None)
 
         self.assertTrue(callable(build_run_config))
         self.assertTrue(build_run_config().tracing_disabled)
 
     def test_build_run_config_accepts_sdk_input_callbacks(self) -> None:
-        sdk_runtime = importlib.import_module("sdk_runtime")
+        sdk_runtime = importlib.import_module("assistant.sdk_runtime")
         parameters = inspect.signature(sdk_runtime.build_run_config).parameters
 
         self.assertIn("session_input_callback", parameters)
@@ -72,7 +72,7 @@ class SdkRuntimeModuleTests(unittest.TestCase):
 
 class StreamedRunnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_streamed_runner_executes_one_function_tool_and_drains_events(self) -> None:
-        sdk_runtime = importlib.import_module("sdk_runtime")
+        sdk_runtime = importlib.import_module("assistant.sdk_runtime")
         drain_stream = getattr(sdk_runtime, "drain_stream", None)
         invocations: list[str] = []
 
@@ -97,7 +97,7 @@ class StreamedRunnerTests(unittest.IsolatedAsyncioTestCase):
 
 class FileSessionTests(unittest.IsolatedAsyncioTestCase):
     async def test_file_session_reopens_durable_history(self) -> None:
-        sdk_runtime = importlib.import_module("sdk_runtime")
+        sdk_runtime = importlib.import_module("assistant.sdk_runtime")
         build_file_session = getattr(sdk_runtime, "build_file_session", None)
 
         self.assertTrue(callable(build_file_session))
@@ -114,7 +114,7 @@ class FileSessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(history, [{"role": "user", "content": "durable input"}])
 
     async def test_session_and_model_input_callbacks_shape_the_model_call(self) -> None:
-        sdk_runtime = importlib.import_module("sdk_runtime")
+        sdk_runtime = importlib.import_module("assistant.sdk_runtime")
         callback_history: list[list[Any]] = []
         filter_inputs: list[list[Any]] = []
 
@@ -158,7 +158,7 @@ class FileSessionTests(unittest.IsolatedAsyncioTestCase):
 
 class ApprovalStateTests(unittest.IsolatedAsyncioTestCase):
     async def test_static_approval_restores_strict_state_and_resumes_same_session(self) -> None:
-        sdk_runtime = importlib.import_module("sdk_runtime")
+        sdk_runtime = importlib.import_module("assistant.sdk_runtime")
         restore_run_state = getattr(sdk_runtime, "restore_run_state", None)
         invocations: list[str] = []
         invocation_projects: list[str] = []
@@ -227,7 +227,7 @@ class ApprovalStateTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resumed.final_output, "tool completed")
 
     async def test_strict_restore_rejects_non_mapping_context_without_override(self) -> None:
-        sdk_runtime = importlib.import_module("sdk_runtime")
+        sdk_runtime = importlib.import_module("assistant.sdk_runtime")
         context_parameter = inspect.signature(
             sdk_runtime.restore_run_state
         ).parameters["context_override"]

@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from agents.tool_context import ToolContext
 
-from tool_contract import ToolRequest, ToolResponse, build_function_tools
+from assistant.tool_contract import ToolRequest, ToolResponse, build_function_tools
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
