@@ -1,7 +1,7 @@
 // A single asset tile: media preview with kind badge and hover actions
 // (jump to source). Draggable onto the canvas.
 
-import type { Asset } from "../api/index.ts";
+import type { AssetViewModel } from "./model.ts";
 import "./assetCard.css";
 
 export function AssetCard({
@@ -10,12 +10,12 @@ export function AssetCard({
   onSelect,
   onJump,
 }: {
-  asset: Asset;
+  asset: AssetViewModel;
   selected: boolean;
   onSelect: () => void;
   onJump: () => void;
 }) {
-  const src = asset.thumbnail_path ?? asset.file_path;
+  const src = asset.thumbnailUrl ?? asset.fileUrl;
   return (
     <figure
       className={`ac${selected ? " is-selected" : ""}`}
@@ -46,8 +46,8 @@ export function AssetCard({
       <figcaption className="ac__prompt">{asset.prompt ?? "Untitled"}</figcaption>
       <div className="ac__meta">
         <span className="ac__pj" />
-        {asset.project_name ?? "—"}
-        <span className="ac__dt">{formatTime(asset.created_at)}</span>
+        {asset.projectName ?? "—"}
+        <span className="ac__dt">{formatTime(asset.createdAt)}</span>
       </div>
     </figure>
   );

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  Asset,
+  AssetDto,
   RunObserver,
   WorkflowRunEvent,
   WorkflowRunResult,
@@ -290,7 +290,7 @@ describe("tauriApi assistant commands", () => {
   });
 });
 
-function assetFixture(overrides: Partial<Asset> = {}): Asset {
+function assetFixture(overrides: Partial<AssetDto> = {}): AssetDto {
   return {
     id: "asset-1",
     kind: "video",

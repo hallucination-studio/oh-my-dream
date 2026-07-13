@@ -8,7 +8,7 @@ import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import type { Workflow } from "../workflow/types.ts";
 import { createRunId } from "./runId.ts";
 import type {
-  Asset,
+  AssetDto,
   AssistantConfig,
   AssistantConfigInput,
   AssistantSession,
@@ -138,9 +138,9 @@ class TauriWorkflowRun {
   }
 }
 
-async function listAssets(options: ListAssetsOptions = {}): Promise<Asset[]> {
+async function listAssets(options: ListAssetsOptions = {}): Promise<AssetDto[]> {
   const root = await assetsRoot();
-  const assets = await invoke<Asset[]>("list_assets", {
+  const assets = await invoke<AssetDto[]>("list_assets", {
     kind: options.kind ?? null,
     project_id: options.project_id ?? null,
     model: options.model ?? null,
@@ -150,9 +150,9 @@ async function listAssets(options: ListAssetsOptions = {}): Promise<Asset[]> {
   return assets.map((asset) => convertAssetPaths(asset, root));
 }
 
-async function getAsset(id: string): Promise<Asset> {
+async function getAsset(id: string): Promise<AssetDto> {
   const root = await assetsRoot();
-  const asset = await invoke<Asset>("get_asset", { id });
+  const asset = await invoke<AssetDto>("get_asset", { id });
   return convertAssetPaths(asset, root);
 }
 
@@ -224,7 +224,7 @@ async function uninstallSkill(name: string): Promise<void> {
   await invoke("uninstall_skill", { name });
 }
 
-function convertAssetPaths(asset: Asset, root: string | null): Asset {
+function convertAssetPaths(asset: AssetDto, root: string | null): AssetDto {
   return {
     ...asset,
     file_path: convertRootedPath(asset.file_path, root),

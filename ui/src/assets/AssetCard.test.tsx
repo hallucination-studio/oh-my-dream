@@ -1,24 +1,20 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AssetCard } from "./AssetCard.tsx";
-import type { Asset } from "../api/index.ts";
+import type { AssetViewModel } from "./model.ts";
 
-const asset: Asset = {
+const asset: AssetViewModel = {
   id: "asset-1",
   kind: "video",
-  file_path: "/tmp/a.mp4",
-  thumbnail_path: "/tmp/a.png",
-  workflow_snapshot: {},
+  fileUrl: "/tmp/a.mp4",
+  thumbnailUrl: "/tmp/a.png",
   prompt: "a red fox",
-  project_id: "project-1",
-  project_name: "Default",
-  source_node_id: "video",
-  source_node_type: "ImageToVideo",
+  projectName: "Default",
+  sourceNodeType: "ImageToVideo",
   model: "mock-video",
   seed: null,
   cost: 900,
-  tags: [],
-  created_at: 0,
+  createdAt: 0,
 };
 
 describe("AssetCard", () => {

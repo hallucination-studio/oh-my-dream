@@ -3,15 +3,16 @@
 // media appears.
 
 import { useCallback, useEffect, useState } from "react";
-import { api, type Asset } from "../api/index.ts";
+import { api } from "../api/index.ts";
+import { assetFromDto, type AssetViewModel } from "./model.ts";
 
 export function useAssets() {
-  const [assets, setAssets] = useState<Asset[]>([]);
+  const [assets, setAssets] = useState<AssetViewModel[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      setAssets(await api.listAssets());
+      setAssets((await api.listAssets()).map(assetFromDto));
       setError(null);
     } catch (cause) {
       // Surface the failure to the drawer rather than silently showing empty.

@@ -3,7 +3,8 @@
 // canvas and can jump to their source.
 
 import { useMemo, useState } from "react";
-import type { Asset, AssetKind } from "../api/index.ts";
+import type { AssetKind } from "../api/index.ts";
+import type { AssetViewModel } from "./model.ts";
 import { AssetCard } from "./AssetCard.tsx";
 import { AssetDetail } from "./AssetDetail.tsx";
 import "./library.css";
@@ -14,10 +15,10 @@ export function AssetLibrary({
   onAddToCanvas,
   onJumpToNode,
 }: {
-  assets: Asset[];
+  assets: AssetViewModel[];
   error: string | null;
-  onAddToCanvas: (asset: Asset) => void;
-  onJumpToNode: (asset: Asset) => void;
+  onAddToCanvas: (asset: AssetViewModel) => void;
+  onJumpToNode: (asset: AssetViewModel) => void;
 }) {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<AssetKind | "all">("all");

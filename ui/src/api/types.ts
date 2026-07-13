@@ -16,7 +16,7 @@ export type AssetKind = "image" | "video" | "audio";
 export type AssetSort = "newest" | "oldest" | "cost_desc" | "cost_asc";
 
 /** Metadata for a stored asset, mirroring the backend AssetDto. */
-export interface Asset {
+export interface AssetDto {
   id: string;
   kind: AssetKind;
   file_path: string;
@@ -152,9 +152,9 @@ export interface WorkflowApi {
   /** Returns the backend asset root when one exists. */
   assetsRoot: () => Promise<string | null>;
   /** Lists stored assets, optionally filtered by kind. */
-  listAssets: (options?: ListAssetsOptions) => Promise<Asset[]>;
+  listAssets: (options?: ListAssetsOptions) => Promise<AssetDto[]>;
   /** Fetches a single asset by id. */
-  getAsset: (id: string) => Promise<Asset>;
+  getAsset: (id: string) => Promise<AssetDto>;
   listProjects: () => Promise<Project[]>;
   createProject: (name: string) => Promise<Project>;
   openProject: (id: string) => Promise<ProjectWorkspace>;

@@ -1,7 +1,7 @@
 // Detail panel for the selected asset: large preview, prompt, source metadata
 // with jump links, and actions (export, add to canvas).
 
-import type { Asset } from "../api/index.ts";
+import type { AssetViewModel } from "./model.ts";
 import "./assetDetail.css";
 
 export function AssetDetail({
@@ -9,9 +9,9 @@ export function AssetDetail({
   onAddToCanvas,
   onJumpToNode,
 }: {
-  asset: Asset | null;
-  onAddToCanvas: (asset: Asset) => void;
-  onJumpToNode: (asset: Asset) => void;
+  asset: AssetViewModel | null;
+  onAddToCanvas: (asset: AssetViewModel) => void;
+  onJumpToNode: (asset: AssetViewModel) => void;
 }) {
   if (!asset) {
     return (
@@ -21,7 +21,7 @@ export function AssetDetail({
     );
   }
 
-  const src = asset.thumbnail_path ?? asset.file_path;
+  const src = asset.thumbnailUrl ?? asset.fileUrl;
   return (
     <aside className="adet">
       <div className={`adet__prev adet__prev--${asset.kind}`}>
@@ -39,20 +39,20 @@ export function AssetDetail({
         <Row k="Model" v={asset.model ?? "—"} mono />
         {asset.seed != null && <Row k="Seed" v={String(asset.seed)} mono />}
         {asset.cost != null && <Row k="Cost" v={`$${(asset.cost / 1_000_000).toFixed(4)}`} mono />}
-        {asset.project_name && (
-          <Row k="Project" v={<span className="adet__link">{asset.project_name} ↗</span>} />
+        {asset.projectName && (
+          <Row k="Project" v={<span className="adet__link">{asset.projectName} ↗</span>} />
         )}
-        {asset.source_node_type && (
+        {asset.sourceNodeType && (
           <Row
             k="From node"
             v={
               <button className="adet__link adet__link--btn" onClick={() => onJumpToNode(asset)}>
-                {asset.source_node_type} ↗
+                {asset.sourceNodeType} ↗
               </button>
             }
           />
         )}
-        <Row k="Created" v={formatTime(asset.created_at)} mono />
+        <Row k="Created" v={formatTime(asset.createdAt)} mono />
       </div>
 
       <div className="adet__actions">

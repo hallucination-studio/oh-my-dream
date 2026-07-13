@@ -8,7 +8,7 @@ import projectFixture from "../__fixtures__/project.json";
 import runWorkflowFixture from "../__fixtures__/run_workflow_result.json";
 import skillFixture from "../__fixtures__/skill.json";
 import type {
-  Asset,
+  AssetDto,
   AssistantConfig,
   AssistantSession,
   CapabilityManifest,
@@ -46,7 +46,7 @@ function isRunOutput(value: unknown): value is RunOutput {
   );
 }
 
-function isAsset(value: unknown): value is Asset {
+function isAsset(value: unknown): value is AssetDto {
   return (
     isRecord(value) &&
     typeof value.id === "string" &&

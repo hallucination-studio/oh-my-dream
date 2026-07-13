@@ -4,7 +4,7 @@
 // not running inside a Tauri window.
 
 import type { RunOutput, RunOutputs, RunTerminalStatus, Workflow } from "../workflow/types.ts";
-import type { Asset, RunHandle, RunObserver, Skill, WorkflowApi } from "./types.ts";
+import type { AssetDto, RunHandle, RunObserver, Skill, WorkflowApi } from "./types.ts";
 import { createRunId } from "./runId.ts";
 
 const STEP_MS = 400;
@@ -110,7 +110,7 @@ class MockWorkflowRun {
 
 // The mock has no persistent store; asset listing is empty until a real backend
 // is present. This keeps the interface total rather than throwing.
-async function listAssets(): Promise<Asset[]> {
+async function listAssets(): Promise<AssetDto[]> {
   return [];
 }
 
@@ -118,7 +118,7 @@ async function assetsRoot(): Promise<string | null> {
   return null;
 }
 
-async function getAsset(id: string): Promise<Asset> {
+async function getAsset(id: string): Promise<AssetDto> {
   throw new Error(`Mock backend has no asset store; cannot fetch asset ${id}`);
 }
 

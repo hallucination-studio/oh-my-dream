@@ -15,7 +15,7 @@ export const api: WorkflowApi = isTauri() ? tauriApi : mockApi;
 
 export type { WorkflowApi } from "./types.ts";
 export type {
-  Asset,
+  AssetDto,
   AssetKind,
   AssetSort,
   AssistantConfig,
