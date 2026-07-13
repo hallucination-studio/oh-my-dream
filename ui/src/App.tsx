@@ -53,14 +53,15 @@ export function App() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantEnabled, setAssistantEnabled] = useState(false);
   const { assets, error: assetError, refresh } = useAssets();
-  const { apply: projectRun, reset: resetRun } = useRunProjection(setNodes, setEdges);
+  const { applyProgress, reset: resetRun, settle } = useRunProjection(setNodes, setEdges);
   const { cancel, invalidateRun, run } = useRunController({
     nodes,
     edges,
     projectId: project?.id ?? null,
     setStatus,
     resetProjection: resetRun,
-    applyProjection: projectRun,
+    applyProgress,
+    settleProjection: settle,
     onSucceeded: () => void refresh(),
   });
   const { markWorkflowMutation, openProject, setParam } = useProjectWorkspace({

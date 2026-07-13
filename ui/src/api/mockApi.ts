@@ -3,8 +3,9 @@
 // network (e.g. in a plain `vite dev` browser tab). `selectApi` picks this when
 // not running inside a Tauri window.
 
-import type { RunOutput, RunOutputs, Workflow } from "../workflow/types.ts";
+import type { RunOutput, RunOutputs, RunTerminalStatus, Workflow } from "../workflow/types.ts";
 import type { Asset, RunHandle, RunObserver, Skill, WorkflowApi } from "./types.ts";
+import { createRunId } from "./runId.ts";
 
 const STEP_MS = 400;
 
@@ -32,37 +33,79 @@ function outputForNodeType(
  * Outputs use the same nested nodeId -> outputName shape as the real backend.
  */
 function runWorkflow(workflow: Workflow, observe: RunObserver): RunHandle {
-  let cancelled = false;
-  const timers: ReturnType<typeof setTimeout>[] = [];
+  return new MockWorkflowRun(workflow, observe).handle();
+}
 
-  const outputs: RunOutputs = {};
-  workflow.nodes.forEach((node, index) => {
-    const timer = setTimeout(
-      () => {
-        if (cancelled) {
-          return;
-        }
-        observe({ state: "running", nodeId: node.id, progress: 0.5 });
-        const produced = outputForNodeType(node.type, node.id);
-        if (produced) {
-          outputs[node.id] = { [produced.name]: produced.output };
-        }
-        if (index === workflow.nodes.length - 1) {
-          observe({ state: "succeeded", outputs });
-        }
-      },
-      STEP_MS * (index + 1),
-    );
-    timers.push(timer);
-  });
+class MockWorkflowRun {
+  private readonly runId = createRunId();
+  private readonly timers: ReturnType<typeof setTimeout>[] = [];
+  private readonly outputs: RunOutputs = {};
+  private started = false;
+  private cancelRequested = false;
+  private terminal = false;
 
-  return {
-    cancel: () => {
-      cancelled = true;
-      timers.forEach(clearTimeout);
-      observe({ state: "failed", reason: "Run cancelled by user" });
-    },
-  };
+  constructor(
+    private readonly workflow: Workflow,
+    private readonly observe: RunObserver,
+  ) {
+    this.schedule(() => this.start(), 0);
+  }
+
+  handle(): RunHandle {
+    return { runId: this.runId, cancel: () => this.cancel() };
+  }
+
+  private start(): void {
+    this.started = true;
+    if (this.cancelRequested) {
+      this.finish({ state: "cancelled" });
+      return;
+    }
+    if (this.workflow.nodes.length === 0) {
+      this.finish({ state: "succeeded", outputs: this.outputs });
+      return;
+    }
+    this.workflow.nodes.forEach((node, index) => {
+      this.schedule(() => this.runNode(node.id, node.type, index), STEP_MS * (index + 1));
+    });
+  }
+
+  private runNode(nodeId: string, nodeType: string, index: number): void {
+    if (this.terminal || this.cancelRequested) return;
+    this.observe.onProgress({ nodeId, progress: 0.5, nodeState: "running" });
+    const produced = outputForNodeType(nodeType, nodeId);
+    if (produced) {
+      this.outputs[nodeId] = { [produced.name]: produced.output };
+    }
+    this.observe.onProgress({ nodeId, progress: 1, nodeState: "done" });
+    if (index === this.workflow.nodes.length - 1) {
+      this.finish({ state: "succeeded", outputs: this.outputs });
+    }
+  }
+
+  private cancel(): void {
+    if (this.terminal || this.cancelRequested) return;
+    this.cancelRequested = true;
+    this.observe.onStatus({ state: "cancelling" });
+    if (!this.started) return;
+    this.clearTimers();
+    this.schedule(() => this.finish({ state: "cancelled" }), 0);
+  }
+
+  private finish(status: RunTerminalStatus): void {
+    if (this.terminal) return;
+    this.terminal = true;
+    this.clearTimers();
+    this.observe.onStatus(status);
+  }
+
+  private schedule(callback: () => void, delay: number): void {
+    this.timers.push(setTimeout(callback, delay));
+  }
+
+  private clearTimers(): void {
+    this.timers.forEach(clearTimeout);
+  }
 }
 
 // The mock has no persistent store; asset listing is empty until a real backend

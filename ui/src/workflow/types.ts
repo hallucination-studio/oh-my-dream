@@ -29,6 +29,23 @@ export interface NodeProgressEvent {
   cost: number | null;
 }
 
+export interface RunProgress {
+  nodeId: string;
+  progress: number;
+  nodeState: NodeExecutionState;
+  cost?: number;
+}
+
+export type RunTerminalStatus =
+  | { state: "cancelled" }
+  | { state: "succeeded"; outputs: RunOutputs }
+  | { state: "failed"; reason: string };
+
+export type RunLifecycleStatus =
+  | { state: "cancelling" }
+  | { state: "cancel_failed"; reason: string }
+  | RunTerminalStatus;
+
 /** Status of a running workflow. */
 export type RunStatus =
   | { state: "idle" }
@@ -39,8 +56,7 @@ export type RunStatus =
       nodeState?: NodeExecutionState;
       cost?: number;
     }
-  | { state: "succeeded"; outputs: RunOutputs }
-  | { state: "failed"; reason: string };
+  | RunLifecycleStatus;
 
 /** A produced artifact reference for a node (asset id / URL placeholder). */
 export interface RunOutput {

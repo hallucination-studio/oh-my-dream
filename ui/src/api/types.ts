@@ -6,8 +6,9 @@
 
 import type {
   NodeProgressEvent,
+  RunLifecycleStatus,
   RunOutputs,
-  RunStatus,
+  RunProgress,
   Workflow,
 } from "../workflow/types.ts";
 
@@ -132,14 +133,21 @@ export type CancelWorkflowRunResult =
 
 /** A handle allowing the caller to cancel an in-flight run. */
 export interface RunHandle {
+  runId: string;
   cancel: () => void;
 }
 
-/** Callback invoked with each status transition during a run. */
-export type RunObserver = (status: RunStatus) => void;
+/**
+ * Separates node progress from workflow lifecycle transitions.
+ * Committed `done` or `cached` progress may arrive while cancellation is pending.
+ */
+export interface RunObserver {
+  onProgress: (progress: RunProgress) => void;
+  onStatus: (status: RunLifecycleStatus) => void;
+}
 
 export interface WorkflowApi {
-  /** Runs a workflow, streaming status transitions to `observe`. */
+  /** Runs a workflow, streaming node progress and lifecycle transitions to `observe`. */
   runWorkflow: (workflow: Workflow, observe: RunObserver) => RunHandle;
   /** Returns the backend asset root when one exists. */
   assetsRoot: () => Promise<string | null>;

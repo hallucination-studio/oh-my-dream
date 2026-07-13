@@ -5,25 +5,36 @@
 import { useCallback } from "react";
 import type { Edge, Node } from "@xyflow/react";
 import type { FlowNodeData, NodeRuntime } from "../nodes/WorkflowFlowNode.tsx";
-import type { RunStatus } from "../workflow/types.ts";
+import type { RunProgress, RunTerminalStatus } from "../workflow/types.ts";
 
 export function useRunProjection(
   setNodes: (updater: (nodes: Node[]) => Node[]) => void,
   setEdges: (updater: (edges: Edge[]) => Edge[]) => void,
 ) {
-  const apply = useCallback(
-    (status: RunStatus) => {
-      if (status.state === "running") {
-        setNodes((current) =>
-          current.map((n) =>
-            n.id === status.nodeId ? { ...n, data: { ...n.data, runtime: runtimeFor(status) } } : n,
-          ),
-        );
-        setEdges((current) => current.map((e) => ({ ...e, data: { ...e.data, running: true } })));
-      } else if (status.state === "succeeded" || status.state === "failed") {
-        setNodes((current) => current.map((n) => settleNode(n, status)));
-        setEdges((current) => current.map((e) => ({ ...e, data: { ...e.data, running: false } })));
-      }
+  const applyProgress = useCallback(
+    (progress: RunProgress) => {
+      setNodes((current) =>
+        current.map((node) =>
+          node.id === progress.nodeId
+            ? { ...node, data: { ...node.data, runtime: runtimeFor(progress) } }
+            : node,
+        ),
+      );
+      setEdges((current) => current.map((edge) => ({
+        ...edge,
+        data: { ...edge.data, running: true },
+      })));
+    },
+    [setNodes, setEdges],
+  );
+
+  const settle = useCallback(
+    (status: RunTerminalStatus) => {
+      setNodes((current) => current.map((node) => settleNode(node, status)));
+      setEdges((current) => current.map((edge) => ({
+        ...edge,
+        data: { ...edge.data, running: false },
+      })));
     },
     [setNodes, setEdges],
   );
@@ -35,14 +46,14 @@ export function useRunProjection(
     setEdges((current) => current.map((e) => ({ ...e, data: { ...e.data, running: false } })));
   }, [setNodes, setEdges]);
 
-  return { apply, reset };
+  return { applyProgress, reset, settle };
 }
 
-function runtimeFor(status: Extract<RunStatus, { state: "running" }>): NodeRuntime {
-  return { state: status.nodeState ?? "running", progress: status.progress, cost: status.cost };
+function runtimeFor(progress: RunProgress): NodeRuntime {
+  return { state: progress.nodeState, progress: progress.progress, cost: progress.cost };
 }
 
-function settleNode(node: Node, status: RunStatus): Node {
+function settleNode(node: Node, status: RunTerminalStatus): Node {
   const data = node.data as FlowNodeData;
   if (status.state === "failed") {
     const rt = data.runtime;
@@ -50,6 +61,11 @@ function settleNode(node: Node, status: RunStatus): Node {
       return { ...node, data: { ...data, runtime: { ...rt, state: "error" } } };
     }
     return node;
+  }
+  if (status.state === "cancelled") {
+    return data.runtime?.state === "running"
+      ? { ...node, data: { ...data, runtime: undefined } }
+      : node;
   }
   if (status.state !== "succeeded") {
     return node;

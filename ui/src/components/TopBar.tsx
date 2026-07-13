@@ -20,6 +20,8 @@ export function TopBar({
   onCancel: () => void;
 }) {
   const running = status.state === "running";
+  const cancelling = status.state === "cancelling";
+  const cancelFailed = status.state === "cancel_failed";
   return (
     <header className="topbar">
       <div className="topbar__brand">
@@ -42,6 +44,14 @@ export function TopBar({
       </button>
       {running ? (
         <button className="topbar__run topbar__run--cancel" onClick={onCancel}>Cancel</button>
+      ) : cancelling ? (
+        <button className="topbar__run topbar__run--cancel" disabled aria-busy="true">
+          Cancelling…
+        </button>
+      ) : cancelFailed ? (
+        <button className="topbar__run topbar__run--cancel" onClick={onCancel}>
+          Retry Cancel
+        </button>
       ) : (
         <button className="topbar__run" onClick={onRun}>
           <span className="topbar__play" aria-hidden="true" />
@@ -77,18 +87,32 @@ function RunState({ status }: { status: RunStatus }) {
       return null;
     case "running":
       return (
-        <span className="topbar__state">
+        <span className="topbar__state" role="status">
           <span className="topbar__spin" aria-hidden="true" />
           Running · {status.nodeId}…
         </span>
       );
+    case "cancelling":
+      return <span className="topbar__state" role="status">Cancelling…</span>;
+    case "cancel_failed":
+      return (
+        <span className="topbar__state topbar__state--err" role="status">
+          Cancel request failed · {status.reason}
+        </span>
+      );
+    case "cancelled":
+      return <span className="topbar__state" role="status">Cancelled</span>;
     case "succeeded":
       return (
-        <span className="topbar__state topbar__state--ok">
+        <span className="topbar__state topbar__state--ok" role="status">
           Done · {Object.keys(status.outputs).length} outputs
         </span>
       );
     case "failed":
-      return <span className="topbar__state topbar__state--err">{status.reason}</span>;
+      return (
+        <span className="topbar__state topbar__state--err" role="status">
+          {status.reason}
+        </span>
+      );
   }
 }

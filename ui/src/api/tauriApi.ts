@@ -1,18 +1,18 @@
 // Real backend client: invokes the src-tauri commands over Tauri IPC.
 //
-// run_workflow is synchronous on the backend (runs to completion and returns
-// final outputs), while the backend emits node_progress events during the run.
-// Cancellation is best-effort: the backend has no cancel command yet, so cancel
-// only stops us from reporting later updates to the UI.
+// Workflow execution uses one ordered Channel per invocation. The command
+// result is the sole terminal authority; cancellation remains a request until
+// that result reports cancelled, succeeded, or failed.
 
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { NodeProgressEvent, RunOutputs, Workflow } from "../workflow/types.ts";
+import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
+import type { Workflow } from "../workflow/types.ts";
+import { createRunId } from "./runId.ts";
 import type {
   Asset,
   AssistantConfig,
   AssistantConfigInput,
   AssistantSession,
+  CancelWorkflowRunResult,
   CapabilityManifest,
   ListAssetsOptions,
   Project,
@@ -22,66 +22,120 @@ import type {
   RunObserver,
   Skill,
   WorkflowApi,
+  WorkflowRunEvent,
+  WorkflowRunResult,
 } from "./types.ts";
 
-interface RunWorkflowResultDto {
-  outputs: RunOutputs;
+function runWorkflow(workflow: Workflow, observe: RunObserver): RunHandle {
+  return new TauriWorkflowRun(workflow, observe).handle();
 }
 
-function runWorkflow(workflow: Workflow, observe: RunObserver): RunHandle {
-  let cancelled = false;
-  let finished = false;
-  let unlisten: UnlistenFn | null = null;
+class TauriWorkflowRun {
+  private readonly runId = createRunId();
+  private readonly channel = new Channel<WorkflowRunEvent>();
+  private started = false;
+  private cancelRequested = false;
+  private cancelSent = false;
+  private terminal = false;
+  private cancelFailure: string | null = null;
 
-  listen<NodeProgressEvent>("node_progress", (event) => {
-    if (cancelled) {
+  constructor(
+    private readonly workflow: Workflow,
+    private readonly observe: RunObserver,
+  ) {
+    this.channel.onmessage = (event) => this.handleEvent(event);
+    this.start();
+  }
+
+  handle(): RunHandle {
+    return { runId: this.runId, cancel: () => this.cancel() };
+  }
+
+  private start(): void {
+    void invoke<WorkflowRunResult>("start_workflow_run", {
+      run_id: this.runId,
+      workflow_json: JSON.stringify(this.workflow),
+      on_event: this.channel,
+    })
+      .then((result) => this.settle(result))
+      .catch((error: unknown) => this.fail(this.failureReason(error)));
+  }
+
+  private handleEvent(event: WorkflowRunEvent): void {
+    if (this.terminal || event.run_id !== this.runId) return;
+    if (event.event === "started") {
+      this.started = true;
+      this.requestCancellation();
       return;
     }
-    const progress = event.payload.progress ?? (event.payload.state === "done" ? 1 : 0);
-    observe({
-      state: "running",
-      nodeId: event.payload.node_id,
-      progress,
-      nodeState: event.payload.state,
-      cost: event.payload.cost ?? undefined,
+    const committed = event.node.state === "done" || event.node.state === "cached";
+    if (this.cancelRequested && !committed) return;
+    this.observe.onProgress({
+      nodeId: event.node.node_id,
+      progress: event.node.progress ?? (committed ? 1 : 0),
+      nodeState: event.node.state,
+      cost: event.node.cost ?? undefined,
     });
-  })
-    .then((dispose) => {
-      if (cancelled || finished) {
-        dispose();
-        return null;
-      }
-      unlisten = dispose;
-      return invoke<RunWorkflowResultDto>("run_workflow", {
-        workflow_json: JSON.stringify(workflow),
-      });
-    })
-    .then((result) => {
-      if (!result || cancelled) {
-        return;
-      }
-      finished = true;
-      unlisten?.();
-      observe({ state: "succeeded", outputs: result.outputs });
-    })
-    .catch((error: unknown) => {
-      if (cancelled) {
-        return;
-      }
-      finished = true;
-      unlisten?.();
-      // Surface the backend error string verbatim rather than swallowing it.
-      observe({ state: "failed", reason: String(error) });
-    });
+  }
 
-  return {
-    cancel: () => {
-      cancelled = true;
-      finished = true;
-      unlisten?.();
-      observe({ state: "failed", reason: "Run cancelled by user" });
-    },
-  };
+  private cancel(): void {
+    if (this.terminal || this.cancelRequested) return;
+    this.cancelRequested = true;
+    this.observe.onStatus({ state: "cancelling" });
+    this.requestCancellation();
+  }
+
+  private requestCancellation(): void {
+    if (!this.started || !this.cancelRequested || this.cancelSent || this.terminal) return;
+    this.cancelSent = true;
+    void invoke<CancelWorkflowRunResult>("cancel_workflow_run", { run_id: this.runId })
+      .then((result) => {
+        if (result.run_id !== this.runId) {
+          this.handleCancellationFailure("cancel_workflow_run returned a different run_id");
+        } else {
+          this.cancelFailure = null;
+        }
+      })
+      .catch((error: unknown) => {
+        this.handleCancellationFailure(String(error));
+      });
+  }
+
+  private handleCancellationFailure(reason: string): void {
+    if (this.terminal || !this.cancelRequested) return;
+    this.cancelFailure = reason;
+    this.cancelRequested = false;
+    this.cancelSent = false;
+    this.observe.onStatus({ state: "cancel_failed", reason });
+  }
+
+  private settle(result: WorkflowRunResult): void {
+    if (this.terminal) return;
+    if (result.run_id !== this.runId) {
+      this.fail(`Workflow run identity mismatch: expected ${this.runId}, received ${result.run_id}`);
+      return;
+    }
+    this.terminal = true;
+    if (result.status === "succeeded") {
+      this.observe.onStatus({ state: "succeeded", outputs: result.outputs });
+    } else if (result.status === "cancelled") {
+      this.observe.onStatus({ state: "cancelled" });
+    } else {
+      this.observe.onStatus({ state: "failed", reason: result.reason });
+    }
+  }
+
+  private fail(reason: string): void {
+    if (this.terminal) return;
+    this.terminal = true;
+    this.observe.onStatus({ state: "failed", reason });
+  }
+
+  private failureReason(error: unknown): string {
+    return this.cancelFailure === null
+      ? String(error)
+      : `Run failed after cancellation request (${this.cancelFailure}): ${String(error)}`;
+  }
 }
 
 async function listAssets(options: ListAssetsOptions = {}): Promise<Asset[]> {
