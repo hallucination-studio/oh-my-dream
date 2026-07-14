@@ -1,0 +1,277 @@
+{
+  "schema_version": "1.0.0",
+  "ledger_index_id": "zhong-kui-reversal-provisional",
+  "status": "provisional_pending_ledger_set_approval",
+  "source": {
+    "snapshot_sha256": "45b5a147b658dd6cce68d21eabb33508801bff29757ecc7de39e06443093fe74",
+    "script_catalog": "script-catalog.md",
+    "production_branch_catalog": "production-branch-catalog.json",
+    "boundary_rules": "../benchmark-spec.md"
+  },
+  "authority": {
+    "working_candidate_id": "shots-revised-029",
+    "working_candidate_source_locator": "nodeList[118].data.content",
+    "working_candidate_source_ref": "node-0119",
+    "classification": "unresolved_complete_candidate",
+    "selection_scope": "partition_analysis_only",
+    "selection_rationale": [
+      "It is a complete 29-shot, 180-second candidate with an explicit prologue and four timed acts.",
+      "Its declared act durations permit exact, non-overlapping provisional timeline coverage without estimating per-shot durations.",
+      "Completeness and timing make it suitable for partition analysis but do not establish approval, recency, or Gold authority."
+    ],
+    "not_selected_as_gold": true,
+    "approval_required": true
+  },
+  "normalization": {
+    "runtime_seconds": 180,
+    "shot_count": 29,
+    "atomic_beat_unit": "numbered_shot",
+    "interval_convention": "half_open_seconds_except_final_closed_endpoint",
+    "source_text_retained": false,
+    "layout_used": false
+  },
+  "production_evidence_assessment": {
+    "cataloged_nodes": 463,
+    "cataloged_edges": 1168,
+    "cataloged_ordered_inputs": 2225,
+    "observed_modalities": ["text", "image", "video", "audio"],
+    "boundary_relevance": [
+      "The catalog confirms repeated generation, reference, revision, retry, stale-output, and downstream-consumer branches that require bounded rerun units.",
+      "The script's fantasy battle and domestic reveal require materially different identity, lighting, scale, sound, and assembly packages.",
+      "The repair payoff has an isolated revision target, so it can stop at a boundary after the reality mapping is approved."
+    ],
+    "mapping_limit": "The snapshot does not prove which production branches belong to the 29-shot candidate; Task 6 must attach only source-backed joins and retain missing joins as unresolved."
+  },
+  "coverage": {
+    "ordered_group_ids": ["ledger-01-threat", "ledger-02-mobilization", "ledger-03-charge", "ledger-04-reveal", "ledger-05-restoration"],
+    "group_count": 5,
+    "covered_shot_ranges": ["1-3", "4-10", "11-15", "16-22", "23-29"],
+    "covered_time_ranges_seconds": ["0-15", "15-60", "60-110", "110-150", "150-180"],
+    "shots_covered_once": 29,
+    "seconds_covered_once": 180,
+    "shot_gaps": [],
+    "shot_overlaps": [],
+    "time_gaps": [],
+    "time_overlaps": [],
+    "stable_order": true,
+    "exact_timing_available_at_group_level": true,
+    "authority_resolved": false
+  },
+  "groups": [
+    {
+      "group_id": "ledger-01-threat",
+      "order": 1,
+      "script_version_id": "shots-revised-029",
+      "script_locator": {"shot_start": 1, "shot_end": 3, "time_start_seconds": 0, "time_end_seconds": 15},
+      "narrative_purpose": "Establish the failed frontier, the approaching mechanical threat, and the transition from darkness into the guardian's point of view.",
+      "atomic_beats": [
+        {"beat_id": "beat-001", "shot": 1, "summary": "A blackout establishes the failed warning state and distant machine motif."},
+        {"beat_id": "beat-002", "shot": 2, "summary": "Fragmentary evidence conveys prior destruction and an overwhelmed defense."},
+        {"beat_id": "beat-003", "shot": 3, "summary": "The threat closes in and visually hands off to the guardian."}
+      ],
+      "incoming_continuity": {"kind": "project_open", "required_state": []},
+      "outgoing_continuity": {"reality_layer": "fantasy", "threat_state": "approaching_and_confirmed", "visual_state": ["darkness", "cold_blue_machine_light"], "audio_state": ["machine_motif_rising"], "handoff_target": "guardian_point_of_view"},
+      "production_cohesion": ["Shared blackout and threat package", "One escalating machine-audio motif", "Terminal guardian-eye handoff"],
+      "terminal_artifact": "Approved threat-establishment sequence ending on the guardian handoff",
+      "smallest_sufficient_rerun": "Threat sequence and its transition only",
+      "required_modalities_provisional": ["image", "video", "audio"],
+      "ledger_file": "ledgers/ledger-01-threat.json",
+      "completion": "pending_task_6",
+      "authority": "unresolved"
+    },
+    {
+      "group_id": "ledger-02-mobilization",
+      "order": 2,
+      "script_version_id": "shots-revised-029",
+      "script_locator": {"shot_start": 4, "shot_end": 10, "time_start_seconds": 15, "time_end_seconds": 60},
+      "narrative_purpose": "Introduce the guardian, scout, attendants, and tiger; communicate the warning; and complete the decision to respond.",
+      "atomic_beats": [
+        {"beat_id": "beat-004", "shot": 4, "summary": "The guardian awakens and sees the threat reflected at close range."},
+        {"beat_id": "beat-005", "shot": 5, "summary": "The guardian's full defensive stance and frontier position are established."},
+        {"beat_id": "beat-006", "shot": 6, "summary": "The wounded scout reports the failed defenses and imminent attack."},
+        {"beat_id": "beat-007", "shot": 7, "summary": "The guardian silently commits and draws the weapon."},
+        {"beat_id": "beat-008", "shot": 8, "summary": "Attention shifts toward the supporting force in darkness."},
+        {"beat_id": "beat-009", "shot": 9, "summary": "The two attendants intensify the mobilization through the drum rhythm."},
+        {"beat_id": "beat-010", "shot": 10, "summary": "The tiger arrives and confirms the guardian-companion partnership."}
+      ],
+      "incoming_continuity": {"from_group": "ledger-01-threat", "required_state": ["fantasy layer", "confirmed approaching threat", "cold machine light", "rising machine motif"]},
+      "outgoing_continuity": {"cast_state": ["guardian committed", "scout wounded", "attendants mobilized", "tiger allied"], "asset_state": ["weapon drawn", "frontier unstable"], "audio_state": ["drums active", "machine threat near"], "unresolved": ["tiger design and name differ in later revisions"]},
+      "production_cohesion": ["Shared fantasy-cast identity package", "One warning-to-commitment objective", "Common frontier lighting and wind state"],
+      "terminal_artifact": "Approved mobilization sequence with all battle participants staged",
+      "smallest_sufficient_rerun": "Mobilization sequence while preserving the threat package",
+      "required_modalities_provisional": ["image", "video", "audio"],
+      "ledger_file": "ledgers/ledger-02-mobilization.json",
+      "completion": "pending_task_6",
+      "authority": "unresolved"
+    },
+    {
+      "group_id": "ledger-03-charge",
+      "order": 3,
+      "script_version_id": "shots-revised-029",
+      "script_locator": {"shot_start": 11, "shot_end": 15, "time_start_seconds": 60, "time_end_seconds": 110},
+      "narrative_purpose": "Execute the guardian-and-tiger charge, resolve or interrupt the collision, and carry the damaged guardian into loss of fantasy consciousness.",
+      "atomic_beats": [
+        {"beat_id": "beat-011", "shot": 11, "summary": "The guardian mounts the tiger as the frontier fails."},
+        {"beat_id": "beat-012", "shot": 12, "summary": "The scout attempts a final warning."},
+        {"beat_id": "beat-013", "shot": 13, "summary": "Guardian and tiger commit to the charge."},
+        {"beat_id": "beat-014", "shot": 14, "summary": "The complete candidate shows the strike disabling the threat."},
+        {"beat_id": "beat-015", "shot": 15, "summary": "The guardian falls damaged and consciousness cuts to black."}
+      ],
+      "incoming_continuity": {"from_group": "ledger-02-mobilization", "required_state": ["stable cast identities", "guardian-tiger partnership", "weapon ready", "frontier instability", "drum and machine motifs"]},
+      "outgoing_continuity": {"guardian_state": "damaged_and_unconscious", "threat_state": "disabled_in_working_candidate", "transition_state": "blackout_before_reality", "unresolved": ["some battle branches cut before collision", "heroic versus sacrificial framing", "tiger design conflict"]},
+      "production_cohesion": ["Indivisible action-and-consequence unit", "Shared high-motion battle package", "Failure recovery can stop before the reality reveal"],
+      "terminal_artifact": "Approved battle outcome and blackout transition",
+      "smallest_sufficient_rerun": "Charge-through-blackout subgraph, retaining approved mobilization assets",
+      "required_modalities_provisional": ["image", "video", "audio"],
+      "ledger_file": "ledgers/ledger-03-charge.json",
+      "completion": "pending_task_6",
+      "authority": "unresolved"
+    },
+    {
+      "group_id": "ledger-04-reveal",
+      "order": 4,
+      "script_version_id": "shots-revised-029",
+      "script_locator": {"shot_start": 16, "shot_end": 22, "time_start_seconds": 110, "time_end_seconds": 150},
+      "narrative_purpose": "Change reality layer, reveal the household scale, map fantasy figures to objects, and establish the family's interpretation of the damage.",
+      "atomic_beats": [
+        {"beat_id": "beat-016", "shot": 16, "summary": "Warm domestic light and ambience replace the fantasy battle."},
+        {"beat_id": "beat-017", "shot": 17, "summary": "A child's hand lifts the damaged guardian."},
+        {"beat_id": "beat-018", "shot": 18, "summary": "The guardian's point of view reveals the household scale."},
+        {"beat_id": "beat-019", "shot": 19, "summary": "Fantasy companions and locations map to household objects."},
+        {"beat_id": "beat-020", "shot": 20, "summary": "The child presents the damaged figure to the elder."},
+        {"beat_id": "beat-021", "shot": 21, "summary": "The elder identifies the figure and its physical damage."},
+        {"beat_id": "beat-022", "shot": 22, "summary": "The child reframes the damage as evidence of heroism."}
+      ],
+      "incoming_continuity": {"from_group": "ledger-03-charge", "required_state": ["guardian damaged", "fantasy blackout", "guardian and tiger positions available for object mapping"]},
+      "outgoing_continuity": {"reality_layer": "domestic", "mapping_state": "fantasy identities mapped to household objects", "damage_state": "recognized", "emotional_state": "heroism asserted", "unresolved": ["identifiable faces allowed versus prohibited", "early black-tiger mapping versus revised natural-tiger mapping"]},
+      "production_cohesion": ["Single fantasy-to-reality reveal package", "Shared warm domestic lighting and scale", "Object mapping must remain cohesive to preserve the reversal"],
+      "terminal_artifact": "Approved domestic reveal with complete object mapping and damage recognition",
+      "smallest_sufficient_rerun": "Reality reveal and mapping sequence only",
+      "required_modalities_provisional": ["image", "video", "audio"],
+      "ledger_file": "ledgers/ledger-04-reveal.json",
+      "completion": "pending_task_6",
+      "authority": "unresolved"
+    },
+    {
+      "group_id": "ledger-05-restoration",
+      "order": 5,
+      "script_version_id": "shots-revised-029",
+      "script_locator": {"shot_start": 23, "shot_end": 29, "time_start_seconds": 150, "time_end_seconds": 180},
+      "narrative_purpose": "Resolve the guardian's identity crisis through repair, renewed protective purpose, and the final title image.",
+      "atomic_beats": [
+        {"beat_id": "beat-023", "shot": 23, "summary": "Warm light holds on the damaged guardian."},
+        {"beat_id": "beat-024", "shot": 24, "summary": "The guardian confronts the domestic truth."},
+        {"beat_id": "beat-025", "shot": 25, "summary": "The child repairs the damaged area with a symbolic mark."},
+        {"beat_id": "beat-026", "shot": 26, "summary": "The child restores the guardian to a protective position."},
+        {"beat_id": "beat-027", "shot": 27, "summary": "The guardian's expression is reinterpreted through warmth and relationship."},
+        {"beat_id": "beat-028", "shot": 28, "summary": "The guardian accepts a renewed purpose."},
+        {"beat_id": "beat-029", "shot": 29, "summary": "The project resolves on a final guardian image and title."}
+      ],
+      "incoming_continuity": {"from_group": "ledger-04-reveal", "required_state": ["domestic reality established", "damage recognized", "child and elder context", "household object mapping"]},
+      "outgoing_continuity": {"kind": "project_close", "guardian_state": "repaired_and_restored", "emotional_state": "protective_purpose_renewed", "unresolved": ["heart versus star repair symbol", "human visibility policy", "ending music timing"]},
+      "production_cohesion": ["Repair and emotional reinterpretation are one payoff", "One warm domestic asset package", "Clear final review artifact"],
+      "terminal_artifact": "Approved repair, renewed guardianship, and final title sequence",
+      "smallest_sufficient_rerun": "Restoration sequence only, preserving the approved reveal",
+      "required_modalities_provisional": ["image", "video", "audio"],
+      "ledger_file": "ledgers/ledger-05-restoration.json",
+      "completion": "pending_task_6",
+      "authority": "unresolved"
+    }
+  ],
+  "boundaries": [
+    {
+      "boundary_id": "boundary-01-threat-to-mobilization",
+      "before_group": "ledger-01-threat",
+      "after_group": "ledger-02-mobilization",
+      "script_locator": {"after_shot": 3, "at_seconds": 15},
+      "primary_reason": "narrative_and_execution_transition",
+      "evidence": ["The timed prologue ends after the threat closes in.", "The next act begins on the guardian and expands into cast mobilization."],
+      "shared_dependencies": ["threat design", "fantasy environment", "cold machine light", "machine-audio motif"],
+      "revision_isolation": "Threat exposition can be revised without restaging the mobilized cast if the handoff remains intact.",
+      "smallest_rerun": "Either side of the guardian-eye transition plus the transition validation",
+      "unresolved": []
+    },
+    {
+      "boundary_id": "boundary-02-mobilization-to-charge",
+      "before_group": "ledger-02-mobilization",
+      "after_group": "ledger-03-charge",
+      "script_locator": {"after_shot": 10, "at_seconds": 60},
+      "primary_reason": "objective_and_production_transition",
+      "evidence": ["The first act completes cast setup and commitment.", "The second act begins the high-motion charge and damage sequence."],
+      "shared_dependencies": ["cast identities", "tiger identity", "weapon", "frontier geography", "wind and lighting state", "drum and machine motifs"],
+      "revision_isolation": "Battle motion and outcome can be revised after cast setup is approved.",
+      "smallest_rerun": "Charge group and its incoming continuity check",
+      "unresolved": ["Tiger design and battle framing vary across branches."]
+    },
+    {
+      "boundary_id": "boundary-03-charge-to-reveal",
+      "before_group": "ledger-03-charge",
+      "after_group": "ledger-04-reveal",
+      "script_locator": {"after_shot": 15, "at_seconds": 110},
+      "primary_reason": "reality_layer_and_media_package_transition",
+      "evidence": ["The battle act ends in blackout.", "The next act changes scale, location meaning, palette, lighting, ambience, and object semantics together."],
+      "shared_dependencies": ["guardian damage", "guardian-tiger spatial relationship", "blackout transition"],
+      "revision_isolation": "Fantasy battle variants can stop at the blackout if they preserve the damage and mapping handoff.",
+      "smallest_rerun": "Boundary transition and the affected adjacent group",
+      "unresolved": ["The battle branch may show impact or cut before collision."]
+    },
+    {
+      "boundary_id": "boundary-04-reveal-to-restoration",
+      "before_group": "ledger-04-reveal",
+      "after_group": "ledger-05-restoration",
+      "script_locator": {"after_shot": 22, "at_seconds": 150},
+      "primary_reason": "objective_and_revision_transition",
+      "evidence": ["The third act completes the domestic mapping and heroic reinterpretation.", "The fourth act changes the objective from understanding damage to repairing and honoring it."],
+      "shared_dependencies": ["domestic set", "guardian damage", "child relationship", "warm lighting", "mapped household objects"],
+      "revision_isolation": "The repair symbol and final emotional beat can change without rebuilding the reality reveal.",
+      "smallest_rerun": "Restoration group only unless the approved symbol requires an earlier setup change",
+      "unresolved": ["Heart and five-point-star repair symbols compete.", "Human visibility constraints may apply to both groups."]
+    }
+  ],
+  "alternative_partitions": [
+    {
+      "partition_id": "semantic-five-group-split",
+      "status": "preferred_semantic_alternative_pending_timing",
+      "difference": "Split the first timed act between threat assessment and the scout warning so discovery and response have separate revision scopes.",
+      "blocking_evidence": "The source gives a 45-second act duration but no per-shot timing for shots 4-10, so an exact time boundary cannot be recorded without inference."
+    },
+    {
+      "partition_id": "three-act-sized-groups",
+      "status": "rejected_as_too_coarse",
+      "difference": "Combine threat with mobilization and combine reveal with restoration.",
+      "blocking_evidence": "The combined groups contain independently revisable objectives and media packages."
+    },
+    {
+      "partition_id": "one-group-per-shot",
+      "status": "rejected_as_over_fragmented",
+      "difference": "Create 29 groups from shot numbering.",
+      "blocking_evidence": "Most cuts lack an independent objective, production package, terminal artifact, or revision benefit."
+    },
+    {
+      "partition_id": "alternate-complete-lineages",
+      "status": "retained_for_authority_review",
+      "candidate_script_ids": ["script-base-001", "shots-initial-001", "shots-composite-017"],
+      "difference": "Use another complete screenplay or shot lineage as the master before applying the same boundary rules.",
+      "blocking_evidence": "No approval flag or final-master identifier establishes which complete lineage owns Gold semantics."
+    }
+  ],
+  "unresolved_decisions": [
+    {"decision_id": "decision-master-version", "question": "Which complete script or shot lineage is approved as the master?", "affected_groups": ["ledger-01-threat", "ledger-02-mobilization", "ledger-03-charge", "ledger-04-reveal", "ledger-05-restoration"]},
+    {"decision_id": "decision-first-act-split", "question": "Should the first timed act remain one group or split after threat assessment once shot timing is approved?", "affected_groups": ["ledger-01-threat", "ledger-02-mobilization"]},
+    {"decision_id": "decision-tiger", "question": "Which tiger design and identity are authoritative?", "affected_groups": ["ledger-02-mobilization", "ledger-03-charge", "ledger-04-reveal"]},
+    {"decision_id": "decision-battle-outcome", "question": "Should the collision and impact be shown or should the sequence cut before impact?", "affected_groups": ["ledger-03-charge", "ledger-04-reveal"]},
+    {"decision_id": "decision-human-visibility", "question": "Does the no-identifiable-face rule apply project-wide or only to late-story branches?", "affected_groups": ["ledger-04-reveal", "ledger-05-restoration"]},
+    {"decision_id": "decision-repair-symbol", "question": "Is the repair symbol a heart, a five-point star, or another approved mark?", "affected_groups": ["ledger-05-restoration"]},
+    {"decision_id": "decision-camera-and-audio", "question": "Which camera specifications and music timings are binding rather than experimental?", "affected_groups": ["ledger-01-threat", "ledger-02-mobilization", "ledger-03-charge", "ledger-04-reveal", "ledger-05-restoration"]}
+  ],
+  "verification": {
+    "complete_candidate_used": true,
+    "all_29_shots_assigned_exactly_once": true,
+    "all_180_seconds_assigned_exactly_once": true,
+    "boundaries_follow_declared_script_timing": true,
+    "continuity_handoffs_complete": true,
+    "alternative_partitions_retained": true,
+    "layout_inference_rejected": true,
+    "ledger_set_approved": false
+  }
+}
