@@ -56,7 +56,10 @@ impl ReviewedChangeService {
             .repository
             .get(&receipt.candidate_id)?
             .ok_or_else(|| ReviewedChangeError::CandidateNotFound(receipt.candidate_id.clone()))?;
-        if candidate.digest != receipt.candidate_digest {
+        if candidate.digest != receipt.candidate_digest
+            || fingerprint(&candidate.patches)? != candidate.digest
+            || fingerprint(&candidate.workflow)? != candidate.workflow_fingerprint
+        {
             return Err(ReviewedChangeError::ReviewReceiptInvalid);
         }
         Ok((receipt, candidate))

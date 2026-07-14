@@ -175,6 +175,8 @@ async fn approved_candidate_replays_exact_patches_into_one_workflow_revision() {
     assert_eq!(first["workflow_head"]["revision"], 1);
     assert_eq!(first["workflow_head"]["workflow"]["nodes"].as_array().unwrap().len(), 1);
     assert_eq!(replay["deduplicated"], true);
+    assert_eq!(replay["aliases"], first["aliases"]);
+    assert_eq!(replay["readiness_blockers"], first["readiness_blockers"]);
 }
 
 fn expire_receipt(config_root: &std::path::Path, receipt_id: &str) {

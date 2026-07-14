@@ -4,7 +4,7 @@ use crate::assistant_operations::{
     OperationRegistration, OperationRegistrationError, RequestContext,
 };
 use crate::workflow_patch_operation::{
-    WorkflowApplyPatchInput, WorkflowApplyPatchOutput, WorkflowPatchService,
+    WorkflowAliasDto, WorkflowApplyPatchInput, WorkflowApplyPatchOutput, WorkflowPatchService,
 };
 use engine::{WorkflowPatch, WorkflowPatchOperation};
 use schemars::{JsonSchema, r#gen::SchemaGenerator, schema::Schema};
@@ -179,6 +179,15 @@ impl ReviewedChangeOperations {
                             &replay_context,
                             replay_candidate.base_revision(),
                             replay_candidate.patches(),
+                            replay_candidate
+                                .aliases()
+                                .iter()
+                                .map(|(alias, node_id)| WorkflowAliasDto {
+                                    alias: alias.clone(),
+                                    node_id: node_id.clone(),
+                                })
+                                .collect(),
+                            replay_candidate.readiness_blockers().to_vec(),
                         )
                         .map_err(|error| {
                             OperationHandlerError::new(error.code.clone(), error.to_string())
@@ -205,6 +214,7 @@ impl ReviewedChangeOperations {
                             &apply_context,
                             candidate.base_revision(),
                             candidate.patches(),
+                            candidate.workflow_fingerprint(),
                         )
                         .map_err(|error| {
                             OperationHandlerError::new(error.code.clone(), error.to_string())

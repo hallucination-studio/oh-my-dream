@@ -5,6 +5,7 @@ use engine::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
@@ -33,6 +34,7 @@ pub struct WorkflowCandidate {
     digest: String,
     workflow_fingerprint: String,
     workflow: Workflow,
+    aliases: BTreeMap<String, String>,
     readiness_blockers: Vec<WorkflowReadinessBlocker>,
     expires_at: u64,
 }
@@ -69,6 +71,10 @@ impl WorkflowCandidate {
     #[must_use]
     pub fn workflow(&self) -> &Workflow {
         &self.workflow
+    }
+    #[must_use]
+    pub fn aliases(&self) -> &BTreeMap<String, String> {
+        &self.aliases
     }
     #[must_use]
     pub fn readiness_blockers(&self) -> &[WorkflowReadinessBlocker] {
@@ -322,6 +328,7 @@ fn new_candidate(
         digest,
         workflow_fingerprint,
         workflow: result.workflow,
+        aliases: result.aliases,
         readiness_blockers: result.readiness_blockers,
         expires_at: now_seconds()?.saturating_add(CANDIDATE_TTL_SECONDS),
     })
