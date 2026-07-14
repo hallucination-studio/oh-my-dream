@@ -1,7 +1,7 @@
 //! Durable SDK RunState waiting for one human approval decision.
 
 use crate::assistant_runtime::AssistantWaitingApproval;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, ErrorCode, OptionalExtension, params};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
@@ -82,7 +82,7 @@ impl PendingApprovalRepository for PendingApprovalSqliteRepository {
                 params![waiting.session_id(), json],
             )
             .map(|_| ())
-            .map_err(storage)
+            .map_err(|error| approval_insert_error(error, waiting.session_id()))
     }
 
     fn load(
@@ -119,10 +119,18 @@ pub enum PendingApprovalError {
     Storage(String),
 }
 
-fn storage(error: impl std::fmt::Display) -> PendingApprovalError {
-    if let Some(sqlite) = error.to_string().strip_prefix("UNIQUE constraint failed:") {
-        return PendingApprovalError::AlreadyExists(sqlite.trim().to_owned());
+fn approval_insert_error(error: rusqlite::Error, session_id: &str) -> PendingApprovalError {
+    if matches!(
+        error,
+        rusqlite::Error::SqliteFailure(ref details, _)
+            if details.code == ErrorCode::ConstraintViolation
+    ) {
+        return PendingApprovalError::AlreadyExists(session_id.to_owned());
     }
+    PendingApprovalError::Storage(error.to_string())
+}
+
+fn storage(error: impl std::fmt::Display) -> PendingApprovalError {
     PendingApprovalError::Storage(error.to_string())
 }
 
