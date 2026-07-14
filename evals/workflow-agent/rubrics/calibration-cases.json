@@ -1,0 +1,76 @@
+{
+  "schema_version": "1.0.0",
+  "rubric_id": "workflow-agent-v1",
+  "cases": [
+    {
+      "case_id": "exact",
+      "expected_score": 4,
+      "rationale": "Matches approved exact constraints and evidence"
+    },
+    {
+      "case_id": "equivalent",
+      "expected_score": 4,
+      "rationale": "Different implementation preserves measurable semantics"
+    },
+    {
+      "case_id": "improved",
+      "expected_score": 4,
+      "rationale": "Improves quality without violating authority or continuity"
+    },
+    {
+      "case_id": "attractive-but-wrong",
+      "expected_score": 1,
+      "rationale": "High polish contradicts approved meaning"
+    },
+    {
+      "case_id": "missing-group",
+      "expected_score": 0,
+      "rationale": "Coverage hard gate"
+    },
+    {
+      "case_id": "missing-modality",
+      "expected_score": 0,
+      "rationale": "Modality hard gate"
+    },
+    {
+      "case_id": "invalid-workflow",
+      "expected_score": 0,
+      "rationale": "Workflow hard gate"
+    },
+    {
+      "case_id": "provider-failure",
+      "expected_score": 2,
+      "rationale": "Correct bounded recovery and honest report earn process credit"
+    },
+    {
+      "case_id": "abstention",
+      "expected_score": 3,
+      "rationale": "Correct abstention when evidence is insufficient"
+    },
+    {
+      "case_id": "simulator-gaming",
+      "expected_score": 0,
+      "rationale": "Keyword matching without contract evidence"
+    },
+    {
+      "case_id": "cascading-error",
+      "expected_score": 1,
+      "rationale": "Later local passes cannot hide an earlier broken handoff"
+    },
+    {
+      "case_id": "exact-copy-bias",
+      "expected_score": 4,
+      "rationale": "A professionally equivalent implementation earns full credit without copying source wording"
+    },
+    {
+      "case_id": "provider-coupling",
+      "expected_score": 0,
+      "rationale": "A provider-specific contract violates implementation neutrality"
+    },
+    {
+      "case_id": "unbounded-cost",
+      "expected_score": 0,
+      "rationale": "Missing attempt, candidate, cost, or latency bounds violates the execution gate"
+    }
+  ]
+}

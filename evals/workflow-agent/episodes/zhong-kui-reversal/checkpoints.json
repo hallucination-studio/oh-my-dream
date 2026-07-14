@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "checkpoint_mode": [
+    {
+      "checkpoint_id": "checkpoint-1",
+      "group_id": "ledger-01-threat",
+      "starts_from": "project-open",
+      "ends_at": "approved-ledger-01-threat",
+      "full_project_eligible": false
+    },
+    {
+      "checkpoint_id": "checkpoint-2",
+      "group_id": "ledger-02-mobilization",
+      "starts_from": "approved-ledger-01-threat",
+      "ends_at": "approved-ledger-02-mobilization",
+      "full_project_eligible": false
+    },
+    {
+      "checkpoint_id": "checkpoint-3",
+      "group_id": "ledger-03-charge",
+      "starts_from": "approved-ledger-02-mobilization",
+      "ends_at": "approved-ledger-03-charge",
+      "full_project_eligible": false
+    },
+    {
+      "checkpoint_id": "checkpoint-4",
+      "group_id": "ledger-04-reveal",
+      "starts_from": "approved-ledger-03-charge",
+      "ends_at": "approved-ledger-04-reveal",
+      "full_project_eligible": false
+    },
+    {
+      "checkpoint_id": "checkpoint-5",
+      "group_id": "ledger-05-restoration",
+      "starts_from": "approved-ledger-04-reveal",
+      "ends_at": "approved-ledger-05-restoration",
+      "full_project_eligible": false
+    }
+  ],
+  "continuation_mode": {
+    "ordered_group_ids": [
+      "ledger-01-threat",
+      "ledger-02-mobilization",
+      "ledger-03-charge",
+      "ledger-04-reveal",
+      "ledger-05-restoration"
+    ],
+    "requires_all_prior_checkpoints": true,
+    "terminal_task": "cross-group-continuity",
+    "full_project_eligible": true
+  }
+}

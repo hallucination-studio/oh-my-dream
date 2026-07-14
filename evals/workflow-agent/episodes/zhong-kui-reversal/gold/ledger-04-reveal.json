@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0.0",
+  "group_id": "ledger-04-reveal",
+  "semantic_owner": "source/script-ledger-index.json#ledger-04-reveal",
+  "script_version": "shots-revised-029",
+  "order": 4,
+  "script_locator": {
+    "shot_start": 16,
+    "shot_end": 22,
+    "time_start_seconds": 110,
+    "time_end_seconds": 150
+  },
+  "narrative_purpose": "Change reality layer, reveal the household scale, map fantasy figures to objects, and establish the family's interpretation of the damage.",
+  "beats": [
+    {
+      "beat_id": "beat-016",
+      "shot": 16,
+      "summary": "Warm domestic light and ambience replace the fantasy battle."
+    },
+    {
+      "beat_id": "beat-017",
+      "shot": 17,
+      "summary": "A child's hand lifts the damaged guardian."
+    },
+    {
+      "beat_id": "beat-018",
+      "shot": 18,
+      "summary": "The guardian's point of view reveals the household scale."
+    },
+    {
+      "beat_id": "beat-019",
+      "shot": 19,
+      "summary": "Fantasy companions and locations map to household objects."
+    },
+    {
+      "beat_id": "beat-020",
+      "shot": 20,
+      "summary": "The child presents the damaged figure to the elder."
+    },
+    {
+      "beat_id": "beat-021",
+      "shot": 21,
+      "summary": "The elder identifies the figure and its physical damage."
+    },
+    {
+      "beat_id": "beat-022",
+      "shot": 22,
+      "summary": "The child reframes the damage as evidence of heroism."
+    }
+  ],
+  "modalities": [
+    "image",
+    "video",
+    "audio"
+  ],
+  "continuity": {
+    "incoming": {
+      "from_group": "ledger-03-charge",
+      "required_state": [
+        "guardian damaged",
+        "fantasy blackout",
+        "guardian and tiger positions available for object mapping"
+      ]
+    },
+    "outgoing": {
+      "reality_layer": "domestic",
+      "mapping_state": "fantasy identities mapped to household objects",
+      "damage_state": "recognized",
+      "emotional_state": "heroism asserted",
+      "unresolved": [
+        "identifiable faces allowed versus prohibited",
+        "early black-tiger mapping versus revised natural-tiger mapping"
+      ]
+    }
+  },
+  "canonical_facts": [
+    "Warm domestic reality replaces the fantasy layer.",
+    "The guardian, tiger, scout, attendants, and frontier map to household objects or toys.",
+    "The guardian's damage is recognized and reframed as heroic."
+  ],
+  "tolerances": {
+    "implementation": "Professional equivalents are accepted when semantic beats and handoffs remain measurable.",
+    "unresolved_cases": [
+      "Identifiable faces versus no-face staging.",
+      "Tiger object design.",
+      "23-shot versus 28-shot late-story structure.",
+      "Whether the six ordered image references belong to the approved reveal.",
+      "Rendered video and audio lineage."
+    ]
+  },
+  "prohibited_inference": [
+    "raw prompt reconstruction",
+    "canvas-layout authority",
+    "provider-specific assumptions",
+    "silent promotion of experiments"
+  ],
+  "source_ledger": "source/ledgers/ledger-04-reveal.json",
+  "terminal_artifact": "Approved domestic reveal with complete object mapping and damage recognition"
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0.0",
+  "episode_id": "zhong-kui-reversal",
+  "approved_at": "2026-07-14",
+  "master_script": "shots-revised-029",
+  "runtime_seconds": 180,
+  "shot_count": 29,
+  "ordered_group_ids": [
+    "ledger-01-threat",
+    "ledger-02-mobilization",
+    "ledger-03-charge",
+    "ledger-04-reveal",
+    "ledger-05-restoration"
+  ],
+  "group_gold": [
+    {
+      "group_id": "ledger-01-threat",
+      "path": "ledger-01-threat.json",
+      "modalities": [
+        "image",
+        "video",
+        "audio"
+      ]
+    },
+    {
+      "group_id": "ledger-02-mobilization",
+      "path": "ledger-02-mobilization.json",
+      "modalities": [
+        "image",
+        "video",
+        "audio"
+      ]
+    },
+    {
+      "group_id": "ledger-03-charge",
+      "path": "ledger-03-charge.json",
+      "modalities": [
+        "image",
+        "video",
+        "audio"
+      ]
+    },
+    {
+      "group_id": "ledger-04-reveal",
+      "path": "ledger-04-reveal.json",
+      "modalities": [
+        "image",
+        "video",
+        "audio"
+      ]
+    },
+    {
+      "group_id": "ledger-05-restoration",
+      "path": "ledger-05-restoration.json",
+      "modalities": [
+        "image",
+        "video",
+        "audio"
+      ]
+    }
+  ],
+  "unresolved_policy": "Retain declared conflicts as scored alternatives; never infer exact implementation authority."
+}

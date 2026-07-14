@@ -1,0 +1,144 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "ledger-05-restoration-video",
+  "episode_id": "zhong-kui-reversal",
+  "group_id": "ledger-05-restoration",
+  "stage": "video",
+  "modes": [
+    "checkpoint",
+    "continuation"
+  ],
+  "contracts": {
+    "interaction": {
+      "required": [
+        "state assumptions",
+        "ask only decision-changing questions",
+        "request confirmation before mutation"
+      ],
+      "evidence": [
+        "questions",
+        "proposal",
+        "confirmation",
+        "decision log"
+      ]
+    },
+    "workflow": {
+      "required": [
+        "legal typed graph",
+        "ordered dependencies",
+        "bounded mutation",
+        "preserved upstream state"
+      ],
+      "evidence": [
+        "graph before",
+        "patch",
+        "graph after",
+        "validation result"
+      ]
+    },
+    "creative": {
+      "required": [
+        "approved semantic beats",
+        "declared alternatives",
+        "continuity handoff",
+        "no invented authority"
+      ],
+      "evidence": [
+        "beat mapping",
+        "constraint mapping",
+        "alternative rationale"
+      ]
+    },
+    "execution": {
+      "required": [
+        "bounded candidates",
+        "cost and latency",
+        "provenance",
+        "failure and abstention reporting"
+      ],
+      "evidence": [
+        "attempt log",
+        "artifact manifest",
+        "measurements",
+        "terminal status"
+      ]
+    }
+  },
+  "source_refs": [
+    "gold/ledger-05-restoration.json",
+    "source/ledgers/ledger-05-restoration.json"
+  ],
+  "mutation_boundary": {
+    "may_change": [
+      "ledger-05-restoration:video",
+      "declared downstream stale outputs"
+    ],
+    "must_preserve": [
+      "approved prior groups",
+      "source ledger",
+      "unrelated workflow branches"
+    ]
+  },
+  "requirements": [
+    "Produce or abstain after bounded candidates",
+    "Report duration, frame properties, motion, camera intent, identity, temporal defects, provenance, cost, and latency",
+    "Repair, replacement on the desk, emotional push-in, child movement, voice-over timing, and title fade require temporal evidence.",
+    "Treat script_required_group_specific_generation_join_unresolved as unresolved rather than rendered authority"
+  ],
+  "evidence": [
+    "candidate manifest",
+    "temporal measurements",
+    "review disposition"
+  ],
+  "budgets": {
+    "max_attempts": 3,
+    "max_candidates": 4,
+    "max_cost_usd": 10,
+    "max_latency_seconds": 900
+  },
+  "gold": {
+    "exact": [
+      "Use approved group ledger-05-restoration",
+      "Preserve shots 23-29",
+      "Preserve 150-180s group interval"
+    ],
+    "semantic": [
+      "Resolve the guardian's identity crisis through repair, renewed protective purpose, and the final title image.",
+      "Warm light holds on the damaged guardian.",
+      "The guardian confronts the domestic truth.",
+      "The child repairs the damaged area with a symbolic mark.",
+      "The child restores the guardian to a protective position.",
+      "The guardian's expression is reinterpreted through warmth and relationship.",
+      "The guardian accepts a renewed purpose.",
+      "The project resolves on a final guardian image and title."
+    ],
+    "professional": [
+      "Deliver a production-usable video artifact",
+      "Allow equivalent implementations when declared tolerances and continuity are satisfied",
+      "Abstain rather than invent missing authority"
+    ]
+  },
+  "hard_gates": [
+    "approved group required",
+    "required evidence present",
+    "no mutation outside boundary",
+    "no omitted required modality",
+    "budget respected"
+  ],
+  "rubric_ids": [
+    "workflow-agent-v1"
+  ],
+  "reporting": {
+    "partial_run_label": "ledger-05-restoration:video",
+    "full_project_eligible": false,
+    "required_fields": [
+      "status",
+      "evidence",
+      "cost_usd",
+      "latency_seconds",
+      "attempts",
+      "failures",
+      "abstention_reason"
+    ]
+  }
+}

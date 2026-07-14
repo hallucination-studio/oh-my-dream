@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "cross-group-continuity",
+  "episode_id": "zhong-kui-reversal",
+  "group_id": null,
+  "stage": "cross-group-continuity",
+  "modes": [
+    "continuation"
+  ],
+  "contracts": {
+    "interaction": {
+      "required": [
+        "state assumptions",
+        "ask only decision-changing questions",
+        "request confirmation before mutation"
+      ],
+      "evidence": [
+        "questions",
+        "proposal",
+        "confirmation",
+        "decision log"
+      ]
+    },
+    "workflow": {
+      "required": [
+        "legal typed graph",
+        "ordered dependencies",
+        "bounded mutation",
+        "preserved upstream state"
+      ],
+      "evidence": [
+        "graph before",
+        "patch",
+        "graph after",
+        "validation result"
+      ]
+    },
+    "creative": {
+      "required": [
+        "approved semantic beats",
+        "declared alternatives",
+        "continuity handoff",
+        "no invented authority"
+      ],
+      "evidence": [
+        "beat mapping",
+        "constraint mapping",
+        "alternative rationale"
+      ]
+    },
+    "execution": {
+      "required": [
+        "bounded candidates",
+        "cost and latency",
+        "provenance",
+        "failure and abstention reporting"
+      ],
+      "evidence": [
+        "attempt log",
+        "artifact manifest",
+        "measurements",
+        "terminal status"
+      ]
+    }
+  },
+  "source_refs": [
+    "gold/script-ledger-index.json",
+    "gold/ledger-01-threat.json",
+    "gold/ledger-02-mobilization.json",
+    "gold/ledger-03-charge.json",
+    "gold/ledger-04-reveal.json",
+    "gold/ledger-05-restoration.json"
+  ],
+  "mutation_boundary": {
+    "may_change": [
+      "smallest defective group subgraph",
+      "stale downstream outputs"
+    ],
+    "must_preserve": [
+      "approved groups and assets unaffected by the defect"
+    ]
+  },
+  "requirements": [
+    "Validate all five group links and complete 29-shot/180-second coverage",
+    "Check identity, props, geography, style, motion, motifs, timing, transitions, and inherited state",
+    "Reject isolated local passes that fail globally"
+  ],
+  "evidence": [
+    "ordered checkpoint chain",
+    "boundary measurements",
+    "global continuity report",
+    "smallest-rerun proof"
+  ],
+  "budgets": {
+    "max_attempts": 3,
+    "max_candidates": 4,
+    "max_cost_usd": 10,
+    "max_latency_seconds": 900
+  },
+  "gold": {
+    "exact": [
+      "All five approved groups in order",
+      "All four boundaries linked"
+    ],
+    "semantic": [
+      "A guardian defends a fantasy frontier from a mechanical threat.",
+      "A scout, two drum-associated attendants, and a tiger companion participate in the fantasy layer.",
+      "Battle or charge action transitions into a warm domestic reality.",
+      "Fantasy characters and locations map to household objects and toys.",
+      "Damage to the guardian is repaired and reinterpreted as honorable protection."
+    ],
+    "professional": [
+      "Equivalent continuity solutions accepted when measurable",
+      "Accumulated errors attributed to their earliest observable boundary"
+    ]
+  },
+  "hard_gates": [
+    "all groups represented",
+    "all modalities represented",
+    "no full score for partial run",
+    "coverage has no gap or overlap"
+  ],
+  "rubric_ids": [
+    "workflow-agent-v1"
+  ],
+  "reporting": {
+    "partial_run_label": "full-continuation",
+    "full_project_eligible": true,
+    "required_fields": [
+      "status",
+      "group_scores",
+      "boundary_scores",
+      "global_score",
+      "coverage",
+      "failures",
+      "cost_usd",
+      "latency_seconds"
+    ]
+  }
+}

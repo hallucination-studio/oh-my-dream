@@ -1,0 +1,162 @@
+{
+  "schema_version": "1.0.0",
+  "rubric_id": "workflow-agent-v1",
+  "dimensions": [
+    {
+      "id": "interaction",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "workflow",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "creative",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "image",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "video",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "audio",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "cross_modal",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "execution_recovery",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "revision",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "cost",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "reliability",
+      "weight": 1,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "coverage",
+      "weight": 2,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    },
+    {
+      "id": "global_continuity",
+      "weight": 2,
+      "scoring": {
+        "0": "Missing, invalid, fabricated, or gate-breaking",
+        "1": "Major omissions or contradictions",
+        "2": "Partially correct with material repair needed",
+        "3": "Complete and professionally usable with minor issues",
+        "4": "Fully satisfies exact or approved-equivalent requirements with strong evidence"
+      }
+    }
+  ],
+  "hard_gates": [
+    "invalid workflow",
+    "missing approved group",
+    "missing required modality",
+    "mutation outside boundary",
+    "fabricated authority",
+    "unbounded execution"
+  ],
+  "aggregation": {
+    "method": "weighted_mean_after_gates",
+    "range": "0-4",
+    "partial_run_policy": "Report only executed dimensions and label partial; never award a full-project score."
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0.0",
+  "ledger_id": "ledger-04-reveal",
+  "status": "complete_provisional_evidence_record",
+  "index_ref": "../script-ledger-index.json",
+  "script": {
+    "working_version_id": "shots-revised-029",
+    "source_ref": "node-0119",
+    "shot_range": [16, 22],
+    "time_range_seconds": [110, 150],
+    "beat_ids": ["beat-016", "beat-017", "beat-018", "beat-019", "beat-020", "beat-021", "beat-022"],
+    "authority": "unresolved"
+  },
+  "nodes": {
+    "direct_script_evidence": ["node-0119"],
+    "comparative_lineage_refs": ["node-0250", "node-0255", "node-0251", "node-0249"],
+    "comparative_reference_refs": ["node-0165", "node-0170", "node-0205", "node-0201", "node-0197", "node-0214"],
+    "proven_comparative_edges": [
+      {"source_ref": "node-0250", "target_ref": "node-0255", "meaning": "Late-story prose to the 23-shot branch."},
+      {"source_ref": "node-0250", "target_ref": "node-0251", "meaning": "Late-story prose contributes to the 28-shot optimization."},
+      {"source_ref": "node-0255", "target_ref": "node-0251", "meaning": "The 23-shot branch directly contributes to the 28-shot optimization."}
+    ],
+    "direct_working_candidate_production_joins": [],
+    "join_status": "comparative_late_story_evidence_only"
+  },
+  "prompts": {
+    "script_text_present": true,
+    "generation_prompt_content_retained": false,
+    "source_backed_prompt_nodes": ["node-0249"],
+    "status": "Prompt evidence is late-story comparative evidence, not an approved join to the working candidate."
+  },
+  "ordered_references": {
+    "source_node_ref": "node-0249",
+    "stream_modality": "image",
+    "ordered_source_refs": ["node-0165", "node-0170", "node-0205", "node-0201", "node-0197", "node-0214"],
+    "declared_order_count": 6,
+    "unresolved_order_entries": 0,
+    "authority": "unresolved_comparative_branch"
+  },
+  "media": {
+    "image": {"requirement": "required", "reason": "The reveal requires stable domestic set, guardian damage, household-object mappings, hands, child, and elder references.", "comparative_reference_refs": ["node-0165", "node-0170", "node-0205", "node-0201", "node-0197", "node-0214"], "evidence_status": "ordered_comparative_references_proven_authority_unresolved"},
+    "video": {"requirement": "required", "reason": "Blackout-to-warm-light transition, lift, pull-back, object mapping, and family interaction require temporal continuity.", "direct_node_refs": [], "evidence_status": "script_required_group_specific_generation_join_unresolved"},
+    "audio": {"requirement": "required", "reason": "Birds, room ambience, object sounds, dialogue, and the transition away from battle audio are narrative requirements.", "direct_node_refs": [], "evidence_status": "script_required_rendered_audio_join_unresolved"}
+  },
+  "revisions_and_failures": {
+    "source_backed_revision_refs": ["node-0255", "node-0251", "node-0214"],
+    "revision_conflicts": ["identifiable faces versus no-face staging", "black tiger object mapping versus revised natural tiger", "23-shot versus 28-shot late-story structure"],
+    "attempt_refs": ["node-0249", "node-0255", "node-0251"],
+    "retry_refs": [],
+    "stale_refs": ["node-0249", "node-0255", "node-0251"],
+    "explicit_failure_refs": [],
+    "authority": "unresolved"
+  },
+  "downstream": {
+    "proven_consumer_refs": ["node-0249", "node-0255", "node-0251"],
+    "consumer_scope": "comparative late-story text branches consuming the ordered image references",
+    "expected_handoff_group": "ledger-05-restoration",
+    "required_handoff": ["domestic reality established", "complete object mapping", "guardian damage recognized", "heroism asserted"]
+  },
+  "continuity": {
+    "incoming": ["guardian damaged", "fantasy blackout", "guardian-tiger relationship available for mapping"],
+    "outgoing": ["domestic reality", "fantasy identities mapped to objects", "damage recognized", "child reframes damage as heroism"],
+    "unresolved": ["human visibility policy", "tiger mapping", "which late-story shot structure governs"]
+  },
+  "evidence_limits": [
+    "The six-reference order is proven for comparative late-story nodes, not specifically for shots 16-22 of the 29-shot candidate.",
+    "The image-edit node proves revision lineage but not selection or approval.",
+    "Many downstream generation consumers reuse these references; popularity is not authority and is not used to assign them to this group."
+  ],
+  "authority": "unresolved"
+}

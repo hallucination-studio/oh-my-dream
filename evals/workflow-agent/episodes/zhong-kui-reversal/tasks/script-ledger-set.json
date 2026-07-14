@@ -1,0 +1,129 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "script-ledger-set",
+  "episode_id": "zhong-kui-reversal",
+  "group_id": null,
+  "stage": "script-ledger-set",
+  "modes": [
+    "checkpoint"
+  ],
+  "contracts": {
+    "interaction": {
+      "required": [
+        "state assumptions",
+        "ask only decision-changing questions",
+        "request confirmation before mutation"
+      ],
+      "evidence": [
+        "questions",
+        "proposal",
+        "confirmation",
+        "decision log"
+      ]
+    },
+    "workflow": {
+      "required": [
+        "legal typed graph",
+        "ordered dependencies",
+        "bounded mutation",
+        "preserved upstream state"
+      ],
+      "evidence": [
+        "graph before",
+        "patch",
+        "graph after",
+        "validation result"
+      ]
+    },
+    "creative": {
+      "required": [
+        "approved semantic beats",
+        "declared alternatives",
+        "continuity handoff",
+        "no invented authority"
+      ],
+      "evidence": [
+        "beat mapping",
+        "constraint mapping",
+        "alternative rationale"
+      ]
+    },
+    "execution": {
+      "required": [
+        "bounded candidates",
+        "cost and latency",
+        "provenance",
+        "failure and abstention reporting"
+      ],
+      "evidence": [
+        "attempt log",
+        "artifact manifest",
+        "measurements",
+        "terminal status"
+      ]
+    }
+  },
+  "source_refs": [
+    "gold/script-ledger-index.json",
+    "source/script-ledger-index.json"
+  ],
+  "mutation_boundary": {
+    "may_change": [
+      "proposed script artifact",
+      "decision log"
+    ],
+    "must_preserve": [
+      "confirmed user facts",
+      "existing approved material"
+    ]
+  },
+  "requirements": [
+    "Cover every beat exactly once",
+    "Justify production-sized boundaries",
+    "Declare continuity and modality-operation matrix",
+    "Retain valid equivalent partitions"
+  ],
+  "evidence": [
+    "question log",
+    "proposal",
+    "confirmation",
+    "structured artifact"
+  ],
+  "budgets": {
+    "max_attempts": 2,
+    "max_candidates": 2,
+    "max_cost_usd": 0,
+    "max_latency_seconds": 600
+  },
+  "gold": {
+    "exact": [
+      "Produce a structured full-script artifact"
+    ],
+    "semantic": [
+      "Preserve confirmed intent and expose unresolved choices"
+    ],
+    "professional": [
+      "Questions are high-information and bounded",
+      "No unnecessary rewrite"
+    ]
+  },
+  "hard_gates": [
+    "confirmation before mutation",
+    "no invented user decision",
+    "complete structured artifact"
+  ],
+  "rubric_ids": [
+    "workflow-agent-v1"
+  ],
+  "reporting": {
+    "partial_run_label": "script-ledger-set",
+    "full_project_eligible": false,
+    "required_fields": [
+      "status",
+      "questions",
+      "confirmation",
+      "artifact",
+      "unresolved"
+    ]
+  }
+}

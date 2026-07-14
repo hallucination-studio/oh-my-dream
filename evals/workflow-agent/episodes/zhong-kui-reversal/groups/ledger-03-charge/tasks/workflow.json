@@ -1,0 +1,141 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "ledger-03-charge-workflow",
+  "episode_id": "zhong-kui-reversal",
+  "group_id": "ledger-03-charge",
+  "stage": "workflow",
+  "modes": [
+    "checkpoint",
+    "continuation"
+  ],
+  "contracts": {
+    "interaction": {
+      "required": [
+        "state assumptions",
+        "ask only decision-changing questions",
+        "request confirmation before mutation"
+      ],
+      "evidence": [
+        "questions",
+        "proposal",
+        "confirmation",
+        "decision log"
+      ]
+    },
+    "workflow": {
+      "required": [
+        "legal typed graph",
+        "ordered dependencies",
+        "bounded mutation",
+        "preserved upstream state"
+      ],
+      "evidence": [
+        "graph before",
+        "patch",
+        "graph after",
+        "validation result"
+      ]
+    },
+    "creative": {
+      "required": [
+        "approved semantic beats",
+        "declared alternatives",
+        "continuity handoff",
+        "no invented authority"
+      ],
+      "evidence": [
+        "beat mapping",
+        "constraint mapping",
+        "alternative rationale"
+      ]
+    },
+    "execution": {
+      "required": [
+        "bounded candidates",
+        "cost and latency",
+        "provenance",
+        "failure and abstention reporting"
+      ],
+      "evidence": [
+        "attempt log",
+        "artifact manifest",
+        "measurements",
+        "terminal status"
+      ]
+    }
+  },
+  "source_refs": [
+    "gold/ledger-03-charge.json",
+    "source/ledgers/ledger-03-charge.json"
+  ],
+  "mutation_boundary": {
+    "may_change": [
+      "ledger-03-charge:workflow",
+      "declared downstream stale outputs"
+    ],
+    "must_preserve": [
+      "approved prior groups",
+      "source ledger",
+      "unrelated workflow branches"
+    ]
+  },
+  "requirements": [
+    "Return a legal typed subgraph",
+    "Declare ordered dependencies, versions, media operations, and the smallest rerun boundary"
+  ],
+  "evidence": [
+    "graph before",
+    "ordered patch",
+    "graph after",
+    "type validation"
+  ],
+  "budgets": {
+    "max_attempts": 3,
+    "max_candidates": 4,
+    "max_cost_usd": 10,
+    "max_latency_seconds": 900
+  },
+  "gold": {
+    "exact": [
+      "Use approved group ledger-03-charge",
+      "Preserve shots 11-15",
+      "Preserve 60-110s group interval"
+    ],
+    "semantic": [
+      "Execute the guardian-and-tiger charge, resolve or interrupt the collision, and carry the damaged guardian into loss of fantasy consciousness.",
+      "The guardian mounts the tiger as the frontier fails.",
+      "The scout attempts a final warning.",
+      "Guardian and tiger commit to the charge.",
+      "The complete candidate shows the strike disabling the threat.",
+      "The guardian falls damaged and consciousness cuts to black."
+    ],
+    "professional": [
+      "Deliver a production-usable workflow artifact",
+      "Allow equivalent implementations when declared tolerances and continuity are satisfied",
+      "Abstain rather than invent missing authority"
+    ]
+  },
+  "hard_gates": [
+    "approved group required",
+    "required evidence present",
+    "no mutation outside boundary",
+    "no omitted required modality",
+    "budget respected"
+  ],
+  "rubric_ids": [
+    "workflow-agent-v1"
+  ],
+  "reporting": {
+    "partial_run_label": "ledger-03-charge:workflow",
+    "full_project_eligible": false,
+    "required_fields": [
+      "status",
+      "evidence",
+      "cost_usd",
+      "latency_seconds",
+      "attempts",
+      "failures",
+      "abstention_reason"
+    ]
+  }
+}

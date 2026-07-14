@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0.0",
+  "group_id": "ledger-05-restoration",
+  "semantic_owner": "source/script-ledger-index.json#ledger-05-restoration",
+  "script_version": "shots-revised-029",
+  "order": 5,
+  "script_locator": {
+    "shot_start": 23,
+    "shot_end": 29,
+    "time_start_seconds": 150,
+    "time_end_seconds": 180
+  },
+  "narrative_purpose": "Resolve the guardian's identity crisis through repair, renewed protective purpose, and the final title image.",
+  "beats": [
+    {
+      "beat_id": "beat-023",
+      "shot": 23,
+      "summary": "Warm light holds on the damaged guardian."
+    },
+    {
+      "beat_id": "beat-024",
+      "shot": 24,
+      "summary": "The guardian confronts the domestic truth."
+    },
+    {
+      "beat_id": "beat-025",
+      "shot": 25,
+      "summary": "The child repairs the damaged area with a symbolic mark."
+    },
+    {
+      "beat_id": "beat-026",
+      "shot": 26,
+      "summary": "The child restores the guardian to a protective position."
+    },
+    {
+      "beat_id": "beat-027",
+      "shot": 27,
+      "summary": "The guardian's expression is reinterpreted through warmth and relationship."
+    },
+    {
+      "beat_id": "beat-028",
+      "shot": 28,
+      "summary": "The guardian accepts a renewed purpose."
+    },
+    {
+      "beat_id": "beat-029",
+      "shot": 29,
+      "summary": "The project resolves on a final guardian image and title."
+    }
+  ],
+  "modalities": [
+    "image",
+    "video",
+    "audio"
+  ],
+  "continuity": {
+    "incoming": {
+      "from_group": "ledger-04-reveal",
+      "required_state": [
+        "domestic reality established",
+        "damage recognized",
+        "child and elder context",
+        "household object mapping"
+      ]
+    },
+    "outgoing": {
+      "kind": "project_close",
+      "guardian_state": "repaired_and_restored",
+      "emotional_state": "protective_purpose_renewed",
+      "unresolved": [
+        "heart versus star repair symbol",
+        "human visibility policy",
+        "ending music timing"
+      ]
+    }
+  },
+  "canonical_facts": [
+    "The child's repair transforms damage into an honorable mark.",
+    "The guardian is restored to a protective role and the story closes on renewed purpose."
+  ],
+  "tolerances": {
+    "implementation": "Professional equivalents are accepted when semantic beats and handoffs remain measurable.",
+    "unresolved_cases": [
+      "Heart versus five-point-star repair symbol.",
+      "Identifiable faces versus no-face staging.",
+      "Ending shot count and prompt set.",
+      "Ending-music duration and final mix.",
+      "The empty generation artifact at node-0253."
+    ]
+  },
+  "prohibited_inference": [
+    "raw prompt reconstruction",
+    "canvas-layout authority",
+    "provider-specific assumptions",
+    "silent promotion of experiments"
+  ],
+  "source_ledger": "source/ledgers/ledger-05-restoration.json",
+  "terminal_artifact": "Approved repair, renewed guardianship, and final title sequence"
+}

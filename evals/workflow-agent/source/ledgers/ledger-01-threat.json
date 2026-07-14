@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0.0",
+  "ledger_id": "ledger-01-threat",
+  "status": "complete_provisional_evidence_record",
+  "index_ref": "../script-ledger-index.json",
+  "script": {
+    "working_version_id": "shots-revised-029",
+    "source_ref": "node-0119",
+    "shot_range": [1, 3],
+    "time_range_seconds": [0, 15],
+    "beat_ids": ["beat-001", "beat-002", "beat-003"],
+    "authority": "unresolved"
+  },
+  "nodes": {
+    "direct_script_evidence": ["node-0119"],
+    "structured_comparative_evidence": ["node-0052", "node-0107", "node-0108"],
+    "direct_production_joins": [],
+    "join_status": "unresolved_no_graph_edge_from_working_script_to_production"
+  },
+  "prompts": {
+    "script_text_present": true,
+    "generation_prompt_content_retained": false,
+    "source_backed_prompt_nodes": [],
+    "status": "unresolved"
+  },
+  "ordered_references": {
+    "source_backed_streams": [],
+    "status": "No ordered media-input stream is directly joined to this working-candidate group."
+  },
+  "media": {
+    "image": {"requirement": "required", "reason": "The shots require a coherent frontier, destruction fragments, threat lights, and guardian handoff.", "direct_node_refs": [], "evidence_status": "script_required_production_join_unresolved"},
+    "video": {"requirement": "required", "reason": "The group depends on timed blackout typography, flashes, escalating approach, and a visual transition.", "direct_node_refs": [], "evidence_status": "script_required_production_join_unresolved"},
+    "audio": {"requirement": "required", "reason": "The machine motif escalates across the entire threat sequence and defines the handoff.", "direct_node_refs": [], "evidence_status": "script_required_production_join_unresolved"}
+  },
+  "revisions_and_failures": {
+    "source_backed_revision_refs": [],
+    "attempt_refs": [],
+    "retry_refs": [],
+    "stale_refs": [],
+    "explicit_failure_refs": [],
+    "status": "No group-specific production attempt can be proven from graph evidence."
+  },
+  "downstream": {
+    "proven_consumer_refs": [],
+    "expected_handoff_group": "ledger-02-mobilization",
+    "status": "Narrative handoff is explicit; production consumer join is unresolved."
+  },
+  "continuity": {
+    "incoming": {"kind": "project_open", "required_state": []},
+    "outgoing": ["fantasy reality layer", "confirmed approaching threat", "cold blue machine light", "rising machine-audio motif", "guardian point-of-view handoff"],
+    "unresolved": []
+  },
+  "evidence_limits": [
+    "The 29-shot candidate has no outgoing graph edge to a production node.",
+    "The three 16-column story tables corroborate an alternate shot structure but do not prove media ownership for this group.",
+    "Canvas layout, labels, timestamps, and visual similarity were not used to attach nodes."
+  ],
+  "authority": "unresolved"
+}

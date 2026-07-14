@@ -1,0 +1,166 @@
+{
+  "schema_version": "1.0.0",
+  "episode_id": "zhong-kui-reversal",
+  "task_schema": "../../schemas/task.schema.json",
+  "rubric_schema": "../../schemas/rubric.schema.json",
+  "gold_index": "gold/script-ledger-index.json",
+  "rubric": "../../rubrics/rubric.json",
+  "calibration_cases": "../../rubrics/calibration-cases.json",
+  "user_simulator": "user-simulator.json",
+  "checkpoints": "checkpoints.json",
+  "tasks": [
+    {
+      "path": "tasks/novice-script.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "tasks/pro-script-intake.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "tasks/script-ledger-set.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "tasks/cross-group-continuity.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-01-threat/tasks/shot-plan.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-01-threat/tasks/workflow.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-01-threat/tasks/image.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-01-threat/tasks/video.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-01-threat/tasks/audio.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-01-threat/tasks/review-recovery.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-02-mobilization/tasks/shot-plan.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-02-mobilization/tasks/workflow.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-02-mobilization/tasks/image.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-02-mobilization/tasks/video.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-02-mobilization/tasks/audio.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-02-mobilization/tasks/review-recovery.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-03-charge/tasks/shot-plan.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-03-charge/tasks/workflow.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-03-charge/tasks/image.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-03-charge/tasks/video.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-03-charge/tasks/audio.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-03-charge/tasks/review-recovery.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-04-reveal/tasks/shot-plan.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-04-reveal/tasks/workflow.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-04-reveal/tasks/image.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-04-reveal/tasks/video.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-04-reveal/tasks/audio.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-04-reveal/tasks/review-recovery.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-05-restoration/tasks/shot-plan.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-05-restoration/tasks/workflow.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-05-restoration/tasks/image.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-05-restoration/tasks/video.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-05-restoration/tasks/audio.json",
+      "rubric_id": "workflow-agent-v1"
+    },
+    {
+      "path": "groups/ledger-05-restoration/tasks/review-recovery.json",
+      "rubric_id": "workflow-agent-v1"
+    }
+  ],
+  "coverage": {
+    "groups": [
+      "ledger-01-threat",
+      "ledger-02-mobilization",
+      "ledger-03-charge",
+      "ledger-04-reveal",
+      "ledger-05-restoration"
+    ],
+    "modalities_per_group": [
+      "image",
+      "video",
+      "audio"
+    ],
+    "group_task_count": 30,
+    "total_task_count": 34,
+    "full_project_scoring_requires": "continuation mode plus cross-group-continuity"
+  }
+}

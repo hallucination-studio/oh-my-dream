@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oh-my-dream.local/evals/workflow-agent/task.schema.json",
+  "title": "Workflow Agent Evaluation Task",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "episode_id",
+    "stage",
+    "modes",
+    "contracts",
+    "source_refs",
+    "mutation_boundary",
+    "requirements",
+    "evidence",
+    "budgets",
+    "gold",
+    "hard_gates",
+    "rubric_ids",
+    "reporting"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "episode_id": {
+      "const": "zhong-kui-reversal"
+    },
+    "group_id": {
+      "anyOf": [
+        {
+          "enum": [
+            "ledger-01-threat",
+            "ledger-02-mobilization",
+            "ledger-03-charge",
+            "ledger-04-reveal",
+            "ledger-05-restoration"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stage": {
+      "enum": [
+        "novice-script",
+        "pro-script-intake",
+        "script-ledger-set",
+        "shot-plan",
+        "workflow",
+        "image",
+        "video",
+        "audio",
+        "review-recovery",
+        "cross-group-continuity"
+      ]
+    },
+    "modes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "checkpoint",
+          "continuation"
+        ]
+      }
+    },
+    "contracts": {
+      "type": "object",
+      "required": [
+        "interaction",
+        "workflow",
+        "creative",
+        "execution"
+      ],
+      "properties": {
+        "interaction": {
+          "type": "object"
+        },
+        "workflow": {
+          "type": "object"
+        },
+        "creative": {
+          "type": "object"
+        },
+        "execution": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "mutation_boundary": {
+      "type": "object",
+      "required": [
+        "may_change",
+        "must_preserve"
+      ],
+      "properties": {
+        "may_change": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "must_preserve": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "required": [
+        "max_attempts",
+        "max_candidates",
+        "max_cost_usd",
+        "max_latency_seconds"
+      ],
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_candidates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_cost_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_latency_seconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "gold": {
+      "type": "object",
+      "required": [
+        "exact",
+        "semantic",
+        "professional"
+      ],
+      "properties": {
+        "exact": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "semantic": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "professional": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "hard_gates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rubric_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "reporting": {
+      "type": "object",
+      "required": [
+        "partial_run_label",
+        "full_project_eligible",
+        "required_fields"
+      ],
+      "properties": {
+        "partial_run_label": {
+          "type": "string"
+        },
+        "full_project_eligible": {
+          "type": "boolean"
+        },
+        "required_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
