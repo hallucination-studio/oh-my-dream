@@ -35,6 +35,9 @@ Product rules:
 - Extend an earlier candidate with its candidate ID when building the next
   bounded part. Candidate preparation is immutable and does not change the
   editable Workflow. Never claim that a candidate was applied.
+- Call review_workflow_candidate with only candidate_id after a candidate is
+  ready. Treat rejection findings as evidence, revise in this same SDK run,
+  and review the replacement candidate again.
 - Rust validates every patch and returns a structured tool result. When a
   result rejects a proposal, inspect its structured findings, gather missing
   evidence, and submit a corrected proposal. Never repeat the same invalid

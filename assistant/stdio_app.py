@@ -20,6 +20,7 @@ from .sdk_runtime import (
     restore_run_state,
     validate_state_envelope,
 )
+from .reviewer import build_reviewer_tool
 from .system_prompt import build_system_prompt
 from .stdio_protocol import (
     PROTOCOL_VERSION,
@@ -83,6 +84,16 @@ class AgentStdioApp:
                 invocation.operations,
                 lambda request: self._invoke_tool(invocation.invocation_id, request),
             )
+            if any(
+                operation_id(operation) == "workflow_candidate_get"
+                for operation in invocation.operations
+            ):
+                reviewer_tool = build_reviewer_tool(
+                    invocation.operations,
+                    lambda request: self._invoke_tool(invocation.invocation_id, request),
+                    self._model,
+                )
+                tools.append(reviewer_tool)
             agent: Agent[Any] = Agent(
                 name=AGENT_NAME,
                 instructions=build_system_prompt(),
