@@ -15,7 +15,7 @@ use oh_my_dream_tauri::workflow_authority::WorkflowCommitRequest;
 use oh_my_dream_tauri::workflow_patch_operation::WorkflowPatchService;
 use oh_my_dream_tauri::workflow_run_dto::WorkflowRunResultDto;
 use serde_json::json;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tempfile::tempdir;
 
@@ -173,6 +173,15 @@ async fn assistant_repair_approved_apply_runs_and_failure_invokes_the_same_sessi
         .expect("pending lookup")
         .expect("pending approval");
 
+    let events = Arc::new(Mutex::new(Vec::<serde_json::Value>::new()));
+    let channel = Channel::new({
+        let events = Arc::clone(&events);
+        move |body: InvokeResponseBody| {
+            let InvokeResponseBody::Json(json) = body else { return Ok(()) };
+            events.lock().expect("events").push(serde_json::from_str(&json).expect("event JSON"));
+            Ok(())
+        }
+    });
     let head = assistant_decide_approval_with_state(
         AssistantApprovalDecisionInput {
             project_id: "project".to_owned(),
@@ -180,7 +189,7 @@ async fn assistant_repair_approved_apply_runs_and_failure_invokes_the_same_sessi
             candidate_digest: pending.candidate_digest,
             approved: true,
         },
-        Channel::new(|_body: InvokeResponseBody| Ok(())),
+        channel,
         &state,
     )
     .await
@@ -197,6 +206,12 @@ async fn assistant_repair_approved_apply_runs_and_failure_invokes_the_same_sessi
     assert_eq!(activation["session_id"], "project:project");
     assert_eq!(activation["workflow_revision"], 2);
     assert!(activation["reason"].as_str().unwrap().contains("provider outage"));
+    let captured = events.lock().expect("events");
+    let event_types =
+        captured.iter().filter_map(|event| event["type"].as_str()).collect::<Vec<_>>();
+    assert!(event_types.contains(&"assistant.workflow_run.started"));
+    assert!(event_types.contains(&"assistant.workflow_run.progress"));
+    assert!(event_types.contains(&"assistant.workflow_run.failed"));
 }
 
 fn review(

@@ -92,7 +92,7 @@ pub async fn assistant_send_with_state(
         .invoke_streamed(invocation, trusted, &mut sink)
         .await
         .map_err(|error| error.to_string())?;
-    finish_outcome(outcome, state)
+    finish_outcome(outcome, &input.project_id, state)
 }
 
 /// Resumes the exact SDK RunState after a human approval decision.
@@ -330,39 +330,40 @@ fn project_session_id(project_id: &str) -> String {
 
 pub(super) fn finish_outcome(
     outcome: AssistantRuntimeOutcome,
+    project_id: &str,
     state: &AppState,
 ) -> Result<Option<WorkflowHeadDto>, String> {
     match outcome {
-        AssistantRuntimeOutcome::Completed(completed) => completed
-            .operation_calls()
-            .iter()
-            .rev()
-            .find(|call| {
-                matches!(
-                    call.operation_id(),
-                    "workflow_apply_patch" | "workflow_apply_reviewed_candidate"
-                )
-            })
-            .map_or(Ok(None), |call| workflow_head_from_patch_output(call.output_json())),
+        AssistantRuntimeOutcome::Completed(completed) => {
+            let reviewed_calls = completed
+                .operation_calls()
+                .iter()
+                .filter(|call| call.operation_id() == "workflow_apply_reviewed_candidate")
+                .collect::<Vec<_>>();
+            if reviewed_calls.is_empty() {
+                return Ok(None);
+            }
+            let applied = reviewed_calls.iter().any(|call| {
+                serde_json::from_str::<Value>(call.output_json())
+                    .ok()
+                    .is_some_and(|output| output.get("workflow_head").is_some())
+            });
+            if !applied {
+                return Err("reviewed Workflow apply did not commit".to_owned());
+            }
+            state
+                .workflow_authority
+                .load_head(project_id)
+                .map_err(|error| error.to_string())?
+                .map(WorkflowHeadDto::try_from)
+                .transpose()
+                .map_err(|error| error.to_string())
+        }
         AssistantRuntimeOutcome::WaitingApproval(waiting) => {
             state.pending_approval.save(&waiting).map_err(|error| error.to_string())?;
             Err("ASSISTANT_APPROVAL_DEFERRED".to_owned())
         }
     }
-}
-
-fn workflow_head_from_patch_output(output_json: &str) -> Result<Option<WorkflowHeadDto>, String> {
-    let output: Value = serde_json::from_str(output_json)
-        .map_err(|error| format!("assistant patch output is invalid JSON: {error}"))?;
-    let Some(head) = output.get("workflow_head") else {
-        return Err("assistant patch output omitted workflow_head".to_owned());
-    };
-    if head.is_null() {
-        return Ok(None);
-    }
-    serde_json::from_value(head.clone())
-        .map(Some)
-        .map_err(|error| format!("assistant patch workflow_head is invalid: {error}"))
 }
 
 struct ChannelAssistantSink {

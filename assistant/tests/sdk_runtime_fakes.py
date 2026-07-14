@@ -241,10 +241,17 @@ class ScriptedToolModel(MultiStepToolModel):
         self,
         steps: list[tuple[str, str]],
         required_previous_outputs: dict[int, str] | None = None,
+        initial_completed_outputs: int = 0,
+        capture_initial_completed_outputs: bool = False,
+        track_requested_steps: bool = False,
     ) -> None:
         super().__init__([name for name, _arguments in steps])
         self.scripted_steps = steps
         self.required_previous_outputs = required_previous_outputs or {}
+        self.initial_completed_outputs = initial_completed_outputs
+        self.capture_initial_completed_outputs = capture_initial_completed_outputs
+        self.captured_completed_outputs: int | None = None
+        self.track_requested_steps = track_requested_steps
 
     async def stream_response(self, *args: Any, **kwargs: Any) -> AsyncIterator[ResponseStreamEvent]:
         input_value = args[1] if len(args) > 1 else kwargs["input"]
@@ -256,6 +263,12 @@ class ScriptedToolModel(MultiStepToolModel):
                 == "function_call_output"
                 for item in input_value
             )
+        if self.capture_initial_completed_outputs and self.captured_completed_outputs is None:
+            self.captured_completed_outputs = completed_steps
+        offset = self.captured_completed_outputs or self.initial_completed_outputs
+        completed_steps = max(0, completed_steps - offset)
+        if self.track_requested_steps:
+            completed_steps = len(self.requested_steps)
         required = self.required_previous_outputs.get(completed_steps)
         if required is not None:
             outputs = [

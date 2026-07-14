@@ -77,6 +77,15 @@ impl AssistantRepairService {
         &self,
         action: &ApprovedWorkflowAction,
     ) -> Result<AssistantRepairRun, AssistantRepairError> {
+        self.execute_with_events(action, &mut IgnoreEvents)
+    }
+
+    /// Runs the approved Workflow while forwarding existing run events.
+    pub fn execute_with_events(
+        &self,
+        action: &ApprovedWorkflowAction,
+        events: &mut dyn WorkflowRunEventSink,
+    ) -> Result<AssistantRepairRun, AssistantRepairError> {
         validate_action(action)?;
         let head = self
             .authority
@@ -94,7 +103,7 @@ impl AssistantRepairService {
             RunId::parse(&run_id).map_err(|error| AssistantRepairError::Run(error.to_string()))?;
         let outcome = self
             .runs
-            .run(parsed, head.workflow, &mut IgnoreEvents)
+            .run(parsed, head.workflow, events)
             .map_err(|error| AssistantRepairError::Run(error.to_string()))?;
         let dto = WorkflowRunResultDto::from_outcome(&run_id, outcome);
         let activation = match &dto {

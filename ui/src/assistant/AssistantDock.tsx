@@ -9,18 +9,22 @@ import {
 } from "../api/index.ts";
 import "./assistantDock.css";
 import { AssistantApprovalCard } from "./AssistantApprovalCard.tsx";
+import {
+  StrongAssistantTask,
+} from "./StrongAssistantTask.tsx";
+import {
+  appendAssistantToken,
+  functionCallFromEvent,
+  planItemFromCall,
+  responseError,
+  setStepState,
+  upsertPlanItem,
+  upsertRunItem,
+  type AssistantStreamItem,
+} from "./assistantStream.ts";
 
 // Keep the product projection small while preserving the order of native stream events.
-type StreamItem =
-  | { kind: "user"; text: string }
-  | { kind: "assistant"; text: string }
-  | {
-      kind: "step";
-      callId: string;
-      capability: string;
-      state: "running" | "done" | "error";
-      error?: string;
-    }
+type StreamItem = AssistantStreamItem;
 
 const SUGGESTIONS = [
   "Build a text-to-image → image-to-video pipeline",
@@ -99,9 +103,36 @@ export function AssistantDock({
         const call = functionCallFromEvent(event);
         if (call) {
           setItems((current) => setStepState(current, call.callId, "done"));
+          const plan = planItemFromCall(call);
+          if (plan) setItems((current) => upsertPlanItem(current, plan));
         }
         break;
       }
+      case "assistant.workflow_run.started":
+        if (typeof event.run_id === "string") {
+          setItems((current) => upsertRunItem(current, event.run_id as string, "running", "Starting"));
+        }
+        break;
+      case "assistant.workflow_run.progress":
+        if (typeof event.run_id === "string" && typeof event.node_id === "string") {
+          const progress = typeof event.progress === "number" ? ` · ${Math.round(event.progress * 100)}%` : "";
+          setItems((current) =>
+            upsertRunItem(current, event.run_id as string, "running", `${event.node_id}${progress}`),
+          );
+        }
+        break;
+      case "assistant.workflow_run.succeeded":
+      case "assistant.workflow_run.cancelled":
+      case "assistant.workflow_run.failed":
+        if (typeof event.run_id === "string") {
+          const state = event.type.slice("assistant.workflow_run.".length) as
+            | "succeeded"
+            | "cancelled"
+            | "failed";
+          const detail = typeof event.reason === "string" ? event.reason : "Workflow run complete";
+          setItems((current) => upsertRunItem(current, event.run_id as string, state, detail));
+        }
+        break;
       case "response.completed":
         setStatus((current) => ({ ...current, text: "Ready" }));
         break;
@@ -175,7 +206,14 @@ export function AssistantDock({
       setPendingApproval(null);
       setStatus((current) => ({ ...current, text: approved ? "Applied" : "Rejected" }));
     } catch (error: unknown) {
-      setStatus((current) => ({ ...current, text: String(error) }));
+      const message = String(error);
+      if (message.includes("ASSISTANT_APPROVAL_DEFERRED")) {
+        const replacement = await apiClient.getPendingAssistantApproval(pendingApproval.project_id);
+        setPendingApproval(replacement);
+        setStatus((current) => ({ ...current, text: "Repair waiting for approval" }));
+      } else {
+        setStatus((current) => ({ ...current, text: message }));
+      }
     } finally {
       setApprovalBusy(false);
     }
@@ -256,6 +294,9 @@ function StreamRow({
       </div>
     );
   }
+  if (item.kind === "plan" || item.kind === "run") {
+    return <StrongAssistantTask item={item} />;
+  }
   return (
     <div className={`adock__step is-${item.state}`}>
       <span className="adock__si">
@@ -289,50 +330,6 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
       </div>
     </div>
   );
-}
-
-function appendAssistantToken(items: StreamItem[], delta: string): StreamItem[] {
-  const last = items.at(-1);
-  if (last?.kind === "assistant") {
-    return [...items.slice(0, -1), { kind: "assistant", text: last.text + delta }];
-  }
-  return [...items, { kind: "assistant", text: delta }];
-}
-
-function setStepState(
-  items: StreamItem[],
-  callId: string,
-  state: "done" | "error",
-): StreamItem[] {
-  return items.map((item) =>
-    item.kind === "step" && item.callId === callId ? { ...item, state } : item,
-  );
-}
-
-function functionCallFromEvent(
-  event: ResponsesStreamEvent,
-): { callId: string; name: string } | null {
-  if (!isJsonObject(event.item) || event.item.type !== "function_call") {
-    return null;
-  }
-  if (typeof event.item.call_id !== "string" || typeof event.item.name !== "string") {
-    return null;
-  }
-  return { callId: event.item.call_id, name: event.item.name };
-}
-
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function responseError(event: ResponsesStreamEvent): string {
-  if (typeof event.error === "string") {
-    return event.error;
-  }
-  if (isJsonObject(event.error) && typeof event.error.message === "string") {
-    return event.error.message;
-  }
-  return "Assistant response failed";
 }
 
 function BrandMark() {

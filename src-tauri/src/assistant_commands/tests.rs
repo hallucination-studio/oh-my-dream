@@ -53,23 +53,6 @@ fn channel_sink_forwards_native_response_value_unchanged() {
 }
 
 #[test]
-fn patch_output_returns_the_canonical_workflow_head() {
-    let output = json!({"workflow_head":{"project_id":"project-1","revision":3,"workflow":{"version":"1.0","project_id":"project-1","nodes":[]}}});
-    let head = workflow_head_from_patch_output(&output.to_string()).expect("decode").expect("head");
-    assert_eq!(head.project_id, "project-1");
-    assert_eq!(head.revision, 3);
-    assert_eq!(head.workflow["nodes"], json!([]));
-}
-
-#[test]
-fn patch_output_keeps_an_absent_workflow_head_absent() {
-    assert_eq!(
-        workflow_head_from_patch_output(&json!({"workflow_head":null}).to_string()),
-        Ok(None)
-    );
-}
-
-#[test]
 fn project_session_is_stable_while_turn_ids_are_rust_owned() {
     let root = tempdir().expect("root");
     let first = assistant_identity(root.path(), "project-1").expect("first");

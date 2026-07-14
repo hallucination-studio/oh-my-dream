@@ -27,6 +27,16 @@ export function AssistantApprovalCard({
         ))}
         <div><dt>Candidate</dt><dd>{approval.candidate_digest}</dd></div>
       </dl>
+      <div className="adock__preview" aria-label="Candidate Workflow preview">
+        <strong>Editable Workflow preview</strong>
+        {approval.workflow.nodes.length === 0 ? (
+          <span>No nodes</span>
+        ) : (
+          <ul>
+            {approval.workflow.nodes.map((node) => <li key={node.id}>{node.type}</li>)}
+          </ul>
+        )}
+      </div>
       <div className="adock__approval-actions">
         <button type="button" disabled={busy} onClick={() => onDecision(false)}>
           Reject

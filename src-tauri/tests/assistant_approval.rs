@@ -235,7 +235,7 @@ async fn approval_command_rejects_a_candidate_with_a_stale_base() {
     .await
     .expect_err("stale base");
 
-    assert!(error.contains("workflow_head"));
+    assert_eq!(error, "reviewed Workflow apply did not commit");
     assert_eq!(state.workflow_authority.load_head("project").expect("head").unwrap().revision, 1);
 }
 
