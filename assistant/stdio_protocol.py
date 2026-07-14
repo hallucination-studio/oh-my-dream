@@ -387,7 +387,6 @@ def _validate_json_value(value: object, depth: int = 0) -> None:
 def _validate_utf8(value: str) -> None:
     value.encode("utf-8")
 
-
 def _object_without_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:

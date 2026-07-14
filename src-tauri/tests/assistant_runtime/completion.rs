@@ -57,6 +57,61 @@ async fn assistant_runtime_streams_tool_request_through_rust_and_completes() {
 }
 
 #[tokio::test]
+async fn assistant_runtime_returns_handler_rejection_and_accepts_a_corrected_tool_call() {
+    let script = r#"import json,sys
+invoke=json.loads(sys.stdin.readline())['payload']
+def send(seq,query):
+ print(json.dumps({'protocol_version':1,'sequence':seq,'kind':'tool_request','payload':{'invocation_id':invoke['invocation_id'],'operation_id':'workspace_get_snapshot','call_id':f'call-{seq}','arguments_json':json.dumps({'query':query})}}),flush=True)
+send(0,'invalid')
+first=json.loads(sys.stdin.readline())
+assert json.loads(first['payload']['output_json'])['error']['code']=='QUERY_REJECTED'
+send(1,'corrected')
+second=json.loads(sys.stdin.readline())
+assert json.loads(second['payload']['output_json'])['result']=='corrected'
+frames=[('snapshot',{'invocation_id':invoke['invocation_id'],'session_id':invoke['session_id'],'status':'completed','state':None}),('completed',{'invocation_id':invoke['invocation_id'],'final_output':'corrected'})]
+[print(json.dumps({'protocol_version':1,'sequence':seq+2,'kind':kind,'payload':payload}),flush=True) for seq,(kind,payload) in enumerate(frames)]
+sys.stdin.read()"#;
+    let registration = OperationRegistration::new::<LocalReadInput, LocalReadOutput, _>(
+        "workspace_get_snapshot",
+        3,
+        "Read deterministic local state.",
+        OperationEffect::LocalRead,
+        OperationInputSchemaMode::Strict,
+        |_context: &RequestContext, input: LocalReadInput| async move {
+            if input.query == "invalid" {
+                return Err(OperationHandlerError::new("QUERY_REJECTED", "try another query"));
+            }
+            Ok(LocalReadOutput {
+                project_id: "project-7".to_owned(),
+                request_id: "request-9".to_owned(),
+                result: input.query,
+            })
+        },
+    )
+    .expect("registration");
+    let runtime = AssistantRuntime::new(super::common::hostile_command(script), vec![registration])
+        .expect("runtime");
+    let directory = TempDir::new().expect("directory");
+    let outcome = runtime
+        .invoke(
+            AssistantInvocation::new(
+                "invoke-retry",
+                "session-retry",
+                directory.path().join("session.sqlite3"),
+                Some("correct the tool call".to_owned()),
+            ),
+            TrustedInvocationContext::new("project-7", "request-9"),
+        )
+        .await
+        .expect("recoverable invocation");
+    let AssistantRuntimeOutcome::Completed(completed) = outcome else {
+        panic!("expected completion");
+    };
+    assert_eq!(completed.operation_calls().len(), 2);
+    assert_eq!(completed.final_output(), &serde_json::json!("corrected"));
+}
+
+#[tokio::test]
 async fn assistant_runtime_forwards_native_responses_event_without_remapping() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let runtime = AssistantRuntime::new(
