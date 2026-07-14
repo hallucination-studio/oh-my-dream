@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0.0",
+  "ledger_id": "ledger-03-charge",
+  "status": "complete_provisional_evidence_record",
+  "index_ref": "../script-ledger-index.json",
+  "script": {
+    "working_version_id": "shots-revised-029",
+    "source_ref": "node-0119",
+    "shot_range": [11, 15],
+    "time_range_seconds": [60, 110],
+    "beat_ids": ["beat-011", "beat-012", "beat-013", "beat-014", "beat-015"],
+    "authority": "unresolved"
+  },
+  "nodes": {
+    "direct_script_evidence": ["node-0119"],
+    "comparative_lineage_refs": ["node-0049", "node-0456", "node-0032", "node-0256"],
+    "companion_audio_design_refs": ["node-0247", "node-0252"],
+    "proven_comparative_edges": [
+      {"source_ref": "node-0049", "target_ref": "node-0456", "meaning": "Initial treatment to replacement."},
+      {"source_ref": "node-0456", "target_ref": "node-0032", "meaning": "Replacement to the first eight-shot battle branch."},
+      {"source_ref": "node-0256", "target_ref": "node-0247", "meaning": "Second eight-shot battle branch to one timed music design."},
+      {"source_ref": "node-0256", "target_ref": "node-0252", "meaning": "Second eight-shot battle branch to another timed music design."}
+    ],
+    "direct_production_joins": [],
+    "join_status": "comparative_text_and_audio_design_edges_only"
+  },
+  "prompts": {
+    "script_text_present": true,
+    "generation_prompt_content_retained": false,
+    "source_backed_prompt_nodes": [],
+    "status": "Battle shot and music-design text exists, but no generation prompt is proven to belong to the working candidate."
+  },
+  "ordered_references": {
+    "source_backed_streams": [],
+    "status": "The battle text branches expose no directly joined ordered media-reference stream."
+  },
+  "media": {
+    "image": {"requirement": "required", "reason": "The group needs stable guardian, tiger, weapon, threat, frontier, damage, and collision-state references.", "direct_node_refs": [], "evidence_status": "script_required_production_join_unresolved"},
+    "video": {"requirement": "required", "reason": "Charge, camera motion, impact or pre-impact cut, fall, and blackout are intrinsically temporal.", "direct_node_refs": [], "evidence_status": "script_required_production_join_unresolved"},
+    "audio": {"requirement": "required", "reason": "Dialogue warning, drums, machine impact, blackout, and two source-backed timed music designs require an audio contract.", "direct_node_refs": [], "design_node_refs": ["node-0247", "node-0252"], "evidence_status": "design_proven_rendered_audio_join_unresolved"}
+  },
+  "revisions_and_failures": {
+    "source_backed_revision_refs": ["node-0456", "node-0032", "node-0256"],
+    "revision_conflicts": ["sacrificial versus heroic charge", "shown impact versus cut before collision", "black versus natural tiger", "different camera and music timing constraints"],
+    "attempt_refs": ["node-0456", "node-0032", "node-0247", "node-0252"],
+    "retry_refs": [],
+    "stale_refs": ["node-0032"],
+    "explicit_failure_refs": [],
+    "authority": "unresolved"
+  },
+  "downstream": {
+    "proven_consumer_refs": ["node-0032", "node-0247", "node-0252"],
+    "consumer_scope": "comparative battle and music-design lineages",
+    "expected_handoff_group": "ledger-04-reveal",
+    "required_handoff": ["guardian damage", "guardian-tiger relationship", "blackout transition", "approved collision state"]
+  },
+  "continuity": {
+    "incoming": ["stable cast identities", "guardian-tiger partnership", "weapon ready", "frontier instability", "drum and machine motifs"],
+    "outgoing": ["guardian damaged", "fantasy consciousness lost", "blackout before domestic reality"],
+    "unresolved": ["threat disabled versus collision not shown", "guardian collapse semantics", "tiger design", "music duration lock"]
+  },
+  "evidence_limits": [
+    "Both eight-shot battle branches are partial alternatives and cannot replace complete-script coverage.",
+    "Music-design text proves an intended audio structure, not a rendered audio artifact or approved mix.",
+    "No image or video generation node is directly joined to the battle text branches in the saved graph."
+  ],
+  "authority": "unresolved"
+}
