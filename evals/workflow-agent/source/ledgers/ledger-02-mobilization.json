@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0.0",
+  "ledger_id": "ledger-02-mobilization",
+  "status": "complete_provisional_evidence_record",
+  "index_ref": "../script-ledger-index.json",
+  "script": {
+    "working_version_id": "shots-revised-029",
+    "source_ref": "node-0119",
+    "shot_range": [4, 10],
+    "time_range_seconds": [15, 60],
+    "beat_ids": ["beat-004", "beat-005", "beat-006", "beat-007", "beat-008", "beat-009", "beat-010"],
+    "authority": "unresolved"
+  },
+  "nodes": {
+    "direct_script_evidence": ["node-0119"],
+    "comparative_lineage_refs": ["node-0022", "node-0049", "node-0456"],
+    "proven_comparative_edges": [
+      {"source_ref": "node-0049", "target_ref": "node-0456", "meaning": "The duplicate initial treatment directly feeds the replacement covering shots 7-17."}
+    ],
+    "direct_production_joins": [],
+    "join_status": "unresolved_no_graph_edge_from_working_script_to_production"
+  },
+  "prompts": {
+    "script_text_present": true,
+    "generation_prompt_content_retained": false,
+    "source_backed_prompt_nodes": [],
+    "status": "unresolved"
+  },
+  "ordered_references": {
+    "source_backed_streams": [],
+    "status": "No ordered media-input stream is directly joined to this working-candidate group."
+  },
+  "media": {
+    "image": {"requirement": "required", "reason": "The group requires stable identities for the guardian, scout, two attendants, tiger, weapon, and frontier.", "direct_node_refs": [], "evidence_status": "script_required_production_join_unresolved"},
+    "video": {"requirement": "required", "reason": "The warning, reactions, drum action, tiger arrival, and commitment depend on ordered motion and camera staging.", "direct_node_refs": [], "evidence_status": "script_required_production_join_unresolved"},
+    "audio": {"requirement": "required", "reason": "Dialogue, wind, machine approach, drums, and tiger vocalization carry the mobilization objective.", "direct_node_refs": [], "evidence_status": "script_required_production_join_unresolved"}
+  },
+  "revisions_and_failures": {
+    "source_backed_revision_refs": ["node-0456"],
+    "revision_scope": "The comparative replacement changes the later part of this group and carries a tiger-design and battle-framing delta into the next group.",
+    "attempt_refs": ["node-0022", "node-0456"],
+    "retry_refs": [],
+    "stale_refs": ["node-0022"],
+    "explicit_failure_refs": [],
+    "authority": "unresolved"
+  },
+  "downstream": {
+    "proven_consumer_refs": ["node-0456"],
+    "consumer_scope": "comparative text lineage only",
+    "expected_handoff_group": "ledger-03-charge",
+    "production_consumer_status": "unresolved"
+  },
+  "continuity": {
+    "incoming": ["fantasy layer", "confirmed threat", "cold machine light", "rising machine motif"],
+    "outgoing": ["guardian committed", "scout wounded", "attendants mobilized", "tiger allied", "weapon ready", "frontier unstable", "drums active"],
+    "unresolved": ["black versus natural yellow-and-black tiger", "tiger name", "sacrificial versus heroic framing"]
+  },
+  "evidence_limits": [
+    "The replacement is directly linked to an alternate 16-shot treatment, not to the 29-shot working candidate.",
+    "No image, video, or audio node can be assigned to this group without an unproven semantic or layout inference.",
+    "The stale text attempt proves stale-state evidence, not rejection or supersession authority."
+  ],
+  "authority": "unresolved"
+}
