@@ -3,6 +3,7 @@
 
 use crate::capability::{
     CapabilityRef, CapabilityRegistration, CapabilityRegistry, CapabilityRegistryError,
+    CapabilitySelector,
 };
 use crate::error::EngineError;
 use crate::node::Node;
@@ -68,6 +69,14 @@ impl NodeRegistry {
         self.capabilities.register_current(registration)
     }
 
+    /// Registers one exact capability and marks it current for its declared selector.
+    pub fn register_selector_capability(
+        &mut self,
+        registration: CapabilityRegistration,
+    ) -> Result<(), CapabilityRegistryError> {
+        self.capabilities.register_selector_current(registration)
+    }
+
     /// Resolves an exact capability contract without selecting a newer version.
     pub fn capability(
         &self,
@@ -86,6 +95,15 @@ impl NodeRegistry {
     #[must_use]
     pub fn current_capability_refs(&self) -> Vec<CapabilityRef> {
         self.capabilities.current_references()
+    }
+
+    /// Returns the current exact capability selected by a Workflow modality and mode.
+    #[must_use]
+    pub fn current_capability_for_selector(
+        &self,
+        selector: &CapabilitySelector,
+    ) -> Option<CapabilityRef> {
+        self.capabilities.current_for_selector(selector)
     }
 
     /// Instantiates a Workflow node using its persisted exact contract version.

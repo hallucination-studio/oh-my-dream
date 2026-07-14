@@ -5,7 +5,10 @@ use crate::port::PortCardinality;
 use crate::registry::{NodeFactory, NodeParams};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use thiserror::Error;
+
+mod error;
+
+pub use error::CapabilityRegistryError;
 
 /// Default contract version used by the first workflow capability set.
 pub const DEFAULT_CAPABILITY_VERSION: &str = "1.0";
@@ -25,6 +28,24 @@ impl CapabilityRef {
     #[must_use]
     pub fn new(id: impl Into<String>, version: impl Into<String>) -> Self {
         Self { id: id.into(), version: version.into() }
+    }
+}
+
+/// Workflow-facing discriminator that selects one exact capability family.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CapabilitySelector {
+    /// Output modality persisted as Workflow `type`.
+    pub type_id: String,
+    /// Mode persisted in Workflow `params.mode`.
+    pub mode: String,
+}
+
+impl CapabilitySelector {
+    /// Creates a modality and mode selector.
+    #[must_use]
+    pub fn new(type_id: impl Into<String>, mode: impl Into<String>) -> Self {
+        Self { type_id: type_id.into(), mode: mode.into() }
     }
 }
 
@@ -139,6 +160,7 @@ impl CapabilityPresentation {
 pub struct CapabilityRegistration {
     contract: CapabilityContract,
     presentation: CapabilityPresentation,
+    selector: Option<CapabilitySelector>,
     normalizer: CapabilityNormalizer,
     factory: NodeFactory,
 }
@@ -156,7 +178,14 @@ impl CapabilityRegistration {
         normalizer: CapabilityNormalizer,
         factory: NodeFactory,
     ) -> Self {
-        Self { contract, presentation, normalizer, factory }
+        Self { contract, presentation, selector: None, normalizer, factory }
+    }
+
+    /// Declares the Workflow modality and mode that select this exact registration.
+    #[must_use]
+    pub fn with_selector(mut self, selector: CapabilitySelector) -> Self {
+        self.selector = Some(selector);
+        self
     }
 
     /// Returns the exact capability reference.
@@ -177,6 +206,12 @@ impl CapabilityRegistration {
         &self.presentation
     }
 
+    /// Returns the selector declared by this exact registration, when present.
+    #[must_use]
+    pub fn selector(&self) -> Option<&CapabilitySelector> {
+        self.selector.as_ref()
+    }
+
     /// Normalizes raw params once at the registration boundary.
     pub fn normalize_params(&self, params: &NodeParams) -> Result<NodeParams, NodeRunError> {
         (self.normalizer)(params)
@@ -193,6 +228,8 @@ impl CapabilityRegistration {
 pub struct CapabilityRegistry {
     registrations: BTreeMap<CapabilityRef, CapabilityRegistration>,
     current_versions: BTreeMap<String, String>,
+    selector_ids: BTreeMap<CapabilitySelector, String>,
+    current_selectors: BTreeMap<CapabilitySelector, CapabilityRef>,
 }
 
 impl CapabilityRegistry {
@@ -204,6 +241,20 @@ impl CapabilityRegistry {
         let reference = registration.reference().clone();
         self.register(registration)?;
         self.current_versions.insert(reference.id.clone(), reference.version.clone());
+        Ok(())
+    }
+
+    /// Registers a selector-aware capability and marks it current for that selector.
+    pub fn register_selector_current(
+        &mut self,
+        registration: CapabilityRegistration,
+    ) -> Result<(), CapabilityRegistryError> {
+        let reference = registration.reference().clone();
+        let selector = registration.selector().cloned().ok_or_else(|| {
+            CapabilityRegistryError::MissingSelector { reference: reference.clone() }
+        })?;
+        self.register(registration)?;
+        self.current_selectors.insert(selector, reference);
         Ok(())
     }
 
@@ -219,6 +270,10 @@ impl CapabilityRegistry {
         if self.registrations.contains_key(&reference) {
             return Err(CapabilityRegistryError::DuplicateReference { reference });
         }
+        let selector = registration.selector().cloned();
+        if let Some(selector) = &selector {
+            self.validate_selector_binding(selector, &reference.id)?;
+        }
         let normalized_defaults =
             registration.normalize_params(&NodeParams::new()).map_err(|source| {
                 CapabilityRegistryError::InvalidDefaultParams {
@@ -232,7 +287,10 @@ impl CapabilityRegistry {
                 reason: "normalizer output does not match default_params".to_owned(),
             });
         }
-        self.registrations.insert(reference, registration);
+        self.registrations.insert(reference.clone(), registration);
+        if let Some(selector) = selector {
+            self.selector_ids.insert(selector, reference.id);
+        }
         Ok(())
     }
 
@@ -264,6 +322,12 @@ impl CapabilityRegistry {
         self.current_versions.get(id).map(|version| CapabilityRef::new(id, version))
     }
 
+    /// Returns the current exact ref selected by one Workflow modality and mode.
+    #[must_use]
+    pub fn current_for_selector(&self, selector: &CapabilitySelector) -> Option<CapabilityRef> {
+        self.current_selectors.get(selector).cloned()
+    }
+
     /// Returns whether any exact version exists for an id.
     #[must_use]
     pub fn contains_id(&self, id: &str) -> bool {
@@ -281,21 +345,24 @@ impl CapabilityRegistry {
     pub fn current_references(&self) -> Vec<CapabilityRef> {
         self.current_versions.iter().map(|(id, version)| CapabilityRef::new(id, version)).collect()
     }
-}
 
-/// Errors raised while constructing or resolving the exact registry.
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum CapabilityRegistryError {
-    /// A registration did not provide a non-empty id and version.
-    #[error("capability id and version must be non-empty")]
-    EmptyReference,
-    /// A capability ref was registered more than once.
-    #[error("duplicate capability reference `{reference:?}`")]
-    DuplicateReference { reference: CapabilityRef },
-    /// An exact capability ref was not registered.
-    #[error("unknown capability reference `{reference:?}`")]
-    UnknownReference { reference: CapabilityRef },
-    /// The registration's empty-input normalization disagrees with its defaults.
-    #[error("invalid default params for capability `{reference:?}`: {reason}")]
-    InvalidDefaultParams { reference: CapabilityRef, reason: String },
+    fn validate_selector_binding(
+        &self,
+        selector: &CapabilitySelector,
+        attempted_id: &str,
+    ) -> Result<(), CapabilityRegistryError> {
+        if selector.type_id.is_empty() || selector.mode.is_empty() {
+            return Err(CapabilityRegistryError::EmptySelector { selector: selector.clone() });
+        }
+        if let Some(registered_id) = self.selector_ids.get(selector)
+            && registered_id != attempted_id
+        {
+            return Err(CapabilityRegistryError::SelectorRebind {
+                selector: selector.clone(),
+                registered_id: registered_id.clone(),
+                attempted_id: attempted_id.to_owned(),
+            });
+        }
+        Ok(())
+    }
 }

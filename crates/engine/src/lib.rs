@@ -22,7 +22,7 @@ pub mod workflow_patch;
 pub use cache::ResultCache;
 pub use capability::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilityRegistry, CapabilityRegistryError,
+    CapabilityRegistration, CapabilityRegistry, CapabilityRegistryError, CapabilitySelector,
     DEFAULT_CAPABILITY_VERSION,
 };
 pub use error::{EngineError, Result};
