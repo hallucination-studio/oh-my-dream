@@ -217,6 +217,7 @@ impl CapabilityDiscovery {
             Ok(projection) => {
                 let entry = project_entry(projection);
                 Ok(CapabilityDescription {
+                    selector: Some(entry.selector),
                     reference: reference_to_dto(reference),
                     contract: Some(entry.contract),
                     presentation: Some(entry.presentation),
@@ -224,6 +225,7 @@ impl CapabilityDiscovery {
                 })
             }
             Err(_) if persisted.contains(reference) => Ok(CapabilityDescription {
+                selector: None,
                 reference: reference_to_dto(reference),
                 contract: None,
                 presentation: None,
@@ -244,12 +246,22 @@ impl CapabilityDiscovery {
         let head = self.workflow_authority.load_head(project_id).map_err(|source| {
             CapabilityDiscoveryError::WorkflowUnavailable { message: source.to_string() }
         })?;
-        Ok(head
+        head
             .map(|head| head.workflow.nodes)
             .unwrap_or_default()
             .into_iter()
-            .map(|node| CapabilityRef::new(node.type_id, node.contract_version))
-            .collect())
+            .map(|node| {
+                self.registry.persisted_workflow_capability_reference(
+                    &node.id,
+                    &node.type_id,
+                    &node.contract_version,
+                    &node.params,
+                )
+            })
+            .collect::<Result<_, _>>()
+            .map_err(|source| CapabilityDiscoveryError::WorkflowUnavailable {
+                message: source.to_string(),
+            })
     }
 
     fn ledger_state(&self, request_id: &str) -> Result<DiscoveryState, CapabilityDiscoveryError> {

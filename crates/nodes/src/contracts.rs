@@ -1,11 +1,13 @@
 //! Registration-derived capability contract and presentation projections.
 
-use engine::{CapabilityContract, CapabilityPresentation, CapabilityRef, NodeRegistry};
+use engine::{CapabilityContract, CapabilityPresentation, CapabilityRef, CapabilitySelector, NodeRegistry};
 use thiserror::Error;
 
 /// One exact execution contract paired with its non-authoritative presentation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CapabilityProjection {
+    /// Workflow modality and mode selecting this exact registration.
+    pub selector: CapabilitySelector,
     /// Immutable execution semantics.
     pub contract: CapabilityContract,
     /// Mutable display metadata derived from the same registration.
@@ -35,6 +37,9 @@ pub fn project_capability(
         }
     })?;
     Ok(CapabilityProjection {
+        selector: registration.selector().cloned().ok_or_else(|| {
+            CapabilityProjectionError::MissingSelector { reference: reference.clone() }
+        })?,
         contract: registration.contract().clone(),
         presentation: registration.presentation().clone(),
     })
@@ -46,4 +51,7 @@ pub enum CapabilityProjectionError {
     /// The registry exposed a ref that could not be looked up again.
     #[error("capability `{reference:?}` disappeared during projection: {message}")]
     MissingRegistration { reference: engine::CapabilityRef, message: String },
+    /// A discoverable registration did not declare its Workflow selector.
+    #[error("capability `{reference:?}` has no Workflow selector")]
+    MissingSelector { reference: engine::CapabilityRef },
 }

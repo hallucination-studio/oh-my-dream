@@ -247,6 +247,7 @@ pub(super) fn score_projection(
 
 pub(super) fn search_result(entry: &CapabilityCatalogEntryDto) -> CapabilitySearchResult {
     CapabilitySearchResult {
+        selector: entry.selector.clone(),
         reference: entry.contract.reference.clone(),
         presentation: entry.presentation.clone(),
         status: entry.status.clone(),

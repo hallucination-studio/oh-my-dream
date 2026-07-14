@@ -162,17 +162,18 @@ fn node_contract_fixture() -> NodeContractsFixture {
         .expect("build node contract app state");
     let nodes = state
         .registry
-        .registered_type_ids()
+        .capability_refs()
         .into_iter()
-        .map(|type_id| {
-            let node = state
+        .map(|reference| {
+            let contract = state
                 .registry
-                .instantiate("contract", type_id, &serde_json::Map::new())
-                .expect("instantiate node contract");
+                .capability(reference)
+                .expect("load node contract")
+                .contract();
             NodeContractFixture {
-                type_id: type_id.to_owned(),
-                inputs: node
-                    .inputs()
+                type_id: reference.id.clone(),
+                inputs: contract
+                    .inputs
                     .iter()
                     .map(|port| InputContractFixture {
                         name: port.name.clone(),
@@ -180,8 +181,8 @@ fn node_contract_fixture() -> NodeContractsFixture {
                         required: port.required,
                     })
                     .collect(),
-                outputs: node
-                    .outputs()
+                outputs: contract
+                    .outputs
                     .iter()
                     .map(|port| PortContractFixture {
                         name: port.name.clone(),

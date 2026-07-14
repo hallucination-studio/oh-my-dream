@@ -7,6 +7,7 @@ import type {
   CapabilityRef,
   CapabilitySearchPage,
   CapabilitySearchRequest,
+  CapabilitySelector,
   CapabilitySummary,
   CapabilityStatus,
 } from "../api/types.ts";
@@ -33,6 +34,7 @@ export class CapabilityContractCache {
   private readonly presentations = new Map<string, CapabilityPresentation | null>();
   private readonly statuses = new Map<string, CapabilityStatus>();
   private readonly references = new Map<string, CapabilityRef>();
+  private readonly selectors = new Map<string, CapabilitySelector | null>();
   private readonly summaries = new Map<string, CapabilitySummary>();
   private readonly listeners = new Set<() => void>();
   private searchGeneration = 0;
@@ -55,6 +57,7 @@ export class CapabilityContractCache {
     const status = this.statuses.get(key);
     if (!status) return undefined;
     return {
+      selector: this.selectors.get(key) ?? null,
       reference: this.references.get(key) ?? reference,
       contract: this.contracts.get(key) ?? null,
       presentation: this.presentations.get(key) ?? null,
@@ -85,7 +88,11 @@ export class CapabilityContractCache {
   /** Searches the server-side paged palette without loading any contract body. */
   async search(request: CapabilitySearchRequest): Promise<CapabilitySearchPage> {
     const generation = ++this.searchGeneration;
-    const searchKey = `${request.query.trim().toLowerCase()}|${request.category?.trim().toLowerCase() ?? ""}`;
+    const searchKey = [
+      request.query.trim().toLowerCase(),
+      request.category?.trim().toLowerCase() ?? "",
+      request.type_id?.trim() ?? "",
+    ].join("|");
     const append = request.cursor !== null && request.cursor !== undefined && searchKey === this.activeSearchKey;
     const page = await this.api.searchCapabilities(request);
     if (generation !== this.searchGeneration) return page;
@@ -136,6 +143,7 @@ export class CapabilityContractCache {
       throw new Error(`CAPABILITY_CONTRACT_CHANGED:${key}`);
     }
     this.references.set(key, reference);
+    this.selectors.set(key, bundle.selector);
     this.contracts.set(key, bundle.contract);
     this.presentations.set(key, bundle.presentation);
     this.statuses.set(key, bundle.status);
@@ -188,6 +196,7 @@ function sameRef(left: CapabilityRef, right: CapabilityRef): boolean {
 
 function degradedBundle(reference: CapabilityRef, reason: string): CapabilityBundle {
   return {
+    selector: null,
     reference,
     contract: null,
     presentation: null,

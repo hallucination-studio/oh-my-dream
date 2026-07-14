@@ -11,7 +11,7 @@ pub use capability::{
     CapabilityAvailabilityDto, CapabilityBundleDto, CapabilityBundlesDto, CapabilityCardinalityDto,
     CapabilityCatalogDto, CapabilityCatalogEntryDto, CapabilityContractDto, CapabilityEffectDto,
     CapabilityPortDto, CapabilityPresentationDto, CapabilityRefDto, CapabilitySearchPageDto,
-    CapabilityStatusDto, CapabilitySummaryDto,
+    CapabilitySelectorDto, CapabilityStatusDto, CapabilitySummaryDto,
 };
 pub(crate) use workspace::MAX_WORKSPACE_PROMPT_CHARS;
 pub use workspace::{

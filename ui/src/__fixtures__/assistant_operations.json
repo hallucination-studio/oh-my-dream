@@ -986,6 +986,25 @@
             ],
             "type": "object"
           },
+          "CapabilitySelectorDto": {
+            "additionalProperties": false,
+            "description": "Workflow-facing modality and mode selecting one exact capability.",
+            "properties": {
+              "mode": {
+                "description": "Discriminator persisted in `params.mode`.",
+                "type": "string"
+              },
+              "type_id": {
+                "description": "Output modality persisted as the Workflow node type.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode",
+              "type_id"
+            ],
+            "type": "object"
+          },
           "CapabilityStatusDto": {
             "additionalProperties": false,
             "properties": {
@@ -1042,6 +1061,14 @@
                 ],
                 "description": "Exact capability identity that may be loaded into the editor."
               },
+              "selector": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/CapabilitySelectorDto"
+                  }
+                ],
+                "description": "Workflow selector for this exact capability."
+              },
               "status": {
                 "allOf": [
                   {
@@ -1054,6 +1081,7 @@
             "required": [
               "presentation",
               "reference",
+              "selector",
               "status"
             ],
             "type": "object"
@@ -1161,6 +1189,17 @@
                   }
                 ],
                 "description": "Exact capability identity."
+              },
+              "selector": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/CapabilitySelectorDto"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Workflow selector, absent only for an unknown exact reference."
               },
               "status": {
                 "allOf": [
@@ -1369,6 +1408,25 @@
             "required": [
               "id",
               "version"
+            ],
+            "type": "object"
+          },
+          "CapabilitySelectorDto": {
+            "additionalProperties": false,
+            "description": "Workflow-facing modality and mode selecting one exact capability.",
+            "properties": {
+              "mode": {
+                "description": "Discriminator persisted in `params.mode`.",
+                "type": "string"
+              },
+              "type_id": {
+                "description": "Output modality persisted as the Workflow node type.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode",
+              "type_id"
             ],
             "type": "object"
           },

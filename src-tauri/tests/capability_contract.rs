@@ -44,6 +44,8 @@ fn capability_catalog_keeps_contract_presentation_and_status_independent() {
         .iter()
         .find(|entry| entry.contract.reference.id == "VideoConcat")
         .expect("concat catalog entry");
+    assert_eq!(concat.selector.type_id, "Video");
+    assert_eq!(concat.selector.mode, "concat");
     assert_eq!(concat.contract.inputs[0].port_type, "video");
     assert_eq!(
         concat.contract.inputs[0].cardinality,
@@ -119,11 +121,20 @@ fn palette_search_is_paged_and_only_returns_current_summaries() {
     let root = tempdir().expect("create asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
 
-    let first = search_capabilities_with_state("video".to_owned(), None, None, Some(1), &state)
-        .expect("search capability summaries");
+    let first = search_capabilities_with_state(
+        "video".to_owned(),
+        None,
+        Some("Video".to_owned()),
+        None,
+        Some(1),
+        &state,
+    )
+    .expect("search capability summaries");
 
     assert_eq!(first.capabilities.len(), 1);
     assert_eq!(first.capabilities[0].reference.id, "ImageToVideo");
+    assert_eq!(first.capabilities[0].selector.type_id, "Video");
+    assert_eq!(first.capabilities[0].selector.mode, "image");
     assert!(first.capabilities[0].presentation.search_terms.iter().any(|term| term == "video"));
     assert!(first.capabilities[0].status.reason.is_none());
     assert!(first.capabilities[0].status.status_revision == 0);
@@ -132,6 +143,7 @@ fn palette_search_is_paged_and_only_returns_current_summaries() {
     let second = search_capabilities_with_state(
         "video".to_owned(),
         None,
+        Some("Video".to_owned()),
         first.next_cursor,
         Some(10),
         &state,
@@ -139,6 +151,7 @@ fn palette_search_is_paged_and_only_returns_current_summaries() {
     .expect("search next capability page");
     assert_eq!(second.capabilities.len(), 1);
     assert_eq!(second.capabilities[0].reference.id, "VideoConcat");
+    assert_eq!(second.capabilities[0].selector.mode, "concat");
     assert!(second.next_cursor.is_none());
 }
 
@@ -163,7 +176,15 @@ fn exact_bundle_batch_preserves_unknown_refs_as_degraded_placeholders() {
     .expect("load exact bundles");
 
     assert_eq!(result.capabilities.len(), 2);
+    assert_eq!(
+        result.capabilities[0]
+            .selector
+            .as_ref()
+            .map(|selector| selector.type_id.as_str()),
+        Some("Text")
+    );
     assert!(result.capabilities[0].contract.is_some());
+    assert!(result.capabilities[1].selector.is_none());
     assert!(result.capabilities[1].contract.is_none());
     assert_eq!(result.capabilities[1].status.availability, CapabilityAvailabilityDto::Degraded);
     assert!(result.capabilities[1].status.reason.is_some());

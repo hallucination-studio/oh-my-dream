@@ -17,6 +17,7 @@ describe("WorkflowFlowNode", () => {
       type: "VideoConcat",
       contractVersion: "1.0",
       capability: nodeSpecFromBundle({
+        selector: entry.selector,
         reference: entry.contract.reference,
         contract: entry.contract,
         presentation: entry.presentation,

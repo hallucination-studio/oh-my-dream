@@ -108,7 +108,7 @@ impl NodeRegistry {
         {
             return self.instantiate(node_id, type_id, params);
         }
-        let reference = self.workflow_capability_reference(
+        let reference = self.resolve_workflow_capability_reference(
             node_id,
             type_id,
             contract_version,
@@ -125,7 +125,7 @@ impl NodeRegistry {
         contract_version: &str,
         params: &NodeParams,
     ) -> Result<&CapabilityRegistration, EngineError> {
-        let reference = self.workflow_capability_reference(
+        let reference = self.resolve_workflow_capability_reference(
             node_id,
             type_id,
             contract_version,
@@ -138,6 +138,22 @@ impl NodeRegistry {
                 contract_version: reference.version,
             }
         })
+    }
+
+    /// Resolves the exact reference selected by one persisted Workflow node.
+    pub fn persisted_workflow_capability_reference(
+        &self,
+        node_id: &str,
+        type_id: &str,
+        contract_version: &str,
+        params: &NodeParams,
+    ) -> Result<CapabilityRef, EngineError> {
+        if !self.capabilities.contains_id(type_id)
+            && !self.capabilities.contains_selector_type(type_id)
+        {
+            return Ok(CapabilityRef::new(type_id, contract_version));
+        }
+        self.resolve_workflow_capability_reference(node_id, type_id, contract_version, params)
     }
 
     /// Normalizes and rewrites one legacy or canonical Workflow capability node.
@@ -232,7 +248,7 @@ impl NodeRegistry {
         Ok(node)
     }
 
-    fn workflow_capability_reference(
+    fn resolve_workflow_capability_reference(
         &self,
         node_id: &str,
         type_id: &str,

@@ -184,6 +184,7 @@ async function searchCapabilities(
   return invoke<CapabilitySearchPage>("search_capabilities", {
     query: request.query,
     category: request.category ?? null,
+    type_id: request.type_id ?? null,
     cursor: request.cursor ?? null,
     limit: request.limit ?? null,
   });

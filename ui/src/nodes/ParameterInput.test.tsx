@@ -130,6 +130,7 @@ function nodeSpec(type: string) {
   const entry = catalog.capabilities.find((candidate) => candidate.contract.reference.id === type);
   if (!entry) throw new Error(`missing fixture capability ${type}`);
   return nodeSpecFromBundle({
+    selector: entry.selector,
     reference: entry.contract.reference,
     contract: entry.contract,
     presentation: entry.presentation,

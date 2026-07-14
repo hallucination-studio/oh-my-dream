@@ -1,6 +1,10 @@
 {
   "capabilities": [
     {
+      "selector": {
+        "type_id": "Video",
+        "mode": "image"
+      },
       "contract": {
         "reference": {
           "id": "ImageToVideo",
@@ -37,6 +41,11 @@
               "minimum": 1,
               "type": "integer"
             },
+            "mode": {
+              "const": "image",
+              "default": "image",
+              "type": "string"
+            },
             "model": {
               "default": "mock-video",
               "type": "string"
@@ -45,6 +54,7 @@
           "type": "object"
         },
         "default_params": {
+          "mode": "image",
           "model": "mock-video"
         },
         "effects": [
@@ -69,6 +79,10 @@
       }
     },
     {
+      "selector": {
+        "type_id": "Text",
+        "mode": "literal"
+      },
       "contract": {
         "reference": {
           "id": "TextPrompt",
@@ -86,6 +100,11 @@
         "params_schema": {
           "additionalProperties": false,
           "properties": {
+            "mode": {
+              "const": "literal",
+              "default": "literal",
+              "type": "string"
+            },
             "prompt": {
               "type": "string"
             },
@@ -97,6 +116,7 @@
           "type": "object"
         },
         "default_params": {
+          "mode": "literal",
           "text": ""
         },
         "effects": [
@@ -120,6 +140,80 @@
       }
     },
     {
+      "selector": {
+        "type_id": "Audio",
+        "mode": "text"
+      },
+      "contract": {
+        "reference": {
+          "id": "TextToAudio",
+          "version": "1.0"
+        },
+        "inputs": [
+          {
+            "name": "prompt",
+            "port_type": "string",
+            "cardinality": "one",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "audio",
+            "port_type": "audio",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "text",
+              "default": "text",
+              "type": "string"
+            },
+            "model": {
+              "default": "mock-audio",
+              "type": "string"
+            },
+            "seed": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "default_params": {
+          "mode": "text",
+          "model": "mock-audio"
+        },
+        "effects": [
+          "external"
+        ]
+      },
+      "presentation": {
+        "label": "Text to Audio",
+        "description": "Generate an audio clip from a text prompt.",
+        "category": "audio",
+        "search_terms": [
+          "audio",
+          "generation",
+          "text to audio"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": "unknown",
+        "status_revision": 0
+      }
+    },
+    {
+      "selector": {
+        "type_id": "Image",
+        "mode": "text"
+      },
       "contract": {
         "reference": {
           "id": "TextToImage",
@@ -144,6 +238,11 @@
         "params_schema": {
           "additionalProperties": false,
           "properties": {
+            "mode": {
+              "const": "text",
+              "default": "text",
+              "type": "string"
+            },
             "model": {
               "default": "mock-image",
               "type": "string"
@@ -163,6 +262,7 @@
           "type": "object"
         },
         "default_params": {
+          "mode": "text",
           "model": "mock-image"
         },
         "effects": [
@@ -187,6 +287,10 @@
       }
     },
     {
+      "selector": {
+        "type_id": "Video",
+        "mode": "concat"
+      },
       "contract": {
         "reference": {
           "id": "VideoConcat",
@@ -215,10 +319,18 @@
         ],
         "params_schema": {
           "additionalProperties": false,
-          "properties": {},
+          "properties": {
+            "mode": {
+              "const": "concat",
+              "default": "concat",
+              "type": "string"
+            }
+          },
           "type": "object"
         },
-        "default_params": {},
+        "default_params": {
+          "mode": "concat"
+        },
         "effects": [
           "pure"
         ]

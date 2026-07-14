@@ -121,7 +121,7 @@ fn workspace_snapshot_uses_context_scope_and_rejects_foreign_selection() {
     assert_eq!(snapshot.workflow_head.as_ref().expect("head").project_id, "project-a");
     assert_eq!(snapshot.selected_assets[0].id, local_asset);
     assert_eq!(snapshot.selected_nodes[0].id, "n1");
-    assert_eq!(snapshot.selected_nodes[0].capability.id, "ImageToVideo");
+    assert_eq!(snapshot.selected_nodes[0].capability.id, "Video");
     assert!(snapshot.assets.iter().all(|asset| asset.prompt.as_deref() != Some("foreign")));
     assert!(snapshot.readiness_blockers.iter().any(|blocker| {
         blocker.code == "REQUIRED_INPUT_MISSING" && blocker.pointer.contains("image")
@@ -153,7 +153,7 @@ fn workspace_snapshot_uses_context_scope_and_rejects_foreign_selection() {
         )
         .expect("read project B after switching");
     assert_eq!(switched.project.id, "project-b");
-    assert_eq!(switched.selected_nodes[0].capability.id, "TextPrompt");
+    assert_eq!(switched.selected_nodes[0].capability.id, "Text");
     assert!(switched.readiness_blockers.is_empty());
     assert!(switched.assets.iter().all(|asset| asset.project_id.as_deref() == Some("project-b")));
     assert!(switched.assets.iter().all(|asset| asset.prompt.as_deref() != Some("local")));
@@ -212,7 +212,7 @@ async fn workspace_snapshot_registration_dispatches_with_trusted_scope() {
     assert_eq!(output["scope"]["project_id"], json!("project-a"));
     assert_eq!(output["scope"]["session_id"], json!("session-project-a"));
     assert_eq!(output["selected_nodes"][0]["id"], json!("n1"));
-    assert_eq!(output["selected_nodes"][0]["capability"]["id"], json!("ImageToVideo"));
+    assert_eq!(output["selected_nodes"][0]["capability"]["id"], json!("Video"));
 
     let error = registration
         .dispatch(&context, json!({ "project_id": "project-b" }))

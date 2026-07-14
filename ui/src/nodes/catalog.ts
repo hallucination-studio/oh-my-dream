@@ -76,6 +76,7 @@ export function nodeSpecFromBundle(bundle: CapabilityBundle): NodeTypeSpec {
 /** Creates a stable recovery spec for an unknown or degraded persisted ref. */
 export function recoveryNodeSpec(reference: CapabilityRef, reason: string): NodeTypeSpec {
   return nodeSpecFromBundle({
+    selector: null,
     reference,
     contract: null,
     presentation: null,

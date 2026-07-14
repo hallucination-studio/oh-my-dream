@@ -45,6 +45,7 @@ fn search_requires_a_goal_and_returns_only_bounded_current_refs() {
             && result.status.availability == CapabilityAvailabilityDto::Available
     }));
     assert!(output.capabilities.iter().any(|result| result.reference.id == "ImageToVideo"));
+    assert!(output.capabilities.iter().all(|result| !result.selector.type_id.is_empty()));
 }
 
 #[test]
@@ -127,6 +128,55 @@ fn persisted_missing_version_is_describable_as_degraded() {
     assert!(description.contract.is_none());
     assert_eq!(description.status.availability, CapabilityAvailabilityDto::Degraded);
     assert!(description.status.reason.as_deref().is_some_and(|reason| reason.contains("migrate")));
+}
+
+#[test]
+fn persisted_canonical_missing_version_resolves_to_exact_degraded_ref() {
+    let root = tempdir().expect("create asset root");
+    let state = AppState::from_asset_root(root.path()).expect("build app state");
+    state
+        .store
+        .lock()
+        .expect("store lock")
+        .create_project_with_id("default", "Default")
+        .expect("create project");
+    state
+        .workflow_authority
+        .apply(WorkflowCommitRequest::new(
+            "default",
+            None,
+            "persisted-canonical-degraded",
+            "hash-persisted-canonical-degraded",
+            Workflow {
+                version: "1.0".to_owned(),
+                project_id: "default".to_owned(),
+                nodes: vec![WorkflowNode {
+                    id: "video".to_owned(),
+                    type_id: "Video".to_owned(),
+                    contract_version: "9.9".to_owned(),
+                    params: serde_json::Map::from_iter([(String::from("mode"), json!("image"))]),
+                    inputs: BTreeMap::new(),
+                    position: None,
+                }],
+            },
+        ))
+        .expect("persist canonical degraded Workflow head");
+    let discovery = CapabilityDiscovery::from_state(&state);
+    let output = discovery
+        .describe(
+            &context("persisted-canonical-degraded"),
+            CapabilityDescribeInput {
+                refs: vec![CapabilityRefDto {
+                    id: "ImageToVideo".to_owned(),
+                    version: "9.9".to_owned(),
+                }],
+            },
+        )
+        .expect("canonical missing ref should remain describable");
+
+    assert_eq!(output.capabilities[0].reference.id, "ImageToVideo");
+    assert!(output.capabilities[0].selector.is_none());
+    assert_eq!(output.capabilities[0].status.availability, CapabilityAvailabilityDto::Degraded);
 }
 
 #[test]

@@ -66,6 +66,7 @@ describe("CapabilityContractCache", () => {
     const request: CapabilitySearchRequest = { query: "video", cursor: null, limit: 1 };
     const page: CapabilitySearchPage = {
       capabilities: [{
+        selector: { type_id: "Text", mode: "literal" },
         reference: prompt,
         presentation: presentation("Text Prompt"),
         status: status(),
@@ -84,12 +85,12 @@ describe("CapabilityContractCache", () => {
 
   it("replaces summaries when the palette query changes", async () => {
     const first: CapabilitySearchPage = {
-      capabilities: [{ reference: prompt, presentation: presentation("Text Prompt"), status: status() }],
+      capabilities: [{ selector: { type_id: "Text", mode: "literal" }, reference: prompt, presentation: presentation("Text Prompt"), status: status() }],
       next_cursor: null,
     };
     const secondRef = { id: "ImageToVideo", version: "1.0" };
     const second: CapabilitySearchPage = {
-      capabilities: [{ reference: secondRef, presentation: presentation("Image to Video"), status: status() }],
+      capabilities: [{ selector: { type_id: "Video", mode: "image" }, reference: secondRef, presentation: presentation("Image to Video"), status: status() }],
       next_cursor: null,
     };
     const api = cacheApi([], first, second);
@@ -97,6 +98,35 @@ describe("CapabilityContractCache", () => {
 
     await cache.search({ query: "text", cursor: null });
     await cache.search({ query: "video", cursor: null });
+
+    expect(cache.snapshot().summaries.map((summary) => summary.reference)).toEqual([secondRef]);
+  });
+
+  it("does not append pages from a different modality filter", async () => {
+    const first: CapabilitySearchPage = {
+      capabilities: [{
+        selector: { type_id: "Video", mode: "image" },
+        reference: prompt,
+        presentation: presentation("Text Prompt"),
+        status: status(),
+      }],
+      next_cursor: "1",
+    };
+    const secondRef = { id: "TextToImage", version: "1.0" };
+    const second: CapabilitySearchPage = {
+      capabilities: [{
+        selector: { type_id: "Image", mode: "text" },
+        reference: secondRef,
+        presentation: presentation("Text to Image"),
+        status: status(),
+      }],
+      next_cursor: null,
+    };
+    const api = cacheApi([], first, second);
+    const cache = new CapabilityContractCache(api);
+
+    await cache.search({ query: "", type_id: "Video", cursor: null });
+    await cache.search({ query: "", type_id: "Image", cursor: "1" });
 
     expect(cache.snapshot().summaries.map((summary) => summary.reference)).toEqual([secondRef]);
   });
@@ -120,6 +150,7 @@ function cacheApi(bundles: CapabilityBundle[], ...pages: CapabilitySearchPage[])
 
 function bundle(reference: { id: string; version: string }, degraded = false): CapabilityBundle {
   return {
+    selector: degraded ? null : { type_id: "Text", mode: "literal" },
     reference,
     contract: degraded ? null : {
       reference,

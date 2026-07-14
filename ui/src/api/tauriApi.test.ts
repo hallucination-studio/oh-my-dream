@@ -110,7 +110,7 @@ it("applies Workflow patches through the shared Tauri command", async () => {
 
 it("searches paged capability summaries and loads exact bundles", async () => {
   const { tauriApi } = await import("./tauriApi.ts");
-  const request = { query: "video", category: "video", cursor: null, limit: 12 };
+  const request = { query: "video", category: "video", type_id: "Video", cursor: null, limit: 12 };
   const refs = [{ id: "ImageToVideo", version: "1.0" }];
   invokeMock
     .mockResolvedValueOnce({ capabilities: [], next_cursor: "12" })

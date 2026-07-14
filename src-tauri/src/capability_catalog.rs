@@ -5,7 +5,7 @@ use crate::dto::{
     CapabilityAvailabilityDto, CapabilityBundleDto, CapabilityBundlesDto, CapabilityCardinalityDto,
     CapabilityCatalogDto, CapabilityCatalogEntryDto, CapabilityContractDto, CapabilityEffectDto,
     CapabilityPortDto, CapabilityPresentationDto, CapabilityRefDto, CapabilitySearchPageDto,
-    CapabilityStatusDto, CapabilitySummaryDto,
+    CapabilitySelectorDto, CapabilityStatusDto, CapabilitySummaryDto,
 };
 use crate::state::AppState;
 use engine::{CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, NodeRegistry};
@@ -33,17 +33,19 @@ pub fn get_capability_catalog_with_state(state: &AppState) -> Result<CapabilityC
 pub fn search_capabilities(
     query: String,
     category: Option<String>,
+    type_id: Option<String>,
     cursor: Option<String>,
     limit: Option<usize>,
     state: State<'_, AppState>,
 ) -> Result<CapabilitySearchPageDto, String> {
-    search_capabilities_with_state(query, category, cursor, limit, &state)
+    search_capabilities_with_state(query, category, type_id, cursor, limit, &state)
 }
 
 /// Searches capability summaries without creating or revising a Workflow.
 pub fn search_capabilities_with_state(
     query: String,
     category: Option<String>,
+    type_id: Option<String>,
     cursor: Option<String>,
     limit: Option<usize>,
     state: &AppState,
@@ -53,12 +55,16 @@ pub fn search_capabilities_with_state(
     let query_terms = query.split_whitespace().map(|term| term.to_lowercase()).collect::<Vec<_>>();
     let category =
         category.as_deref().map(str::trim).filter(|value| !value.is_empty()).map(str::to_lowercase);
+    let type_id = type_id.as_deref().map(str::trim).filter(|value| !value.is_empty());
     let mut ranked = state
         .registry
         .current_capability_refs()
         .into_iter()
         .filter_map(|reference| {
             let projection = nodes::project_capability(&state.registry, &reference).ok()?;
+            if type_id.is_some_and(|value| value != projection.selector.type_id) {
+                return None;
+            }
             let score = summary_score(&projection, &query_terms, category.as_deref())?;
             Some((score, project_entry(projection)))
         })
@@ -75,6 +81,7 @@ pub fn search_capabilities_with_state(
         .skip(offset)
         .take(page_size)
         .map(|(_, entry)| CapabilitySummaryDto {
+            selector: entry.selector,
             reference: entry.contract.reference,
             presentation: entry.presentation,
             status: entry.status,
@@ -112,6 +119,7 @@ pub fn get_capability_bundles_with_state(
             Ok(projection) => {
                 let entry = project_entry(projection);
                 CapabilityBundleDto {
+                    selector: Some(entry.selector),
                     reference,
                     contract: Some(entry.contract),
                     presentation: Some(entry.presentation),
@@ -119,6 +127,7 @@ pub fn get_capability_bundles_with_state(
                 }
             }
             Err(_) => CapabilityBundleDto {
+                selector: None,
                 reference,
                 contract: None,
                 presentation: None,
@@ -140,6 +149,10 @@ fn project_catalog(
 pub(crate) fn project_entry(projection: CapabilityProjection) -> CapabilityCatalogEntryDto {
     let status = status_for(&projection.contract);
     CapabilityCatalogEntryDto {
+        selector: CapabilitySelectorDto {
+            type_id: projection.selector.type_id,
+            mode: projection.selector.mode,
+        },
         contract: contract_to_dto(&projection.contract),
         presentation: presentation_to_dto(projection.presentation),
         status,

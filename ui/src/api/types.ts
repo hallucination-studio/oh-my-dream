@@ -81,6 +81,7 @@ export interface WorkflowReadinessBlocker {
 }
 
 export type CapabilityRef = { id: string; version: string };
+export type CapabilitySelector = { type_id: string; mode: string };
 
 export type CapabilityCardinality =
   | "one"
@@ -121,12 +122,14 @@ export interface CapabilityStatus {
 }
 
 export interface CapabilitySummary {
+  selector: CapabilitySelector;
   reference: CapabilityRef;
   presentation: CapabilityPresentation;
   status: CapabilityStatus;
 }
 
 export interface CapabilityBundle {
+  selector: CapabilitySelector | null;
   reference: CapabilityRef;
   contract: CapabilityContract | null;
   presentation: CapabilityPresentation | null;
@@ -134,6 +137,7 @@ export interface CapabilityBundle {
 }
 
 export interface CapabilityCatalogEntry {
+  selector: CapabilitySelector;
   contract: CapabilityContract;
   presentation: CapabilityPresentation;
   status: CapabilityStatus;
@@ -146,6 +150,7 @@ export interface CapabilityCatalog {
 export interface CapabilitySearchRequest {
   query: string;
   category?: string | null;
+  type_id?: string | null;
   cursor?: string | null;
   limit?: number;
 }

@@ -24,6 +24,7 @@ describe("node catalog contract", () => {
       expect.objectContaining({ name: "image", type: "image", required: false, cardinality: "one" }),
     ]);
     expect(image?.params.map((param) => param.name)).toEqual([
+      "mode",
       "model",
       "negative_prompt",
       "seed",
@@ -54,6 +55,7 @@ describe("node catalog contract", () => {
 
   it("ignores non-contract annotations and unsupported composed parameter schemas", () => {
     const spec = nodeSpecFromBundle({
+      selector: { type_id: "Fixture", mode: "test" },
       reference: { id: "Fixture", version: "1.0" },
       contract: {
         reference: { id: "Fixture", version: "1.0" },
@@ -101,6 +103,7 @@ function snapshot() {
     catalog.capabilities.map((entry) => [
       capabilityRefKey(entry.contract.reference),
       {
+        selector: entry.selector,
         reference: entry.contract.reference,
         contract: entry.contract,
         presentation: entry.presentation,
@@ -110,7 +113,8 @@ function snapshot() {
   );
   return {
     bundles,
-    summaries: catalog.capabilities.map(({ contract, presentation, status }) => ({
+    summaries: catalog.capabilities.map(({ selector, contract, presentation, status }) => ({
+      selector,
       reference: contract.reference,
       presentation,
       status,

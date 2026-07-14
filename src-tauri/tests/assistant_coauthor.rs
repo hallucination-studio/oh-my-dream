@@ -68,14 +68,14 @@ async fn coauthor_agent_creates_one_connected_twelve_second_workflow() {
         serde_json::from_value(patch_output["workflow_head"]["workflow"].clone())
             .expect("patch output should contain a canonical Workflow");
     assert_eq!(workflow.nodes.len(), 10);
-    assert_eq!(workflow.nodes.iter().filter(|node| node.type_id == "TextPrompt").count(), 3);
-    assert_eq!(workflow.nodes.iter().filter(|node| node.type_id == "TextToImage").count(), 3);
-    assert_eq!(workflow.nodes.iter().filter(|node| node.type_id == "ImageToVideo").count(), 3);
-    assert_eq!(workflow.nodes.iter().filter(|node| node.type_id == "VideoConcat").count(), 1);
+    assert_eq!(nodes_with_selector(&workflow, "Text", "literal").count(), 3);
+    assert_eq!(nodes_with_selector(&workflow, "Image", "text").count(), 3);
+    assert_eq!(nodes_with_selector(&workflow, "Video", "image").count(), 3);
+    assert_eq!(nodes_with_selector(&workflow, "Video", "concat").count(), 1);
     let duration_total: f64 = workflow
         .nodes
         .iter()
-        .filter(|node| node.type_id == "ImageToVideo")
+        .filter(|node| node.type_id == "Video" && node.params["mode"] == "image")
         .map(|node| node.params["duration"].as_f64().expect("duration should be numeric"))
         .sum();
     assert_eq!(duration_total, 12.0);
@@ -83,7 +83,7 @@ async fn coauthor_agent_creates_one_connected_twelve_second_workflow() {
     let concat = workflow
         .nodes
         .iter()
-        .find(|node| node.type_id == "VideoConcat")
+        .find(|node| node.type_id == "Video" && node.params["mode"] == "concat")
         .expect("concat node should exist");
     let clips = serde_json::to_value(&concat.inputs["clips"]).expect("clips binding JSON");
     assert_eq!(
@@ -112,6 +112,17 @@ async fn coauthor_agent_creates_one_connected_twelve_second_workflow() {
             .expect("count authority rows");
         assert_eq!(count, 1, "coauthor should create one {table} row");
     }
+}
+
+fn nodes_with_selector<'a>(
+    workflow: &'a Workflow,
+    type_id: &'a str,
+    mode: &'a str,
+) -> impl Iterator<Item = &'a engine::WorkflowNode> {
+    workflow
+        .nodes
+        .iter()
+        .filter(move |node| node.type_id == type_id && node.params["mode"] == mode)
 }
 
 fn state_with_project() -> (TempDir, AppState) {

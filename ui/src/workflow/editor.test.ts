@@ -63,6 +63,7 @@ function snapshot() {
       catalog.capabilities.map((entry) => [
         capabilityRefKey(entry.contract.reference),
         {
+          selector: entry.selector,
           reference: entry.contract.reference,
           contract: entry.contract,
           presentation: entry.presentation,

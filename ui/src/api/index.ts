@@ -36,6 +36,7 @@ export type {
   CapabilityRef,
   CapabilitySearchPage,
   CapabilitySearchRequest,
+  CapabilitySelector,
   CapabilityStatus,
   CapabilitySummary,
   ListAssetsOptions,

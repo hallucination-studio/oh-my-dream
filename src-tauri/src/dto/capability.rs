@@ -22,6 +22,16 @@ pub struct CapabilityRefDto {
     pub version: String,
 }
 
+/// Workflow-facing modality and mode selecting one exact capability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CapabilitySelectorDto {
+    /// Output modality persisted as the Workflow node type.
+    pub type_id: String,
+    /// Discriminator persisted in `params.mode`.
+    pub mode: String,
+}
+
 /// Cardinality of a capability port at the application boundary.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -156,6 +166,8 @@ pub struct CapabilityStatusDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CapabilitySummaryDto {
+    /// Workflow selector for this exact capability.
+    pub selector: CapabilitySelectorDto,
     /// Exact capability identity that may be loaded into the editor.
     pub reference: CapabilityRefDto,
     /// Non-authoritative display metadata.
@@ -168,6 +180,8 @@ pub struct CapabilitySummaryDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CapabilityBundleDto {
+    /// Workflow selector, absent only for an unknown exact reference.
+    pub selector: Option<CapabilitySelectorDto>,
     /// Exact capability identity.
     pub reference: CapabilityRefDto,
     /// Immutable contract when the exact registration is available.
@@ -226,6 +240,8 @@ impl JsonSchema for CapabilityStatusDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct CapabilityCatalogEntryDto {
+    /// Workflow selector for this exact capability.
+    pub selector: CapabilitySelectorDto,
     /// Immutable execution contract.
     pub contract: CapabilityContractDto,
     /// Non-authoritative presentation metadata.

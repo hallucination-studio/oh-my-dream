@@ -169,7 +169,7 @@ describe("assistant operation contract fixture", () => {
 });
 
 // Freezes the generated fixture as an opaque artifact, not a semantic source.
-const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:fdd3be6289822566";
+const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:e259465392ec488e";
 
 function isExactAssistantOperationsFixture(value: unknown): value is AssistantOperationsFixture {
   return (
@@ -297,7 +297,13 @@ function isCapabilityCatalog(value: unknown): value is CapabilityCatalog {
 
 function isCatalogEntry(value: unknown): boolean {
   if (!isRecord(value) || !isCapabilityContract(value.contract)) return false;
-  return isPresentation(value.presentation) && isCapabilityStatus(value.status);
+  return isCapabilitySelector(value.selector) &&
+    isPresentation(value.presentation) &&
+    isCapabilityStatus(value.status);
+}
+
+function isCapabilitySelector(value: unknown): boolean {
+  return isRecord(value) && typeof value.type_id === "string" && typeof value.mode === "string";
 }
 
 function isCapabilityContract(value: unknown): boolean {

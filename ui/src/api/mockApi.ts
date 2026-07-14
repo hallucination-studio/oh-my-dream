@@ -175,10 +175,12 @@ async function openProject(id: string) {
 async function searchCapabilities(request: CapabilitySearchRequest): Promise<CapabilitySearchPage> {
   const query = request.query.trim().toLowerCase();
   const category = request.category?.trim().toLowerCase() || null;
+  const typeId = request.type_id?.trim() || null;
   const offset = Number(request.cursor ?? "0");
   const limit = Math.min(Math.max(request.limit ?? 24, 1), 24);
   const entries = mockCatalog().capabilities
     .filter((entry) => category === null || entry.presentation.category === category)
+    .filter((entry) => typeId === null || entry.selector.type_id === typeId)
     .filter((entry) => {
       if (!query) return true;
       const fields = [
@@ -190,7 +192,8 @@ async function searchCapabilities(request: CapabilitySearchRequest): Promise<Cap
       ].map((field) => field.toLowerCase());
       return query.split(/\s+/).every((term) => fields.some((field) => field.includes(term)));
     })
-    .map(({ contract, presentation, status }) => ({
+    .map(({ selector, contract, presentation, status }) => ({
+      selector,
       reference: contract.reference,
       presentation,
       status,
@@ -212,8 +215,15 @@ async function getCapabilityBundles(refs: CapabilityRef[]): Promise<{ capabiliti
           candidate.contract.reference.version === reference.version,
       );
       return entry
-        ? { reference, contract: entry.contract, presentation: entry.presentation, status: entry.status }
+        ? {
+            selector: entry.selector,
+            reference,
+            contract: entry.contract,
+            presentation: entry.presentation,
+            status: entry.status,
+          }
         : {
+            selector: null,
             reference,
             contract: null,
             presentation: null,
