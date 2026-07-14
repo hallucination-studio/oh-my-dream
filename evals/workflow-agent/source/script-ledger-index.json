@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
-  "ledger_index_id": "zhong-kui-reversal-provisional",
-  "status": "provisional_pending_ledger_set_approval",
+  "ledger_index_id": "zhong-kui-reversal-v1",
+  "status": "approved_with_scored_unresolved_cases",
   "source": {
     "snapshot_sha256": "45b5a147b658dd6cce68d21eabb33508801bff29757ecc7de39e06443093fe74",
     "script_catalog": "script-catalog.md",
@@ -12,15 +12,17 @@
     "working_candidate_id": "shots-revised-029",
     "working_candidate_source_locator": "nodeList[118].data.content",
     "working_candidate_source_ref": "node-0119",
-    "classification": "unresolved_complete_candidate",
-    "selection_scope": "partition_analysis_only",
+    "classification": "approved_master_semantics",
+    "selection_scope": "benchmark_gold_semantics",
     "selection_rationale": [
       "It is a complete 29-shot, 180-second candidate with an explicit prologue and four timed acts.",
       "Its declared act durations permit exact, non-overlapping provisional timeline coverage without estimating per-shot durations.",
       "Completeness and timing make it suitable for partition analysis but do not establish approval, recency, or Gold authority."
     ],
-    "not_selected_as_gold": true,
-    "approval_required": true
+    "not_selected_as_gold": false,
+    "approval_required": false,
+    "approved_at": "2026-07-14",
+    "approval_record": "User approved the default Ledger-Set package: the complete 29-shot candidate, five-group partition, all three modalities per group, and unresolved conflicts retained as scored alternatives rather than inferred canon."
   },
   "normalization": {
     "runtime_seconds": 180,
@@ -55,7 +57,7 @@
     "time_overlaps": [],
     "stable_order": true,
     "exact_timing_available_at_group_level": true,
-    "authority_resolved": false
+    "authority_resolved": true
   },
   "groups": [
     {
@@ -272,6 +274,7 @@
     "continuity_handoffs_complete": true,
     "alternative_partitions_retained": true,
     "layout_inference_rejected": true,
-    "ledger_set_approved": false
+    "ledger_set_approved": true,
+    "approval_policy": "Master semantics and partition are approved. Unresolved implementation choices remain measurable alternatives and may not be silently promoted to exact Gold."
   }
 }

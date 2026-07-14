@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
-  "authority_record_id": "workflow-ledger-set-provisional-authority",
-  "status": "pending_ledger_set_approval",
+  "authority_record_id": "workflow-ledger-set-v1-authority",
+  "status": "approved_with_scored_unresolved_cases",
   "source": {
     "script_catalog": "script-catalog.md",
     "production_branch_catalog": "production-branch-catalog.json",
@@ -19,7 +19,7 @@
     "prohibited_authority_signals": ["canvas position", "timestamp", "label", "duplicate count", "downstream popularity", "apparent polish"]
   },
   "project_level": {
-    "master_script": {"classification": "unresolved", "working_candidate": "shots-revised-029", "approved": false},
+    "master_script": {"classification": "approved_master_semantics", "working_candidate": "shots-revised-029", "approved": true, "approved_at": "2026-07-14"},
     "approved_reference_refs": [],
     "acceptable_alternative_refs": [],
     "globally_superseded_refs": [],
@@ -30,7 +30,7 @@
       "Fantasy characters and locations map to household objects and toys.",
       "Damage to the guardian is repaired and reinterpreted as honorable protection."
     ],
-    "blocking_reason": "No approval flag, selected-version record, final-master identifier, or complete edit decision list exists in the snapshot."
+    "approval_policy": "The user approved the 29-shot candidate and five-group partition as benchmark semantics. Artifact-level conflicts remain scored unresolved cases unless separately listed as approved references or acceptable alternatives."
   },
   "groups": [
     {
@@ -160,6 +160,8 @@
     "local_supersession_records": 1,
     "global_supersession_count": 0,
     "groups_with_unresolved_authority": 5,
+    "ledger_set_approved": true,
+    "approved_at": "2026-07-14",
     "human_decision_document": "unresolved-evidence.md"
   }
 }
