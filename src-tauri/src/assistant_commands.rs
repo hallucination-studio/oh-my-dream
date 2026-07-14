@@ -57,6 +57,7 @@ pub struct AssistantApprovalDecisionInput {
 }
 
 mod pending;
+mod repair;
 pub use pending::{
     AssistantPendingApprovalDto, assistant_get_pending_approval,
     assistant_get_pending_approval_with_state,
@@ -132,6 +133,7 @@ pub async fn assistant_decide_approval_with_state(
         waiting.session_path(),
         None,
     );
+    let session_path = waiting.session_path().to_path_buf();
     let trusted = TrustedInvocationContext::new(&input.project_id, next_assistant_id("request")?);
     let runtime = runtime_for_state(state)?;
     let mut sink = ChannelAssistantSink { channel: on_event };
@@ -140,7 +142,16 @@ pub async fn assistant_decide_approval_with_state(
         .await
         .map_err(|error| error.to_string())?;
     state.pending_approval.delete(&session_id).map_err(|error| error.to_string())?;
-    finish_outcome(outcome, state)
+    repair::finish_approval_outcome(
+        outcome,
+        &input,
+        &session_id,
+        &session_path,
+        &runtime,
+        &mut sink,
+        state,
+    )
+    .await
 }
 
 struct ActiveAssistantSession {
@@ -295,7 +306,7 @@ fn assistant_identity(config_root: &Path, project_id: &str) -> Result<AssistantI
     })
 }
 
-fn next_assistant_id(kind: &str) -> Result<String, String> {
+pub(super) fn next_assistant_id(kind: &str) -> Result<String, String> {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|error| format!("assistant clock is invalid: {error}"))?
@@ -317,7 +328,7 @@ fn project_session_id(project_id: &str) -> String {
     format!("project:{project_id}")
 }
 
-fn finish_outcome(
+pub(super) fn finish_outcome(
     outcome: AssistantRuntimeOutcome,
     state: &AppState,
 ) -> Result<Option<WorkflowHeadDto>, String> {
