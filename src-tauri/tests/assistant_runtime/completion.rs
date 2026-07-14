@@ -6,7 +6,8 @@ use oh_my_dream_tauri::assistant_operations::{
 };
 use oh_my_dream_tauri::assistant_runtime::{
     AssistantEventSink, AssistantInvocation, AssistantRuntime, AssistantRuntimeError,
-    AssistantRuntimeOutcome, TrustedInvocationContext,
+    AssistantRuntimeOutcome, InternalReviewHandler, InternalReviewReceipt,
+    InternalReviewSubmission, TrustedInvocationContext,
 };
 use serde_json::Value;
 use tempfile::TempDir;
@@ -131,4 +132,56 @@ fn local_read_registration(
         },
     )
     .expect("test registration should be valid")
+}
+
+#[tokio::test]
+async fn internal_review_frame_is_persisted_without_becoming_a_model_tool() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let runtime = AssistantRuntime::new(
+        super::common::hostile_command(
+            r#"import json,sys; invoke=json.loads(sys.stdin.readline())['payload']; review={'protocol_version':1,'sequence':0,'kind':'review_submit','payload':{'invocation_id':invoke['invocation_id'],'candidate_id':'candidate-1','candidate_digest':'sha256:candidate','reviewer_version':'reviewer-v1','verdict':'pass','summary':'ok','findings':[],'evidence_hash':'sha256:evidence'}}; print(json.dumps(review),flush=True); response=json.loads(sys.stdin.readline()); assert response['kind']=='review_response'; frames=[('snapshot',{'invocation_id':invoke['invocation_id'],'session_id':invoke['session_id'],'status':'completed','state':None}),('completed',{'invocation_id':invoke['invocation_id'],'final_output':response['payload']['review_receipt_id']})]; [print(json.dumps({'protocol_version':1,'sequence':sequence+1,'kind':kind,'payload':payload}),flush=True) for sequence,(kind,payload) in enumerate(frames)]; sys.stdin.read()"#,
+        ),
+        Vec::new(),
+    )
+    .expect("runtime")
+    .with_review_handler(Arc::new(RecordingReviewHandler(Arc::clone(&observed))));
+    let directory = TempDir::new().expect("directory");
+
+    let outcome = runtime
+        .invoke(
+            AssistantInvocation::new(
+                "review-invocation",
+                "review-session",
+                directory.path().join("session.sqlite3"),
+                Some("review".to_owned()),
+            ),
+            TrustedInvocationContext::new("project-7", "request-9"),
+        )
+        .await
+        .expect("review flow");
+
+    let AssistantRuntimeOutcome::Completed(completed) = outcome else {
+        panic!("expected completion");
+    };
+    assert_eq!(completed.final_output(), &serde_json::json!("receipt-1"));
+    let submissions = observed.lock().expect("observed");
+    assert_eq!(submissions.len(), 1);
+    assert_eq!(submissions[0].candidate_id, "candidate-1");
+}
+
+struct RecordingReviewHandler(Arc<Mutex<Vec<InternalReviewSubmission>>>);
+
+impl InternalReviewHandler for RecordingReviewHandler {
+    fn record(
+        &self,
+        project_id: &str,
+        session_id: &str,
+        submission: InternalReviewSubmission,
+    ) -> Result<InternalReviewReceipt, String> {
+        assert_eq!(project_id, "project-7");
+        assert_eq!(session_id, "review-session");
+        let candidate_id = submission.candidate_id.clone();
+        self.0.lock().map_err(|error| error.to_string())?.push(submission);
+        Ok(InternalReviewReceipt { candidate_id, review_receipt_id: "receipt-1".to_owned() })
+    }
 }

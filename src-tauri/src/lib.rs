@@ -3,6 +3,7 @@
 pub mod assistant;
 pub mod assistant_commands;
 pub mod assistant_operations;
+mod assistant_review_bridge;
 pub mod assistant_runtime;
 pub mod assistant_sidecar;
 pub mod assistant_transport;

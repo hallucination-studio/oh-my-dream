@@ -20,7 +20,7 @@ from .sdk_runtime import (
     restore_run_state,
     validate_state_envelope,
 )
-from .reviewer import build_reviewer_tool
+from .reviewer import AttestedReview, build_reviewer_tool
 from .system_prompt import build_system_prompt
 from .stdio_protocol import (
     PROTOCOL_VERSION,
@@ -92,6 +92,7 @@ class AgentStdioApp:
                     invocation.operations,
                     lambda request: self._invoke_tool(invocation.invocation_id, request),
                     self._model,
+                    lambda review: self._submit_review(invocation.invocation_id, review),
                 )
                 tools.append(reviewer_tool)
             agent: Agent[Any] = Agent(
@@ -263,6 +264,36 @@ class AgentStdioApp:
                 "correlation_mismatch", "tool_response does not match the pending call"
             )
         return ToolResponse(call_id=call_id, output_json=output_json)
+
+    async def _submit_review(
+        self, invocation_id: str, review: AttestedReview
+    ) -> str:
+        self._write(
+            FrameKind.REVIEW_SUBMIT,
+            {
+                "invocation_id": invocation_id,
+                **cast(dict[str, JsonValue], review.model_dump(mode="json")),
+            },
+        )
+        frame = await self._read_frame()
+        if frame.kind is not FrameKind.REVIEW_RESPONSE:
+            raise AgentTransportError(
+                "unexpected_frame", "expected review_response after review_submit"
+            )
+        require_exact_fields(
+            frame.payload,
+            {"invocation_id", "candidate_id", "review_receipt_id"},
+            "review_response",
+        )
+        if require_string(frame.payload, "invocation_id") != invocation_id:
+            raise AgentTransportError(
+                "correlation_mismatch", "review_response invocation mismatch"
+            )
+        if require_string(frame.payload, "candidate_id") != review.candidate_id:
+            raise AgentTransportError(
+                "correlation_mismatch", "review_response candidate mismatch"
+            )
+        return require_string(frame.payload, "review_receipt_id")
 
     async def _read_frame(self) -> Frame:
         return await asyncio.to_thread(self._reader.read_frame)

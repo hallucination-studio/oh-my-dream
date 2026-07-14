@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::assistant_operations::OperationRegistration;
+use serde::Deserialize;
 
 pub use command::AssistantSidecarCommand;
 pub use error::AssistantRuntimeError;
@@ -27,6 +28,37 @@ pub struct AssistantRuntime {
     pub(super) limits: AssistantRuntimeLimits,
     pub(super) registrations: Vec<OperationRegistration>,
     pub(super) registrations_by_id: HashMap<String, usize>,
+    pub(super) review_handler: Option<Arc<dyn InternalReviewHandler>>,
+}
+
+/// Attested nested Reviewer result accepted only through the internal protocol.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InternalReviewSubmission {
+    pub invocation_id: String,
+    pub candidate_id: String,
+    pub candidate_digest: String,
+    pub reviewer_version: String,
+    pub verdict: String,
+    pub summary: String,
+    pub findings: Vec<String>,
+    pub evidence_hash: String,
+}
+
+/// Result returned to the Reviewer wrapper after trusted persistence.
+pub struct InternalReviewReceipt {
+    pub candidate_id: String,
+    pub review_receipt_id: String,
+}
+
+/// Consumer-owned boundary for non-model review receipt persistence.
+pub trait InternalReviewHandler: Send + Sync {
+    fn record(
+        &self,
+        project_id: &str,
+        session_id: &str,
+        submission: InternalReviewSubmission,
+    ) -> Result<InternalReviewReceipt, String>;
 }
 
 impl AssistantRuntime {
@@ -58,7 +90,20 @@ impl AssistantRuntime {
                 });
             }
         }
-        Ok(Self { launcher: Arc::new(launcher), limits, registrations, registrations_by_id })
+        Ok(Self {
+            launcher: Arc::new(launcher),
+            limits,
+            registrations,
+            registrations_by_id,
+            review_handler: None,
+        })
+    }
+
+    /// Installs the trusted internal Reviewer receipt boundary.
+    #[must_use]
+    pub fn with_review_handler(mut self, handler: Arc<dyn InternalReviewHandler>) -> Self {
+        self.review_handler = Some(handler);
+        self
     }
 
     /// Launches a fresh sidecar and runs one new invocation.

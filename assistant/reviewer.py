@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, Literal
 
 from agents import Agent, FunctionTool, Model
@@ -50,6 +50,7 @@ def build_reviewer_tool(
     operations: Sequence[Mapping[str, Any]],
     invoker: ToolInvoker,
     model: Model | str | None,
+    review_sink: Callable[[AttestedReview], Awaitable[str]] | None = None,
 ) -> FunctionTool:
     """Build an Agent-as-tool reviewer over the exact candidate read operation."""
     candidate_operation = next(
@@ -74,7 +75,19 @@ def build_reviewer_tool(
     )
 
     async def extract(result: Any) -> str:
-        return attest_review_result(result).model_dump_json()
+        review = attest_review_result(result)
+        if review_sink is None:
+            return review.model_dump_json()
+        receipt_id = await review_sink(review)
+        return json.dumps(
+            {
+                "candidate_id": review.candidate_id,
+                "verdict": review.verdict,
+                "summary": review.summary,
+                "findings": review.findings,
+                "review_receipt_id": receipt_id,
+            }
+        )
 
     return reviewer.as_tool(
         tool_name="review_workflow_candidate",

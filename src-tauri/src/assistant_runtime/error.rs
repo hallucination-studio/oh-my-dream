@@ -74,4 +74,6 @@ pub enum AssistantRuntimeError {
     ProcessExit { status: ExitStatus },
     #[error("assistant event sink failed: {message}")]
     EventSink { message: String },
+    #[error("assistant internal review failed: {message}")]
+    InternalReview { message: String },
 }

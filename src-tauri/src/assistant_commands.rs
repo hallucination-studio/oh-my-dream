@@ -79,6 +79,9 @@ fn runtime_for_state(state: &AppState) -> Result<AssistantRuntime, String> {
         .clone()
         .env("OH_MY_DREAM_CONFIG_ROOT", state.config_root.as_os_str().to_owned());
     AssistantRuntime::new(launcher, operation_registrations(state)?)
+        .map(|runtime| {
+            runtime.with_review_handler(crate::assistant_review_bridge::review_handler(state))
+        })
         .map_err(|error| error.to_string())
 }
 

@@ -26,6 +26,8 @@ class FrameKind(str, Enum):
     RESPONSES_EVENT = "responses_event"
     TOOL_REQUEST = "tool_request"
     TOOL_RESPONSE = "tool_response"
+    REVIEW_SUBMIT = "review_submit"
+    REVIEW_RESPONSE = "review_response"
     APPROVAL_REQUEST = "approval_request"
     APPROVAL_RESPONSE = "approval_response"
     CANCEL = "cancel"

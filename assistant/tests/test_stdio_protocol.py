@@ -67,6 +67,8 @@ class FrameCodecTests(unittest.TestCase):
                 "responses_event",
                 "tool_request",
                 "tool_response",
+                "review_submit",
+                "review_response",
                 "approval_request",
                 "approval_response",
                 "cancel",

@@ -88,10 +88,73 @@ pub struct PrepareCandidateInput {
     pub patch: WorkflowPatch,
 }
 
+/// Trusted input produced by the Reviewer bridge, never by a model tool.
+pub struct RecordReviewInput {
+    pub project_id: String,
+    pub session_id: String,
+    pub candidate_id: String,
+    pub candidate_digest: String,
+    pub reviewer_version: String,
+    pub verdict: ReviewVerdict,
+    pub evidence_hash: String,
+}
+
 /// Persistence boundary consumed by immutable reviewed changes.
 pub trait ReviewedChangeRepository: Send + Sync {
     fn insert(&self, candidate: &WorkflowCandidate) -> Result<(), ReviewedChangeError>;
     fn get(&self, candidate_id: &str) -> Result<Option<WorkflowCandidate>, ReviewedChangeError>;
+    fn insert_receipt(&self, receipt: &ReviewReceipt) -> Result<(), ReviewedChangeError>;
+    fn get_receipt(&self, receipt_id: &str) -> Result<Option<ReviewReceipt>, ReviewedChangeError>;
+}
+
+/// Trusted Reviewer verdict persisted outside the model tool surface.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReviewVerdict {
+    Pass,
+    Reject,
+}
+
+/// Opaque evidence that one exact candidate was reviewed.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct ReviewReceipt {
+    id: String,
+    approval_scope_id: String,
+    project_id: String,
+    session_id: String,
+    candidate_id: String,
+    candidate_digest: String,
+    reviewer_version: String,
+    verdict: ReviewVerdict,
+    evidence_hash: String,
+    expires_at: u64,
+}
+
+impl ReviewReceipt {
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+    #[must_use]
+    pub fn approval_scope_id(&self) -> &str {
+        &self.approval_scope_id
+    }
+    #[must_use]
+    pub fn candidate_id(&self) -> &str {
+        &self.candidate_id
+    }
+    #[must_use]
+    pub fn candidate_digest(&self) -> &str {
+        &self.candidate_digest
+    }
+    #[must_use]
+    pub fn verdict(&self) -> ReviewVerdict {
+        self.verdict
+    }
+    #[must_use]
+    pub fn expires_at(&self) -> u64 {
+        self.expires_at
+    }
 }
 
 /// Read boundary for the authoritative Workflow base.
@@ -144,6 +207,39 @@ impl ReviewedChangeService {
         self.repository.get(candidate_id)
     }
 
+    pub fn record_review(
+        &self,
+        input: RecordReviewInput,
+    ) -> Result<ReviewReceipt, ReviewedChangeError> {
+        let candidate = self
+            .repository
+            .get(&input.candidate_id)?
+            .ok_or_else(|| ReviewedChangeError::CandidateNotFound(input.candidate_id.clone()))?;
+        if candidate.project_id != input.project_id
+            || candidate.session_id != input.session_id
+            || candidate.digest != input.candidate_digest
+        {
+            return Err(ReviewedChangeError::CandidateScopeMismatch);
+        }
+        if candidate.expires_at <= now_seconds()? {
+            return Err(ReviewedChangeError::CandidateExpired);
+        }
+        if input.reviewer_version.trim().is_empty() || !input.evidence_hash.starts_with("sha256:") {
+            return Err(ReviewedChangeError::InvalidReviewEvidence);
+        }
+        let receipt =
+            new_receipt(&candidate, input.reviewer_version, input.verdict, input.evidence_hash)?;
+        self.repository.insert_receipt(&receipt)?;
+        Ok(receipt)
+    }
+
+    pub fn get_receipt(
+        &self,
+        receipt_id: &str,
+    ) -> Result<Option<ReviewReceipt>, ReviewedChangeError> {
+        self.repository.get_receipt(receipt_id)
+    }
+
     fn candidate_base(
         &self,
         input: &PrepareCandidateInput,
@@ -172,6 +268,36 @@ impl ReviewedChangeService {
         }
         Ok((prior.workflow, prior.patches))
     }
+}
+
+fn new_receipt(
+    candidate: &WorkflowCandidate,
+    reviewer_version: String,
+    verdict: ReviewVerdict,
+    evidence_hash: String,
+) -> Result<ReviewReceipt, ReviewedChangeError> {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| ReviewedChangeError::Clock(error.to_string()))?
+        .as_nanos();
+    let sequence = NEXT_CANDIDATE_ID.fetch_add(1, Ordering::Relaxed);
+    let approval_scope_id = fingerprint(&(
+        candidate.session_id.as_str(),
+        candidate.id.as_str(),
+        candidate.digest.as_str(),
+    ))?;
+    Ok(ReviewReceipt {
+        id: format!("review-{timestamp:032x}-{sequence:016x}"),
+        approval_scope_id,
+        project_id: candidate.project_id.clone(),
+        session_id: candidate.session_id.clone(),
+        candidate_id: candidate.id.clone(),
+        candidate_digest: candidate.digest.clone(),
+        reviewer_version,
+        verdict,
+        evidence_hash,
+        expires_at: candidate.expires_at,
+    })
 }
 
 fn new_candidate(
@@ -229,6 +355,8 @@ pub enum ReviewedChangeError {
     Storage(String),
     #[error("system clock failed: {0}")]
     Clock(String),
+    #[error("review evidence is invalid")]
+    InvalidReviewEvidence,
 }
 
 impl CandidateWorkflowSource for crate::workflow_authority::WorkflowAuthority {
