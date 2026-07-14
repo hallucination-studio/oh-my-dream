@@ -1,0 +1,165 @@
+{
+  "schema_version": "1.0.0",
+  "authority_record_id": "workflow-ledger-set-provisional-authority",
+  "status": "pending_ledger_set_approval",
+  "source": {
+    "script_catalog": "script-catalog.md",
+    "production_branch_catalog": "production-branch-catalog.json",
+    "script_ledger_index": "script-ledger-index.json",
+    "ledger_directory": "ledgers/"
+  },
+  "classification_policy": {
+    "canonical_fact": "A recurring story or production fact stable across competing major versions; wording and implementation may remain unresolved.",
+    "approved_reference": "An artifact with explicit user approval or an authoritative selected-version record.",
+    "acceptable_alternative": "A reviewed alternative that preserves approved semantics within declared tolerances.",
+    "experiment": "An attempt or branch with evidence of creation but no evidence of selection.",
+    "superseded": "An artifact observably replaced within a declared lineage; local supersession does not imply project-wide rejection.",
+    "unresolved": "Evidence whose authority, mapping, or conflict cannot be decided from the snapshot.",
+    "primary_classification_rule": "Each artifact receives exactly one primary classification per group. Lineage relationships are recorded separately and do not create a second classification.",
+    "prohibited_authority_signals": ["canvas position", "timestamp", "label", "duplicate count", "downstream popularity", "apparent polish"]
+  },
+  "project_level": {
+    "master_script": {"classification": "unresolved", "working_candidate": "shots-revised-029", "approved": false},
+    "approved_reference_refs": [],
+    "acceptable_alternative_refs": [],
+    "globally_superseded_refs": [],
+    "canonical_facts": [
+      "A guardian defends a fantasy frontier from a mechanical threat.",
+      "A scout, two drum-associated attendants, and a tiger companion participate in the fantasy layer.",
+      "Battle or charge action transitions into a warm domestic reality.",
+      "Fantasy characters and locations map to household objects and toys.",
+      "Damage to the guardian is repaired and reinterpreted as honorable protection."
+    ],
+    "blocking_reason": "No approval flag, selected-version record, final-master identifier, or complete edit decision list exists in the snapshot."
+  },
+  "groups": [
+    {
+      "group_id": "ledger-01-threat",
+      "canonical_facts": ["The story opens with failed defenses and an approaching mechanical threat.", "The threat handoff leads into the guardian's point of view."],
+      "artifact_classifications": [
+        {"ref": "node-0119", "classification": "unresolved", "reason": "Complete working candidate without approval or direct production joins."},
+        {"ref": "node-0052", "classification": "experiment", "reason": "Structured story-table evidence without selection evidence."},
+        {"ref": "node-0107", "classification": "experiment", "reason": "Structured story-table evidence without selection evidence."},
+        {"ref": "node-0108", "classification": "experiment", "reason": "Structured story-table evidence without selection evidence."}
+      ],
+      "continuity_authority": {"incoming": {"canonical_facts": ["project opening"], "unresolved": []}, "outgoing": {"canonical_facts": ["approaching threat", "guardian point-of-view narrative handoff"], "unresolved": ["authoritative visual handoff implementation", "binding machine motif"]}},
+      "unresolved": ["Whether the 29-shot prologue or another complete opening is authoritative.", "Which image, video, and audio branches implement this opening.", "Which camera and audio specifications are binding."],
+      "falsification_tests": [
+        {"proposal": "Treat the 29-shot prologue as canonical implementation.", "counterevidence": "The 16-shot structured story tables corroborate another complete structure and no approval record selects either.", "result": "rejected"},
+        {"proposal": "Use the story tables as approved references.", "counterevidence": "They have incoming edges but no outgoing production adoption or selection evidence.", "result": "rejected"}
+      ],
+      "authority": "unresolved"
+    },
+    {
+      "group_id": "ledger-02-mobilization",
+      "canonical_facts": ["The guardian receives or recognizes the warning and commits to respond.", "The scout, two attendants, and tiger form the supporting fantasy cast."],
+      "artifact_classifications": [
+        {"ref": "node-0119", "classification": "unresolved", "reason": "Complete working candidate without approval or direct production joins."},
+        {"ref": "node-0022", "classification": "experiment", "reason": "Initial complete treatment attempt; stale state does not prove supersession."},
+        {"ref": "node-0049", "classification": "experiment", "reason": "Complete comparative treatment with a locally replaced segment but unresolved project-wide authority."},
+        {"ref": "node-0456", "classification": "experiment", "reason": "Explicit replacement branch without approval evidence."}
+      ],
+      "lineage_relationships": [
+        {"relationship": "superseded_within_named_scope", "source_ref": "node-0049", "replacement_ref": "node-0456", "scope": "shots 7-16 inside the composite lineage only", "project_wide": false, "evidence_locators": ["script-catalog.md#explicit-revision-deltas", "production-branch-catalog.json:node-0049.graph.outgoing_refs"]}
+      ],
+      "continuity_authority": {"incoming": {"canonical_facts": ["confirmed threat", "fantasy frontier"], "unresolved": ["authoritative visual and audio implementation"]}, "outgoing": {"canonical_facts": ["cast mobilized", "guardian and tiger committed", "weapon ready"], "unresolved": ["tiger identity", "heroic versus sacrificial framing", "weapon and frontier implementation"]}},
+      "unresolved": ["Black tiger versus natural yellow-and-black tiger.", "Tiger name and stable identity.", "Sacrificial framing versus heroic commitment.", "Direct media-node ownership for the working candidate."],
+      "falsification_tests": [
+        {"proposal": "Promote the natural tiger revision to project-wide canon.", "counterevidence": "The replacement states the change, but no user approval or selected final output establishes project-wide authority.", "result": "rejected"},
+        {"proposal": "Mark the initial treatment globally superseded.", "counterevidence": "The replacement covers only shots 7-17 and belongs to one composite lineage; the initial version remains a complete competing candidate.", "result": "rejected"}
+      ],
+      "authority": "unresolved"
+    },
+    {
+      "group_id": "ledger-03-charge",
+      "canonical_facts": ["The guardian and tiger commit to a charge or battle action.", "The guardian is damaged and the fantasy layer yields to a blackout or reality transition."],
+      "artifact_classifications": [
+        {"ref": "node-0119", "classification": "unresolved", "reason": "Complete working candidate without approval or direct production joins."},
+        {"ref": "node-0049", "classification": "experiment", "reason": "Comparative initial treatment used to establish lineage, not authority for this group."},
+        {"ref": "node-0456", "classification": "experiment", "reason": "Comparative replacement branch without approval evidence."},
+        {"ref": "node-0032", "classification": "experiment", "reason": "First eight-shot battle branch with stale evidence but no selection evidence."},
+        {"ref": "node-0256", "classification": "experiment", "reason": "Second eight-shot battle branch with competing outcome and technical constraints."},
+        {"ref": "node-0247", "classification": "experiment", "reason": "Timed music design downstream of a partial battle branch."},
+        {"ref": "node-0252", "classification": "experiment", "reason": "Second timed music design downstream of a partial battle branch."}
+      ],
+      "continuity_authority": {"incoming": {"canonical_facts": ["guardian and tiger enter the battle sequence"], "unresolved": ["tiger identity", "heroic versus sacrificial framing", "weapon and frontier implementation"]}, "outgoing": {"canonical_facts": ["guardian damaged", "blackout before domestic reality"], "unresolved": ["shown impact versus pre-impact cut", "threat disabled versus deferred outcome", "guardian-tiger spatial handoff"]}},
+      "unresolved": ["Shown impact versus pre-impact cut.", "Threat disabled versus outcome deferred.", "Heroic breach versus sacrificial last stand.", "Tiger design.", "Camera specifications and battle-music timing.", "Rendered image, video, and audio lineage."],
+      "falsification_tests": [
+        {"proposal": "Use shown impact because it appears in the complete 29-shot candidate.", "counterevidence": "An eight-shot battle branch explicitly ends before collision and may represent a duration-specific alternative.", "result": "rejected"},
+        {"proposal": "Use the eight-shot branch because it has downstream music-design consumers.", "counterevidence": "Downstream use proves a production continuation, not approval over the complete candidates.", "result": "rejected"},
+        {"proposal": "Treat stale text as failed or rejected.", "counterevidence": "Stale metadata proves invalidation state only; no rejection reason or authority decision is recorded.", "result": "rejected"}
+      ],
+      "authority": "unresolved"
+    },
+    {
+      "group_id": "ledger-04-reveal",
+      "canonical_facts": ["Warm domestic reality replaces the fantasy layer.", "The guardian, tiger, scout, attendants, and frontier map to household objects or toys.", "The guardian's damage is recognized and reframed as heroic."],
+      "artifact_classifications": [
+        {"ref": "node-0119", "classification": "unresolved", "reason": "Complete working candidate without approval or direct production joins."},
+        {"ref": "node-0250", "classification": "experiment", "reason": "Late-story prose branch without project-wide authority."},
+        {"ref": "node-0255", "classification": "experiment", "reason": "Partial 23-shot branch that contributes to another branch but is not proven replaced."},
+        {"ref": "node-0251", "classification": "experiment", "reason": "Partial 28-shot optimization without approval evidence."},
+        {"ref": "node-0249", "classification": "experiment", "reason": "Ending prompt branch with proven ordered references but unresolved group ownership."},
+        {"ref": "node-0165", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0170", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0205", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0201", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0197", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0214", "classification": "experiment", "reason": "Image revision consumed by comparative branches without selection evidence."}
+      ],
+      "continuity_authority": {"incoming": {"canonical_facts": ["guardian damage", "fantasy-to-reality transition"], "unresolved": ["battle outcome", "tiger identity", "guardian-tiger spatial handoff"]}, "outgoing": {"canonical_facts": ["domestic mapping complete", "damage recognized", "heroism asserted"], "unresolved": ["human visibility policy", "tiger object mapping"]}},
+      "unresolved": ["Identifiable faces versus no-face staging.", "Tiger object design.", "23-shot versus 28-shot late-story structure.", "Whether the six ordered image references belong to the approved reveal.", "Rendered video and audio lineage."],
+      "falsification_tests": [
+        {"proposal": "Approve the no-face rule because it improves generation stability.", "counterevidence": "The rule is explicit only in later branches and conflicts with face-visible complete candidates.", "result": "rejected"},
+        {"proposal": "Approve the six ordered image references because multiple downstream nodes consume them.", "counterevidence": "Order and reuse are proven, but popularity and reuse do not establish selected semantics or group ownership.", "result": "rejected"},
+        {"proposal": "Mark the 23-shot branch globally superseded by the 28-shot branch.", "counterevidence": "The direct optimization relationship is local to a partial late-story lineage and cannot decide the complete-project master.", "result": "rejected"}
+      ],
+      "authority": "unresolved"
+    },
+    {
+      "group_id": "ledger-05-restoration",
+      "canonical_facts": ["The child's repair transforms damage into an honorable mark.", "The guardian is restored to a protective role and the story closes on renewed purpose."],
+      "artifact_classifications": [
+        {"ref": "node-0119", "classification": "unresolved", "reason": "Complete working candidate without approval or direct production joins."},
+        {"ref": "node-0246", "classification": "experiment", "reason": "Eleven-shot ending branch without approval evidence."},
+        {"ref": "node-0248", "classification": "experiment", "reason": "Ending prompt set without selection evidence."},
+        {"ref": "node-0249", "classification": "experiment", "reason": "Ending prompt branch with proven ordered references but unresolved group ownership."},
+        {"ref": "node-0250", "classification": "experiment", "reason": "Late-story prose branch without project-wide authority."},
+        {"ref": "node-0255", "classification": "experiment", "reason": "Partial 23-shot branch that contributes to another branch but is not proven replaced."},
+        {"ref": "node-0251", "classification": "experiment", "reason": "Partial 28-shot optimization without approval evidence."},
+        {"ref": "node-0254", "classification": "experiment", "reason": "Timed ending-music design without rendered or approved mix evidence."},
+        {"ref": "node-0165", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0170", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0205", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0201", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0197", "classification": "experiment", "reason": "Ordered comparative image reference without approved group ownership."},
+        {"ref": "node-0214", "classification": "experiment", "reason": "Image revision consumed by comparative branches without selection evidence."},
+        {"ref": "node-0253", "classification": "unresolved", "reason": "Empty generation artifact whose content cannot be reconstructed."}
+      ],
+      "continuity_authority": {"incoming": {"canonical_facts": ["domestic mapping", "recognized guardian damage", "heroism asserted"], "unresolved": ["human visibility policy", "tiger mapping"]}, "outgoing": {"canonical_facts": ["guardian repaired", "protective purpose renewed", "project close"], "unresolved": ["heart versus star symbol", "ending music timing", "authoritative ending branch"]}},
+      "unresolved": ["Heart versus five-point-star repair symbol.", "Identifiable faces versus no-face staging.", "Ending shot count and prompt set.", "Ending-music duration and final mix.", "The empty generation artifact at node-0253."],
+      "falsification_tests": [
+        {"proposal": "Use the heart because it appears in the complete 29-shot candidate.", "counterevidence": "Later ending branches use a five-point star and no authority record selects the complete candidate.", "result": "rejected"},
+        {"proposal": "Use the star because it appears in later and more production-oriented branches.", "counterevidence": "Later, richer, or more production-ready evidence is not equivalent to approval.", "result": "rejected"},
+        {"proposal": "Approve the ending music design because it is a direct consumer of the eleven-shot ending branch.", "counterevidence": "The edge proves lineage only; duration conflicts and lack of a rendered final mix prevent approval.", "result": "rejected"}
+      ],
+      "authority": "unresolved"
+    }
+  ],
+  "cross_group_continuity": [
+    {"boundary_id": "boundary-01-threat-to-mobilization", "evidence_locators": ["script-ledger-index.json:boundary-01-threat-to-mobilization", "ledgers/ledger-01-threat.json:continuity", "ledgers/ledger-02-mobilization.json:continuity"], "canonical_facts": ["The approaching threat persists across the handoff."], "unresolved": ["authoritative guardian handoff implementation", "binding machine motif"]},
+    {"boundary_id": "boundary-02-mobilization-to-charge", "evidence_locators": ["script-ledger-index.json:boundary-02-mobilization-to-charge", "ledgers/ledger-02-mobilization.json:continuity", "ledgers/ledger-03-charge.json:continuity"], "canonical_facts": ["The committed guardian and tiger enter the battle sequence."], "unresolved": ["tiger identity", "heroic versus sacrificial framing", "weapon and frontier implementation"]},
+    {"boundary_id": "boundary-03-charge-to-reveal", "evidence_locators": ["script-ledger-index.json:boundary-03-charge-to-reveal", "ledgers/ledger-03-charge.json:continuity", "ledgers/ledger-04-reveal.json:continuity"], "canonical_facts": ["Guardian damage and a fantasy-to-reality transition are required."], "unresolved": ["shown impact versus pre-impact cut", "threat state", "guardian-tiger spatial handoff"]},
+    {"boundary_id": "boundary-04-reveal-to-restoration", "evidence_locators": ["script-ledger-index.json:boundary-04-reveal-to-restoration", "ledgers/ledger-04-reveal.json:continuity", "ledgers/ledger-05-restoration.json:continuity"], "canonical_facts": ["Domestic mapping and recognized damage precede repair."], "unresolved": ["human visibility policy", "repair symbol setup", "ending audio timing"]}
+  ],
+  "decision_summary": {
+    "group_count": 5,
+    "groups_with_canonical_facts": 5,
+    "approved_reference_count": 0,
+    "acceptable_alternative_count": 0,
+    "local_supersession_records": 1,
+    "global_supersession_count": 0,
+    "groups_with_unresolved_authority": 5,
+    "human_decision_document": "unresolved-evidence.md"
+  }
+}
