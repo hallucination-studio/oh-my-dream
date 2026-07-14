@@ -1,6 +1,8 @@
 use serde::Serialize;
 
-use crate::assistant_operations::{ApprovedEffect, OperationEffect, RequestContext};
+use crate::assistant_operations::{
+    ApprovedEffect, OperationDispatchError, OperationEffect, RequestContext,
+};
 use crate::assistant_transport::{AssistantFrame, AssistantFrameKind};
 
 use super::AssistantRuntime;
@@ -39,13 +41,15 @@ pub(super) async fn dispatch_tool(
         trusted.selected_node_ids.clone(),
         trusted.selected_asset_ids.clone(),
     );
-    let output = registration.dispatch(&context, input).await?;
-    let output_json = serde_json::to_string(&output).map_err(|source| {
-        AssistantRuntimeError::OutputSerialization {
-            operation_id: request.operation_id.clone(),
-            source,
-        }
-    })?;
+    let output_json = match registration.dispatch(&context, input).await {
+        Ok(output) => serde_json::to_string(&output).map_err(|source| {
+            AssistantRuntimeError::OutputSerialization {
+                operation_id: request.operation_id.clone(),
+                source,
+            }
+        })?,
+        Err(error) => recoverable_tool_error(error)?,
+    };
     let response = ToolResponsePayload {
         invocation_id: &invocation.invocation_id,
         call_id: &request.call_id,
@@ -58,6 +62,40 @@ pub(super) async fn dispatch_tool(
         call_id: request.call_id,
         arguments_json: request.arguments_json,
         output_json,
+    })
+}
+
+fn recoverable_tool_error(error: OperationDispatchError) -> Result<String, AssistantRuntimeError> {
+    let (code, message, details) = match error {
+        OperationDispatchError::SchemaValidation { violations, .. } => (
+            "TOOL_SCHEMA_VALIDATION".to_owned(),
+            "tool input failed schema validation".to_owned(),
+            Some(serde_json::json!(
+                violations
+                    .iter()
+                    .map(|item| serde_json::json!({
+                        "instance_path": item.instance_path,
+                        "schema_path": item.schema_path,
+                        "message": item.message,
+                    }))
+                    .collect::<Vec<_>>()
+            )),
+        ),
+        OperationDispatchError::InvalidInput { message, .. } => {
+            ("TOOL_INVALID_INPUT".to_owned(), message, None)
+        }
+        OperationDispatchError::Handler { source, .. } => {
+            (source.code().to_owned(), source.message().to_owned(), None)
+        }
+        internal => return Err(AssistantRuntimeError::Operation(internal)),
+    };
+    serde_json::to_string(&serde_json::json!({
+        "ok": false,
+        "error": { "code": code, "message": message, "details": details },
+    }))
+    .map_err(|source| AssistantRuntimeError::OutputSerialization {
+        operation_id: "tool_error".to_owned(),
+        source,
     })
 }
 
