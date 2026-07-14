@@ -129,12 +129,12 @@ fn add_node(
     if let Some(position) = spec.position {
         validate_position(position, index, "/position")?;
     }
-    let normalized =
+    let (type_id, normalized) =
         normalize_for_reference(registry, spec.capability, spec.params, index, "/params")?;
     let node_id = generated_node_id(workflow);
     workflow.nodes.push(WorkflowNode {
         id: node_id.clone(),
-        type_id: spec.capability.id.clone(),
+        type_id,
         contract_version: spec.capability.version.clone(),
         params: normalized,
         inputs: BTreeMap::new(),
@@ -230,18 +230,15 @@ pub(super) fn normalize_workflow(
     mut workflow: Workflow,
 ) -> Result<Workflow, WorkflowPatchError> {
     for (index, node) in workflow.nodes.iter_mut().enumerate() {
-        let reference = CapabilityRef::new(&node.type_id, &node.contract_version);
         let pointer = format!("/nodes/{index}/params");
-        let registration = registry.capability(&reference).map_err(|error| {
+        *node = registry.normalize_workflow_node(node).map_err(|error| {
+            let diagnostic = super::engine_diagnostic(error, &pointer);
             WorkflowPatchError::new(
-                "CAPABILITY_VERSION_UNAVAILABLE",
-                &pointer,
-                error.to_string(),
+                diagnostic.code,
+                diagnostic.pointer,
+                diagnostic.constraint,
                 None,
             )
-        })?;
-        node.params = registration.normalize_params(&node.params).map_err(|error| {
-            WorkflowPatchError::new("CAPABILITY_PARAMS_INVALID", &pointer, error.to_string(), None)
         })?;
     }
     Ok(workflow)
@@ -254,8 +251,25 @@ fn normalize_params(
     index: usize,
     pointer: &str,
 ) -> Result<NodeParams, WorkflowPatchError> {
-    let reference = CapabilityRef::new(&node.type_id, &node.contract_version);
-    normalize_for_reference(registry, &reference, params, index, pointer)
+    let registration = registry
+        .workflow_capability(
+            &node.id,
+            &node.type_id,
+            &node.contract_version,
+            params,
+        )
+        .map_err(|error| {
+            let diagnostic = super::engine_diagnostic(error, pointer);
+            indexed_error(
+                diagnostic.code,
+                pointer,
+                diagnostic.constraint,
+                index,
+            )
+        })?;
+    registration.normalize_params(params).map_err(|error| {
+        indexed_error("CAPABILITY_PARAMS_INVALID", pointer, error.to_string(), index)
+    })
 }
 
 fn normalize_for_reference(
@@ -264,13 +278,25 @@ fn normalize_for_reference(
     params: &NodeParams,
     index: usize,
     pointer: &str,
-) -> Result<NodeParams, WorkflowPatchError> {
+) -> Result<(String, NodeParams), WorkflowPatchError> {
     let registration = registry.capability(reference).map_err(|error| {
         indexed_error("CAPABILITY_VERSION_UNAVAILABLE", pointer, error.to_string(), index)
     })?;
-    registration.normalize_params(params).map_err(|error| {
+    let type_id = registration
+        .selector()
+        .map(|selector| selector.type_id.clone())
+        .ok_or_else(|| {
+            indexed_error(
+                "CAPABILITY_SELECTOR_UNAVAILABLE",
+                pointer,
+                "exact capability does not declare a Workflow selector",
+                index,
+            )
+        })?;
+    let params = registration.normalize_params(params).map_err(|error| {
         indexed_error("CAPABILITY_PARAMS_INVALID", pointer, error.to_string(), index)
-    })
+    })?;
+    Ok((type_id, params))
 }
 
 fn resolve_node(

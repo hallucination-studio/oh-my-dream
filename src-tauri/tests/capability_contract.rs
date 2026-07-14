@@ -33,6 +33,7 @@ fn capability_catalog_keeps_contract_presentation_and_status_independent() {
         vec![
             ("ImageToVideo", "1.0"),
             ("TextPrompt", "1.0"),
+            ("TextToAudio", "1.0"),
             ("TextToImage", "1.0"),
             ("VideoConcat", "1.0"),
         ]

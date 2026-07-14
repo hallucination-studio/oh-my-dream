@@ -6,6 +6,7 @@ use crate::capability::{
     CapabilitySelector,
 };
 use crate::error::EngineError;
+use crate::graph::WorkflowNode;
 use crate::node::Node;
 use std::collections::HashMap;
 
@@ -53,17 +54,7 @@ impl NodeRegistry {
                 source,
             });
         }
-        let reference = params
-            .get("mode")
-            .and_then(serde_json::Value::as_str)
-            .and_then(|mode| {
-                self.capabilities
-                    .current_for_selector(&CapabilitySelector::new(type_id, mode))
-            })
-            .ok_or_else(|| EngineError::UnknownNodeType {
-                node_id: node_id.to_owned(),
-                type_id: type_id.to_owned(),
-            })?;
+        let reference = self.current_selector_reference(node_id, type_id, params)?;
         self.instantiate_capability(node_id, &reference, params)
     }
 
@@ -112,17 +103,88 @@ impl NodeRegistry {
         contract_version: &str,
         params: &NodeParams,
     ) -> Result<Box<dyn Node>, EngineError> {
-        if !self.capabilities.contains_id(type_id) {
+        if !self.capabilities.contains_id(type_id)
+            && !self.capabilities.contains_selector_type(type_id)
+        {
             return self.instantiate(node_id, type_id, params);
         }
-        let reference = CapabilityRef::new(type_id, contract_version);
+        let reference = self.workflow_capability_reference(
+            node_id,
+            type_id,
+            contract_version,
+            params,
+        )?;
         self.instantiate_capability(node_id, &reference, params)
+    }
+
+    /// Resolves the exact registration selected by one persisted Workflow node.
+    pub fn workflow_capability(
+        &self,
+        node_id: &str,
+        type_id: &str,
+        contract_version: &str,
+        params: &NodeParams,
+    ) -> Result<&CapabilityRegistration, EngineError> {
+        let reference = self.workflow_capability_reference(
+            node_id,
+            type_id,
+            contract_version,
+            params,
+        )?;
+        self.capabilities.resolve(&reference).map_err(|_| {
+            EngineError::UnknownCapabilityVersion {
+                node_id: node_id.to_owned(),
+                type_id: reference.id,
+                contract_version: reference.version,
+            }
+        })
+    }
+
+    /// Normalizes and rewrites one legacy or canonical Workflow capability node.
+    pub fn normalize_workflow_node(
+        &self,
+        node: &WorkflowNode,
+    ) -> Result<WorkflowNode, EngineError> {
+        if self.factories.contains_key(&node.type_id)
+            && !self.capabilities.contains_id(&node.type_id)
+        {
+            return Ok(node.clone());
+        }
+        let registration = self.workflow_capability(
+            &node.id,
+            &node.type_id,
+            &node.contract_version,
+            &node.params,
+        )?;
+        let params = registration.normalize_params(&node.params).map_err(|source| {
+            EngineError::InvalidCapabilityParams {
+                node_id: node.id.clone(),
+                type_id: registration.reference().id.clone(),
+                contract_version: registration.reference().version.clone(),
+                source,
+            }
+        })?;
+        let mut normalized = node.clone();
+        normalized.params = params;
+        if let Some(selector) = registration.selector() {
+            normalized.type_id = selector.type_id.clone();
+        }
+        Ok(normalized)
     }
 
     /// Returns whether a `type_id` is registered.
     #[must_use]
     pub fn contains(&self, type_id: &str) -> bool {
-        self.factories.contains_key(type_id) || self.capabilities.contains_id(type_id)
+        self.factories.contains_key(type_id)
+            || self.capabilities.contains_id(type_id)
+            || self.capabilities.contains_selector_type(type_id)
+    }
+
+    /// Returns whether an exact id or output modality belongs to a capability registration.
+    #[must_use]
+    pub fn contains_capability_type(&self, type_id: &str) -> bool {
+        self.capabilities.contains_id(type_id)
+            || self.capabilities.contains_selector_type(type_id)
     }
 
     /// Returns registered node type ids in stable lexical order.
@@ -168,6 +230,56 @@ impl NodeRegistry {
             })?;
         validate_contract_ports(registration.contract(), node.as_ref())?;
         Ok(node)
+    }
+
+    fn workflow_capability_reference(
+        &self,
+        node_id: &str,
+        type_id: &str,
+        contract_version: &str,
+        params: &NodeParams,
+    ) -> Result<CapabilityRef, EngineError> {
+        if self.capabilities.contains_id(type_id) {
+            return Ok(CapabilityRef::new(type_id, contract_version));
+        }
+        if !self.capabilities.contains_selector_type(type_id) {
+            return Err(EngineError::UnknownCapabilityVersion {
+                node_id: node_id.to_owned(),
+                type_id: type_id.to_owned(),
+                contract_version: contract_version.to_owned(),
+            });
+        }
+        let current = self.current_selector_reference(node_id, type_id, params)?;
+        Ok(CapabilityRef::new(current.id, contract_version))
+    }
+
+    fn current_selector_reference(
+        &self,
+        node_id: &str,
+        type_id: &str,
+        params: &NodeParams,
+    ) -> Result<CapabilityRef, EngineError> {
+        if !self.capabilities.contains_selector_type(type_id) {
+            return Err(EngineError::UnknownNodeType {
+                node_id: node_id.to_owned(),
+                type_id: type_id.to_owned(),
+            });
+        }
+        let mode = params.get("mode").and_then(serde_json::Value::as_str).ok_or_else(|| {
+            EngineError::InvalidCapabilitySelector {
+                node_id: node_id.to_owned(),
+                type_id: type_id.to_owned(),
+                reason: "params.mode must be a string".to_owned(),
+            }
+        })?;
+        let selector = CapabilitySelector::new(type_id, mode);
+        self.capabilities.current_for_selector(&selector).ok_or_else(|| {
+            EngineError::InvalidCapabilitySelector {
+                node_id: node_id.to_owned(),
+                type_id: type_id.to_owned(),
+                reason: format!("unknown mode `{mode}`"),
+            }
+        })
     }
 }
 

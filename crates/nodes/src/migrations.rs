@@ -41,42 +41,60 @@ pub fn resolve_workflow_node(
     registry: &NodeRegistry,
     node: &WorkflowNode,
 ) -> CapabilityNodeResolution {
-    let reference = CapabilityRef::new(node.type_id.clone(), node.contract_version.clone());
-    if let Ok(registration) = registry.capability(&reference) {
-        return match registration.normalize_params(&node.params) {
-            Ok(params) => {
-                let mut normalized = node.clone();
-                normalized.params = params;
-                CapabilityNodeResolution { node: normalized, status: CapabilityNodeStatus::Ready }
-            }
-            Err(source) => CapabilityNodeResolution {
+    let persisted = CapabilityRef::new(node.type_id.clone(), node.contract_version.clone());
+    if !registry.contains_capability_type(&node.type_id) {
+        if registry.contains(&node.type_id) {
+            return CapabilityNodeResolution {
                 node: node.clone(),
-                status: CapabilityNodeStatus::Degraded(DegradedCapabilityReason::InvalidParams {
-                    message: source.to_string(),
-                }),
-            },
-        };
-    }
-
-    if registry.capability_refs().into_iter().any(|candidate| candidate.id == reference.id) {
+                status: CapabilityNodeStatus::Legacy,
+            };
+        }
         return CapabilityNodeResolution {
             node: node.clone(),
-            status: CapabilityNodeStatus::Degraded(DegradedCapabilityReason::MissingExactVersion {
-                reference,
+            status: CapabilityNodeStatus::Degraded(DegradedCapabilityReason::UnknownCapability {
+                reference: persisted,
             }),
         };
     }
-    if registry.contains(&reference.id) {
-        return CapabilityNodeResolution {
+
+    match registry.normalize_workflow_node(node) {
+        Ok(normalized) => {
+            CapabilityNodeResolution { node: normalized, status: CapabilityNodeStatus::Ready }
+        }
+        Err(engine::EngineError::UnknownCapabilityVersion {
+            type_id,
+            contract_version,
+            ..
+        }) => CapabilityNodeResolution {
             node: node.clone(),
-            status: CapabilityNodeStatus::Legacy,
-        };
-    }
-    CapabilityNodeResolution {
-        node: node.clone(),
-        status: CapabilityNodeStatus::Degraded(DegradedCapabilityReason::UnknownCapability {
-            reference,
-        }),
+            status: CapabilityNodeStatus::Degraded(
+                DegradedCapabilityReason::MissingExactVersion {
+                    reference: CapabilityRef::new(type_id, contract_version),
+                },
+            ),
+        },
+        Err(engine::EngineError::InvalidCapabilityParams { source, .. }) => {
+            CapabilityNodeResolution {
+                node: node.clone(),
+                status: CapabilityNodeStatus::Degraded(
+                    DegradedCapabilityReason::InvalidParams { message: source.to_string() },
+                ),
+            }
+        }
+        Err(engine::EngineError::InvalidCapabilitySelector { reason, .. }) => {
+            CapabilityNodeResolution {
+                node: node.clone(),
+                status: CapabilityNodeStatus::Degraded(
+                    DegradedCapabilityReason::InvalidParams { message: reason },
+                ),
+            }
+        }
+        Err(_) => CapabilityNodeResolution {
+            node: node.clone(),
+            status: CapabilityNodeStatus::Degraded(DegradedCapabilityReason::UnknownCapability {
+                reference: CapabilityRef::new(node.type_id.clone(), node.contract_version.clone()),
+            }),
+        },
     }
 }
 

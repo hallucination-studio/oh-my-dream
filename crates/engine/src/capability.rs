@@ -298,6 +298,12 @@ impl CapabilityRegistry {
         self.current_selectors.get(selector).cloned()
     }
 
+    /// Returns whether any selector is registered under an output modality.
+    #[must_use]
+    pub fn contains_selector_type(&self, type_id: &str) -> bool {
+        self.selector_ids.keys().any(|selector| selector.type_id == type_id)
+    }
+
     /// Returns whether any exact version exists for an id.
     #[must_use]
     pub fn contains_id(&self, id: &str) -> bool {

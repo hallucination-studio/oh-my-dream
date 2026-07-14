@@ -28,6 +28,10 @@ pub enum EngineError {
     #[error("unknown capability `{type_id}` version `{contract_version}` for node `{node_id}`")]
     UnknownCapabilityVersion { node_id: String, type_id: String, contract_version: String },
 
+    /// A modality node omitted an applicable selector mode or named an unknown one.
+    #[error("invalid capability selector for node `{node_id}` type `{type_id}`: {reason}")]
+    InvalidCapabilitySelector { node_id: String, type_id: String, reason: String },
+
     /// A capability's normalized params could not be decoded or validated.
     #[error(
         "invalid params for capability `{type_id}` version `{contract_version}` on node `{node_id}`"

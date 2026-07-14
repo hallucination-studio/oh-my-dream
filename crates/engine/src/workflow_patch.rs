@@ -137,7 +137,7 @@ pub fn apply_workflow_patch(
     patch: &WorkflowPatch,
 ) -> Result<WorkflowPatchResult, WorkflowPatchError> {
     check_patch_size(patch)?;
-    let mut candidate = workflow.clone();
+    let mut candidate = normalize_workflow(registry, workflow.clone())?;
     let mut aliases = BTreeMap::new();
     for (index, operation) in patch.operations.iter().enumerate() {
         apply_operation(registry, &mut candidate, &mut aliases, operation, index)?;
@@ -228,6 +228,9 @@ fn engine_diagnostic(error: EngineError, pointer: &str) -> WorkflowDiagnostic {
         ),
         EngineError::InvalidCapabilityParams { source, .. } => {
             ("CAPABILITY_PARAMS_INVALID", source.to_string())
+        }
+        EngineError::InvalidCapabilitySelector { reason, .. } => {
+            ("CAPABILITY_PARAMS_INVALID", reason)
         }
         EngineError::CapabilityContractMismatch { message, .. } => {
             ("CAPABILITY_CONTRACT_INVALID", message)

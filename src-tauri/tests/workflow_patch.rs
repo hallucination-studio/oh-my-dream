@@ -59,7 +59,8 @@ fn workflow_apply_patch_creates_one_revision_and_one_undo_unit() {
     assert_eq!(head.revision, 1);
     assert!(output.changed);
     assert_eq!(output.aliases[0].alias, "prompt");
-    assert_eq!(head.workflow["nodes"][0]["type"], "TextPrompt");
+    assert_eq!(head.workflow["nodes"][0]["type"], "Text");
+    assert_eq!(head.workflow["nodes"][0]["params"]["mode"], "literal");
     assert_eq!(head.workflow["nodes"][0]["position"], json!([10.0, 20.0]));
 }
 
