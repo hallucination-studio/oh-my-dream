@@ -85,16 +85,18 @@ fn operation_registrations(state: &AppState) -> Result<Vec<OperationRegistration
     let snapshot = Arc::new(WorkspaceSnapshotService::from_state(state))
         .operation_registration()
         .map_err(|error| error.to_string())?;
-    let patch = Arc::new(WorkflowPatchService::from_state(state))
-        .operation_registration()
-        .map_err(|error| error.to_string())?;
+    let patch_service = Arc::new(WorkflowPatchService::from_state(state));
+    let patch =
+        Arc::clone(&patch_service).operation_registration().map_err(|error| error.to_string())?;
+    let evaluate =
+        patch_service.evaluation_operation_registration().map_err(|error| error.to_string())?;
     let discovery = Arc::new(CapabilityDiscovery::from_state(state))
         .operation_registrations()
         .map_err(|error| error.to_string())?;
     let plan = ProductionPlanOperations::new(Arc::clone(&state.production_plan))
         .registrations()
         .map_err(|error| error.to_string())?;
-    let mut registrations = vec![snapshot, patch];
+    let mut registrations = vec![snapshot, patch, evaluate];
     registrations.extend(discovery);
     registrations.extend(plan);
     Ok(registrations)
@@ -273,6 +275,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for expected in [
+            "workflow_evaluate_patch",
             "production_plan_get",
             "production_plan_create",
             "production_plan_replace",

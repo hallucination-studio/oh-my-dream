@@ -1,6 +1,6 @@
 //! Closed model-facing JSON Schemas for Workflow patch input and output.
 
-use super::{WorkflowApplyPatchInput, WorkflowApplyPatchOutput};
+use super::{WorkflowApplyPatchInput, WorkflowApplyPatchOutput, WorkflowEvaluatePatchOutput};
 use schemars::{JsonSchema, r#gen::SchemaGenerator, schema::Schema};
 use serde_json::{Value, json};
 
@@ -69,6 +69,49 @@ impl JsonSchema for WorkflowApplyPatchOutput {
                 "changed": { "type": "boolean" },
                 "deduplicated": { "type": "boolean" },
                 "undo_id": { "type": ["string", "null"] }
+            },
+            "additionalProperties": false
+        }))
+    }
+}
+
+impl JsonSchema for WorkflowEvaluatePatchOutput {
+    fn schema_name() -> String {
+        "WorkflowEvaluatePatchOutput".to_owned()
+    }
+
+    fn json_schema(_generator: &mut SchemaGenerator) -> Schema {
+        static_schema(json!({
+            "type": "object",
+            "required": ["base_revision", "workflow", "aliases", "readiness_blockers"],
+            "properties": {
+                "base_revision": { "type": ["integer", "null"], "minimum": 0 },
+                "workflow": { "type": "object" },
+                "aliases": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["alias", "node_id"],
+                        "properties": {
+                            "alias": { "type": "string" },
+                            "node_id": { "type": "string" }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "readiness_blockers": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["code", "pointer", "constraint"],
+                        "properties": {
+                            "code": { "type": "string" },
+                            "pointer": { "type": "string" },
+                            "constraint": { "type": "string" }
+                        },
+                        "additionalProperties": false
+                    }
+                }
             },
             "additionalProperties": false
         }))

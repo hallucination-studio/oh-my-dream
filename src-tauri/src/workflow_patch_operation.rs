@@ -18,7 +18,8 @@ use std::sync::Arc;
 use thiserror::Error;
 
 mod schema;
-
+#[cfg(test)]
+mod tests;
 /// Model-controlled input for `workflow_apply_patch`.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -29,7 +30,6 @@ pub struct WorkflowApplyPatchInput {
     /// Ordered closed mutation operations.
     pub operations: Vec<WorkflowPatchOperation>,
 }
-
 /// Alias resolution returned with one canonical patch acknowledgement.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -56,6 +56,20 @@ pub struct WorkflowApplyPatchOutput {
     pub deduplicated: bool,
     /// One undo unit for a changed head.
     pub undo_id: Option<String>,
+}
+
+/// Non-persisted result of evaluating one patch against the canonical head.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkflowEvaluatePatchOutput {
+    /// Canonical revision used as the evaluation base.
+    pub base_revision: Option<u64>,
+    /// Normalized in-memory Workflow produced by the engine.
+    pub workflow: Workflow,
+    /// Patch-local aliases resolved during evaluation.
+    pub aliases: Vec<WorkflowAliasDto>,
+    /// Engine-owned execution-readiness findings.
+    pub readiness_blockers: Vec<WorkflowReadinessBlocker>,
 }
 
 /// Structured failure returned by the patch boundary.
@@ -164,6 +178,36 @@ impl WorkflowPatchService {
         to_output(committed, result)
     }
 
+    /// Evaluates a patch with engine semantics without mutating Workflow authority.
+    pub fn evaluate(
+        &self,
+        context: &RequestContext,
+        input: WorkflowApplyPatchInput,
+    ) -> Result<WorkflowEvaluatePatchOutput, WorkflowApplyPatchError> {
+        self.ensure_project(context.project_id(), None)?;
+        let current = self
+            .authority
+            .load_head(context.project_id())
+            .map_err(|error| authority_error(error, None))?;
+        let current_revision = current.as_ref().map(|head| head.revision);
+        if input.expected_revision != current_revision {
+            return Err(WorkflowApplyPatchError::new(
+                "WORKFLOW_REVISION_CONFLICT",
+                "/expected_revision",
+                None,
+                format!("expected {:?}, current {current_revision:?}", input.expected_revision),
+                current_revision,
+            ));
+        }
+        let base = current
+            .map(|head| head.workflow)
+            .unwrap_or_else(|| empty_workflow(context.project_id()));
+        let patch = WorkflowPatch { operations: input.operations };
+        let result = apply_workflow_patch(&self.registry, &base, &patch)
+            .map_err(|error| patch_error(error, current_revision))?;
+        Ok(evaluation_output(current_revision, result))
+    }
+
     /// Builds the sole registered model-facing Workflow mutation operation.
     pub fn operation_registration(
         self: Arc<Self>,
@@ -184,6 +228,30 @@ impl WorkflowPatchService {
                 let context = context.clone();
                 let service = Arc::clone(&service);
                 async move { service.apply(&context, input).map_err(to_handler_error) }
+            },
+        )
+    }
+
+    /// Builds the model-facing non-mutating Workflow evaluation operation.
+    pub fn evaluation_operation_registration(
+        self: Arc<Self>,
+    ) -> Result<OperationRegistration, OperationRegistrationError> {
+        let service = Arc::clone(&self);
+        OperationRegistration::new_with_output_mode::<
+            WorkflowApplyPatchInput,
+            WorkflowEvaluatePatchOutput,
+            _,
+        >(
+            "workflow_evaluate_patch",
+            1,
+            "Evaluate one bounded Workflow patch without changing canonical state.",
+            OperationEffect::LocalRead,
+            OperationInputSchemaMode::WorkflowPatchParamsOpen,
+            OperationOutputSchemaMode::WorkflowDocument,
+            move |context: &RequestContext, input: WorkflowApplyPatchInput| {
+                let context = context.clone();
+                let service = Arc::clone(&service);
+                async move { service.evaluate(&context, input).map_err(to_handler_error) }
             },
         )
     }
@@ -211,6 +279,22 @@ impl WorkflowPatchService {
                 current_revision,
             )
         })
+    }
+}
+
+fn evaluation_output(
+    base_revision: Option<u64>,
+    result: WorkflowPatchResult,
+) -> WorkflowEvaluatePatchOutput {
+    WorkflowEvaluatePatchOutput {
+        base_revision,
+        workflow: result.workflow,
+        aliases: result
+            .aliases
+            .into_iter()
+            .map(|(alias, node_id)| WorkflowAliasDto { alias, node_id })
+            .collect(),
+        readiness_blockers: result.readiness_blockers,
     }
 }
 
@@ -313,63 +397,4 @@ fn request_hash(
         hash = hash.wrapping_mul(0x100000001b3);
     }
     Ok(format!("fnv1a:{hash:016x}"))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::state::AppState;
-    use engine::{CapabilityRef, NodeParams, WorkflowPatchOperation};
-    use schemars::r#gen::SchemaGenerator;
-    use serde_json::json;
-    use tempfile::tempdir;
-
-    fn context(request_id: &str) -> RequestContext {
-        RequestContext::new("project", "session", request_id, 1, None)
-    }
-
-    #[test]
-    fn operation_input_schema_closes_envelope_and_opens_only_params() {
-        let schema = WorkflowApplyPatchInput::json_schema(&mut SchemaGenerator::default());
-        let value = serde_json::to_value(schema).expect("serialize patch schema");
-        assert_eq!(value["additionalProperties"], json!(false));
-        assert_eq!(
-            value["properties"]["operations"]["items"]["oneOf"][0]["properties"]["params"]["additionalProperties"],
-            json!(true)
-        );
-    }
-
-    #[test]
-    fn request_hash_is_stable_for_the_same_typed_patch() {
-        let patch = WorkflowPatch {
-            operations: vec![WorkflowPatchOperation::RemoveNode {
-                node: engine::NodeRef::Id { id: "n1".to_owned() },
-            }],
-        };
-        assert_eq!(
-            request_hash(Some(1), &patch).expect("hash"),
-            request_hash(Some(1), &patch).expect("hash")
-        );
-    }
-
-    #[test]
-    fn service_requires_a_real_project_before_mutating_authority() {
-        let root = tempdir().expect("asset root");
-        let state = AppState::from_asset_root(root.path()).expect("app state");
-        let service = WorkflowPatchService::from_state(&state);
-        let error = service
-            .apply(
-                &context("missing"),
-                WorkflowApplyPatchInput { expected_revision: None, operations: Vec::new() },
-            )
-            .expect_err("unknown project must fail");
-        assert_eq!(error.code, "PROJECT_NOT_FOUND");
-    }
-
-    #[test]
-    fn exact_capability_ref_is_used_by_the_boundary() {
-        let reference = CapabilityRef::new("TextPrompt", "1.0");
-        assert_eq!(reference.version, "1.0");
-        let _params = NodeParams::new();
-    }
 }

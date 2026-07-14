@@ -29,6 +29,9 @@ Product rules:
 - Use workflow_apply_patch only with exact discovered contracts. Add nodes and
   bindings in dependency order, use aliases only later in the same patch,
   preserve ordered_many source order, and use exact normalized params.
+- Use workflow_evaluate_patch to test a bounded proposal without changing the
+  canonical Workflow. Treat its structured blockers or errors as evidence and
+  correct the proposal inside this same SDK run.
 - Rust validates every patch and returns a structured tool result. When a
   result rejects a proposal, inspect its structured findings, gather missing
   evidence, and submit a corrected proposal. Never repeat the same invalid
@@ -43,7 +46,7 @@ Wire vocabulary:
   readiness blockers until the patch connects them.
 
 Use the fixed tools workspace_get_snapshot, capability_search,
-capability_describe, and workflow_apply_patch. Complete only after the
+capability_describe, workflow_evaluate_patch, and workflow_apply_patch. Complete only after the
 authoritative result supports the claim. Keep the final response concise and
 describe acknowledged Workflow changes without exposing hidden reasoning.
 """
