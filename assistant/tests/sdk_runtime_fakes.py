@@ -147,6 +147,93 @@ class DeterministicToolModel(Model):
         )
 
 
+class MultiStepToolModel(Model):
+    """Request one tool step per model turn, then finish."""
+
+    def __init__(self, steps: list[str]) -> None:
+        self.steps = steps
+        self.model_calls = 0
+        self.requested_steps: list[str] = []
+
+    async def get_response(
+        self,
+        system_instructions: str | None,
+        input: str | list[TResponseInputItem],
+        model_settings: ModelSettings,
+        tools: list[Tool],
+        output_schema: AgentOutputSchemaBase | None,
+        handoffs: list[Handoff],
+        tracing: ModelTracing,
+        *,
+        previous_response_id: str | None,
+        conversation_id: str | None,
+        prompt: ResponsePromptParam | None,
+    ) -> ModelResponse:
+        raise AssertionError("streamed runs must use stream_response")
+
+    async def stream_response(
+        self,
+        system_instructions: str | None,
+        input: str | list[TResponseInputItem],
+        model_settings: ModelSettings,
+        tools: list[Tool],
+        output_schema: AgentOutputSchemaBase | None,
+        handoffs: list[Handoff],
+        tracing: ModelTracing,
+        *,
+        previous_response_id: str | None,
+        conversation_id: str | None,
+        prompt: ResponsePromptParam | None,
+    ) -> AsyncIterator[ResponseStreamEvent]:
+        self.model_calls += 1
+        completed_steps = 0
+        if isinstance(input, list):
+            completed_steps = sum(
+                (
+                    item.get("type")
+                    if isinstance(item, dict)
+                    else getattr(item, "type", None)
+                )
+                == "function_call_output"
+                for item in input
+            )
+        if completed_steps < len(self.steps):
+            step = self.steps[completed_steps]
+            self.requested_steps.append(step)
+            output: list[Any] = [
+                ResponseFunctionToolCall(
+                    arguments=f'{{"value":"{step}"}}',
+                    call_id=f"call-{completed_steps + 1}",
+                    name="echo_value",
+                    type="function_call",
+                    status="completed",
+                )
+            ]
+            response_id = f"response-tool-{completed_steps + 1}"
+        else:
+            output = [
+                ResponseOutputMessage(
+                    id="message-production-complete",
+                    content=[
+                        ResponseOutputText(
+                            annotations=[],
+                            text="production turn complete",
+                            type="output_text",
+                        )
+                    ],
+                    role="assistant",
+                    status="completed",
+                    type="message",
+                )
+            ]
+            response_id = "response-production-complete"
+        yield ResponseCompletedEvent(
+            response=_response(output, response_id),
+            sequence_number=0,
+            type="response.completed",
+        )
+
+
 class RecordingFinalModel(Model):
     def __init__(self) -> None:
         self.inputs: list[str | list[TResponseInputItem]] = []
