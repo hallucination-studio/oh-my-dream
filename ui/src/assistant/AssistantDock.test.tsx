@@ -137,7 +137,7 @@ describe("AssistantDock", () => {
 
     await waitFor(() =>
       expect(decideAssistantApproval).toHaveBeenCalledWith(
-        { project_id: "project-1", approved: true },
+        { project_id: "project-1", candidate_digest: "sha256:candidate", approved: true },
         expect.any(Function),
       ),
     );

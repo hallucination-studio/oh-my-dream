@@ -248,6 +248,7 @@ export interface AssistantSendInput {
 
 export interface AssistantApprovalDecisionInput {
   project_id: string;
+  candidate_digest: string;
   approved: boolean;
 }
 

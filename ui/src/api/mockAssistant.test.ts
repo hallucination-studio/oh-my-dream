@@ -24,17 +24,36 @@ beforeEach(() => primeMockAssistantApproval(null));
 it.each([true, false])("clears a pending approval after decision %s", async (approved) => {
   primeMockAssistantApproval(APPROVAL);
   const onEvent = vi.fn();
-  await decideAssistantApproval({ project_id: "project-1", approved }, onEvent);
+  await decideAssistantApproval(
+    { project_id: "project-1", candidate_digest: "sha256:candidate", approved },
+    onEvent,
+  );
   await expect(getPendingAssistantApproval()).resolves.toBeNull();
   expect(onEvent).toHaveBeenCalledWith({ type: "response.completed" });
 });
 
 it("rejects missing and cross-project pending approvals", async () => {
   await expect(
-    decideAssistantApproval({ project_id: "project-1", approved: true }, vi.fn()),
+    decideAssistantApproval(
+      { project_id: "project-1", candidate_digest: "sha256:candidate", approved: true },
+      vi.fn(),
+    ),
   ).rejects.toThrow("ASSISTANT_APPROVAL_NOT_FOUND");
   primeMockAssistantApproval(APPROVAL);
   await expect(
-    decideAssistantApproval({ project_id: "project-2", approved: true }, vi.fn()),
+    decideAssistantApproval(
+      { project_id: "project-2", candidate_digest: "sha256:candidate", approved: true },
+      vi.fn(),
+    ),
   ).rejects.toThrow("ASSISTANT_APPROVAL_SCOPE_MISMATCH");
+});
+
+it("rejects a decision for a replaced candidate", async () => {
+  primeMockAssistantApproval(APPROVAL);
+  await expect(
+    decideAssistantApproval(
+      { project_id: "project-1", candidate_digest: "sha256:stale", approved: true },
+      vi.fn(),
+    ),
+  ).rejects.toThrow("ASSISTANT_APPROVAL_STALE");
 });

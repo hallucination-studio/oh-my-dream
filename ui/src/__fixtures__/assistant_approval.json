@@ -1,18 +1,25 @@
 {
-  "project_id": "project-1",
-  "user_intent": "Build a film",
-  "candidate_digest": "sha256:candidate",
-  "reviewer_version": "reviewer-v1",
-  "evidence_hash": "sha256:evidence",
-  "review_summary": "Ready to apply",
-  "review_findings": [
-    "Matches the requested production"
-  ],
-  "effect": "apply_reviewed_workflow_candidate",
-  "workflow": {
-    "nodes": [],
+  "pending": {
     "project_id": "project-1",
-    "version": "1.0"
+    "user_intent": "Build a film",
+    "candidate_digest": "sha256:candidate",
+    "reviewer_version": "reviewer-v1",
+    "evidence_hash": "sha256:evidence",
+    "review_summary": "Ready to apply",
+    "review_findings": [
+      "Matches the requested production"
+    ],
+    "effect": "apply_reviewed_workflow_candidate",
+    "workflow": {
+      "nodes": [],
+      "project_id": "project-1",
+      "version": "1.0"
+    },
+    "readiness_blockers": []
   },
-  "readiness_blockers": []
+  "decision": {
+    "project_id": "project-1",
+    "candidate_digest": "sha256:candidate",
+    "approved": true
+  }
 }

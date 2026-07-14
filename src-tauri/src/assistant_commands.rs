@@ -12,7 +12,7 @@ use crate::reviewed_change::ReviewedChangeOperations;
 use crate::state::AppState;
 use crate::workflow_patch_operation::WorkflowPatchService;
 use crate::workspace_snapshot::WorkspaceSnapshotService;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::sync::{
@@ -27,7 +27,7 @@ const MAX_ID_CHARS: usize = 160;
 static NEXT_ASSISTANT_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Model-facing input for one Project-scoped assistant turn.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AssistantSendInput {
     /// Trusted host scope, checked against the local Project store.
@@ -47,10 +47,11 @@ pub struct AssistantSendInput {
 }
 
 /// Human decision for the one durable pending Assistant approval.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AssistantApprovalDecisionInput {
     pub project_id: String,
+    pub candidate_digest: String,
     pub approved: bool,
 }
 
@@ -117,6 +118,10 @@ pub async fn assistant_decide_approval_with_state(
         .ok_or_else(|| "ASSISTANT_APPROVAL_NOT_FOUND".to_owned())?;
     if waiting.project_id() != input.project_id {
         return Err("ASSISTANT_APPROVAL_SCOPE_MISMATCH".to_owned());
+    }
+    let pending = pending::pending_approval_dto(&input.project_id, &session_id, &waiting, state)?;
+    if pending.candidate_digest != input.candidate_digest {
+        return Err("ASSISTANT_APPROVAL_STALE".to_owned());
     }
     let invocation = AssistantInvocation::new(
         next_assistant_id("approval")?,

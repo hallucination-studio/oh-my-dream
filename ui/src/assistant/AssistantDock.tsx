@@ -163,7 +163,11 @@ export function AssistantDock({
     setStatus((current) => ({ ...current, text: approved ? "Applying" : "Rejecting" }));
     try {
       const workflowHead = await apiClient.decideAssistantApproval(
-        { project_id: pendingApproval.project_id, approved },
+        {
+          project_id: pendingApproval.project_id,
+          candidate_digest: pendingApproval.candidate_digest,
+          approved,
+        },
         handleEvent,
       );
       if (workflowHead !== null) await onWorkflowHead?.(workflowHead);

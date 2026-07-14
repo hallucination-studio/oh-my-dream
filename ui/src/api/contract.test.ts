@@ -34,9 +34,14 @@ describe("backend DTO fixtures", () => {
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
     expect(isAssistantConfig(assistantConfigFixture)).toBe(true);
     expect(isCapabilityCatalog(capabilityCatalogFixture)).toBe(true);
-    expect(assistantApprovalFixture.effect).toBe("apply_reviewed_workflow_candidate");
-    const approval = assistantApprovalFixture as AssistantPendingApproval;
+    expect(assistantApprovalFixture.pending.effect).toBe("apply_reviewed_workflow_candidate");
+    const approval = assistantApprovalFixture.pending as AssistantPendingApproval;
     expect(approval.candidate_digest).toBe("sha256:candidate");
+    expect(assistantApprovalFixture.decision).toEqual({
+      project_id: "project-1",
+      candidate_digest: "sha256:candidate",
+      approved: true,
+    });
   });
 });
 

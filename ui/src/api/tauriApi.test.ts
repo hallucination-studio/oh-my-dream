@@ -342,6 +342,7 @@ describe("tauriApi assistant commands", () => {
     const { tauriApi } = await import("./tauriApi.ts");
     const input: AssistantApprovalDecisionInput = {
       project_id: "project-1",
+      candidate_digest: "sha256:candidate",
       approved: true,
     };
     const onEvent = vi.fn();
