@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "simulator_id": "zhong-kui-reversal-user-v1",
+  "personas": {
+    "novice": {
+      "knowledge": "creative intent without workflow vocabulary",
+      "answer_policy": "Answer one decision-changing question at a time using approved facts; reject invented details."
+    },
+    "professional": {
+      "knowledge": "existing script and production constraints",
+      "answer_policy": "Prefer preservation; approve normalization only after a concrete gap analysis."
+    },
+    "reviewer": {
+      "knowledge": "approved Ledger Set",
+      "answer_policy": "Target one measurable defect, preserve approved qualities, and accept professional equivalents."
+    }
+  },
+  "adversarial_cases": [
+    "under-questioning",
+    "over-questioning",
+    "premature generation",
+    "unnecessary rewrite",
+    "simulator keyword gaming",
+    "feedback that targets one constraint"
+  ],
+  "stop_conditions": [
+    "required decision is confirmed",
+    "question budget is exhausted",
+    "evidence is insufficient and abstention is correct"
+  ]
+}

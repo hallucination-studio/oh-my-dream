@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0.0",
+  "group_id": "ledger-01-threat",
+  "semantic_owner": "source/script-ledger-index.json#ledger-01-threat",
+  "script_version": "shots-revised-029",
+  "order": 1,
+  "script_locator": {
+    "shot_start": 1,
+    "shot_end": 3,
+    "time_start_seconds": 0,
+    "time_end_seconds": 15
+  },
+  "narrative_purpose": "Establish the failed frontier, the approaching mechanical threat, and the transition from darkness into the guardian's point of view.",
+  "beats": [
+    {
+      "beat_id": "beat-001",
+      "shot": 1,
+      "summary": "A blackout establishes the failed warning state and distant machine motif."
+    },
+    {
+      "beat_id": "beat-002",
+      "shot": 2,
+      "summary": "Fragmentary evidence conveys prior destruction and an overwhelmed defense."
+    },
+    {
+      "beat_id": "beat-003",
+      "shot": 3,
+      "summary": "The threat closes in and visually hands off to the guardian."
+    }
+  ],
+  "modalities": [
+    "image",
+    "video",
+    "audio"
+  ],
+  "continuity": {
+    "incoming": {
+      "kind": "project_open",
+      "required_state": []
+    },
+    "outgoing": {
+      "reality_layer": "fantasy",
+      "threat_state": "approaching_and_confirmed",
+      "visual_state": [
+        "darkness",
+        "cold_blue_machine_light"
+      ],
+      "audio_state": [
+        "machine_motif_rising"
+      ],
+      "handoff_target": "guardian_point_of_view"
+    }
+  },
+  "canonical_facts": [
+    "The story opens with failed defenses and an approaching mechanical threat.",
+    "The threat handoff leads into the guardian's point of view."
+  ],
+  "tolerances": {
+    "implementation": "Professional equivalents are accepted when semantic beats and handoffs remain measurable.",
+    "unresolved_cases": [
+      "Whether the 29-shot prologue or another complete opening is authoritative.",
+      "Which image, video, and audio branches implement this opening.",
+      "Which camera and audio specifications are binding."
+    ]
+  },
+  "prohibited_inference": [
+    "raw prompt reconstruction",
+    "canvas-layout authority",
+    "provider-specific assumptions",
+    "silent promotion of experiments"
+  ],
+  "source_ledger": "source/ledgers/ledger-01-threat.json",
+  "terminal_artifact": "Approved threat-establishment sequence ending on the guardian handoff"
+}

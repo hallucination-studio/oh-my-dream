@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0.0",
+  "group_id": "ledger-02-mobilization",
+  "semantic_owner": "source/script-ledger-index.json#ledger-02-mobilization",
+  "script_version": "shots-revised-029",
+  "order": 2,
+  "script_locator": {
+    "shot_start": 4,
+    "shot_end": 10,
+    "time_start_seconds": 15,
+    "time_end_seconds": 60
+  },
+  "narrative_purpose": "Introduce the guardian, scout, attendants, and tiger; communicate the warning; and complete the decision to respond.",
+  "beats": [
+    {
+      "beat_id": "beat-004",
+      "shot": 4,
+      "summary": "The guardian awakens and sees the threat reflected at close range."
+    },
+    {
+      "beat_id": "beat-005",
+      "shot": 5,
+      "summary": "The guardian's full defensive stance and frontier position are established."
+    },
+    {
+      "beat_id": "beat-006",
+      "shot": 6,
+      "summary": "The wounded scout reports the failed defenses and imminent attack."
+    },
+    {
+      "beat_id": "beat-007",
+      "shot": 7,
+      "summary": "The guardian silently commits and draws the weapon."
+    },
+    {
+      "beat_id": "beat-008",
+      "shot": 8,
+      "summary": "Attention shifts toward the supporting force in darkness."
+    },
+    {
+      "beat_id": "beat-009",
+      "shot": 9,
+      "summary": "The two attendants intensify the mobilization through the drum rhythm."
+    },
+    {
+      "beat_id": "beat-010",
+      "shot": 10,
+      "summary": "The tiger arrives and confirms the guardian-companion partnership."
+    }
+  ],
+  "modalities": [
+    "image",
+    "video",
+    "audio"
+  ],
+  "continuity": {
+    "incoming": {
+      "from_group": "ledger-01-threat",
+      "required_state": [
+        "fantasy layer",
+        "confirmed approaching threat",
+        "cold machine light",
+        "rising machine motif"
+      ]
+    },
+    "outgoing": {
+      "cast_state": [
+        "guardian committed",
+        "scout wounded",
+        "attendants mobilized",
+        "tiger allied"
+      ],
+      "asset_state": [
+        "weapon drawn",
+        "frontier unstable"
+      ],
+      "audio_state": [
+        "drums active",
+        "machine threat near"
+      ],
+      "unresolved": [
+        "tiger design and name differ in later revisions"
+      ]
+    }
+  },
+  "canonical_facts": [
+    "The guardian receives or recognizes the warning and commits to respond.",
+    "The scout, two attendants, and tiger form the supporting fantasy cast."
+  ],
+  "tolerances": {
+    "implementation": "Professional equivalents are accepted when semantic beats and handoffs remain measurable.",
+    "unresolved_cases": [
+      "Black tiger versus natural yellow-and-black tiger.",
+      "Tiger name and stable identity.",
+      "Sacrificial framing versus heroic commitment.",
+      "Direct media-node ownership for the working candidate."
+    ]
+  },
+  "prohibited_inference": [
+    "raw prompt reconstruction",
+    "canvas-layout authority",
+    "provider-specific assumptions",
+    "silent promotion of experiments"
+  ],
+  "source_ledger": "source/ledgers/ledger-02-mobilization.json",
+  "terminal_artifact": "Approved mobilization sequence with all battle participants staged"
+}

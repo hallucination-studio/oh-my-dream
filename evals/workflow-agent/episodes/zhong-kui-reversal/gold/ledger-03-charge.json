@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0.0",
+  "group_id": "ledger-03-charge",
+  "semantic_owner": "source/script-ledger-index.json#ledger-03-charge",
+  "script_version": "shots-revised-029",
+  "order": 3,
+  "script_locator": {
+    "shot_start": 11,
+    "shot_end": 15,
+    "time_start_seconds": 60,
+    "time_end_seconds": 110
+  },
+  "narrative_purpose": "Execute the guardian-and-tiger charge, resolve or interrupt the collision, and carry the damaged guardian into loss of fantasy consciousness.",
+  "beats": [
+    {
+      "beat_id": "beat-011",
+      "shot": 11,
+      "summary": "The guardian mounts the tiger as the frontier fails."
+    },
+    {
+      "beat_id": "beat-012",
+      "shot": 12,
+      "summary": "The scout attempts a final warning."
+    },
+    {
+      "beat_id": "beat-013",
+      "shot": 13,
+      "summary": "Guardian and tiger commit to the charge."
+    },
+    {
+      "beat_id": "beat-014",
+      "shot": 14,
+      "summary": "The complete candidate shows the strike disabling the threat."
+    },
+    {
+      "beat_id": "beat-015",
+      "shot": 15,
+      "summary": "The guardian falls damaged and consciousness cuts to black."
+    }
+  ],
+  "modalities": [
+    "image",
+    "video",
+    "audio"
+  ],
+  "continuity": {
+    "incoming": {
+      "from_group": "ledger-02-mobilization",
+      "required_state": [
+        "stable cast identities",
+        "guardian-tiger partnership",
+        "weapon ready",
+        "frontier instability",
+        "drum and machine motifs"
+      ]
+    },
+    "outgoing": {
+      "guardian_state": "damaged_and_unconscious",
+      "threat_state": "disabled_in_working_candidate",
+      "transition_state": "blackout_before_reality",
+      "unresolved": [
+        "some battle branches cut before collision",
+        "heroic versus sacrificial framing",
+        "tiger design conflict"
+      ]
+    }
+  },
+  "canonical_facts": [
+    "The guardian and tiger commit to a charge or battle action.",
+    "The guardian is damaged and the fantasy layer yields to a blackout or reality transition."
+  ],
+  "tolerances": {
+    "implementation": "Professional equivalents are accepted when semantic beats and handoffs remain measurable.",
+    "unresolved_cases": [
+      "Shown impact versus pre-impact cut.",
+      "Threat disabled versus outcome deferred.",
+      "Heroic breach versus sacrificial last stand.",
+      "Tiger design.",
+      "Camera specifications and battle-music timing.",
+      "Rendered image, video, and audio lineage."
+    ]
+  },
+  "prohibited_inference": [
+    "raw prompt reconstruction",
+    "canvas-layout authority",
+    "provider-specific assumptions",
+    "silent promotion of experiments"
+  ],
+  "source_ledger": "source/ledgers/ledger-03-charge.json",
+  "terminal_artifact": "Approved battle outcome and blackout transition"
+}
