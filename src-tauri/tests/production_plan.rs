@@ -1,7 +1,10 @@
+use oh_my_dream_tauri::assistant_operations::RequestContext;
+use oh_my_dream_tauri::production_plan::operations::ProductionPlanOperations;
 use oh_my_dream_tauri::production_plan::{
     NewPlanItem, PlanItemStatus, ProductionPlan, ProductionPlanError, ProductionPlanService,
     ProductionPlanSqliteRepository,
 };
+use serde_json::json;
 use std::sync::Arc;
 use tempfile::tempdir;
 
@@ -71,4 +74,46 @@ fn sqlite_plan_survives_a_fresh_service_and_preserves_cas() {
 
     let error = first.start_item("project", 1, "shot-b").expect_err("stale service must fail CAS");
     assert_eq!(error, ProductionPlanError::RevisionConflict { expected: 1, actual: 2 });
+}
+
+#[tokio::test]
+async fn operation_surface_is_memory_tools_without_a_next_item_scheduler() {
+    let root = tempdir().expect("config root");
+    let service = Arc::new(ProductionPlanService::new(Arc::new(
+        ProductionPlanSqliteRepository::open(ProductionPlanSqliteRepository::path(root.path()))
+            .expect("open plan repository"),
+    )));
+    let registrations =
+        ProductionPlanOperations::new(service).registrations().expect("plan registrations");
+    let ids = registrations.iter().map(|registration| registration.id()).collect::<Vec<_>>();
+
+    assert_eq!(
+        ids,
+        vec![
+            "production_plan_get",
+            "production_plan_create",
+            "production_plan_replace",
+            "production_plan_update_item",
+        ]
+    );
+    assert!(ids.iter().all(|id| !id.contains("next") && !id.contains("claim")));
+
+    let create = &registrations[1];
+    let context = RequestContext::new("project", "session", "request", create.version(), None);
+    let output = create
+        .dispatch(
+            &context,
+            json!({
+                "title": "Launch film",
+                "items": [
+                    {"id": "shot-a", "summary": "Opening shot"},
+                    {"id": "shot-b", "summary": "Closing shot"}
+                ]
+            }),
+        )
+        .await
+        .expect("create through operation");
+
+    assert_eq!(output["plan"]["revision"], 1);
+    assert_eq!(output["plan"]["items"][1]["id"], "shot-b");
 }

@@ -15,6 +15,14 @@ class SystemPromptTests(unittest.TestCase):
         self.assertIn("choose the next creative step", prompt)
         self.assertIn("structured tool result", prompt)
 
+    def test_prompt_treats_production_plan_as_agent_memory_not_a_queue(self) -> None:
+        prompt = build_system_prompt()
+
+        self.assertIn("production_plan_get", prompt)
+        self.assertIn("Agent-owned memory", prompt)
+        self.assertNotIn("claim_next", prompt)
+        self.assertNotIn("Product chooses the next", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

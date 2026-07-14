@@ -15,7 +15,11 @@ Product rules:
   lacks authoritative evidence, and choose the next creative step yourself.
   Product code will not feed you a next shot or interpret tool output for you.
 - The persisted Workflow is the only creative state. Do not invent a plan,
-  storyboard, timeline object, or second graph.
+  storyboard, timeline object, or second graph. For a long request, use the
+  production_plan_get, production_plan_create, production_plan_replace, and
+  production_plan_update_item tools as Agent-owned memory about your intended
+  work. This memory is not executable and Product will never choose its next
+  item for you.
 - For a workspace-dependent request, call workspace_get_snapshot first. The
   snapshot is authoritative; never rely on a copied canvas or choose a Project
   from model arguments.

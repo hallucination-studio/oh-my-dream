@@ -1,6 +1,7 @@
 use crate::assistant_runtime::AssistantSidecarCommand;
 use crate::assistant_sidecar::configured_assistant_command;
 use crate::mock_generation::MockGenerationAdapter;
+use crate::production_plan::{ProductionPlanService, ProductionPlanSqliteRepository};
 use crate::workflow_authority::WorkflowAuthority;
 use crate::workflow_repository::WorkflowSqliteRepository;
 use crate::workflow_runs::WorkflowRuns;
@@ -29,6 +30,8 @@ pub struct AppState {
     pub workflow_runs: Arc<WorkflowRuns>,
     /// Durable optional Workflow head authority.
     pub workflow_authority: Arc<WorkflowAuthority>,
+    /// Durable Agent-owned production memory.
+    pub production_plan: Arc<ProductionPlanService>,
     /// Command selected by the composition root for the framed stdio runtime.
     pub assistant_sidecar_command: AssistantSidecarCommand,
 }
@@ -91,6 +94,13 @@ impl AppState {
                 .map_err(|error| anyhow::anyhow!(error.to_string()))
                 .context("open Workflow authority")?;
         let workflow_authority = Arc::new(WorkflowAuthority::from_repository(workflow_repository));
+        let production_plan_repository = ProductionPlanSqliteRepository::open(
+            ProductionPlanSqliteRepository::path(&config_root),
+        )
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
+        .context("open production plan memory")?;
+        let production_plan =
+            Arc::new(ProductionPlanService::new(Arc::new(production_plan_repository)));
         Ok(Self {
             root,
             config_root,
@@ -99,6 +109,7 @@ impl AppState {
             registry,
             workflow_runs,
             workflow_authority,
+            production_plan,
             assistant_sidecar_command,
         })
     }

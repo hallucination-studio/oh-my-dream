@@ -7,6 +7,7 @@ use crate::assistant_runtime::{
 };
 use crate::capability_discovery::CapabilityDiscovery;
 use crate::dto::WorkflowHeadDto;
+use crate::production_plan::operations::ProductionPlanOperations;
 use crate::state::AppState;
 use crate::workflow_patch_operation::WorkflowPatchService;
 use crate::workspace_snapshot::WorkspaceSnapshotService;
@@ -90,8 +91,12 @@ fn operation_registrations(state: &AppState) -> Result<Vec<OperationRegistration
     let discovery = Arc::new(CapabilityDiscovery::from_state(state))
         .operation_registrations()
         .map_err(|error| error.to_string())?;
+    let plan = ProductionPlanOperations::new(Arc::clone(&state.production_plan))
+        .registrations()
+        .map_err(|error| error.to_string())?;
     let mut registrations = vec![snapshot, patch];
     registrations.extend(discovery);
+    registrations.extend(plan);
     Ok(registrations)
 }
 
@@ -245,14 +250,38 @@ impl AssistantEventSink for ChannelAssistantSink {
 mod tests {
     use super::{
         AssistantSendInput, ChannelAssistantSink, assistant_identity, build_invocation,
-        workflow_head_from_patch_output,
+        operation_registrations, workflow_head_from_patch_output,
     };
     use crate::assistant_runtime::AssistantEventSink;
+    use crate::state::AppState;
     use serde_json::{Value, json};
     use std::path::Path;
     use std::sync::{Arc, Mutex};
     use tauri::ipc::{Channel, InvokeResponseBody};
     use tempfile::tempdir;
+
+    #[test]
+    fn production_runtime_exposes_plan_memory_without_scheduler_tools() {
+        let root = tempdir().expect("create app root");
+        let state = AppState::from_roots(root.path().join("assets"), root.path().join("config"))
+            .expect("build app state");
+
+        let ids = operation_registrations(&state)
+            .expect("build production registrations")
+            .into_iter()
+            .map(|registration| registration.id().to_owned())
+            .collect::<Vec<_>>();
+
+        for expected in [
+            "production_plan_get",
+            "production_plan_create",
+            "production_plan_replace",
+            "production_plan_update_item",
+        ] {
+            assert!(ids.iter().any(|id| id == expected), "missing {expected}");
+        }
+        assert!(ids.iter().all(|id| !id.contains("next") && !id.contains("claim")));
+    }
 
     #[test]
     fn channel_sink_forwards_native_response_value_unchanged() {

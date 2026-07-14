@@ -21,6 +21,8 @@ pub use schema_policy::{
 pub enum OperationEffect {
     /// Reads local state without changing it.
     LocalRead,
+    /// Mutates durable Assistant-owned memory without executing creative effects.
+    AssistantStateMutation,
     /// Applies a user-visible Workflow change that can be reversed.
     VisibleReversibleWorkflowPatch,
     /// Executes an effect prepared earlier and authorized by trusted context.
