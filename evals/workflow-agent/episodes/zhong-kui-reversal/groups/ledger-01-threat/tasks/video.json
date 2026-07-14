@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "ledger-01-threat-video",
+  "episode_id": "zhong-kui-reversal",
+  "group_id": "ledger-01-threat",
+  "stage": "video",
+  "modes": [
+    "checkpoint",
+    "continuation"
+  ],
+  "contracts": {
+    "interaction": {
+      "required": [
+        "state assumptions",
+        "ask only decision-changing questions",
+        "request confirmation before mutation"
+      ],
+      "evidence": [
+        "questions",
+        "proposal",
+        "confirmation",
+        "decision log"
+      ]
+    },
+    "workflow": {
+      "required": [
+        "legal typed graph",
+        "ordered dependencies",
+        "bounded mutation",
+        "preserved upstream state"
+      ],
+      "evidence": [
+        "graph before",
+        "patch",
+        "graph after",
+        "validation result"
+      ]
+    },
+    "creative": {
+      "required": [
+        "approved semantic beats",
+        "declared alternatives",
+        "continuity handoff",
+        "no invented authority"
+      ],
+      "evidence": [
+        "beat mapping",
+        "constraint mapping",
+        "alternative rationale"
+      ]
+    },
+    "execution": {
+      "required": [
+        "bounded candidates",
+        "cost and latency",
+        "provenance",
+        "failure and abstention reporting"
+      ],
+      "evidence": [
+        "attempt log",
+        "artifact manifest",
+        "measurements",
+        "terminal status"
+      ]
+    }
+  },
+  "source_refs": [
+    "gold/ledger-01-threat.json",
+    "source/ledgers/ledger-01-threat.json"
+  ],
+  "mutation_boundary": {
+    "may_change": [
+      "ledger-01-threat:video",
+      "declared downstream stale outputs"
+    ],
+    "must_preserve": [
+      "approved prior groups",
+      "source ledger",
+      "unrelated workflow branches"
+    ]
+  },
+  "requirements": [
+    "Produce or abstain after bounded candidates",
+    "Report duration, frame properties, motion, camera intent, identity, temporal defects, provenance, cost, and latency",
+    "The group depends on timed blackout typography, flashes, escalating approach, and a visual transition.",
+    "Treat script_required_production_join_unresolved as unresolved rather than rendered authority"
+  ],
+  "evidence": [
+    "candidate manifest",
+    "temporal measurements",
+    "review disposition"
+  ],
+  "budgets": {
+    "max_attempts": 3,
+    "max_candidates": 4,
+    "max_cost_usd": 10,
+    "max_latency_seconds": 900
+  },
+  "gold": {
+    "exact": [
+      "Use approved group ledger-01-threat",
+      "Preserve shots 1-3",
+      "Preserve 0-15s group interval"
+    ],
+    "semantic": [
+      "Establish the failed frontier, the approaching mechanical threat, and the transition from darkness into the guardian's point of view.",
+      "A blackout establishes the failed warning state and distant machine motif.",
+      "Fragmentary evidence conveys prior destruction and an overwhelmed defense.",
+      "The threat closes in and visually hands off to the guardian."
+    ],
+    "professional": [
+      "Deliver a production-usable video artifact",
+      "Allow equivalent implementations when declared tolerances and continuity are satisfied",
+      "Abstain rather than invent missing authority"
+    ]
+  },
+  "hard_gates": [
+    "approved group required",
+    "required evidence present",
+    "no mutation outside boundary",
+    "no omitted required modality",
+    "budget respected"
+  ],
+  "rubric_ids": [
+    "workflow-agent-v1"
+  ],
+  "reporting": {
+    "partial_run_label": "ledger-01-threat:video",
+    "full_project_eligible": false,
+    "required_fields": [
+      "status",
+      "evidence",
+      "cost_usd",
+      "latency_seconds",
+      "attempts",
+      "failures",
+      "abstention_reason"
+    ]
+  }
+}

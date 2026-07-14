@@ -1,0 +1,143 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "ledger-04-reveal-workflow",
+  "episode_id": "zhong-kui-reversal",
+  "group_id": "ledger-04-reveal",
+  "stage": "workflow",
+  "modes": [
+    "checkpoint",
+    "continuation"
+  ],
+  "contracts": {
+    "interaction": {
+      "required": [
+        "state assumptions",
+        "ask only decision-changing questions",
+        "request confirmation before mutation"
+      ],
+      "evidence": [
+        "questions",
+        "proposal",
+        "confirmation",
+        "decision log"
+      ]
+    },
+    "workflow": {
+      "required": [
+        "legal typed graph",
+        "ordered dependencies",
+        "bounded mutation",
+        "preserved upstream state"
+      ],
+      "evidence": [
+        "graph before",
+        "patch",
+        "graph after",
+        "validation result"
+      ]
+    },
+    "creative": {
+      "required": [
+        "approved semantic beats",
+        "declared alternatives",
+        "continuity handoff",
+        "no invented authority"
+      ],
+      "evidence": [
+        "beat mapping",
+        "constraint mapping",
+        "alternative rationale"
+      ]
+    },
+    "execution": {
+      "required": [
+        "bounded candidates",
+        "cost and latency",
+        "provenance",
+        "failure and abstention reporting"
+      ],
+      "evidence": [
+        "attempt log",
+        "artifact manifest",
+        "measurements",
+        "terminal status"
+      ]
+    }
+  },
+  "source_refs": [
+    "gold/ledger-04-reveal.json",
+    "source/ledgers/ledger-04-reveal.json"
+  ],
+  "mutation_boundary": {
+    "may_change": [
+      "ledger-04-reveal:workflow",
+      "declared downstream stale outputs"
+    ],
+    "must_preserve": [
+      "approved prior groups",
+      "source ledger",
+      "unrelated workflow branches"
+    ]
+  },
+  "requirements": [
+    "Return a legal typed subgraph",
+    "Declare ordered dependencies, versions, media operations, and the smallest rerun boundary"
+  ],
+  "evidence": [
+    "graph before",
+    "ordered patch",
+    "graph after",
+    "type validation"
+  ],
+  "budgets": {
+    "max_attempts": 3,
+    "max_candidates": 4,
+    "max_cost_usd": 10,
+    "max_latency_seconds": 900
+  },
+  "gold": {
+    "exact": [
+      "Use approved group ledger-04-reveal",
+      "Preserve shots 16-22",
+      "Preserve 110-150s group interval"
+    ],
+    "semantic": [
+      "Change reality layer, reveal the household scale, map fantasy figures to objects, and establish the family's interpretation of the damage.",
+      "Warm domestic light and ambience replace the fantasy battle.",
+      "A child's hand lifts the damaged guardian.",
+      "The guardian's point of view reveals the household scale.",
+      "Fantasy companions and locations map to household objects.",
+      "The child presents the damaged figure to the elder.",
+      "The elder identifies the figure and its physical damage.",
+      "The child reframes the damage as evidence of heroism."
+    ],
+    "professional": [
+      "Deliver a production-usable workflow artifact",
+      "Allow equivalent implementations when declared tolerances and continuity are satisfied",
+      "Abstain rather than invent missing authority"
+    ]
+  },
+  "hard_gates": [
+    "approved group required",
+    "required evidence present",
+    "no mutation outside boundary",
+    "no omitted required modality",
+    "budget respected"
+  ],
+  "rubric_ids": [
+    "workflow-agent-v1"
+  ],
+  "reporting": {
+    "partial_run_label": "ledger-04-reveal:workflow",
+    "full_project_eligible": false,
+    "required_fields": [
+      "status",
+      "evidence",
+      "cost_usd",
+      "latency_seconds",
+      "attempts",
+      "failures",
+      "abstention_reason"
+    ]
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "schema_version": "1.0.0",
+  "task_id": "ledger-02-mobilization-audio",
+  "episode_id": "zhong-kui-reversal",
+  "group_id": "ledger-02-mobilization",
+  "stage": "audio",
+  "modes": [
+    "checkpoint",
+    "continuation"
+  ],
+  "contracts": {
+    "interaction": {
+      "required": [
+        "state assumptions",
+        "ask only decision-changing questions",
+        "request confirmation before mutation"
+      ],
+      "evidence": [
+        "questions",
+        "proposal",
+        "confirmation",
+        "decision log"
+      ]
+    },
+    "workflow": {
+      "required": [
+        "legal typed graph",
+        "ordered dependencies",
+        "bounded mutation",
+        "preserved upstream state"
+      ],
+      "evidence": [
+        "graph before",
+        "patch",
+        "graph after",
+        "validation result"
+      ]
+    },
+    "creative": {
+      "required": [
+        "approved semantic beats",
+        "declared alternatives",
+        "continuity handoff",
+        "no invented authority"
+      ],
+      "evidence": [
+        "beat mapping",
+        "constraint mapping",
+        "alternative rationale"
+      ]
+    },
+    "execution": {
+      "required": [
+        "bounded candidates",
+        "cost and latency",
+        "provenance",
+        "failure and abstention reporting"
+      ],
+      "evidence": [
+        "attempt log",
+        "artifact manifest",
+        "measurements",
+        "terminal status"
+      ]
+    }
+  },
+  "source_refs": [
+    "gold/ledger-02-mobilization.json",
+    "source/ledgers/ledger-02-mobilization.json"
+  ],
+  "mutation_boundary": {
+    "may_change": [
+      "ledger-02-mobilization:audio",
+      "declared downstream stale outputs"
+    ],
+    "must_preserve": [
+      "approved prior groups",
+      "source ledger",
+      "unrelated workflow branches"
+    ]
+  },
+  "requirements": [
+    "Produce or abstain after bounded candidates",
+    "Report format, duration, loudness, peak, clipping, silence, content, voice, cue timing, artifacts, provenance, cost, and latency",
+    "Dialogue, wind, machine approach, drums, and tiger vocalization carry the mobilization objective.",
+    "Treat script_required_production_join_unresolved as unresolved rather than rendered authority"
+  ],
+  "evidence": [
+    "candidate manifest",
+    "audio measurements",
+    "cue sheet",
+    "review disposition"
+  ],
+  "budgets": {
+    "max_attempts": 3,
+    "max_candidates": 4,
+    "max_cost_usd": 10,
+    "max_latency_seconds": 900
+  },
+  "gold": {
+    "exact": [
+      "Use approved group ledger-02-mobilization",
+      "Preserve shots 4-10",
+      "Preserve 15-60s group interval"
+    ],
+    "semantic": [
+      "Introduce the guardian, scout, attendants, and tiger; communicate the warning; and complete the decision to respond.",
+      "The guardian awakens and sees the threat reflected at close range.",
+      "The guardian's full defensive stance and frontier position are established.",
+      "The wounded scout reports the failed defenses and imminent attack.",
+      "The guardian silently commits and draws the weapon.",
+      "Attention shifts toward the supporting force in darkness.",
+      "The two attendants intensify the mobilization through the drum rhythm.",
+      "The tiger arrives and confirms the guardian-companion partnership."
+    ],
+    "professional": [
+      "Deliver a production-usable audio artifact",
+      "Allow equivalent implementations when declared tolerances and continuity are satisfied",
+      "Abstain rather than invent missing authority"
+    ]
+  },
+  "hard_gates": [
+    "approved group required",
+    "required evidence present",
+    "no mutation outside boundary",
+    "no omitted required modality",
+    "budget respected"
+  ],
+  "rubric_ids": [
+    "workflow-agent-v1"
+  ],
+  "reporting": {
+    "partial_run_label": "ledger-02-mobilization:audio",
+    "full_project_eligible": false,
+    "required_fields": [
+      "status",
+      "evidence",
+      "cost_usd",
+      "latency_seconds",
+      "attempts",
+      "failures",
+      "abstention_reason"
+    ]
+  }
+}
