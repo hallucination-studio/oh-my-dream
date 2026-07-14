@@ -17,7 +17,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
 
+mod hash;
 mod schema;
+mod sequence;
+use hash::request_hash;
 #[cfg(test)]
 mod tests;
 /// Model-controlled input for `workflow_apply_patch`.
@@ -307,6 +310,14 @@ fn to_output(
         .into_iter()
         .map(|(alias, node_id)| WorkflowAliasDto { alias, node_id })
         .collect();
+    to_output_parts(committed, aliases, result.readiness_blockers)
+}
+
+fn to_output_parts(
+    committed: crate::workflow_authority::WorkflowCommitResult,
+    aliases: Vec<WorkflowAliasDto>,
+    readiness_blockers: Vec<WorkflowReadinessBlocker>,
+) -> Result<WorkflowApplyPatchOutput, WorkflowApplyPatchError> {
     let workflow_head =
         committed.head.map(WorkflowHeadDto::try_from).transpose().map_err(|error| {
             WorkflowApplyPatchError::new(
@@ -320,7 +331,7 @@ fn to_output(
     Ok(WorkflowApplyPatchOutput {
         workflow_head,
         aliases,
-        readiness_blockers: result.readiness_blockers,
+        readiness_blockers,
         changed: committed.changed,
         deduplicated: committed.deduplicated,
         undo_id: committed.undo_id,
@@ -384,17 +395,4 @@ fn authority_error(
 
 fn empty_workflow(project_id: &str) -> Workflow {
     Workflow { version: "1.0".to_owned(), project_id: project_id.to_owned(), nodes: Vec::new() }
-}
-
-fn request_hash(
-    expected_revision: Option<u64>,
-    patch: &WorkflowPatch,
-) -> Result<String, serde_json::Error> {
-    let bytes = serde_json::to_vec(&(expected_revision, patch))?;
-    let mut hash = 0xcbf29ce484222325_u64;
-    for byte in bytes {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    Ok(format!("fnv1a:{hash:016x}"))
 }

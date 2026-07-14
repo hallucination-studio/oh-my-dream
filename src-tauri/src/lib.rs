@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod assistant;
+pub mod assistant_approval;
 pub mod assistant_commands;
 pub mod assistant_operations;
 mod assistant_review_bridge;
@@ -25,8 +26,8 @@ pub mod workflow_runs;
 pub mod workspace_snapshot;
 
 use commands::{
-    assets_root, assistant_send, cancel_workflow_run, create_project, get_asset,
-    get_assistant_config, get_capability_bundles, get_capability_catalog, get_providers,
+    assets_root, assistant_decide_approval, assistant_send, cancel_workflow_run, create_project,
+    get_asset, get_assistant_config, get_capability_bundles, get_capability_catalog, get_providers,
     list_assets, list_projects, open_project, run_workflow, search_capabilities,
     set_active_provider, set_assistant_config, set_provider_key, start_workflow_run,
     workflow_apply_patch,
@@ -46,6 +47,7 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             run_workflow,
             assistant_send,
+            assistant_decide_approval,
             start_workflow_run,
             cancel_workflow_run,
             list_assets,

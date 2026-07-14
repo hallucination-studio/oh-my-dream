@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from typing import Any, cast
 
@@ -83,6 +84,11 @@ class AgentStdioApp:
             tools = build_function_tools(
                 invocation.operations,
                 lambda request: self._invoke_tool(invocation.invocation_id, request),
+                {
+                    "workflow_apply_reviewed_candidate": lambda operation, arguments: (
+                        self._check_review(invocation.invocation_id, operation, arguments)
+                    )
+                },
             )
             if any(
                 operation_id(operation) == "workflow_candidate_get"
@@ -294,6 +300,39 @@ class AgentStdioApp:
                 "correlation_mismatch", "review_response candidate mismatch"
             )
         return require_string(frame.payload, "review_receipt_id")
+
+    async def _check_review(
+        self, invocation_id: str, operation_id: str, arguments: dict[str, Any]
+    ) -> bool:
+        self._write(
+            FrameKind.REVIEW_CHECK,
+            {
+                "invocation_id": invocation_id,
+                "operation_id": operation_id,
+                "arguments_json": json.dumps(arguments, separators=(",", ":")),
+            },
+        )
+        frame = await self._read_frame()
+        if frame.kind is not FrameKind.REVIEW_CHECK_RESPONSE:
+            raise AgentTransportError(
+                "unexpected_frame", "expected review_check_response"
+            )
+        require_exact_fields(
+            frame.payload,
+            {"invocation_id", "operation_id", "valid"},
+            "review_check_response",
+        )
+        valid = frame.payload["valid"]
+        if not isinstance(valid, bool):
+            raise AgentTransportError("invalid_payload", "review valid must be boolean")
+        if (
+            require_string(frame.payload, "invocation_id") != invocation_id
+            or require_string(frame.payload, "operation_id") != operation_id
+        ):
+            raise AgentTransportError(
+                "correlation_mismatch", "review_check_response mismatch"
+            )
+        return valid
 
     async def _read_frame(self) -> Frame:
         return await asyncio.to_thread(self._reader.read_frame)

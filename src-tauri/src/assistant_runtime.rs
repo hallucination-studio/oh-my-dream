@@ -59,6 +59,14 @@ pub trait InternalReviewHandler: Send + Sync {
         session_id: &str,
         submission: InternalReviewSubmission,
     ) -> Result<InternalReviewReceipt, String>;
+
+    fn valid_for_approval(
+        &self,
+        project_id: &str,
+        session_id: &str,
+        operation_id: &str,
+        arguments_json: &str,
+    ) -> Result<bool, String>;
 }
 
 impl AssistantRuntime {

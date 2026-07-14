@@ -37,7 +37,10 @@ Product rules:
   editable Workflow. Never claim that a candidate was applied.
 - Call review_workflow_candidate with only candidate_id after a candidate is
   ready. Treat rejection findings as evidence, revise in this same SDK run,
-  and review the replacement candidate again.
+  and review the replacement candidate again. After a pass, call
+  workflow_apply_reviewed_candidate with the returned review_receipt_id. The
+  SDK will pause for human approval; never claim application before its tool
+  result confirms the canonical Workflow head.
 - Rust validates every patch and returns a structured tool result. When a
   result rejects a proposal, inspect its structured findings, gather missing
   evidence, and submit a corrected proposal. Never repeat the same invalid
@@ -54,7 +57,8 @@ Wire vocabulary:
 
 Use the fixed tools workspace_get_snapshot, capability_search,
 capability_describe, workflow_evaluate_patch, workflow_prepare_patch, and
-workflow_candidate_get. Complete only after the
+workflow_candidate_get. The reviewed apply tool is the only mutation path.
+Complete only after the
 authoritative result supports the claim. Keep the final response concise and
 describe acknowledged Workflow changes without exposing hidden reasoning.
 """

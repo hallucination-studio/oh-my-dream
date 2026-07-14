@@ -5,6 +5,7 @@ use crate::assistant_runtime::{
 };
 use crate::reviewed_change::{RecordReviewInput, ReviewVerdict, ReviewedChangeService};
 use crate::state::AppState;
+use serde::Deserialize;
 use std::sync::Arc;
 
 pub(crate) fn review_handler(state: &AppState) -> Arc<dyn InternalReviewHandler> {
@@ -44,4 +45,27 @@ impl InternalReviewHandler for ReviewedChangeReviewHandler {
             review_receipt_id: receipt.id().to_owned(),
         })
     }
+
+    fn valid_for_approval(
+        &self,
+        project_id: &str,
+        session_id: &str,
+        operation_id: &str,
+        arguments_json: &str,
+    ) -> Result<bool, String> {
+        if operation_id != "workflow_apply_reviewed_candidate" {
+            return Ok(false);
+        }
+        let input: ReviewedApplyInput =
+            serde_json::from_str(arguments_json).map_err(|error| error.to_string())?;
+        self.service
+            .valid_passed_receipt(project_id, session_id, &input.review_receipt_id)
+            .map_err(|error| error.to_string())
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReviewedApplyInput {
+    review_receipt_id: String,
 }

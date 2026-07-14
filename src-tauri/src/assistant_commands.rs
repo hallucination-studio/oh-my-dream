@@ -46,6 +46,14 @@ pub struct AssistantSendInput {
     pub text: String,
 }
 
+/// Human decision for the one durable pending Assistant approval.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AssistantApprovalDecisionInput {
+    pub project_id: String,
+    pub approved: bool,
+}
+
 /// Starts one assistant turn through the inherited-stdio sidecar.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn assistant_send(
@@ -62,6 +70,10 @@ pub async fn assistant_send_with_state(
     on_event: Channel<Value>,
     state: &AppState,
 ) -> Result<Option<WorkflowHeadDto>, String> {
+    let session_id = project_session_id(&input.project_id);
+    if state.pending_approval.load(&session_id).map_err(|error| error.to_string())?.is_some() {
+        return Err("ASSISTANT_APPROVAL_PENDING".to_owned());
+    }
     validate_send(&input, state)?;
     let runtime = runtime_for_state(state)?;
     let (invocation, trusted) = build_invocation(&input, &state.config_root)?;
@@ -70,7 +82,49 @@ pub async fn assistant_send_with_state(
         .invoke_streamed(invocation, trusted, &mut sink)
         .await
         .map_err(|error| error.to_string())?;
-    finish_outcome(outcome)
+    finish_outcome(outcome, state)
+}
+
+/// Resumes the exact SDK RunState after a human approval decision.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn assistant_decide_approval(
+    input: AssistantApprovalDecisionInput,
+    on_event: Channel<Value>,
+    state: State<'_, AppState>,
+) -> Result<Option<WorkflowHeadDto>, String> {
+    assistant_decide_approval_with_state(input, on_event, &state).await
+}
+
+pub async fn assistant_decide_approval_with_state(
+    input: AssistantApprovalDecisionInput,
+    on_event: Channel<Value>,
+    state: &AppState,
+) -> Result<Option<WorkflowHeadDto>, String> {
+    validate_id("project_id", &input.project_id)?;
+    let session_id = project_session_id(&input.project_id);
+    let waiting = state
+        .pending_approval
+        .load(&session_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "ASSISTANT_APPROVAL_NOT_FOUND".to_owned())?;
+    if waiting.project_id() != input.project_id {
+        return Err("ASSISTANT_APPROVAL_SCOPE_MISMATCH".to_owned());
+    }
+    let invocation = AssistantInvocation::new(
+        next_assistant_id("approval")?,
+        waiting.session_id(),
+        waiting.session_path(),
+        None,
+    );
+    let trusted = TrustedInvocationContext::new(&input.project_id, next_assistant_id("request")?);
+    let runtime = runtime_for_state(state)?;
+    let mut sink = ChannelAssistantSink { channel: on_event };
+    let outcome = runtime
+        .resume_streamed(invocation, trusted, waiting, input.approved, &mut sink)
+        .await
+        .map_err(|error| error.to_string())?;
+    state.pending_approval.delete(&session_id).map_err(|error| error.to_string())?;
+    finish_outcome(outcome, state)
 }
 
 fn runtime_for_state(state: &AppState) -> Result<AssistantRuntime, String> {
@@ -90,17 +144,19 @@ fn operation_registrations(state: &AppState) -> Result<Vec<OperationRegistration
         .operation_registration()
         .map_err(|error| error.to_string())?;
     let patch_service = Arc::new(WorkflowPatchService::from_state(state));
-    let evaluate =
-        patch_service.evaluation_operation_registration().map_err(|error| error.to_string())?;
+    let evaluate = Arc::clone(&patch_service)
+        .evaluation_operation_registration()
+        .map_err(|error| error.to_string())?;
     let discovery = Arc::new(CapabilityDiscovery::from_state(state))
         .operation_registrations()
         .map_err(|error| error.to_string())?;
     let plan = ProductionPlanOperations::new(Arc::clone(&state.production_plan))
         .registrations()
         .map_err(|error| error.to_string())?;
-    let candidates = ReviewedChangeOperations::new(Arc::clone(&state.reviewed_change))
-        .registrations()
-        .map_err(|error| error.to_string())?;
+    let candidates =
+        ReviewedChangeOperations::new(Arc::clone(&state.reviewed_change), patch_service)
+            .registrations()
+            .map_err(|error| error.to_string())?;
     let mut registrations = vec![snapshot, evaluate];
     registrations.extend(discovery);
     registrations.extend(plan);
@@ -216,15 +272,28 @@ fn stable_project_hash(project_id: &str) -> u64 {
     hash
 }
 
-fn finish_outcome(outcome: AssistantRuntimeOutcome) -> Result<Option<WorkflowHeadDto>, String> {
+fn project_session_id(project_id: &str) -> String {
+    format!("project:{project_id}")
+}
+
+fn finish_outcome(
+    outcome: AssistantRuntimeOutcome,
+    state: &AppState,
+) -> Result<Option<WorkflowHeadDto>, String> {
     match outcome {
         AssistantRuntimeOutcome::Completed(completed) => completed
             .operation_calls()
             .iter()
             .rev()
-            .find(|call| call.operation_id() == "workflow_apply_patch")
+            .find(|call| {
+                matches!(
+                    call.operation_id(),
+                    "workflow_apply_patch" | "workflow_apply_reviewed_candidate"
+                )
+            })
             .map_or(Ok(None), |call| workflow_head_from_patch_output(call.output_json())),
-        AssistantRuntimeOutcome::WaitingApproval(_) => {
+        AssistantRuntimeOutcome::WaitingApproval(waiting) => {
+            state.pending_approval.save(&waiting).map_err(|error| error.to_string())?;
             Err("ASSISTANT_APPROVAL_DEFERRED".to_owned())
         }
     }
@@ -262,135 +331,4 @@ impl AssistantEventSink for ChannelAssistantSink {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        AssistantSendInput, ChannelAssistantSink, assistant_identity, build_invocation,
-        operation_registrations, workflow_head_from_patch_output,
-    };
-    use crate::assistant_runtime::AssistantEventSink;
-    use crate::state::AppState;
-    use serde_json::{Value, json};
-    use std::path::Path;
-    use std::sync::{Arc, Mutex};
-    use tauri::ipc::{Channel, InvokeResponseBody};
-    use tempfile::tempdir;
-
-    #[test]
-    fn production_runtime_exposes_plan_memory_without_scheduler_tools() {
-        let root = tempdir().expect("create app root");
-        let state = AppState::from_roots(root.path().join("assets"), root.path().join("config"))
-            .expect("build app state");
-
-        let ids = operation_registrations(&state)
-            .expect("build production registrations")
-            .into_iter()
-            .map(|registration| registration.id().to_owned())
-            .collect::<Vec<_>>();
-
-        for expected in [
-            "workflow_evaluate_patch",
-            "workflow_prepare_patch",
-            "workflow_candidate_get",
-            "production_plan_get",
-            "production_plan_create",
-            "production_plan_replace",
-            "production_plan_update_item",
-        ] {
-            assert!(ids.iter().any(|id| id == expected), "missing {expected}");
-        }
-        assert!(ids.iter().all(|id| !id.contains("next") && !id.contains("claim")));
-        assert!(!ids.iter().any(|id| id == "workflow_apply_patch"));
-    }
-
-    #[test]
-    fn channel_sink_forwards_native_response_value_unchanged() {
-        let events = Arc::new(Mutex::new(Vec::<Value>::new()));
-        let channel = Channel::new({
-            let events = Arc::clone(&events);
-            move |body| {
-                let InvokeResponseBody::Json(encoded) = body else {
-                    panic!("assistant event should use JSON IPC");
-                };
-                let event = serde_json::from_str(&encoded).expect("decode assistant event");
-                events.lock().expect("event lock").push(event);
-                Ok(())
-            }
-        });
-        let mut sink = ChannelAssistantSink { channel };
-        let event = json!({
-            "type": "response.output_text.delta",
-            "delta": "native",
-            "sequence_number": 4,
-        });
-
-        sink.emit(event.clone()).expect("channel should accept event");
-
-        assert_eq!(*events.lock().expect("event lock"), vec![event]);
-    }
-
-    #[test]
-    fn patch_output_returns_the_canonical_workflow_head() {
-        let output = json!({
-            "workflow_head": {
-                "project_id": "project-1",
-                "revision": 3,
-                "workflow": {
-                    "version": "1.0",
-                    "project_id": "project-1",
-                    "nodes": []
-                }
-            }
-        });
-
-        let head = workflow_head_from_patch_output(&output.to_string())
-            .expect("patch output should decode")
-            .expect("patch output should contain a head");
-
-        assert_eq!(head.project_id, "project-1");
-        assert_eq!(head.revision, 3);
-        assert_eq!(head.workflow["nodes"], json!([]));
-    }
-
-    #[test]
-    fn patch_output_keeps_an_absent_workflow_head_absent() {
-        let output = json!({ "workflow_head": null });
-
-        assert_eq!(workflow_head_from_patch_output(&output.to_string()), Ok(None));
-    }
-
-    #[test]
-    fn project_session_is_stable_while_turn_ids_are_rust_owned() {
-        let root = tempdir().expect("create assistant config root");
-        let first = assistant_identity(root.path(), "project-1").expect("first identity");
-        let second = assistant_identity(root.path(), "project-1").expect("second identity");
-
-        assert_eq!(first.session_id, "project:project-1");
-        assert_eq!(first.session_id, second.session_id);
-        assert_eq!(first.session_path, second.session_path);
-        assert_ne!(first.invocation_id, second.invocation_id);
-        assert_ne!(first.request_id, second.request_id);
-        assert!(first.session_path.starts_with(root.path()));
-        assert!(!first.session_path.starts_with(Path::new("project-1")));
-    }
-
-    #[test]
-    fn invocation_keeps_user_text_and_selection_in_trusted_scope() {
-        let root = tempdir().expect("create assistant config root");
-        let input = AssistantSendInput {
-            project_id: "project-1".to_owned(),
-            workflow_present: true,
-            workflow_revision: Some(4),
-            selected_node_ids: vec!["node-1".to_owned()],
-            selected_asset_ids: vec!["asset-1".to_owned()],
-            text: "  preserve this exact text  ".to_owned(),
-        };
-
-        let (invocation, trusted) = build_invocation(&input, root.path()).expect("build turn");
-
-        assert_eq!(invocation.input(), Some("  preserve this exact text  "));
-        assert_eq!(trusted.project_id(), "project-1");
-        assert_eq!(trusted.selected_node_ids(), ["node-1"]);
-        assert_eq!(trusted.selected_asset_ids(), ["asset-1"]);
-        assert!(trusted.request_id().starts_with("assistant-request-"));
-    }
-}
+mod tests;

@@ -1,3 +1,4 @@
+use crate::assistant_approval::{PendingApprovalService, PendingApprovalSqliteRepository};
 use crate::assistant_runtime::AssistantSidecarCommand;
 use crate::assistant_sidecar::configured_assistant_command;
 use crate::mock_generation::MockGenerationAdapter;
@@ -35,6 +36,8 @@ pub struct AppState {
     pub production_plan: Arc<ProductionPlanService>,
     /// Immutable Workflow candidates awaiting review and approval.
     pub reviewed_change: Arc<ReviewedChangeService>,
+    /// Durable SDK state paused for one human decision.
+    pub pending_approval: Arc<PendingApprovalService>,
     /// Command selected by the composition root for the framed stdio runtime.
     pub assistant_sidecar_command: AssistantSidecarCommand,
 }
@@ -115,6 +118,13 @@ impl AppState {
                 as Arc<dyn crate::reviewed_change::CandidateWorkflowSource>,
             Arc::new(reviewed_change_repository),
         ));
+        let pending_approval_repository = PendingApprovalSqliteRepository::open(
+            PendingApprovalSqliteRepository::path(&config_root),
+        )
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
+        .context("open pending Assistant approvals")?;
+        let pending_approval =
+            Arc::new(PendingApprovalService::new(Arc::new(pending_approval_repository)));
         Ok(Self {
             root,
             config_root,
@@ -125,6 +135,7 @@ impl AppState {
             workflow_authority,
             production_plan,
             reviewed_change,
+            pending_approval,
             assistant_sidecar_command,
         })
     }

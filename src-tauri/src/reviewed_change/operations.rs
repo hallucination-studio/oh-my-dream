@@ -3,7 +3,9 @@ use crate::assistant_operations::{
     OperationEffect, OperationHandlerError, OperationInputSchemaMode, OperationOutputSchemaMode,
     OperationRegistration, OperationRegistrationError, RequestContext,
 };
-use crate::workflow_patch_operation::WorkflowApplyPatchInput;
+use crate::workflow_patch_operation::{
+    WorkflowApplyPatchInput, WorkflowApplyPatchOutput, WorkflowPatchService,
+};
 use engine::{WorkflowPatch, WorkflowPatchOperation};
 use schemars::{JsonSchema, r#gen::SchemaGenerator, schema::Schema};
 use serde::{Deserialize, Serialize};
@@ -24,6 +26,12 @@ struct PreparePatchInput {
 #[serde(deny_unknown_fields)]
 struct GetCandidateInput {
     candidate_id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ApplyReviewedCandidateInput {
+    review_receipt_id: String,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
@@ -51,16 +59,20 @@ struct ReadinessBlockerDto {
 
 pub struct ReviewedChangeOperations {
     service: Arc<ReviewedChangeService>,
+    patch_service: Arc<WorkflowPatchService>,
 }
 
 impl ReviewedChangeOperations {
     #[must_use]
-    pub fn new(service: Arc<ReviewedChangeService>) -> Self {
-        Self { service }
+    pub fn new(
+        service: Arc<ReviewedChangeService>,
+        patch_service: Arc<WorkflowPatchService>,
+    ) -> Self {
+        Self { service, patch_service }
     }
 
     pub fn registrations(self) -> Result<Vec<OperationRegistration>, OperationRegistrationError> {
-        Ok(vec![self.prepare_registration()?, self.get_registration()?])
+        Ok(vec![self.prepare_registration()?, self.get_registration()?, self.apply_registration()?])
     }
 
     fn prepare_registration(&self) -> Result<OperationRegistration, OperationRegistrationError> {
@@ -118,6 +130,59 @@ impl ReviewedChangeOperations {
                         return Err(handler_error(ReviewedChangeError::CandidateScopeMismatch));
                     }
                     CandidateOutput::from_candidate(&candidate).map_err(handler_error)
+                }
+            },
+        )
+    }
+
+    fn apply_registration(&self) -> Result<OperationRegistration, OperationRegistrationError> {
+        let service = Arc::clone(&self.service);
+        let patch_service = Arc::clone(&self.patch_service);
+        OperationRegistration::new_with_output_mode::<
+            ApplyReviewedCandidateInput,
+            WorkflowApplyPatchOutput,
+            _,
+        >(
+            "workflow_apply_reviewed_candidate",
+            1,
+            "Apply one passed and human-approved immutable Workflow candidate.",
+            OperationEffect::PreparedApprovalExecution,
+            OperationInputSchemaMode::Strict,
+            OperationOutputSchemaMode::WorkflowDocument,
+            move |context: &RequestContext, input: ApplyReviewedCandidateInput| {
+                let service = Arc::clone(&service);
+                let patch_service = Arc::clone(&patch_service);
+                let context = context.clone();
+                async move {
+                    if context.approved_effect().is_none() {
+                        return Err(OperationHandlerError::new(
+                            "REVIEW_APPROVAL_REQUIRED",
+                            "reviewed candidate requires trusted human approval",
+                        ));
+                    }
+                    let (receipt, candidate) = service
+                        .approved_candidate(
+                            context.project_id(),
+                            context.session_id(),
+                            &input.review_receipt_id,
+                        )
+                        .map_err(handler_error)?;
+                    let apply_context = RequestContext::new(
+                        context.project_id(),
+                        context.session_id(),
+                        receipt.approval_scope_id(),
+                        1,
+                        None,
+                    );
+                    patch_service
+                        .apply_sequence(
+                            &apply_context,
+                            candidate.base_revision(),
+                            candidate.patches(),
+                        )
+                        .map_err(|error| {
+                            OperationHandlerError::new(error.code.clone(), error.to_string())
+                        })
                 }
             },
         )

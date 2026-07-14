@@ -12,6 +12,7 @@ use std::sync::{
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
+mod approval;
 mod operations;
 mod sqlite;
 
@@ -357,12 +358,8 @@ pub enum ReviewedChangeError {
     Clock(String),
     #[error("review evidence is invalid")]
     InvalidReviewEvidence,
-}
-
-impl CandidateWorkflowSource for crate::workflow_authority::WorkflowAuthority {
-    fn load(&self, project_id: &str) -> Result<Option<(u64, Workflow)>, ReviewedChangeError> {
-        self.load_head(project_id)
-            .map(|head| head.map(|head| (head.revision, head.workflow)))
-            .map_err(|error| ReviewedChangeError::Storage(error.to_string()))
-    }
+    #[error("review receipt not found: {0}")]
+    ReviewReceiptNotFound(String),
+    #[error("review receipt is invalid for this approval scope")]
+    ReviewReceiptInvalid,
 }

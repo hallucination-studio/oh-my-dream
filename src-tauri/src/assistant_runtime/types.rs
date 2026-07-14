@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Bounded resource limits for one sidecar invocation.
@@ -190,7 +191,7 @@ impl AssistantSessionSnapshot {
 }
 
 /// Exact pending effect identity carried across sidecar restart.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct AssistantPendingApproval {
     pub(super) call_id: String,
     pub(super) operation_id: String,
@@ -218,7 +219,7 @@ impl AssistantPendingApproval {
 }
 
 /// Suspended assistant result containing only opaque SDK state and effect identity.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct AssistantWaitingApproval {
     pub(super) state: Value,
     pub(super) pending: AssistantPendingApproval,

@@ -31,6 +31,8 @@ pub enum AssistantFrameKind {
     ToolResponse,
     ReviewSubmit,
     ReviewResponse,
+    ReviewCheck,
+    ReviewCheckResponse,
     ApprovalRequest,
     ApprovalResponse,
     Cancel,

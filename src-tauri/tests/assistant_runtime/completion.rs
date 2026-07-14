@@ -184,4 +184,14 @@ impl InternalReviewHandler for RecordingReviewHandler {
         self.0.lock().map_err(|error| error.to_string())?.push(submission);
         Ok(InternalReviewReceipt { candidate_id, review_receipt_id: "receipt-1".to_owned() })
     }
+
+    fn valid_for_approval(
+        &self,
+        _project_id: &str,
+        _session_id: &str,
+        _operation_id: &str,
+        _arguments_json: &str,
+    ) -> Result<bool, String> {
+        Ok(true)
+    }
 }

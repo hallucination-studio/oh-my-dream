@@ -28,6 +28,8 @@ class FrameKind(str, Enum):
     TOOL_RESPONSE = "tool_response"
     REVIEW_SUBMIT = "review_submit"
     REVIEW_RESPONSE = "review_response"
+    REVIEW_CHECK = "review_check"
+    REVIEW_CHECK_RESPONSE = "review_check_response"
     APPROVAL_REQUEST = "approval_request"
     APPROVAL_RESPONSE = "approval_response"
     CANCEL = "cancel"
