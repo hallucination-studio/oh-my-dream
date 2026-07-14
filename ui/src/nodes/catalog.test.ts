@@ -7,6 +7,7 @@ import {
   findNodeType,
   nodeSpecFromBundle,
   nodeSpecsFromSnapshot,
+  paramsForMode,
   recoveryNodeSpec,
 } from "./catalog.ts";
 
@@ -24,7 +25,6 @@ describe("node catalog contract", () => {
       expect.objectContaining({ name: "image", type: "image", required: false, cardinality: "one" }),
     ]);
     expect(image?.params.map((param) => param.name)).toEqual([
-      "mode",
       "model",
       "negative_prompt",
       "seed",
@@ -35,8 +35,16 @@ describe("node catalog contract", () => {
   it("uses the exact reference version when finding a node", () => {
     const current = snapshot();
 
-    expect(findNodeType("TextPrompt", "1.0", current)?.ref).toEqual({ id: "TextPrompt", version: "1.0" });
-    expect(findNodeType("TextPrompt", "9.9", current)).toBeUndefined();
+    expect(findNodeType("Text", "1.0", { mode: "literal" }, current)?.ref).toEqual({ id: "TextPrompt", version: "1.0" });
+    expect(findNodeType("Text", "9.9", { mode: "literal" }, current)).toBeUndefined();
+  });
+
+  it("rebuilds params from the selected mode contract", () => {
+    const current = { mode: "image", duration: 4, model: "video-model", unknown: true };
+    const concat = nodeSpecsFromSnapshot(snapshot()).find((spec) => spec.ref.id === "VideoConcat");
+    if (!concat) throw new Error("missing concat spec");
+
+    expect(paramsForMode(concat, current)).toEqual({ mode: "concat" });
   });
 
   it("keeps missing refs as recovery specs instead of dropping nodes", () => {

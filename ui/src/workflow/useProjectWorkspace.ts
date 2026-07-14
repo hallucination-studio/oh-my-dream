@@ -70,12 +70,7 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
 
   const adoptWorkflowHead = useCallback(
     async (head: WorkflowHead) => {
-      await capabilityCache.loadProject(
-        head.workflow.nodes.map((node) => ({
-          id: node.type,
-          version: node.contract_version ?? "1.0",
-        })),
-      );
+      await capabilityCache.loadWorkflow(head.workflow.nodes);
       controller.adoptHead(head);
     },
     [capabilityCache, controller],
@@ -117,6 +112,15 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
     [setStatus],
   );
   const persistence = useWorkflowPersistence(activeWorkflow, controller, onPersistenceError);
+  const replaceParams = useCallback(
+    async (nodeId: string, params: Record<string, unknown>) => {
+      await persistence.saveCurrent();
+      await controller.enqueue([
+        { op: "replace_params", node: { kind: "id", id: nodeId }, params },
+      ]);
+    },
+    [controller, persistence],
+  );
   markPersistedRef.current = persistence.markPersisted;
   projectHeadRef.current = (head) => {
     const graph = fromWorkflow(head.workflow, setParam, capabilityCache.snapshot());
@@ -171,6 +175,7 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
     discardAndClose: persistence.discardAndClose,
     keepEditing: persistence.keepEditing,
     setParam,
+    replaceParams,
     workspaceState,
   };
 
@@ -204,9 +209,7 @@ function useHydrateWorkspace(
     async (workspace: ProjectWorkspace, preserveDraft = false) => {
       const source =
         workspace.workflow_head?.workflow ?? emptyWorkflow(workspace.project.id);
-      await capabilityCache.loadProject(
-        source.nodes.map((node) => ({ id: node.type, version: node.contract_version ?? "1.0" })),
-      );
+      await capabilityCache.loadWorkflow(source.nodes);
       const graph = fromWorkflow(source, setParam, capabilityCache.snapshot());
       const normalized = toWorkflow(graph.nodes, graph.edges, workspace.project.id);
       invalidateRun();

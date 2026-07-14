@@ -19,7 +19,7 @@ export function fromWorkflow(
 ): EditorGraph {
   const nodes = workflow.nodes.map((workflowNode, index) => {
     const spec =
-      findNodeType(workflowNode.type, workflowNode.contract_version, snapshot) ??
+      findNodeType(workflowNode.type, workflowNode.contract_version, workflowNode.params, snapshot) ??
       recoveryNodeSpec(
         { id: workflowNode.type, version: workflowNode.contract_version ?? "1.0" },
         "exact capability version is unavailable",
@@ -125,7 +125,7 @@ function sourceColor(
 ): string {
   const source = workflow.nodes.find((node) => node.id === nodeId);
   const spec = source
-    ? findNodeType(source.type, source.contract_version, snapshot)
+    ? findNodeType(source.type, source.contract_version, source.params, snapshot)
     : undefined;
   const portType = spec?.outputs.find((output) => output.name === outputName)?.type;
   return typeColor(portType);

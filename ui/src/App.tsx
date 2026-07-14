@@ -14,6 +14,7 @@ import {
 import {
   nodeSpecFromBundle,
   nodeSpecsFromSnapshot,
+  paramsForMode,
   recoveryNodeSpec,
 } from "./nodes/catalog.ts";
 import { WorkflowFlowNode, type FlowNodeData } from "./nodes/WorkflowFlowNode.tsx";
@@ -84,6 +85,7 @@ export function App() {
     discardAndClose,
     keepEditing,
     setParam,
+    replaceParams,
     adoptWorkflowHead,
     workspaceState,
   } = useProjectWorkspace({
@@ -224,6 +226,36 @@ export function App() {
     const data = node.data as FlowNodeData;
     return { id: node.id, type: data.type, params: data.params, capability: data.capability };
   }, [nodes, selectedId]);
+  const [modeOptions, setModeOptions] = useState<ReturnType<typeof nodeSpecFromBundle>[]>([]);
+  useEffect(() => {
+    const typeId = selected?.capability?.selector?.type_id;
+    if (!typeId) {
+      setModeOptions([]);
+      return;
+    }
+    let cancelled = false;
+    void capabilityCache.loadModes(typeId).then((summaries) => {
+      if (cancelled) return;
+      setModeOptions(summaries.flatMap((summary) => {
+        const bundle = capabilityCache.get(summary.reference);
+        return bundle ? [nodeSpecFromBundle(bundle)] : [];
+      }));
+    }).catch((error: unknown) => {
+      if (!cancelled) setStatus({ state: "failed", reason: String(error) });
+    });
+    return () => { cancelled = true; };
+  }, [capabilityCache, selected?.capability?.selector?.type_id, setStatus]);
+
+  const changeMode = useCallback(async (mode: string) => {
+    if (!selected) return;
+    const spec = modeOptions.find((candidate) => candidate.selector?.mode === mode);
+    if (!spec) return;
+    try {
+      await replaceParams(selected.id, paramsForMode(spec, selected.params));
+    } catch (error: unknown) {
+      setStatus({ state: "failed", reason: String(error) });
+    }
+  }, [modeOptions, replaceParams, selected, setStatus]);
 
   const assistantContext = useCallback(
     () => ({
@@ -326,7 +358,12 @@ export function App() {
                 />
               </ReactFlow>
             </div>
-            <InspectorPanel node={selected} onParamChange={setParam} />
+            <InspectorPanel
+              node={selected}
+              modeOptions={modeOptions}
+              onModeChange={changeMode}
+              onParamChange={setParam}
+            />
           </>
         )}
         {assistantEnabled && assistantOpen && (

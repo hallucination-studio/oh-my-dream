@@ -15,9 +15,13 @@ export interface SelectedNode {
 
 export function InspectorPanel({
   node,
+  modeOptions = [],
+  onModeChange = () => undefined,
   onParamChange,
 }: {
   node: SelectedNode | null;
+  modeOptions?: NodeTypeSpec[];
+  onModeChange?: (mode: string) => void;
   onParamChange: (nodeId: string, name: string, value: unknown) => void;
 }) {
   if (!node) {
@@ -46,6 +50,24 @@ export function InspectorPanel({
         <span className="insp__badge" style={{ background: accent }} />
         <b>{spec?.label ?? node.type}</b>
       </div>
+
+      {spec?.selector && (
+        <label className="insp__field">
+          <span className="insp__label">Mode</span>
+          <select
+            className="insp__input"
+            aria-label={`${spec.selector.type_id} mode`}
+            value={spec.selector.mode}
+            onChange={(event) => onModeChange(event.target.value)}
+          >
+            {(modeOptions.length > 0 ? modeOptions : [spec]).map((option) => (
+              <option key={option.ref.id} value={option.selector?.mode}>
+                {option.selector?.mode}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {spec && spec.status.availability !== "available" && (
         <div className="insp__note" role="status">

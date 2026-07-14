@@ -5,6 +5,7 @@ import { api } from "../api/index.ts";
 import type { Project, ProjectWorkspace } from "../api/types.ts";
 import { deferred, workspace } from "../test/appFixtures.ts";
 import { CapabilityContractCache } from "./contractCache.ts";
+import type { FlowNodeData } from "../nodes/WorkflowFlowNode.tsx";
 import { useProjectWorkspace, type ProjectWorkspaceOptions } from "./useProjectWorkspace.ts";
 import type { RunStatus } from "./types.ts";
 import { useRef, useState } from "react";
@@ -117,6 +118,79 @@ describe("useProjectWorkspace", () => {
     expect(view.result.current.workspaceState.state).toBe("ready");
     expect(view.result.current.canEdit).toBe(true);
   });
+
+  it("keeps node params unchanged when a direct mode replacement is rejected", async () => {
+    const alpha = workspace("alpha", "Alpha", "alpha prompt");
+    vi.spyOn(api, "listProjects").mockResolvedValue([alpha.project]);
+    vi.spyOn(api, "openProject").mockResolvedValue(alpha);
+    vi.spyOn(api, "applyWorkflowPatch").mockRejectedValue(new Error("INCOMPATIBLE_WIRING"));
+
+    const view = renderHook(() => useWorkspaceHarness());
+    await waitFor(() => expect(view.result.current.workspaceState.state).toBe("no_project"));
+    act(() => view.result.current.openProject("alpha"));
+    await waitFor(() => expect(view.result.current.workspaceState.state).toBe("ready"));
+    const before = view.result.current.nodes[0]?.data.params;
+
+    await expect(view.result.current.replaceParams("alpha-prompt", { mode: "concat" }))
+      .rejects.toThrow("INCOMPATIBLE_WIRING");
+
+    expect(view.result.current.nodes[0]?.data.params).toEqual(before);
+  });
+
+  it("adopts the authoritative mode contract after replacement succeeds", async () => {
+    const alpha: ProjectWorkspace = {
+      project: { id: "alpha", name: "Alpha", created_at: 0 },
+      workflow_head: {
+        project_id: "alpha",
+        revision: 1,
+        workflow: {
+          version: "1.0",
+          project_id: "alpha",
+          nodes: [{
+            id: "video",
+            type: "Video",
+            contract_version: "1.0",
+            params: { mode: "image", model: "mock-video", duration: 4, fps: 24 },
+            inputs: {},
+          }],
+        },
+      },
+    };
+    vi.spyOn(api, "listProjects").mockResolvedValue([alpha.project]);
+    vi.spyOn(api, "openProject").mockResolvedValue(alpha);
+    vi.spyOn(api, "applyWorkflowPatch").mockResolvedValue({
+      workflow_head: {
+        ...alpha.workflow_head!,
+        revision: 2,
+        workflow: {
+          ...alpha.workflow_head!.workflow,
+          nodes: [{
+            id: "video",
+            type: "Video",
+            contract_version: "1.0",
+            params: { mode: "concat" },
+            inputs: {},
+          }],
+        },
+      },
+      aliases: [],
+      readiness_blockers: [],
+      changed: true,
+      deduplicated: false,
+      undo_id: "workflow:alpha:2",
+    });
+
+    const view = renderHook(() => useWorkspaceHarness());
+    await waitFor(() => expect(view.result.current.workspaceState.state).toBe("no_project"));
+    act(() => view.result.current.openProject("alpha"));
+    await waitFor(() => expect(view.result.current.workspaceState.state).toBe("ready"));
+
+    await act(() => view.result.current.replaceParams("video", { mode: "concat" }));
+
+    expect(view.result.current.nodes[0]?.data.params).toEqual({ mode: "concat" });
+    expect((view.result.current.nodes[0]?.data as FlowNodeData).capability?.ref.id)
+      .toBe("VideoConcat");
+  });
 });
 
 function useWorkspaceHarness() {
@@ -141,7 +215,7 @@ function useWorkspaceHarness() {
     invalidateRun: vi.fn(),
     capabilityCache: cacheRef.current,
   };
-  return useProjectWorkspace(options);
+  return { ...useProjectWorkspace(options), nodes };
 }
 
 function emptyWorkspace(id: string, name: string): ProjectWorkspace {

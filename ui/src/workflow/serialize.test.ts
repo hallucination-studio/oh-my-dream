@@ -108,6 +108,7 @@ function flowNode(
       params,
       onParamChange: () => {},
       capability: {
+        selector: null,
         ref: { id: type, version: "1.0" },
         type,
         contractVersion: "1.0",

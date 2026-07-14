@@ -4,6 +4,7 @@ import type {
   CapabilityContract,
   CapabilityPresentation,
   CapabilityRef,
+  CapabilitySelector,
   CapabilityStatus,
   JsonValue,
 } from "../api/types.ts";
@@ -40,6 +41,7 @@ export interface ParamConstraints {
 }
 
 export interface NodeTypeSpec {
+  selector: CapabilitySelector | null;
   ref: CapabilityRef;
   type: string;
   contractVersion: string;
@@ -56,8 +58,9 @@ export interface NodeTypeSpec {
 
 /** Projects loaded bundles into the node shape consumed by React Flow. */
 export function nodeSpecFromBundle(bundle: CapabilityBundle): NodeTypeSpec {
-  const { reference, contract, presentation, status } = bundle;
+  const { selector, reference, contract, presentation, status } = bundle;
   return {
+    selector,
     ref: reference,
     type: reference.id,
     contractVersion: reference.version,
@@ -98,12 +101,28 @@ export function nodeSpecsFromSnapshot(snapshot: CapabilityCacheSnapshot): NodeTy
 export function findNodeType(
   type: string,
   contractVersion: string | undefined,
+  params: Record<string, unknown>,
   snapshot: CapabilityCacheSnapshot,
 ): NodeTypeSpec | undefined {
-  const reference = { id: type, version: contractVersion ?? "1.0" };
-  const key = `${encodeURIComponent(reference.id)}@${encodeURIComponent(reference.version)}`;
-  const bundle = snapshot.bundles.get(key);
+  const version = contractVersion ?? "1.0";
+  const mode = typeof params.mode === "string" ? params.mode : null;
+  const bundle = [...snapshot.bundles.values()].find((candidate) =>
+    candidate.reference.version === version && (
+      candidate.reference.id === type ||
+      (mode !== null && candidate.selector?.type_id === type && candidate.selector.mode === mode)
+    )
+  );
   return bundle ? nodeSpecFromBundle(bundle) : undefined;
+}
+
+/** Builds canonical params for a mode while preserving only shared fields. */
+export function paramsForMode(spec: NodeTypeSpec, current: Record<string, unknown>) {
+  const params = Object.fromEntries(spec.params.map((param) => [
+    param.name,
+    Object.hasOwn(current, param.name) ? current[param.name] : param.default,
+  ]));
+  if (spec.selector) params.mode = spec.selector.mode;
+  return params;
 }
 
 /** Groups loaded bundles by their non-authoritative presentation category. */
@@ -151,6 +170,7 @@ function paramsFromContract(contract: CapabilityContract): ParamSpec[] {
   const properties = contract.params_schema.properties;
   if (!isRecord(properties)) return [];
   return Object.entries(properties).flatMap(([name, rawSchema]) => {
+    if (name === "mode") return [];
     const schema = isRecord(rawSchema) ? rawSchema : {};
     const options = enumValues(schema.enum);
     const kind = parameterKind(schema, options);

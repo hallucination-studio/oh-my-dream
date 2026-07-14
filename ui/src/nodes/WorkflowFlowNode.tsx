@@ -49,7 +49,10 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
     >
       <div className="wf-node__bar" />
       <div className="wf-node__title">
-        {spec.label}
+        <span>
+          {spec.selector?.type_id ?? spec.label}
+          {spec.selector && <small> · {spec.selector.mode}</small>}
+        </span>
         <StatePill state={state} />
       </div>
 

@@ -11,6 +11,7 @@ import type {
   CapabilitySummary,
   CapabilityStatus,
 } from "../api/types.ts";
+import type { WorkflowNode } from "./types.ts";
 
 const MAX_BUNDLE_BATCH = 32;
 
@@ -83,6 +84,41 @@ export class CapabilityContractCache {
     for (let start = 0; start < unique.length; start += MAX_BUNDLE_BATCH) {
       await this.load(unique.slice(start, start + MAX_BUNDLE_BATCH));
     }
+  }
+
+  /** Resolves canonical modality nodes without mutating palette search state. */
+  async loadWorkflow(nodes: WorkflowNode[]): Promise<void> {
+    const modesByType = new Map(await Promise.all(
+      [...new Set(nodes.map((node) => node.type))]
+        .map(async (typeId) => [typeId, await this.loadModes(typeId)] as const),
+    ));
+    const refs = nodes.map((node) => {
+      const modes = modesByType.get(node.type) ?? [];
+      const mode = typeof node.params.mode === "string" ? node.params.mode : null;
+      return modes.find((summary) =>
+        summary.selector.mode === mode &&
+        summary.reference.version === (node.contract_version ?? "1.0")
+      )?.reference ?? { id: node.type, version: node.contract_version ?? "1.0" };
+    });
+    await this.loadProject(refs);
+  }
+
+  /** Loads all current modes for one modality without replacing palette summaries. */
+  async loadModes(typeId: string): Promise<CapabilitySummary[]> {
+    const modes: CapabilitySummary[] = [];
+    const seenCursors = new Set<string>();
+    let cursor: string | null = null;
+    do {
+      if (cursor !== null && seenCursors.has(cursor)) {
+        throw new Error("CAPABILITY_SEARCH_CURSOR_REPEATED");
+      }
+      if (cursor !== null) seenCursors.add(cursor);
+      const page = await this.api.searchCapabilities({ query: "", type_id: typeId, cursor });
+      modes.push(...page.capabilities.filter((summary) => summary.selector.type_id === typeId));
+      cursor = page.next_cursor;
+    } while (cursor !== null);
+    await this.load(modes.map((summary) => summary.reference));
+    return modes;
   }
 
   /** Searches the server-side paged palette without loading any contract body. */

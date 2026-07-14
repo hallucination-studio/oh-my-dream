@@ -130,6 +130,30 @@ describe("CapabilityContractCache", () => {
 
     expect(cache.snapshot().summaries.map((summary) => summary.reference)).toEqual([secondRef]);
   });
+
+  it("loads selector modes without replacing palette summaries", async () => {
+    const video = { id: "ImageToVideo", version: "1.0" };
+    const concat = { id: "VideoConcat", version: "1.0" };
+    const palette: CapabilitySearchPage = {
+      capabilities: [{ selector: { type_id: "Text", mode: "literal" }, reference: prompt, presentation: presentation("Text Prompt"), status: status() }],
+      next_cursor: null,
+    };
+    const modes: CapabilitySearchPage = {
+      capabilities: [
+        { selector: { type_id: "Video", mode: "image" }, reference: video, presentation: presentation("Image to Video"), status: status() },
+        { selector: { type_id: "Video", mode: "concat" }, reference: concat, presentation: presentation("Video Concat"), status: status() },
+      ],
+      next_cursor: null,
+    };
+    const api = cacheApi([bundle(video), bundle(concat)], palette, modes);
+    const cache = new CapabilityContractCache(api);
+    await cache.search({ query: "text" });
+
+    await expect(cache.loadModes("Video")).resolves.toHaveLength(2);
+
+    expect(cache.snapshot().summaries).toEqual(palette.capabilities);
+    expect(api.searchCapabilities).toHaveBeenLastCalledWith({ query: "", type_id: "Video", cursor: null });
+  });
 });
 
 type TestCacheApi = CapabilityCacheApi & {
