@@ -12,6 +12,7 @@ use assets::AssetStore;
 use backends::MockBackend;
 use engine::NodeRegistry;
 use nodes::SharedAssetStore;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -38,6 +39,8 @@ pub struct AppState {
     pub reviewed_change: Arc<ReviewedChangeService>,
     /// Durable SDK state paused for one human decision.
     pub pending_approval: Arc<PendingApprovalService>,
+    /// In-process guard preventing concurrent Runner invocations per Session.
+    pub active_assistant_sessions: Arc<std::sync::Mutex<HashSet<String>>>,
     /// Command selected by the composition root for the framed stdio runtime.
     pub assistant_sidecar_command: AssistantSidecarCommand,
 }
@@ -136,6 +139,7 @@ impl AppState {
             production_plan,
             reviewed_change,
             pending_approval,
+            active_assistant_sessions: Arc::new(std::sync::Mutex::new(HashSet::new())),
             assistant_sidecar_command,
         })
     }

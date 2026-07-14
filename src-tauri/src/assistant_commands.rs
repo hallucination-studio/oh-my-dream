@@ -71,6 +71,7 @@ pub async fn assistant_send_with_state(
     state: &AppState,
 ) -> Result<Option<WorkflowHeadDto>, String> {
     let session_id = project_session_id(&input.project_id);
+    let _active = ActiveAssistantSession::acquire(state, &session_id)?;
     if state.pending_approval.load(&session_id).map_err(|error| error.to_string())?.is_some() {
         return Err("ASSISTANT_APPROVAL_PENDING".to_owned());
     }
@@ -102,6 +103,7 @@ pub async fn assistant_decide_approval_with_state(
 ) -> Result<Option<WorkflowHeadDto>, String> {
     validate_id("project_id", &input.project_id)?;
     let session_id = project_session_id(&input.project_id);
+    let _active = ActiveAssistantSession::acquire(state, &session_id)?;
     let waiting = state
         .pending_approval
         .load(&session_id)
@@ -125,6 +127,31 @@ pub async fn assistant_decide_approval_with_state(
         .map_err(|error| error.to_string())?;
     state.pending_approval.delete(&session_id).map_err(|error| error.to_string())?;
     finish_outcome(outcome, state)
+}
+
+struct ActiveAssistantSession {
+    sessions: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    session_id: String,
+}
+
+impl ActiveAssistantSession {
+    fn acquire(state: &AppState, session_id: &str) -> Result<Self, String> {
+        let sessions = Arc::clone(&state.active_assistant_sessions);
+        let mut active = sessions.lock().map_err(|_| "assistant session lock poisoned")?;
+        if !active.insert(session_id.to_owned()) {
+            return Err("ASSISTANT_SESSION_ACTIVE".to_owned());
+        }
+        drop(active);
+        Ok(Self { sessions, session_id: session_id.to_owned() })
+    }
+}
+
+impl Drop for ActiveAssistantSession {
+    fn drop(&mut self) {
+        if let Ok(mut active) = self.sessions.lock() {
+            active.remove(&self.session_id);
+        }
+    }
 }
 
 fn runtime_for_state(state: &AppState) -> Result<AssistantRuntime, String> {
