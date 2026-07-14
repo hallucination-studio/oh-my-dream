@@ -1,0 +1,231 @@
+{
+  "schema_version": "1.0.0",
+  "inventory_id": "liblib-production-workflow-snapshot-001",
+  "source": {
+    "kind": "authenticated_network_response_snapshot",
+    "observed_on": "2026-07-14",
+    "sha256": "45b5a147b658dd6cce68d21eabb33508801bff29757ecc7de39e06443093fe74",
+    "raw_source_committed": false,
+    "authority": "observed_evidence_only",
+    "limitations": [
+      "The snapshot proves graph and embedded-field presence but does not prove which narrative or production branch is approved Gold.",
+      "Canvas position, timestamps, labels, and downstream popularity are not treated as approval evidence.",
+      "Original text, prompts, URLs, media, identifiers, and authenticated response metadata are intentionally excluded."
+    ]
+  },
+  "coverage": {
+    "nodes": {
+      "observed": 463,
+      "accounted_for_by_action": 463,
+      "embedded_json_parseable": 463,
+      "embedded_json_unparseable": 0,
+      "raw_records_committed": 0
+    },
+    "edges": {
+      "observed": 1168,
+      "accounted_for_by_edge_type": 1168,
+      "raw_records_committed": 0
+    }
+  },
+  "node_inventory": {
+    "by_action": [
+      {
+        "action": "video_generate",
+        "count": 250,
+        "evidence_class": "video_generation"
+      },
+      {
+        "action": "image_resource",
+        "count": 101,
+        "evidence_class": "image_reference_or_output"
+      },
+      {
+        "action": "image_edit",
+        "count": 22,
+        "evidence_class": "image_revision"
+      },
+      {
+        "action": "audio_resource",
+        "count": 26,
+        "evidence_class": "audio_reference_or_output"
+      },
+      {
+        "action": "text_generate",
+        "count": 14,
+        "evidence_class": "generated_text"
+      },
+      {
+        "action": "image_generate",
+        "count": 12,
+        "evidence_class": "image_generation"
+      },
+      {
+        "action": "text_resource",
+        "count": 12,
+        "evidence_class": "source_text"
+      },
+      {
+        "action": "audio_generate",
+        "count": 7,
+        "evidence_class": "audio_generation"
+      },
+      {
+        "action": "video_story_resource",
+        "count": 3,
+        "evidence_class": "shot_or_story_structure"
+      },
+      {
+        "action": "video_resource",
+        "count": 2,
+        "evidence_class": "video_reference_or_output"
+      },
+      {
+        "action": null,
+        "count": 14,
+        "evidence_class": "group_container"
+      }
+    ],
+    "by_media_family": {
+      "text_and_story": 29,
+      "image": 135,
+      "video": 252,
+      "audio": 33,
+      "group": 14,
+      "total": 463
+    },
+    "generator_type": {
+      "default": 363,
+      "enhance": 5,
+      "not_declared": 95
+    },
+    "grouping": {
+      "group_nodes": 14,
+      "nodes_with_parent_group": 83
+    }
+  },
+  "graph_inventory": {
+    "edge_type_counts": {
+      "default": 1168
+    },
+    "integrity": {
+      "unique_node_keys": 463,
+      "unique_connection_ids": 1168,
+      "orphan_source_edges": 0,
+      "orphan_target_edges": 0,
+      "self_loops": 0
+    },
+    "connectivity": {
+      "nodes_with_incoming_edges": 296,
+      "nodes_with_outgoing_edges": 140,
+      "isolated_nodes": 65,
+      "nodes_with_multiple_incoming_edges": 202,
+      "nodes_with_multiple_outgoing_edges": 92,
+      "maximum_in_degree": 9,
+      "maximum_out_degree": 104,
+      "video_generation_nodes_with_multiple_incoming_edges": 194
+    }
+  },
+  "retained_evidence_signals": {
+    "narrative_and_shot": {
+      "text_resource_nodes": 12,
+      "text_generation_nodes": 14,
+      "video_story_resource_nodes": 3,
+      "embedded_content_fields": 26,
+      "embedded_shot_column_fields": 3,
+      "embedded_row_fields": 3,
+      "interpretation": "These counts establish narrative and shot-structure evidence but do not select a master script or approved shot list."
+    },
+    "production_and_media": {
+      "image_nodes": 135,
+      "video_nodes": 252,
+      "audio_nodes": 33,
+      "task_info_fields": 254,
+      "ordered_image_input_fields": 248,
+      "ordered_video_input_fields": 30,
+      "ordered_audio_input_fields": 117,
+      "ordered_mixed_input_fields": 237,
+      "interpretation": "The snapshot contains model-backed stages, media references, ordered inputs, and execution evidence across image, video, and audio."
+    },
+    "revision_and_recovery": {
+      "stale_nodes": 5,
+      "retry_metadata_fields": 6,
+      "source_video_revision_fields": 3,
+      "image_edit_nodes": 22,
+      "video_enhance_nodes": 5,
+      "interpretation": "These signals establish local revision and recovery activity without proving approval or supersession."
+    },
+    "downstream": {
+      "nodes_with_downstream_consumers": 140,
+      "maximum_downstream_edge_count": 104,
+      "interpretation": "Downstream use is retained as evidence for lineage analysis, not as automatic approval authority."
+    }
+  },
+  "privacy_and_exclusion_ledger": {
+    "excluded_raw_sections": [
+      "projectMeta",
+      "projectDraft",
+      "nodeList records",
+      "connectionList records",
+      "top-level response message",
+      "top-level trace identifier"
+    ],
+    "excluded_embedded_values": [
+      {
+        "field_family": "urls_and_media_locators",
+        "observed_field_count": 420
+      },
+      {
+        "field_family": "prompts",
+        "observed_field_count": 356
+      },
+      {
+        "field_family": "freeform_content",
+        "observed_field_count": 26
+      },
+      {
+        "field_family": "posters_and_previews",
+        "observed_field_count": 243
+      },
+      {
+        "field_family": "image_input_lists",
+        "observed_field_count": 356
+      },
+      {
+        "field_family": "video_input_lists",
+        "observed_field_count": 361
+      },
+      {
+        "field_family": "audio_input_lists",
+        "observed_field_count": 356
+      },
+      {
+        "field_family": "mixed_media_input_lists",
+        "observed_field_count": 245
+      },
+      {
+        "field_family": "resource_metadata",
+        "observed_field_count": 440
+      }
+    ],
+    "excluded_identifier_families": [
+      "project identifiers",
+      "workflow identifiers",
+      "node keys",
+      "connection identifiers",
+      "provider task identifiers",
+      "source media identifiers"
+    ],
+    "credential_values_committed": 0,
+    "raw_prompt_values_committed": 0,
+    "raw_url_values_committed": 0,
+    "raw_media_values_committed": 0
+  },
+  "reconciliation": {
+    "node_action_sum": 463,
+    "media_family_sum": 463,
+    "edge_type_sum": 1168,
+    "all_nodes_accounted_for": true,
+    "all_edges_accounted_for": true,
+    "privacy_reduction": "aggregate_counts_and_presence_only"
+  }
+}
