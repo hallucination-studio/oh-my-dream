@@ -174,7 +174,7 @@
       "smallest_sufficient_rerun": "Restoration sequence only, preserving the approved reveal",
       "required_modalities_provisional": ["image", "video", "audio"],
       "ledger_file": "ledgers/ledger-05-restoration.json",
-      "completion": "pending_task_6",
+      "completion": "complete_task_6",
       "authority": "unresolved"
     }
   ],

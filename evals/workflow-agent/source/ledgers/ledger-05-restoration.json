@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0.0",
+  "ledger_id": "ledger-05-restoration",
+  "status": "complete_provisional_evidence_record",
+  "index_ref": "../script-ledger-index.json",
+  "script": {
+    "working_version_id": "shots-revised-029",
+    "source_ref": "node-0119",
+    "shot_range": [23, 29],
+    "time_range_seconds": [150, 180],
+    "beat_ids": ["beat-023", "beat-024", "beat-025", "beat-026", "beat-027", "beat-028", "beat-029"],
+    "authority": "unresolved"
+  },
+  "nodes": {
+    "direct_script_evidence": ["node-0119"],
+    "comparative_lineage_refs": ["node-0250", "node-0255", "node-0251", "node-0246", "node-0248", "node-0249"],
+    "comparative_reference_refs": ["node-0165", "node-0170", "node-0205", "node-0201", "node-0197", "node-0214"],
+    "companion_audio_design_refs": ["node-0254"],
+    "missing_evidence_refs": ["node-0253"],
+    "proven_comparative_edges": [
+      {"source_ref": "node-0250", "target_ref": "node-0255", "meaning": "Late-story prose to the 23-shot branch."},
+      {"source_ref": "node-0255", "target_ref": "node-0251", "meaning": "The 23-shot branch contributes to the 28-shot optimization."},
+      {"source_ref": "node-0246", "target_ref": "node-0254", "meaning": "The eleven-shot ending branch directly feeds a timed ending-music design."}
+    ],
+    "direct_working_candidate_production_joins": [],
+    "join_status": "comparative_ending_evidence_only"
+  },
+  "prompts": {
+    "script_text_present": true,
+    "generation_prompt_content_retained": false,
+    "source_backed_prompt_nodes": ["node-0248", "node-0249"],
+    "status": "Two ending prompt sets exist, but neither is approved or directly joined to the working candidate."
+  },
+  "ordered_references": {
+    "source_node_ref": "node-0249",
+    "stream_modality": "image",
+    "ordered_source_refs": ["node-0165", "node-0170", "node-0205", "node-0201", "node-0197", "node-0214"],
+    "declared_order_count": 6,
+    "unresolved_order_entries": 0,
+    "authority": "unresolved_comparative_branch"
+  },
+  "media": {
+    "image": {"requirement": "required", "reason": "The restoration requires stable damage, repair action, symbolic mark, guardian placement, child relationship, and final title composition.", "comparative_reference_refs": ["node-0165", "node-0170", "node-0205", "node-0201", "node-0197", "node-0214"], "evidence_status": "ordered_comparative_references_proven_authority_unresolved"},
+    "video": {"requirement": "required", "reason": "Repair, replacement on the desk, emotional push-in, child movement, voice-over timing, and title fade require temporal evidence.", "direct_node_refs": [], "evidence_status": "script_required_group_specific_generation_join_unresolved"},
+    "audio": {"requirement": "required", "reason": "Inner monologue, child dialogue, domestic ambience, ending score, and title timing are explicit requirements.", "direct_node_refs": [], "design_node_refs": ["node-0254"], "evidence_status": "ending_music_design_proven_rendered_audio_join_unresolved"}
+  },
+  "revisions_and_failures": {
+    "source_backed_revision_refs": ["node-0255", "node-0251", "node-0214"],
+    "revision_conflicts": ["heart versus five-point-star repair symbol", "identifiable faces versus no-face staging", "different ending shot counts", "ending music duration mismatch"],
+    "attempt_refs": ["node-0249", "node-0255", "node-0251", "node-0254"],
+    "retry_refs": [],
+    "stale_refs": ["node-0249", "node-0255", "node-0251"],
+    "explicit_failure_refs": [],
+    "missing_content_refs": ["node-0253"],
+    "authority": "unresolved"
+  },
+  "downstream": {
+    "proven_consumer_refs": ["node-0249", "node-0255", "node-0251", "node-0254"],
+    "consumer_scope": "comparative ending prompt, shot, and music-design lineages",
+    "expected_handoff_group": null,
+    "terminal_state": ["guardian repaired", "protective purpose renewed", "final image and title complete"]
+  },
+  "continuity": {
+    "incoming": ["domestic reality", "object mapping complete", "guardian damage recognized", "heroism asserted"],
+    "outgoing": ["project close", "guardian repaired and restored", "protective purpose renewed"],
+    "unresolved": ["repair symbol", "human visibility policy", "ending music timing", "authoritative ending branch"]
+  },
+  "evidence_limits": [
+    "The six-reference order is proven for a comparative ending prompt branch, not specifically for shots 23-29 of the working candidate.",
+    "The ending-music node proves a timed design, not a rendered audio artifact or approved final mix.",
+    "The empty generation artifact cannot be reconstructed and remains explicit missing evidence."
+  ],
+  "authority": "unresolved"
+}
