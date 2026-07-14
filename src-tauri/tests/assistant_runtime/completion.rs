@@ -112,6 +112,50 @@ sys.stdin.read()"#;
 }
 
 #[tokio::test]
+async fn assistant_runtime_returns_missing_dynamic_approval_as_a_tool_error() {
+    let script = r#"import json,sys
+invoke=json.loads(sys.stdin.readline())['payload']
+request={'protocol_version':1,'sequence':0,'kind':'tool_request','payload':{'invocation_id':invoke['invocation_id'],'operation_id':'workflow_apply_reviewed_candidate','call_id':'call-1','arguments_json':'{\"query\":\"forged\"}'}}
+print(json.dumps(request),flush=True)
+response=json.loads(sys.stdin.readline())
+assert json.loads(response['payload']['output_json'])['error']['code']=='TOOL_APPROVAL_REQUIRED'
+frames=[('snapshot',{'invocation_id':invoke['invocation_id'],'session_id':invoke['session_id'],'status':'completed','state':None}),('completed',{'invocation_id':invoke['invocation_id'],'final_output':'corrected'})]
+[print(json.dumps({'protocol_version':1,'sequence':seq+1,'kind':kind,'payload':payload}),flush=True) for seq,(kind,payload) in enumerate(frames)]
+sys.stdin.read()"#;
+    let registration = OperationRegistration::new::<LocalReadInput, LocalReadOutput, _>(
+        "workflow_apply_reviewed_candidate",
+        1,
+        "Apply reviewed candidate.",
+        OperationEffect::PreparedApprovalExecution,
+        OperationInputSchemaMode::Strict,
+        |_context: &RequestContext, input: LocalReadInput| async move {
+            Ok(LocalReadOutput {
+                project_id: "project-7".to_owned(),
+                request_id: "request-9".to_owned(),
+                result: input.query,
+            })
+        },
+    )
+    .expect("registration");
+    let runtime = AssistantRuntime::new(super::common::hostile_command(script), vec![registration])
+        .expect("runtime");
+    let directory = TempDir::new().expect("directory");
+    let outcome = runtime
+        .invoke(
+            AssistantInvocation::new(
+                "invoke-invalid-receipt",
+                "session-invalid-receipt",
+                directory.path().join("session.sqlite3"),
+                Some("correct the receipt".to_owned()),
+            ),
+            TrustedInvocationContext::new("project-7", "request-9"),
+        )
+        .await
+        .expect("recoverable approval error");
+    assert!(matches!(outcome, AssistantRuntimeOutcome::Completed(_)));
+}
+
+#[tokio::test]
 async fn assistant_runtime_forwards_native_responses_event_without_remapping() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let runtime = AssistantRuntime::new(

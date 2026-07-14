@@ -8,6 +8,9 @@ pub fn fixture() -> AssistantPendingApprovalDto {
         candidate_digest: "sha256:candidate".to_owned(),
         reviewer_version: "reviewer-v1".to_owned(),
         evidence_hash: "sha256:evidence".to_owned(),
+        review_summary: "Ready to apply".to_owned(),
+        review_findings: vec!["Matches the requested production".to_owned()],
+        effect: "apply_reviewed_workflow_candidate".to_owned(),
         workflow: json!({"version":"1.0","project_id":"project-1","nodes":[]}),
         readiness_blockers: json!([]),
     }

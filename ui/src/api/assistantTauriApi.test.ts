@@ -20,6 +20,9 @@ it("loads the exact pending reviewed Assistant candidate", async () => {
     candidate_digest: "sha256:candidate",
     reviewer_version: "reviewer-v1",
     evidence_hash: "sha256:evidence",
+    review_summary: "Ready to apply",
+    review_findings: [],
+    effect: "apply_reviewed_workflow_candidate",
     workflow: { version: "1.0", project_id: "project-1", nodes: [] },
     readiness_blockers: [],
   };
@@ -29,4 +32,12 @@ it("loads the exact pending reviewed Assistant candidate", async () => {
   expect(invokeMock).toHaveBeenCalledWith("assistant_get_pending_approval", {
     project_id: "project-1",
   });
+});
+
+it("propagates pending approval command errors", async () => {
+  const { tauriApi } = await import("./tauriApi.ts");
+  invokeMock.mockRejectedValueOnce(new Error("ASSISTANT_APPROVAL_NOT_FOUND"));
+  await expect(tauriApi.getPendingAssistantApproval("project-1")).rejects.toThrow(
+    "ASSISTANT_APPROVAL_NOT_FOUND",
+  );
 });

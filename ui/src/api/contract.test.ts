@@ -34,7 +34,8 @@ describe("backend DTO fixtures", () => {
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
     expect(isAssistantConfig(assistantConfigFixture)).toBe(true);
     expect(isCapabilityCatalog(capabilityCatalogFixture)).toBe(true);
-    const approval: AssistantPendingApproval = assistantApprovalFixture;
+    expect(assistantApprovalFixture.effect).toBe("apply_reviewed_workflow_candidate");
+    const approval = assistantApprovalFixture as AssistantPendingApproval;
     expect(approval.candidate_digest).toBe("sha256:candidate");
   });
 });

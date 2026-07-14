@@ -21,6 +21,10 @@ export function AssistantApprovalCard({
         <div><dt>Requested production</dt><dd>{approval.user_intent}</dd></div>
         <div><dt>Workflow</dt><dd>{approval.workflow.nodes.length} nodes</dd></div>
         <div><dt>Review</dt><dd>{approval.reviewer_version}</dd></div>
+        <div><dt>Summary</dt><dd>{approval.review_summary}</dd></div>
+        {approval.review_findings.map((finding) => (
+          <div key={finding}><dt>Finding</dt><dd>{finding}</dd></div>
+        ))}
         <div><dt>Candidate</dt><dd>{approval.candidate_digest}</dd></div>
       </dl>
       <div className="adock__approval-actions">

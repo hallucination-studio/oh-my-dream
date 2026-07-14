@@ -257,6 +257,9 @@ export interface AssistantPendingApproval {
   candidate_digest: string;
   reviewer_version: string;
   evidence_hash: string;
+  review_summary: string;
+  review_findings: string[];
+  effect: "apply_reviewed_workflow_candidate";
   workflow: Workflow;
   readiness_blockers: JsonValue;
 }

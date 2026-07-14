@@ -43,6 +43,8 @@ fn rust_persists_only_a_review_bound_to_the_exact_candidate_digest() {
         reviewer_version: "reviewer-v1".to_owned(),
         verdict: ReviewVerdict::Pass,
         evidence_hash: "sha256:evidence".to_owned(),
+        summary: "reviewed".to_owned(),
+        findings: Vec::new(),
     });
     assert!(matches!(mismatch, Err(ReviewedChangeError::CandidateScopeMismatch)));
 
@@ -56,6 +58,8 @@ fn rust_persists_only_a_review_bound_to_the_exact_candidate_digest() {
             reviewer_version: "reviewer-v1".to_owned(),
             verdict: ReviewVerdict::Pass,
             evidence_hash: "sha256:evidence".to_owned(),
+            summary: "reviewed".to_owned(),
+            findings: Vec::new(),
         })
         .expect("receipt");
 

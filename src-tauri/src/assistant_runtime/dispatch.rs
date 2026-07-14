@@ -85,6 +85,11 @@ fn recoverable_tool_error(error: OperationDispatchError) -> Result<String, Assis
         OperationDispatchError::Handler { source, .. } => {
             (source.code().to_owned(), source.message().to_owned(), None)
         }
+        OperationDispatchError::ApprovalRequired { .. } => (
+            "TOOL_APPROVAL_REQUIRED".to_owned(),
+            "tool requires a valid reviewed approval receipt".to_owned(),
+            None,
+        ),
         internal => return Err(AssistantRuntimeError::Operation(internal)),
     };
     serde_json::to_string(&serde_json::json!({

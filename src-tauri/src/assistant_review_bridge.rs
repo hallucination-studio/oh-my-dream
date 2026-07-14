@@ -38,6 +38,8 @@ impl InternalReviewHandler for ReviewedChangeReviewHandler {
                 reviewer_version: submission.reviewer_version,
                 verdict,
                 evidence_hash: submission.evidence_hash,
+                summary: submission.summary,
+                findings: submission.findings,
             })
             .map_err(|error| error.to_string())?;
         Ok(InternalReviewReceipt {

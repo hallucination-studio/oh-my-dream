@@ -82,6 +82,8 @@ fn pending_approval_exposes_the_exact_reviewed_candidate() {
             reviewer_version: "reviewer-v1".to_owned(),
             verdict: ReviewVerdict::Pass,
             evidence_hash: "sha256:evidence".to_owned(),
+            summary: "Ready to apply".to_owned(),
+            findings: vec!["Matches the requested production".to_owned()],
         })
         .expect("receipt");
     let pending: AssistantWaitingApproval = serde_json::from_value(json!({
@@ -97,6 +99,7 @@ fn pending_approval_exposes_the_exact_reviewed_candidate() {
         .expect("approval");
     assert_eq!(dto.user_intent, "Build a film");
     assert_eq!(dto.candidate_digest, candidate.digest());
+    assert_eq!(dto.review_summary, "Ready to apply");
     assert_eq!(dto.workflow["nodes"].as_array().expect("nodes").len(), 1);
 }
 

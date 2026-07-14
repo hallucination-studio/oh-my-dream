@@ -5,7 +5,6 @@ use engine::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
@@ -14,9 +13,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 mod approval;
+mod candidate;
 mod operations;
 mod sqlite;
 
+use candidate::{CandidateBase, fingerprint, new_candidate, now_seconds};
 pub use operations::ReviewedChangeOperations;
 pub use sqlite::ReviewedChangeSqliteRepository;
 
@@ -35,7 +36,7 @@ pub struct WorkflowCandidate {
     digest: String,
     workflow_fingerprint: String,
     workflow: Workflow,
-    aliases: BTreeMap<String, String>,
+    aliases: Vec<(String, String)>,
     readiness_blockers: Vec<WorkflowReadinessBlocker>,
     expires_at: u64,
 }
@@ -78,7 +79,7 @@ impl WorkflowCandidate {
         &self.workflow
     }
     #[must_use]
-    pub fn aliases(&self) -> &BTreeMap<String, String> {
+    pub fn aliases(&self) -> &[(String, String)] {
         &self.aliases
     }
     #[must_use]
@@ -110,6 +111,8 @@ pub struct RecordReviewInput {
     pub reviewer_version: String,
     pub verdict: ReviewVerdict,
     pub evidence_hash: String,
+    pub summary: String,
+    pub findings: Vec<String>,
 }
 
 /// Persistence boundary consumed by immutable reviewed changes.
@@ -140,6 +143,8 @@ pub struct ReviewReceipt {
     reviewer_version: String,
     verdict: ReviewVerdict,
     evidence_hash: String,
+    summary: String,
+    findings: Vec<String>,
     expires_at: u64,
 }
 
@@ -171,6 +176,14 @@ impl ReviewReceipt {
     #[must_use]
     pub fn evidence_hash(&self) -> &str {
         &self.evidence_hash
+    }
+    #[must_use]
+    pub fn summary(&self) -> &str {
+        &self.summary
+    }
+    #[must_use]
+    pub fn findings(&self) -> &[String] {
+        &self.findings
     }
     #[must_use]
     pub fn expires_at(&self) -> u64 {
@@ -212,11 +225,13 @@ impl ReviewedChangeService {
                 actual: current_revision,
             });
         }
-        let (base, mut patches) = self.candidate_base(&input, current)?;
-        let result = apply_workflow_patch(&self.registry, &base, &input.patch)
+        let mut base = self.candidate_base(&input, current)?;
+        let result = apply_workflow_patch(&self.registry, &base.workflow, &input.patch)
             .map_err(|error| ReviewedChangeError::InvalidPatch(error.to_string()))?;
-        patches.push(input.patch.clone());
-        let candidate = new_candidate(input, patches, result)?;
+        base.patches.push(input.patch.clone());
+        base.aliases
+            .extend(result.aliases.iter().map(|(alias, node_id)| (alias.clone(), node_id.clone())));
+        let candidate = new_candidate(input, base.patches, base.aliases, result)?;
         self.repository.insert(&candidate)?;
         Ok(candidate)
     }
@@ -248,8 +263,7 @@ impl ReviewedChangeService {
         if input.reviewer_version.trim().is_empty() || !input.evidence_hash.starts_with("sha256:") {
             return Err(ReviewedChangeError::InvalidReviewEvidence);
         }
-        let receipt =
-            new_receipt(&candidate, input.reviewer_version, input.verdict, input.evidence_hash)?;
+        let receipt = new_receipt(&candidate, input)?;
         self.repository.insert_receipt(&receipt)?;
         Ok(receipt)
     }
@@ -265,14 +279,14 @@ impl ReviewedChangeService {
         &self,
         input: &PrepareCandidateInput,
         current: Option<(u64, Workflow)>,
-    ) -> Result<(Workflow, Vec<WorkflowPatch>), ReviewedChangeError> {
+    ) -> Result<CandidateBase, ReviewedChangeError> {
         let Some(prior_id) = input.prior_candidate_id.as_deref() else {
             let workflow = current.map(|(_, workflow)| workflow).unwrap_or_else(|| Workflow {
                 version: "1.0".to_owned(),
                 project_id: input.project_id.clone(),
                 nodes: Vec::new(),
             });
-            return Ok((workflow, Vec::new()));
+            return Ok(CandidateBase { workflow, patches: Vec::new(), aliases: Vec::new() });
         };
         let prior = self
             .repository
@@ -287,15 +301,17 @@ impl ReviewedChangeService {
         if prior.expires_at <= now_seconds()? {
             return Err(ReviewedChangeError::CandidateExpired);
         }
-        Ok((prior.workflow, prior.patches))
+        Ok(CandidateBase {
+            workflow: prior.workflow,
+            patches: prior.patches,
+            aliases: prior.aliases,
+        })
     }
 }
 
 fn new_receipt(
     candidate: &WorkflowCandidate,
-    reviewer_version: String,
-    verdict: ReviewVerdict,
-    evidence_hash: String,
+    input: RecordReviewInput,
 ) -> Result<ReviewReceipt, ReviewedChangeError> {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -314,52 +330,13 @@ fn new_receipt(
         session_id: candidate.session_id.clone(),
         candidate_id: candidate.id.clone(),
         candidate_digest: candidate.digest.clone(),
-        reviewer_version,
-        verdict,
-        evidence_hash,
+        reviewer_version: input.reviewer_version,
+        verdict: input.verdict,
+        evidence_hash: input.evidence_hash,
+        summary: input.summary,
+        findings: input.findings,
         expires_at: candidate.expires_at,
     })
-}
-
-fn new_candidate(
-    input: PrepareCandidateInput,
-    patches: Vec<WorkflowPatch>,
-    result: engine::WorkflowPatchResult,
-) -> Result<WorkflowCandidate, ReviewedChangeError> {
-    let digest = fingerprint(&patches)?;
-    let workflow_fingerprint = fingerprint(&result.workflow)?;
-    let sequence = NEXT_CANDIDATE_ID.fetch_add(1, Ordering::Relaxed);
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| ReviewedChangeError::Clock(error.to_string()))?
-        .as_nanos();
-    Ok(WorkflowCandidate {
-        id: format!("candidate-{timestamp:032x}-{sequence:016x}"),
-        project_id: input.project_id,
-        session_id: input.session_id,
-        user_intent: input.user_intent,
-        base_revision: input.expected_revision,
-        patches,
-        digest,
-        workflow_fingerprint,
-        workflow: result.workflow,
-        aliases: result.aliases,
-        readiness_blockers: result.readiness_blockers,
-        expires_at: now_seconds()?.saturating_add(CANDIDATE_TTL_SECONDS),
-    })
-}
-
-fn fingerprint(value: &impl Serialize) -> Result<String, ReviewedChangeError> {
-    let bytes = serde_json::to_vec(value)
-        .map_err(|error| ReviewedChangeError::Storage(error.to_string()))?;
-    Ok(format!("sha256:{:x}", Sha256::digest(bytes)))
-}
-
-fn now_seconds() -> Result<u64, ReviewedChangeError> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs())
-        .map_err(|error| ReviewedChangeError::Clock(error.to_string()))
 }
 
 #[derive(Debug, Error)]

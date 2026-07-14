@@ -128,7 +128,7 @@ async fn approved_candidate_replays_exact_patches_into_one_workflow_revision() {
         .expect("store")
         .create_project_with_id("project", "Project")
         .expect("project");
-    let candidate = state
+    let first_candidate = state
         .reviewed_change
         .prepare(PrepareCandidateInput {
             project_id: "project".to_owned(),
@@ -139,6 +139,17 @@ async fn approved_candidate_replays_exact_patches_into_one_workflow_revision() {
             patch: add("prompt", "TextPrompt"),
         })
         .expect("candidate");
+    let candidate = state
+        .reviewed_change
+        .prepare(PrepareCandidateInput {
+            project_id: "project".to_owned(),
+            session_id: "session".to_owned(),
+            user_intent: "Build the requested production".to_owned(),
+            expected_revision: None,
+            prior_candidate_id: Some(first_candidate.id().to_owned()),
+            patch: add("prompt", "TextPrompt"),
+        })
+        .expect("extended candidate");
     let receipt = state
         .reviewed_change
         .record_review(RecordReviewInput {
@@ -149,6 +160,8 @@ async fn approved_candidate_replays_exact_patches_into_one_workflow_revision() {
             reviewer_version: "reviewer-v1".to_owned(),
             verdict: ReviewVerdict::Pass,
             evidence_hash: "sha256:evidence".to_owned(),
+            summary: "reviewed".to_owned(),
+            findings: Vec::new(),
         })
         .expect("receipt");
     let registrations = ReviewedChangeOperations::new(
@@ -177,7 +190,8 @@ async fn approved_candidate_replays_exact_patches_into_one_workflow_revision() {
         .expect("idempotent replay");
 
     assert_eq!(first["workflow_head"]["revision"], 1);
-    assert_eq!(first["workflow_head"]["workflow"]["nodes"].as_array().unwrap().len(), 1);
+    assert_eq!(first["workflow_head"]["workflow"]["nodes"].as_array().unwrap().len(), 2);
+    assert_eq!(first["aliases"].as_array().expect("aliases").len(), 2);
     assert_eq!(replay["deduplicated"], true);
     assert_eq!(replay["aliases"], first["aliases"]);
     assert_eq!(replay["readiness_blockers"], first["readiness_blockers"]);

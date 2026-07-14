@@ -4,6 +4,11 @@
   "candidate_digest": "sha256:candidate",
   "reviewer_version": "reviewer-v1",
   "evidence_hash": "sha256:evidence",
+  "review_summary": "Ready to apply",
+  "review_findings": [
+    "Matches the requested production"
+  ],
+  "effect": "apply_reviewed_workflow_candidate",
   "workflow": {
     "nodes": [],
     "project_id": "project-1",

@@ -13,6 +13,9 @@ pub struct AssistantPendingApprovalDto {
     pub candidate_digest: String,
     pub reviewer_version: String,
     pub evidence_hash: String,
+    pub review_summary: String,
+    pub review_findings: Vec<String>,
+    pub effect: String,
     pub workflow: Value,
     pub readiness_blockers: Value,
 }
@@ -47,6 +50,9 @@ pub fn assistant_get_pending_approval_with_state(
         candidate_digest: candidate.digest().to_owned(),
         reviewer_version: receipt.reviewer_version().to_owned(),
         evidence_hash: receipt.evidence_hash().to_owned(),
+        review_summary: receipt.summary().to_owned(),
+        review_findings: receipt.findings().to_vec(),
+        effect: "apply_reviewed_workflow_candidate".to_owned(),
         workflow: serde_json::to_value(candidate.workflow()).map_err(|e| e.to_string())?,
         readiness_blockers: serde_json::to_value(candidate.readiness_blockers())
             .map_err(|e| e.to_string())?,

@@ -16,6 +16,9 @@ const PENDING_APPROVAL = {
   candidate_digest: "sha256:candidate",
   reviewer_version: "reviewer-v1",
   evidence_hash: "sha256:evidence",
+  review_summary: "Ready to apply",
+  review_findings: ["Matches the requested production"],
+  effect: "apply_reviewed_workflow_candidate" as const,
   workflow: { version: "1.0", project_id: "project-1", nodes: [] },
   readiness_blockers: [],
 };
