@@ -26,11 +26,11 @@ pub mod workflow_runs;
 pub mod workspace_snapshot;
 
 use commands::{
-    assets_root, assistant_decide_approval, assistant_send, cancel_workflow_run, create_project,
-    get_asset, get_assistant_config, get_capability_bundles, get_capability_catalog, get_providers,
-    list_assets, list_projects, open_project, run_workflow, search_capabilities,
-    set_active_provider, set_assistant_config, set_provider_key, start_workflow_run,
-    workflow_apply_patch,
+    assets_root, assistant_decide_approval, assistant_get_pending_approval, assistant_send,
+    cancel_workflow_run, create_project, get_asset, get_assistant_config, get_capability_bundles,
+    get_capability_catalog, get_providers, list_assets, list_projects, open_project, run_workflow,
+    search_capabilities, set_active_provider, set_assistant_config, set_provider_key,
+    start_workflow_run, workflow_apply_patch,
 };
 use tauri::Manager;
 
@@ -47,6 +47,7 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             run_workflow,
             assistant_send,
+            assistant_get_pending_approval,
             assistant_decide_approval,
             start_workflow_run,
             cancel_workflow_run,

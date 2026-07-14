@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   api,
   type AssistantContext,
+  type AssistantPendingApproval,
   type ResponsesStreamEvent,
   type WorkflowApi,
   type WorkflowHead,
@@ -34,11 +35,12 @@ const EMPTY_CONTEXT: AssistantContext = {
   selected_asset_ids: [],
 };
 const PASS_BARRIER = async () => undefined;
+const GET_EMPTY_CONTEXT = () => EMPTY_CONTEXT;
 
 export function AssistantDock({
   onClose,
   apiClient = api,
-  getContext = () => EMPTY_CONTEXT,
+  getContext = GET_EMPTY_CONTEXT,
   beforeSend = PASS_BARRIER,
   onWorkflowHead,
 }: {
@@ -54,7 +56,7 @@ export function AssistantDock({
     text: "Ready",
     connected: true,
   });
-  const [pendingApprovalProject, setPendingApprovalProject] = useState<string | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<AssistantPendingApproval | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -67,6 +69,13 @@ export function AssistantDock({
       el.scrollTop = el.scrollHeight;
     }
   }, [items]);
+
+  useEffect(() => {
+    const projectId = getContext().project_id;
+    if (projectId) {
+      void apiClient.getPendingAssistantApproval(projectId).then(setPendingApproval).catch(() => {});
+    }
+  }, [apiClient, getContext]);
 
   const handleEvent = (event: ResponsesStreamEvent) => {
     switch (event.type) {
@@ -133,7 +142,10 @@ export function AssistantDock({
     } catch (error: unknown) {
       const message = String(error);
       if (message.includes("ASSISTANT_APPROVAL_DEFERRED")) {
-        setPendingApprovalProject(getContext().project_id);
+        const projectId = getContext().project_id;
+        setPendingApproval(
+          projectId ? await apiClient.getPendingAssistantApproval(projectId) : null,
+        );
         setStatus((current) => ({ ...current, text: "Waiting for approval" }));
         setDraft("");
       } else {
@@ -146,16 +158,16 @@ export function AssistantDock({
   };
 
   const decideApproval = async (approved: boolean) => {
-    if (!pendingApprovalProject || approvalBusy) return;
+    if (!pendingApproval || approvalBusy) return;
     setApprovalBusy(true);
     setStatus((current) => ({ ...current, text: approved ? "Applying" : "Rejecting" }));
     try {
       const workflowHead = await apiClient.decideAssistantApproval(
-        { project_id: pendingApprovalProject, approved },
+        { project_id: pendingApproval.project_id, approved },
         handleEvent,
       );
       if (workflowHead !== null) await onWorkflowHead?.(workflowHead);
-      setPendingApprovalProject(null);
+      setPendingApproval(null);
       setStatus((current) => ({ ...current, text: approved ? "Applied" : "Rejected" }));
     } catch (error: unknown) {
       setStatus((current) => ({ ...current, text: String(error) }));
@@ -187,8 +199,12 @@ export function AssistantDock({
         ) : (
           <EmptyState onPick={(text) => setDraft(text)} />
         )}
-        {pendingApprovalProject ? (
-          <AssistantApprovalCard busy={approvalBusy} onDecision={(value) => void decideApproval(value)} />
+        {pendingApproval ? (
+          <AssistantApprovalCard
+            approval={pendingApproval}
+            busy={approvalBusy}
+            onDecision={(value) => void decideApproval(value)}
+          />
         ) : null}
       </div>
 

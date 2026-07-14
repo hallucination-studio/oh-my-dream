@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import assetFixture from "../__fixtures__/asset.json";
 import assistantConfigFixture from "../__fixtures__/assistant_config.json";
 import assistantOperationsFixture from "../__fixtures__/assistant_operations.json";
+import assistantApprovalFixture from "../__fixtures__/assistant_approval.json";
 import capabilityCatalogFixture from "../__fixtures__/capability_catalog.json";
 import progressFixture from "../__fixtures__/node_progress_event.json";
 import openProjectFixture from "../__fixtures__/open_project.json";
@@ -16,6 +17,7 @@ import {
 import type {
   AssetDto,
   AssistantConfig,
+  AssistantPendingApproval,
   AssistantOperationsFixture,
   CapabilityCatalog,
   OpenProjectResult,
@@ -32,6 +34,8 @@ describe("backend DTO fixtures", () => {
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
     expect(isAssistantConfig(assistantConfigFixture)).toBe(true);
     expect(isCapabilityCatalog(capabilityCatalogFixture)).toBe(true);
+    const approval: AssistantPendingApproval = assistantApprovalFixture;
+    expect(approval.candidate_digest).toBe("sha256:candidate");
   });
 });
 

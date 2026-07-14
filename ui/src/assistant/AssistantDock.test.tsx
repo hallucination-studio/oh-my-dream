@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AssistantDock } from "./AssistantDock.tsx";
 import type { WorkflowApi } from "../api/index.ts";
@@ -9,6 +9,15 @@ const CONTEXT = {
   workflow_revision: null,
   selected_node_ids: [],
   selected_asset_ids: [],
+};
+const PENDING_APPROVAL = {
+  project_id: "project-1",
+  user_intent: "Build a film",
+  candidate_digest: "sha256:candidate",
+  reviewer_version: "reviewer-v1",
+  evidence_hash: "sha256:evidence",
+  workflow: { version: "1.0", project_id: "project-1", nodes: [] },
+  readiness_blockers: [],
 };
 
 describe("AssistantDock", () => {
@@ -102,6 +111,7 @@ describe("AssistantDock", () => {
     const decideAssistantApproval = vi.fn().mockResolvedValue(null);
     const apiClient = workflowApi({
       sendAssistant: vi.fn().mockRejectedValue(new Error("ASSISTANT_APPROVAL_DEFERRED")),
+      getPendingAssistantApproval: vi.fn().mockResolvedValue(PENDING_APPROVAL),
       decideAssistantApproval,
     });
 
@@ -117,6 +127,9 @@ describe("AssistantDock", () => {
       target: { value: "Build a film" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    const approval = await screen.findByRole("region", { name: "Review before applying" });
+    expect(within(approval).getByText("Build a film")).toBeTruthy();
+    expect(within(approval).getByText("sha256:candidate")).toBeTruthy();
     fireEvent.click(await screen.findByRole("button", { name: "Approve and apply" }));
 
     await waitFor(() =>
@@ -146,6 +159,7 @@ function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
     getAssistantConfig: vi.fn(),
     setAssistantConfig: vi.fn(),
     sendAssistant: vi.fn(),
+    getPendingAssistantApproval: vi.fn().mockResolvedValue(null),
     decideAssistantApproval: vi.fn(),
     ...overrides,
   };

@@ -21,6 +21,7 @@ export type {
   AssistantConfig,
   AssistantConfigInput,
   AssistantContext,
+  AssistantPendingApproval,
   AssistantSendInput,
   ResponsesStreamEvent,
   CapabilityAvailability,

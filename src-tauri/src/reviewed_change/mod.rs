@@ -165,6 +165,14 @@ impl ReviewReceipt {
         self.verdict
     }
     #[must_use]
+    pub fn reviewer_version(&self) -> &str {
+        &self.reviewer_version
+    }
+    #[must_use]
+    pub fn evidence_hash(&self) -> &str {
+        &self.evidence_hash
+    }
+    #[must_use]
     pub fn expires_at(&self) -> u64 {
         self.expires_at
     }

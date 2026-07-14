@@ -54,6 +54,12 @@ pub struct AssistantApprovalDecisionInput {
     pub approved: bool,
 }
 
+mod pending;
+pub use pending::{
+    AssistantPendingApprovalDto, assistant_get_pending_approval,
+    assistant_get_pending_approval_with_state,
+};
+
 /// Starts one assistant turn through the inherited-stdio sidecar.
 #[tauri::command(rename_all = "snake_case")]
 pub async fn assistant_send(

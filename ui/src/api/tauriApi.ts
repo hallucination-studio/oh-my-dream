@@ -12,6 +12,7 @@ import type {
   AssistantConfig,
   AssistantConfigInput,
   AssistantApprovalDecisionInput,
+  AssistantPendingApproval,
   AssistantSendInput,
   ResponsesStreamEvent,
   CancelWorkflowRunResult,
@@ -247,6 +248,14 @@ async function decideAssistantApproval(
   });
 }
 
+async function getPendingAssistantApproval(
+  projectId: string,
+): Promise<AssistantPendingApproval | null> {
+  return invoke<AssistantPendingApproval | null>("assistant_get_pending_approval", {
+    project_id: projectId,
+  });
+}
+
 function convertAssetPaths(asset: AssetDto, root: string | null): AssetDto {
   return {
     ...asset,
@@ -289,5 +298,6 @@ export const tauriApi: WorkflowApi = {
   getAssistantConfig,
   setAssistantConfig,
   sendAssistant,
+  getPendingAssistantApproval,
   decideAssistantApproval,
 };

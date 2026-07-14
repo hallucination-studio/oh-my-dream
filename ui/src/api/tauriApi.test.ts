@@ -29,7 +29,6 @@ beforeEach(() => {
   convertFileSrcMock.mockClear();
   channelMocks.length = 0;
 });
-
 it("returns the backend asset root", async () => {
   const { tauriApi } = await import("./tauriApi.ts");
   invokeMock.mockResolvedValueOnce("/tmp/oh-my-dream/assets");
@@ -393,7 +392,6 @@ function deferred<T>(): {
   });
   return { promise, resolve };
 }
-
 function observer(observed: unknown[]): RunObserver {
   return {
     onProgress: (progress) => observed.push({ type: "progress", ...progress }),
