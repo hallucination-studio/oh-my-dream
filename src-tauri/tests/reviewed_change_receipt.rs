@@ -21,6 +21,7 @@ fn rust_persists_only_a_review_bound_to_the_exact_candidate_digest() {
         .prepare(PrepareCandidateInput {
             project_id: "project".to_owned(),
             session_id: "session".to_owned(),
+            user_intent: "Build the requested production".to_owned(),
             expected_revision: None,
             prior_candidate_id: None,
             patch: WorkflowPatch {

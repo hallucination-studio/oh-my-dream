@@ -37,10 +37,8 @@ pub(super) async fn dispatch_tool(
         registration.version(),
         approved_effect,
     )
-    .with_workspace_selection(
-        trusted.selected_node_ids.clone(),
-        trusted.selected_asset_ids.clone(),
-    );
+    .with_workspace_selection(trusted.selected_node_ids.clone(), trusted.selected_asset_ids.clone())
+    .with_user_request(invocation.input().map(str::to_owned));
     let output_json = match registration.dispatch(&context, input).await {
         Ok(output) => serde_json::to_string(&output).map_err(|source| {
             AssistantRuntimeError::OutputSerialization {

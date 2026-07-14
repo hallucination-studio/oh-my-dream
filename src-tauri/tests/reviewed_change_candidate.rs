@@ -36,6 +36,7 @@ fn candidate_extension_is_immutable_and_does_not_mutate_workflow_authority() {
         .prepare(PrepareCandidateInput {
             project_id: "project".to_owned(),
             session_id: "session".to_owned(),
+            user_intent: "Build the requested production".to_owned(),
             expected_revision: None,
             prior_candidate_id: None,
             patch: add("prompt", "TextPrompt"),
@@ -47,6 +48,7 @@ fn candidate_extension_is_immutable_and_does_not_mutate_workflow_authority() {
         .prepare(PrepareCandidateInput {
             project_id: "project".to_owned(),
             session_id: "session".to_owned(),
+            user_intent: "Build the requested production".to_owned(),
             expected_revision: None,
             prior_candidate_id: Some(first.id().to_owned()),
             patch: WorkflowPatch {
@@ -95,6 +97,7 @@ fn candidate_survives_a_fresh_application_state() {
             .prepare(PrepareCandidateInput {
                 project_id: "project".to_owned(),
                 session_id: "session".to_owned(),
+                user_intent: "Build the requested production".to_owned(),
                 expected_revision: None,
                 prior_candidate_id: None,
                 patch: add("prompt", "TextPrompt"),
@@ -130,6 +133,7 @@ async fn approved_candidate_replays_exact_patches_into_one_workflow_revision() {
         .prepare(PrepareCandidateInput {
             project_id: "project".to_owned(),
             session_id: "session".to_owned(),
+            user_intent: "Build the requested production".to_owned(),
             expected_revision: None,
             prior_candidate_id: None,
             patch: add("prompt", "TextPrompt"),

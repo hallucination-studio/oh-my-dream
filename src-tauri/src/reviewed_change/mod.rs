@@ -29,6 +29,7 @@ pub struct WorkflowCandidate {
     id: String,
     project_id: String,
     session_id: String,
+    user_intent: String,
     base_revision: Option<u64>,
     patches: Vec<WorkflowPatch>,
     digest: String,
@@ -51,6 +52,10 @@ impl WorkflowCandidate {
     #[must_use]
     pub fn session_id(&self) -> &str {
         &self.session_id
+    }
+    #[must_use]
+    pub fn user_intent(&self) -> &str {
+        &self.user_intent
     }
     #[must_use]
     pub fn base_revision(&self) -> Option<u64> {
@@ -90,6 +95,7 @@ impl WorkflowCandidate {
 pub struct PrepareCandidateInput {
     pub project_id: String,
     pub session_id: String,
+    pub user_intent: String,
     pub expected_revision: Option<u64>,
     pub prior_candidate_id: Option<String>,
     pub patch: WorkflowPatch,
@@ -323,6 +329,7 @@ fn new_candidate(
         id: format!("candidate-{timestamp:032x}-{sequence:016x}"),
         project_id: input.project_id,
         session_id: input.session_id,
+        user_intent: input.user_intent,
         base_revision: input.expected_revision,
         patches,
         digest,

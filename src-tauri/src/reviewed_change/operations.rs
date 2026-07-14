@@ -39,6 +39,7 @@ struct ApplyReviewedCandidateInput {
 struct CandidateOutput {
     candidate_id: String,
     project_id: String,
+    user_intent: String,
     #[schemars(required)]
     base_revision: Option<u64>,
     patch_count: usize,
@@ -92,6 +93,7 @@ impl ReviewedChangeOperations {
                         .prepare(PrepareCandidateInput {
                             project_id: context.project_id().to_owned(),
                             session_id: context.session_id().to_owned(),
+                            user_intent: context.user_request().unwrap_or_default().to_owned(),
                             expected_revision: input.expected_revision,
                             prior_candidate_id: input.prior_candidate_id,
                             patch: WorkflowPatch { operations: input.operations },
@@ -230,6 +232,7 @@ impl CandidateOutput {
         Ok(Self {
             candidate_id: candidate.id().to_owned(),
             project_id: candidate.project_id().to_owned(),
+            user_intent: candidate.user_intent().to_owned(),
             base_revision: candidate.base_revision(),
             patch_count: candidate.patches().len(),
             digest: candidate.digest().to_owned(),
