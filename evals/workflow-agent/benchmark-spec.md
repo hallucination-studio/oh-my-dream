@@ -177,6 +177,52 @@ Candidate D can pass only if the approved master script makes the scene division
 | A proposed group has no terminal artifact or handoff | Reject or merge | Independently reviewable production unit |
 | Two partitions both satisfy every invariant with different professional tradeoffs | Retain both for approval | Gold permits acceptable alternatives |
 
-## 4. Current gate state
+## 4. Approved Ledger Set
 
-The rules are ready for use, but no Script Ledger Index is approved. Task 5 must apply them only after production branches are cataloged and must preserve all unresolved version-dependent boundaries for the Ledger-Set Approval Gate.
+The user approved the complete 29-shot, 180-second candidate and the five-group partition on 2026-07-14. Every group requires image, video, and audio evaluation. Artifact-level conflicts remain scored unresolved cases unless an approval record explicitly promotes them. Professional equivalents are accepted when they preserve measurable semantics and continuity; apparent polish, recency, or graph popularity never establishes authority.
+
+## 5. Task protocol and execution modes
+
+Every production task addresses exactly one approved group and one stage. The four contracts are evaluated independently:
+
+| Contract | Required behavior | Minimum evidence |
+| --- | --- | --- |
+| Interaction | State assumptions, ask only decision-changing questions, and obtain confirmation before mutation | Question log, proposal, confirmation, decision log |
+| Workflow | Produce a legal typed graph with ordered dependencies and a bounded mutation | Graph before, ordered patch, graph after, validation result |
+| Creative | Preserve approved beats, declared alternatives, and continuity without inventing authority | Beat map, constraint map, alternative rationale |
+| Execution | Bound candidates, attempts, cost, and latency; report provenance, failure, and abstention | Attempt log, artifact manifest, measurements, terminal status |
+
+Checkpoint mode starts from an approved prior checkpoint and evaluates one group through its terminal review artifact. Continuation mode inherits the accumulated project state and may receive a full-project score only after all five groups and the cross-group continuity task complete. Both modes use identical group-stage semantics; only inherited state and score eligibility differ.
+
+A task stops when it passes all hard gates, exhausts a declared budget, reaches a terminal provider failure after bounded recovery, or correctly abstains because authority or evidence is insufficient. A failure must name the earliest observable contract, affected artifacts, stale downstream outputs, and smallest sufficient rerun.
+
+## 6. Multimodal measurement rules
+
+Measurements have three layers. Deterministic checks establish artifact validity and declared technical properties. Semantic checks compare only approved facts and declared tolerances. Professional-quality review detects defects that deterministic checks cannot judge while requiring evidence and calibrated abstention.
+
+| Modality | Deterministic | Semantic | Professional quality |
+| --- | --- | --- | --- |
+| Image | Decodable file, dimensions, aspect ratio, color properties, provenance | Beat, identity, object, environment, composition, and continuity constraints | Anatomy, geometry, texture, lighting, text, aliasing, contamination, and production usability |
+| Video | Decodable stream, duration, frame rate, dimensions, black/frozen-frame and timestamp checks | Required action, camera intent, identity, geography, transition, and inherited state | Flicker, warp, judder, temporal coherence, motion quality, edit rhythm, and transition quality |
+| Audio | Decodable stream, format, sample rate, channels, duration, loudness, true peak, clipping, and silence | Dialogue/content, voice constraints, motif, ambience, cue timing, and emotional handoff | Intelligibility, noise, distortion, pumping, spectral artifacts, mix balance, and production usability |
+| Cross-modal | Common timeline, declared offsets, complete artifact references | Audio-event, visual-event, identity, action, and transition alignment | Synchronization, perceptual coherence, dramatic rhythm, and continuity across cuts and groups |
+
+Missing required media fails the modality hard gate. Invalid or corrupt media receives no quality credit. Provider failure may still earn interaction, bounded-execution, recovery, and reporting credit. Design-only text may guide semantic review only when declared as unresolved evidence; it never counts as rendered media.
+
+Measurements use declared tolerances instead of hidden provider defaults. Duration, dimensions, loudness, synchronization, cost, latency, candidate count, and retry bounds must be recorded by the task or Gold fixture. When the source lacks an exact value, the evaluator scores preservation of semantic intent and professional acceptability rather than inventing a threshold.
+
+## 7. Gold, gates, and reporting
+
+Each Gold fixture separates exact, semantic, and professional layers. Exact Gold covers approved IDs, shot/time coverage, and explicit constraints. Semantic Gold owns narrative meaning and continuity. Professional Gold permits equivalent implementations and calibrated improvements. Raw prompts, private media, URLs, and provider IDs are never Gold.
+
+Hard gates are evaluated before weighted scoring: approved group, legal workflow, complete required modalities, bounded mutation and execution, honest provenance, and correct run labeling. Partial runs report only executed dimensions and can never receive a full-project score. Scores remain separate for interaction, workflow, creative, image, video, audio, cross-modal alignment, execution/recovery, revision, cost, reliability, coverage, and global continuity.
+
+## 8. Verification cases
+
+- A valid image, video, or audio artifact with complete measurements proceeds to semantic and quality grading.
+- A corrupt artifact fails deterministic validity and receives no modality-quality credit.
+- A missing modality fails its hard gate even when the other modalities are attractive.
+- An implementation that differs from the source rendering but preserves approved semantics and tolerances may receive full credit.
+- Insufficient authority should produce an explicit unresolved result or abstention, not fabricated exact Gold.
+- A checkpoint and continuation run of the same group use the same requirements and Gold; continuation additionally validates inherited state.
+- A sampled or interrupted run is labeled partial and cannot receive the full-project aggregate.
