@@ -1,6 +1,22 @@
 use super::*;
 
 impl WorkflowPatchService {
+    /// Reads the durable result for an exact previously committed sequence.
+    pub fn replay_sequence(
+        &self,
+        context: &RequestContext,
+        expected_revision: Option<u64>,
+        patches: &[WorkflowPatch],
+    ) -> Result<Option<WorkflowApplyPatchOutput>, WorkflowApplyPatchError> {
+        let request_hash =
+            request_hash(expected_revision, &patches).map_err(|error| hash_error(error, None))?;
+        self.authority
+            .load_receipt(context.project_id(), context.request_id(), &request_hash)
+            .map_err(|error| authority_error(error, None))?
+            .map(|result| to_output_parts(result, Vec::new(), Vec::new()))
+            .transpose()
+    }
+
     /// Replays an exact patch sequence and commits the final Workflow once.
     pub fn apply_sequence(
         &self,

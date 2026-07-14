@@ -166,6 +166,7 @@ async fn approved_candidate_replays_exact_patches_into_one_workflow_revision() {
         .dispatch(&context, json!({"review_receipt_id": receipt.id()}))
         .await
         .expect("approved apply");
+    expire_receipt(root.path(), receipt.id());
     let replay = apply
         .dispatch(&context, json!({"review_receipt_id": receipt.id()}))
         .await
@@ -174,4 +175,28 @@ async fn approved_candidate_replays_exact_patches_into_one_workflow_revision() {
     assert_eq!(first["workflow_head"]["revision"], 1);
     assert_eq!(first["workflow_head"]["workflow"]["nodes"].as_array().unwrap().len(), 1);
     assert_eq!(replay["deduplicated"], true);
+}
+
+fn expire_receipt(config_root: &std::path::Path, receipt_id: &str) {
+    let config_root = config_root.with_file_name(format!(
+        "{}-config",
+        config_root.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("assets")
+    ));
+    let connection = rusqlite::Connection::open(config_root.join("reviewed_change.sqlite"))
+        .expect("review database");
+    let receipt_json: String = connection
+        .query_row(
+            "SELECT receipt_json FROM review_receipts WHERE receipt_id = ?1",
+            [receipt_id],
+            |row| row.get(0),
+        )
+        .expect("stored receipt");
+    let mut receipt: serde_json::Value = serde_json::from_str(&receipt_json).expect("receipt JSON");
+    receipt["expires_at"] = json!(0);
+    connection
+        .execute(
+            "UPDATE review_receipts SET receipt_json = ?1 WHERE receipt_id = ?2",
+            (receipt.to_string(), receipt_id),
+        )
+        .expect("expire receipt");
 }

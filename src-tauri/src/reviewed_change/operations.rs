@@ -160,6 +160,32 @@ impl ReviewedChangeOperations {
                             "reviewed candidate requires trusted human approval",
                         ));
                     }
+                    let (replay_receipt, replay_candidate) = service
+                        .replay_candidate(
+                            context.project_id(),
+                            context.session_id(),
+                            &input.review_receipt_id,
+                        )
+                        .map_err(handler_error)?;
+                    let replay_context = RequestContext::new(
+                        context.project_id(),
+                        context.session_id(),
+                        replay_receipt.approval_scope_id(),
+                        1,
+                        None,
+                    );
+                    if let Some(output) = patch_service
+                        .replay_sequence(
+                            &replay_context,
+                            replay_candidate.base_revision(),
+                            replay_candidate.patches(),
+                        )
+                        .map_err(|error| {
+                            OperationHandlerError::new(error.code.clone(), error.to_string())
+                        })?
+                    {
+                        return Ok(output);
+                    }
                     let (receipt, candidate) = service
                         .approved_candidate(
                             context.project_id(),
