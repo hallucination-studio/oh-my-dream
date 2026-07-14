@@ -132,7 +132,10 @@ class FixtureProcessTests(unittest.TestCase):
         self.assertEqual(process.returncode, 0)
         self.assertEqual(process.stderr, b"")
         frames = decode_frames(process.stdout)
-        self.assertEqual(frames[0].kind, FrameKind.TOOL_REQUEST)
+        self.assertEqual(
+            next(frame for frame in frames if frame.kind is FrameKind.TOOL_REQUEST).kind,
+            FrameKind.TOOL_REQUEST,
+        )
         self.assertEqual(frames[-1].kind, FrameKind.COMPLETED)
 
     def test_approval_mode_restores_state_in_a_fresh_process(self) -> None:
@@ -158,7 +161,12 @@ class FixtureProcessTests(unittest.TestCase):
                 ),
             )
             paused_frames = decode_frames(paused.stdout)
-            state = paused_frames[0].payload["state"]
+            approval = next(
+                frame
+                for frame in paused_frames
+                if frame.kind is FrameKind.APPROVAL_REQUEST
+            )
+            state = approval.payload["state"]
             resumed = self.run_fixture(
                 "approval",
                 encode_frames(
@@ -198,12 +206,15 @@ class FixtureProcessTests(unittest.TestCase):
         self.assertEqual(paused.stderr, b"")
         self.assertEqual(
             [frame.kind for frame in paused_frames],
-            [FrameKind.APPROVAL_REQUEST, FrameKind.SNAPSHOT],
+            [FrameKind.RESPONSES_EVENT, FrameKind.APPROVAL_REQUEST, FrameKind.SNAPSHOT],
         )
         self.assertEqual(resumed.returncode, 0)
         self.assertEqual(resumed.stderr, b"")
         resumed_frames = decode_frames(resumed.stdout)
-        self.assertEqual(resumed_frames[0].kind, FrameKind.TOOL_REQUEST)
+        self.assertEqual(
+            next(frame for frame in resumed_frames if frame.kind is FrameKind.TOOL_REQUEST).kind,
+            FrameKind.TOOL_REQUEST,
+        )
         self.assertEqual(resumed_frames[-1].kind, FrameKind.COMPLETED)
 
     def run_fixture(self, mode: str, input_bytes: bytes) -> subprocess.CompletedProcess[bytes]:

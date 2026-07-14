@@ -2,11 +2,13 @@
 
 import type { Project } from "../api/index.ts";
 import type { RunStatus } from "../workflow/types.ts";
+import type { ProjectWorkspaceState } from "../workflow/useProjectWorkspace.ts";
 import "./topbar.css";
 
 export function TopBar({
   project,
   status,
+  workspaceState,
   onOpenProjects,
   onOpenSettings,
   onRun,
@@ -14,6 +16,7 @@ export function TopBar({
 }: {
   project: Project | null;
   status: RunStatus;
+  workspaceState: ProjectWorkspaceState;
   onOpenProjects: () => void;
   onOpenSettings: () => void;
   onRun: () => void;
@@ -37,6 +40,7 @@ export function TopBar({
       </button>
 
       <div className="topbar__spacer" />
+      <WorkspaceState state={workspaceState} />
       <RunState status={status} />
       <span className="topbar__sep" aria-hidden="true" />
       <button className="topbar__gear" onClick={onOpenSettings} aria-label="Settings">
@@ -59,6 +63,23 @@ export function TopBar({
         </button>
       )}
     </header>
+  );
+}
+
+function WorkspaceState({ state }: { state: ProjectWorkspaceState }) {
+  if (state.state === "ready" || state.state === "no_project") {
+    return null;
+  }
+  const text =
+    state.state === "booting"
+      ? "Loading projects…"
+      : state.state === "opening"
+        ? "Opening project…"
+        : `Project unavailable · ${state.reason}`;
+  return (
+    <span className="topbar__state topbar__state--err" role="status" aria-live="polite">
+      {text}
+    </span>
   );
 }
 

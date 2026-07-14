@@ -208,6 +208,12 @@ impl WorkflowRuns {
         Ok(CancellationRequest::Requested)
     }
 
+    /// Returns the active Run for one Project without exposing another Project's registry state.
+    pub fn active_run_id(&self, project_id: &str) -> Result<Option<RunId>, WorkflowRunsError> {
+        let active = self.active.lock().map_err(|_| WorkflowRunsError::ActiveRunsLock)?;
+        Ok(active.by_project_id.get(project_id).map(|key| key.run_id.clone()))
+    }
+
     pub(crate) fn run_legacy(
         self: &Arc<Self>,
         workflow: Workflow,

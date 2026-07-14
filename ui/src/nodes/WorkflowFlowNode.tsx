@@ -3,7 +3,7 @@
 // result preview, and a cost/time footer. Mirrors the states in docs/ui-pro.
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { findNodeType } from "./catalog.ts";
+import { recoveryNodeSpec, type NodeTypeSpec } from "./catalog.ts";
 import { ParameterInput } from "./ParameterInput.tsx";
 import { typeColor, nodeAccent } from "./typeColor.ts";
 import type { NodeExecutionState } from "../workflow/types.ts";
@@ -20,6 +20,7 @@ export interface NodeRuntime {
 export interface FlowNodeData {
   type: string;
   contractVersion?: string;
+  capability?: NodeTypeSpec;
   params: Record<string, unknown>;
   runtime?: NodeRuntime;
   onParamChange: (name: string, value: unknown) => void;
@@ -30,10 +31,12 @@ const PORT_TOP = 64;
 
 export function WorkflowFlowNode({ data, selected }: NodeProps) {
   const nodeData = data as FlowNodeData;
-  const spec = findNodeType(nodeData.type);
-  if (!spec) {
-    return <div className="wf-node wf-node--error">Unknown node: {nodeData.type}</div>;
-  }
+  const spec =
+    nodeData.capability ??
+    recoveryNodeSpec(
+      { id: nodeData.type, version: nodeData.contractVersion ?? "1.0" },
+      "exact capability bundle is not loaded",
+    );
 
   const accent = nodeAccent(spec.outputs, spec.inputs);
   const rt = nodeData.runtime;
@@ -41,7 +44,7 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`wf-node is-${state}${selected ? " is-selected" : ""}`}
+      className={`wf-node is-${state}${selected ? " is-selected" : ""}${spec.status.availability !== "available" ? " is-degraded" : ""}`}
       style={{ ["--accent" as string]: accent }}
     >
       <div className="wf-node__bar" />
@@ -49,6 +52,12 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
         {spec.label}
         <StatePill state={state} />
       </div>
+
+      {spec.status.availability !== "available" && (
+        <div className="wf-node__recovery" role="status">
+          {spec.status.reason ?? "Capability needs repair"}
+        </div>
+      )}
 
       {state === "running" && (
         <div className="wf-node__prog">

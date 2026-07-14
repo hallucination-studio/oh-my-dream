@@ -134,7 +134,7 @@ async fn assistant_runtime_rejects_an_incoming_frame_flood() {
             .expect("test limits should be valid");
     let runtime = AssistantRuntime::with_limits(
         hostile_command(
-            "import sys,json; invoke=json.loads(sys.stdin.readline()); invocation=invoke['payload']['invocation_id']; [print(json.dumps({'protocol_version':1,'sequence':sequence,'kind':'assistant_token','payload':{'invocation_id':invocation,'text':'x'}}),flush=True) for sequence in range(3)]; sys.stdin.read()",
+            "import sys,json; invoke=json.loads(sys.stdin.readline()); invocation=invoke['payload']['invocation_id']; [print(json.dumps({'protocol_version':1,'sequence':sequence,'kind':'responses_event','payload':{'invocation_id':invocation,'event':{'type':'response.output_text.delta','delta':'x'}}}),flush=True) for sequence in range(3)]; sys.stdin.read()",
         ),
         Vec::new(),
         limits,
@@ -157,7 +157,7 @@ async fn assistant_runtime_rejects_token_bytes_over_budget() {
             .expect("test limits should be valid");
     let runtime = AssistantRuntime::with_limits(
         hostile_command(
-            "import sys,json; invocation=json.loads(sys.stdin.readline())['payload']['invocation_id']; print(json.dumps({'protocol_version':1,'sequence':0,'kind':'assistant_token','payload':{'invocation_id':invocation,'text':'x'*200}}),flush=True); sys.stdin.read()",
+            "import sys,json; invocation=json.loads(sys.stdin.readline())['payload']['invocation_id']; print(json.dumps({'protocol_version':1,'sequence':0,'kind':'responses_event','payload':{'invocation_id':invocation,'event':{'type':'response.output_text.delta','delta':'x'*200}}}),flush=True); sys.stdin.read()",
         ),
         Vec::new(),
         limits,
@@ -177,7 +177,7 @@ async fn assistant_runtime_rejects_token_bytes_over_budget() {
 async fn assistant_runtime_rejects_invalid_token_correlation() {
     let runtime = AssistantRuntime::new(
         hostile_command(
-            "import sys,json; sys.stdin.readline(); print(json.dumps({'protocol_version':1,'sequence':0,'kind':'assistant_token','payload':{'invocation_id':'wrong','text':'x'}}),flush=True); sys.stdin.read()",
+            "import sys,json; sys.stdin.readline(); print(json.dumps({'protocol_version':1,'sequence':0,'kind':'responses_event','payload':{'invocation_id':'wrong','event':{'type':'response.output_text.delta','delta':'x'}}}),flush=True); sys.stdin.read()",
         ),
         Vec::new(),
     )
@@ -193,7 +193,7 @@ async fn assistant_runtime_rejects_invalid_token_correlation() {
 async fn assistant_runtime_rejects_frames_after_completion() {
     let runtime = AssistantRuntime::new(
         hostile_command(
-            "import sys,json; invocation=json.loads(sys.stdin.readline())['payload']; frames=[('snapshot',{'invocation_id':invocation['invocation_id'],'session_id':invocation['session_id'],'status':'completed','state':None}),('completed',{'invocation_id':invocation['invocation_id'],'final_output':'done'}),('assistant_message',{'invocation_id':invocation['invocation_id'],'text':'late'})]; [print(json.dumps({'protocol_version':1,'sequence':sequence,'kind':kind,'payload':payload}),flush=True) for sequence,(kind,payload) in enumerate(frames)]",
+            "import sys,json; invocation=json.loads(sys.stdin.readline())['payload']; frames=[('snapshot',{'invocation_id':invocation['invocation_id'],'session_id':invocation['session_id'],'status':'completed','state':None}),('completed',{'invocation_id':invocation['invocation_id'],'final_output':'done'}),('responses_event',{'invocation_id':invocation['invocation_id'],'event':{'type':'response.output_text.delta','delta':'late'}})]; [print(json.dumps({'protocol_version':1,'sequence':sequence,'kind':kind,'payload':payload}),flush=True) for sequence,(kind,payload) in enumerate(frames)]",
         ),
         Vec::new(),
     )

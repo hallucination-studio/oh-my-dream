@@ -3,8 +3,15 @@
 
 export type PortType = "string" | "image" | "video" | "audio" | "model" | "int" | "float";
 
-/** A reference to an upstream node's named output: [nodeId, outputName]. */
-export type OutputRef = [string, string];
+/** A reference to an upstream node's named output. */
+export type OutputRef =
+  | [nodeId: string, outputName: string]
+  | { node_id: string; output: string };
+
+export type WorkflowInputBinding =
+  | OutputRef
+  | { kind: "single"; source: OutputRef }
+  | { kind: "ordered_many"; sources: OutputRef[] };
 
 export interface WorkflowNode {
   id: string;
@@ -12,7 +19,7 @@ export interface WorkflowNode {
   /** Exact capability contract version; omitted only for legacy input. */
   contract_version?: string;
   params: Record<string, unknown>;
-  inputs: Record<string, OutputRef>;
+  inputs: Record<string, WorkflowInputBinding>;
   position?: [number, number];
 }
 

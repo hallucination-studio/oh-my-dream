@@ -72,4 +72,6 @@ pub enum AssistantRuntimeError {
     ResourceLimit { resource: &'static str, maximum: usize },
     #[error("assistant sidecar exited unsuccessfully: {status}")]
     ProcessExit { status: ExitStatus },
+    #[error("assistant event sink failed: {message}")]
+    EventSink { message: String },
 }

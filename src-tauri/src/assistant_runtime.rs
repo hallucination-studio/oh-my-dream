@@ -16,9 +16,9 @@ pub use command::AssistantSidecarCommand;
 pub use error::AssistantRuntimeError;
 pub use process::{AssistantProcess, AssistantProcessLauncher};
 pub use types::{
-    AssistantCompleted, AssistantInvocation, AssistantPendingApproval, AssistantRuntimeLimits,
-    AssistantRuntimeOutcome, AssistantSessionSnapshot, AssistantWaitingApproval,
-    OperationCallEvidence, TrustedInvocationContext,
+    AssistantCompleted, AssistantEventSink, AssistantInvocation, AssistantPendingApproval,
+    AssistantRuntimeLimits, AssistantRuntimeOutcome, AssistantSessionSnapshot,
+    AssistantWaitingApproval, OperationCallEvidence, TrustedInvocationContext,
 };
 
 /// Application-owned runtime that dispatches sidecar tool requests through Rust registrations.
@@ -67,7 +67,18 @@ impl AssistantRuntime {
         invocation: AssistantInvocation,
         trusted: TrustedInvocationContext,
     ) -> Result<AssistantRuntimeOutcome, AssistantRuntimeError> {
-        runner::invoke(self, invocation, trusted).await
+        let mut sink = types::NoopEventSink;
+        runner::invoke(self, invocation, trusted, &mut sink).await
+    }
+
+    /// Launches an invocation and emits safe lifecycle events to the caller.
+    pub async fn invoke_streamed(
+        &self,
+        invocation: AssistantInvocation,
+        trusted: TrustedInvocationContext,
+        sink: &mut dyn AssistantEventSink,
+    ) -> Result<AssistantRuntimeOutcome, AssistantRuntimeError> {
+        runner::invoke(self, invocation, trusted, sink).await
     }
 
     /// Launches a fresh sidecar and resumes one opaque pending approval state.
@@ -78,7 +89,20 @@ impl AssistantRuntime {
         waiting: AssistantWaitingApproval,
         approved: bool,
     ) -> Result<AssistantRuntimeOutcome, AssistantRuntimeError> {
-        runner::resume(self, invocation, trusted, waiting, approved).await
+        let mut sink = types::NoopEventSink;
+        runner::resume(self, invocation, trusted, waiting, approved, &mut sink).await
+    }
+
+    /// Resumes an invocation and emits safe lifecycle events to the caller.
+    pub async fn resume_streamed(
+        &self,
+        invocation: AssistantInvocation,
+        trusted: TrustedInvocationContext,
+        waiting: AssistantWaitingApproval,
+        approved: bool,
+        sink: &mut dyn AssistantEventSink,
+    ) -> Result<AssistantRuntimeOutcome, AssistantRuntimeError> {
+        runner::resume(self, invocation, trusted, waiting, approved, sink).await
     }
 
     pub(super) fn registration(

@@ -6,6 +6,7 @@
 
 import type {
   NodeProgressEvent,
+  PortType,
   RunLifecycleStatus,
   RunOutputs,
   RunProgress,
@@ -40,10 +41,139 @@ export interface Project {
   created_at: number;
 }
 
+export interface WorkflowHead {
+  project_id: string;
+  revision: number;
+  workflow: Workflow;
+}
+
+export type WorkflowNodeRef =
+  | { kind: "id"; id: string }
+  | { kind: "alias"; alias: string };
+
+export type WorkflowPatchBinding =
+  | { kind: "single"; source: WorkflowNodeRef }
+  | { kind: "ordered_many"; sources: WorkflowNodeRef[] };
+
+export type WorkflowPatchOperation =
+  | {
+      op: "add_node";
+      alias: string;
+      capability: { id: string; version: string };
+      params: Record<string, unknown>;
+      position: [number, number] | null;
+    }
+  | { op: "replace_params"; node: WorkflowNodeRef; params: Record<string, unknown> }
+  | { op: "set_input"; node: WorkflowNodeRef; input: string; binding: WorkflowPatchBinding }
+  | { op: "clear_input"; node: WorkflowNodeRef; input: string }
+  | { op: "remove_node"; node: WorkflowNodeRef }
+  | { op: "set_position"; node: WorkflowNodeRef; position: [number, number] };
+
+export interface WorkflowApplyPatchInput {
+  expected_revision: number | null;
+  operations: WorkflowPatchOperation[];
+}
+
+export interface WorkflowReadinessBlocker {
+  code: string;
+  pointer: string;
+  constraint: string;
+}
+
+export type CapabilityRef = { id: string; version: string };
+
+export type CapabilityCardinality =
+  | "one"
+  | { many: { minimum: number; maximum: number | null } };
+
+export interface CapabilityPort {
+  name: string;
+  port_type: PortType;
+  cardinality: CapabilityCardinality;
+  required: boolean;
+}
+
+export type CapabilityEffect = "pure" | "external";
+
+export interface CapabilityContract {
+  reference: CapabilityRef;
+  inputs: CapabilityPort[];
+  outputs: CapabilityPort[];
+  params_schema: JsonObject;
+  default_params: Record<string, JsonValue>;
+  effects: CapabilityEffect[];
+}
+
+export interface CapabilityPresentation {
+  label: string;
+  description: string;
+  category: string;
+  search_terms: string[];
+}
+
+export type CapabilityAvailability = "available" | "unavailable" | "degraded";
+
+export interface CapabilityStatus {
+  availability: CapabilityAvailability;
+  reason: string | null;
+  provider_health: string | null;
+  status_revision: number;
+}
+
+export interface CapabilitySummary {
+  reference: CapabilityRef;
+  presentation: CapabilityPresentation;
+  status: CapabilityStatus;
+}
+
+export interface CapabilityBundle {
+  reference: CapabilityRef;
+  contract: CapabilityContract | null;
+  presentation: CapabilityPresentation | null;
+  status: CapabilityStatus;
+}
+
+export interface CapabilityCatalogEntry {
+  contract: CapabilityContract;
+  presentation: CapabilityPresentation;
+  status: CapabilityStatus;
+}
+
+export interface CapabilityCatalog {
+  capabilities: CapabilityCatalogEntry[];
+}
+
+export interface CapabilitySearchRequest {
+  query: string;
+  category?: string | null;
+  cursor?: string | null;
+  limit?: number;
+}
+
+export interface CapabilitySearchPage {
+  capabilities: CapabilitySummary[];
+  next_cursor: string | null;
+}
+
+export interface CapabilityBundles {
+  capabilities: CapabilityBundle[];
+}
+
+export interface WorkflowApplyPatchOutput {
+  workflow_head: WorkflowHead | null;
+  aliases: Array<{ alias: string; node_id: string }>;
+  readiness_blockers: WorkflowReadinessBlocker[];
+  changed: boolean;
+  deduplicated: boolean;
+  undo_id: string | null;
+}
+
 export interface ProjectWorkspace {
   project: Project;
-  workflow_json: Workflow;
+  workflow_head: WorkflowHead | null;
 }
+
+export type OpenProjectResult = ProjectWorkspace;
 
 export interface Provider {
   id: string;
@@ -52,21 +182,11 @@ export interface Provider {
   has_key: boolean;
 }
 
-export interface AssistantSkills {
-  installed: string[];
-  enabled: string[];
-}
-
 export interface AssistantConfig {
   enabled: boolean;
   base_url: string;
   model: string;
   has_key: boolean;
-  temperature: number;
-  max_tool_iters: number;
-  system_prompt_extra: string | null;
-  developer_mode: boolean;
-  skills: AssistantSkills;
 }
 
 export interface AssistantConfigInput {
@@ -75,25 +195,6 @@ export interface AssistantConfigInput {
   model: string;
   api_key: string | null;
   clear_api_key: boolean;
-  temperature: number;
-  max_tool_iters: number;
-  system_prompt_extra: string | null;
-  developer_mode: boolean;
-  enabled_skills: string[];
-}
-
-export interface Capability {
-  name: string;
-  description: string;
-  kind: "backend" | "ui";
-  command: string | null;
-  parameters: unknown;
-  returns: unknown;
-  confirm: boolean;
-}
-
-export interface CapabilityManifest {
-  capabilities: Capability[];
 }
 
 export type JsonValue =
@@ -128,19 +229,24 @@ export interface AssistantOperationsFixture {
   operations: AssistantOperationContract[];
 }
 
-export interface AssistantSession {
-  port: number;
-  token: string;
+export interface AssistantContext {
+  project_id: string | null;
+  workflow_present: boolean;
+  workflow_revision: number | null;
+  selected_node_ids: string[];
+  selected_asset_ids: string[];
 }
 
-export interface Skill {
-  name: string;
-  version: string;
-  description: string;
-  enabled: boolean;
-  developer_mode_required: boolean;
-  status: string;
+export interface AssistantSendInput {
+  project_id: string;
+  workflow_present: boolean;
+  workflow_revision: number | null;
+  selected_node_ids: string[];
+  selected_asset_ids: string[];
+  text: string;
 }
+
+export type ResponsesStreamEvent = JsonObject & { type: string };
 
 export interface ListAssetsOptions {
   kind?: AssetKind;
@@ -190,17 +296,20 @@ export interface WorkflowApi {
   listProjects: () => Promise<Project[]>;
   createProject: (name: string) => Promise<Project>;
   openProject: (id: string) => Promise<ProjectWorkspace>;
-  saveWorkflow: (workflow: Workflow) => Promise<void>;
-  loadWorkflow: (projectId: string) => Promise<Workflow>;
+  searchCapabilities: (request: CapabilitySearchRequest) => Promise<CapabilitySearchPage>;
+  getCapabilityBundles: (refs: CapabilityRef[]) => Promise<CapabilityBundles>;
+  applyWorkflowPatch: (
+    projectId: string,
+    requestId: string,
+    input: WorkflowApplyPatchInput,
+  ) => Promise<WorkflowApplyPatchOutput>;
   getProviders: () => Promise<Provider[]>;
   setActiveProvider: (providerId: string) => Promise<void>;
   setProviderKey: (providerId: string, key: string) => Promise<void>;
   getAssistantConfig: () => Promise<AssistantConfig>;
   setAssistantConfig: (input: AssistantConfigInput) => Promise<void>;
-  getAssistantSession: () => Promise<AssistantSession>;
-  getCapabilityManifest: () => Promise<CapabilityManifest>;
-  listSkills: () => Promise<Skill[]>;
-  installSkill: (path: string) => Promise<Skill>;
-  setSkillEnabled: (name: string, enabled: boolean) => Promise<void>;
-  uninstallSkill: (name: string) => Promise<void>;
+  sendAssistant: (
+    input: AssistantSendInput,
+    onEvent: (event: ResponsesStreamEvent) => void,
+  ) => Promise<WorkflowHead | null>;
 }

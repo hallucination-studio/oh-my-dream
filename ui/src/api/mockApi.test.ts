@@ -1,10 +1,35 @@
 import { expect, it, vi } from "vitest";
 import { mockApi } from "./mockApi.ts";
 import type { RunLifecycleStatus, RunProgress, Workflow } from "../workflow/types.ts";
-import type { RunObserver } from "./types.ts";
+import type { AssistantConfigInput, RunObserver } from "./types.ts";
 
 it("has no persistent asset root outside Tauri", async () => {
   await expect(mockApi.assetsRoot()).resolves.toBeNull();
+});
+
+it("persists assistant settings for the in-browser workspace", async () => {
+  const original = await mockApi.getAssistantConfig();
+  const input: AssistantConfigInput = {
+    enabled: true,
+    base_url: original.base_url,
+    model: original.model,
+    api_key: null,
+    clear_api_key: false,
+  };
+
+  await mockApi.setAssistantConfig(input);
+
+  await expect(mockApi.getAssistantConfig()).resolves.toMatchObject({
+    enabled: true,
+    base_url: original.base_url,
+    model: original.model,
+    has_key: false,
+  });
+
+  await mockApi.setAssistantConfig({
+    ...input,
+    enabled: original.enabled,
+  });
 });
 
 it("emits running then succeeded with nested node outputs", async () => {

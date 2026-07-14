@@ -1,5 +1,8 @@
 import type { Connection, Node } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
+import catalogFixture from "../__fixtures__/capability_catalog.json";
+import type { CapabilityCatalog } from "../api/types.ts";
+import { nodeSpecFromBundle } from "../nodes/catalog.ts";
 import type { FlowNodeData } from "../nodes/WorkflowFlowNode.tsx";
 import { isValidConnection } from "./validate.ts";
 
@@ -9,14 +12,12 @@ describe("isValidConnection", () => {
       flowNode("prompt", "TextPrompt"),
       flowNode("image", "TextToImage"),
       flowNode("video", "ImageToVideo"),
-      flowNode("audio", "TextToAudio"),
     ];
 
     expect(isValidConnection(connection("prompt", "text", "image", "prompt"), nodes)).toBe(true);
     expect(isValidConnection(connection("image", "image", "video", "image"), nodes)).toBe(true);
-    expect(isValidConnection(connection("prompt", "text", "audio", "prompt"), nodes)).toBe(true);
     expect(isValidConnection(connection("image", "image", "image", "prompt"), nodes)).toBe(false);
-    expect(isValidConnection(connection("audio", "audio", "video", "image"), nodes)).toBe(false);
+    expect(isValidConnection(connection("prompt", "text", "video", "image"), nodes)).toBe(false);
   });
 });
 
@@ -25,8 +26,25 @@ function flowNode(id: string, type: string): Node {
     id,
     type: "workflow",
     position: { x: 0, y: 0 },
-    data: { type, params: {}, onParamChange: () => {} } satisfies FlowNodeData,
+    data: {
+      type,
+      params: {},
+      capability: nodeSpec(type),
+      onParamChange: () => {},
+    } satisfies FlowNodeData,
   };
+}
+
+function nodeSpec(type: string) {
+  const catalog = catalogFixture as unknown as CapabilityCatalog;
+  const entry = catalog.capabilities.find((candidate) => candidate.contract.reference.id === type);
+  if (!entry) throw new Error(`missing fixture capability ${type}`);
+  return nodeSpecFromBundle({
+    reference: entry.contract.reference,
+    contract: entry.contract,
+    presentation: entry.presentation,
+    status: entry.status,
+  });
 }
 
 function connection(

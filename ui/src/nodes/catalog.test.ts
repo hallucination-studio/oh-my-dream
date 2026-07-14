@@ -1,24 +1,119 @@
 import { describe, expect, it } from "vitest";
-import nodeContracts from "../__fixtures__/node_contracts.json";
-import { NODE_TYPES, arePortTypesCompatible } from "./catalog.ts";
+import catalogFixture from "../__fixtures__/capability_catalog.json";
+import type { CapabilityCatalog } from "../api/types.ts";
+import { capabilityRefKey } from "../workflow/contractCache.ts";
+import {
+  arePortTypesCompatible,
+  findNodeType,
+  nodeSpecFromBundle,
+  nodeSpecsFromSnapshot,
+  recoveryNodeSpec,
+} from "./catalog.ts";
+
+const catalog = catalogFixture as unknown as CapabilityCatalog;
 
 describe("node catalog contract", () => {
-  it("uses Rust-generated node ports as its source", () => {
-    const actual = NODE_TYPES.map((node) => ({
-      type_id: node.type,
-      inputs: node.inputs.map((port) => ({
-        name: port.name,
-        port_type: port.type,
-        required: port.required,
-      })),
-      outputs: node.outputs.map((port) => ({ name: port.name, port_type: port.type })),
-    })).sort((left, right) => left.type_id.localeCompare(right.type_id));
+  it("projects ports and params from exact Rust capability contracts", () => {
+    const specs = nodeSpecsFromSnapshot(snapshot());
+    const image = specs.find((spec) => spec.type === "TextToImage");
 
-    expect(actual).toEqual(nodeContracts.nodes);
+    expect(image?.inputs).toEqual([
+      expect.objectContaining({ name: "prompt", type: "string", required: true, cardinality: "one" }),
+    ]);
+    expect(image?.outputs).toEqual([
+      expect.objectContaining({ name: "image", type: "image", required: false, cardinality: "one" }),
+    ]);
+    expect(image?.params.map((param) => param.name)).toEqual([
+      "model",
+      "negative_prompt",
+      "seed",
+      "steps",
+    ]);
   });
 
-  it("uses the Rust-generated compatibility relation", () => {
+  it("uses the exact reference version when finding a node", () => {
+    const current = snapshot();
+
+    expect(findNodeType("TextPrompt", "1.0", current)?.ref).toEqual({ id: "TextPrompt", version: "1.0" });
+    expect(findNodeType("TextPrompt", "9.9", current)).toBeUndefined();
+  });
+
+  it("keeps missing refs as recovery specs instead of dropping nodes", () => {
+    const spec = recoveryNodeSpec({ id: "TextPrompt", version: "9.9" }, "repair required");
+
+    expect(spec.status.availability).toBe("degraded");
+    expect(spec.ref).toEqual({ id: "TextPrompt", version: "9.9" });
+    expect(spec.inputs).toEqual([]);
+    expect(spec.outputs).toEqual([]);
+  });
+
+  it("uses the engine's exact-match compatibility rule", () => {
     expect(arePortTypesCompatible("image", "image")).toBe(true);
     expect(arePortTypesCompatible("image", "string")).toBe(false);
   });
+
+  it("ignores non-contract annotations and unsupported composed parameter schemas", () => {
+    const spec = nodeSpecFromBundle({
+      reference: { id: "Fixture", version: "1.0" },
+      contract: {
+        reference: { id: "Fixture", version: "1.0" },
+        inputs: [],
+        outputs: [],
+        params_schema: {
+          type: "object",
+          properties: {
+            caption: {
+              type: "string",
+              format: "asset",
+              "x-asset": true,
+              "x-kind": "asset",
+            },
+            ambiguous: { anyOf: [{ type: "string" }, { type: "number" }] },
+            steps: { type: "integer", minimum: 1 },
+          },
+        },
+        default_params: {},
+        effects: [],
+      },
+      presentation: {
+        label: "Fixture",
+        description: "Fixture capability",
+        category: "test",
+        search_terms: [],
+      },
+      status: {
+        availability: "available",
+        reason: null,
+        provider_health: null,
+        status_revision: 0,
+      },
+    });
+
+    expect(spec.params).toEqual([
+      expect.objectContaining({ name: "caption", kind: "text" }),
+      expect.objectContaining({ name: "steps", kind: "int" }),
+    ]);
+  });
 });
+
+function snapshot() {
+  const bundles = new Map(
+    catalog.capabilities.map((entry) => [
+      capabilityRefKey(entry.contract.reference),
+      {
+        reference: entry.contract.reference,
+        contract: entry.contract,
+        presentation: entry.presentation,
+        status: entry.status,
+      },
+    ]),
+  );
+  return {
+    bundles,
+    summaries: catalog.capabilities.map(({ contract, presentation, status }) => ({
+      reference: contract.reference,
+      presentation,
+      status,
+    })),
+  };
+}

@@ -5,8 +5,10 @@ use oh_my_dream_tauri::assistant_operations::{
     RequestContext,
 };
 use oh_my_dream_tauri::assistant_runtime::{
-    AssistantInvocation, AssistantRuntime, AssistantRuntimeOutcome, TrustedInvocationContext,
+    AssistantEventSink, AssistantInvocation, AssistantRuntime, AssistantRuntimeError,
+    AssistantRuntimeOutcome, TrustedInvocationContext,
 };
+use serde_json::Value;
 use tempfile::TempDir;
 
 use super::common::{LocalReadInput, LocalReadOutput, python_fixture_command};
@@ -37,7 +39,6 @@ async fn assistant_runtime_streams_tool_request_through_rust_and_completes() {
         panic!("expected completed runtime outcome");
     };
     assert_eq!(completed.final_output(), &serde_json::json!("tool completed"));
-    assert_eq!(completed.messages(), ["tool completed"]);
     assert_eq!(completed.snapshot().session_id(), "session-1");
     assert_eq!(completed.snapshot().status(), "completed");
     assert_eq!(completed.snapshot().state(), &serde_json::Value::Null);
@@ -52,6 +53,58 @@ async fn assistant_runtime_streams_tool_request_through_rust_and_completes() {
         [("project-7".to_owned(), "session-1".to_owned(), "request-9".to_owned())]
     );
     assert!(session_path.exists());
+}
+
+#[tokio::test]
+async fn assistant_runtime_forwards_native_responses_event_without_remapping() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let runtime = AssistantRuntime::new(
+        super::common::hostile_command(
+            r#"import json,sys; invoke=json.loads(sys.stdin.readline())['payload']; frames=[('responses_event',{'invocation_id':invoke['invocation_id'],'event':{'type':'response.output_text.delta','delta':'native','sequence_number':0}}),('snapshot',{'invocation_id':invoke['invocation_id'],'session_id':invoke['session_id'],'status':'completed','state':None}),('completed',{'invocation_id':invoke['invocation_id'],'final_output':'done'})]; [print(json.dumps({'protocol_version':1,'sequence':sequence,'kind':kind,'payload':payload}),flush=True) for sequence,(kind,payload) in enumerate(frames)]; sys.stdin.read()"#,
+        ),
+        Vec::new(),
+    )
+    .expect("runtime should be valid");
+    let directory = TempDir::new().expect("temporary directory should be created");
+    let mut sink = RecordingSink(Arc::clone(&events));
+
+    let outcome = runtime
+        .invoke_streamed(
+            AssistantInvocation::new(
+                "invoke-native",
+                "session-native",
+                directory.path().join("session.sqlite3"),
+                Some("stream".to_owned()),
+            ),
+            TrustedInvocationContext::new("project-7", "request-9"),
+            &mut sink,
+        )
+        .await
+        .expect("native event invocation should complete");
+
+    assert!(matches!(outcome, AssistantRuntimeOutcome::Completed(_)));
+    assert_eq!(
+        *events.lock().expect("event lock should remain available"),
+        vec![serde_json::json!({
+            "type": "response.output_text.delta",
+            "delta": "native",
+            "sequence_number": 0,
+        })]
+    );
+}
+
+struct RecordingSink(Arc<Mutex<Vec<Value>>>);
+
+impl AssistantEventSink for RecordingSink {
+    fn emit(&mut self, event: Value) -> Result<(), AssistantRuntimeError> {
+        self.0
+            .lock()
+            .map_err(|_| AssistantRuntimeError::EventSink {
+                message: "event lock was poisoned".to_owned(),
+            })?
+            .push(event);
+        Ok(())
+    }
 }
 
 fn local_read_registration(

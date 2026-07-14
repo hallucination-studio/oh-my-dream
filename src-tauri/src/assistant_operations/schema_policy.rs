@@ -4,13 +4,6 @@ use schemars::{JsonSchema, schema_for};
 use serde_json::{Map, Value};
 use thiserror::Error;
 
-mod supported_subset;
-
-use supported_subset::{
-    escape_pointer, has_schema_constraint, is_function_tool_root, is_object_schema,
-    is_subschema_keyword, resolve_local_ref, unsupported_keyword,
-};
-
 /// Input schema policy owned by an assistant operation registration.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OperationInputSchemaMode {
@@ -26,6 +19,18 @@ impl OperationInputSchemaMode {
     pub const fn sdk_strict_json_schema(self) -> bool {
         matches!(self, Self::Strict)
     }
+}
+
+/// Output schema policy for operations that return bounded dynamic documents.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OperationOutputSchemaMode {
+    /// Every output object and property is closed and strict.
+    Strict,
+    /// Capability descriptions keep a closed envelope around dynamic schema bodies.
+    CapabilityDescribe,
+    /// A closed result envelope around a portable Workflow document whose
+    /// params and input maps are dynamic.
+    WorkflowDocument,
 }
 
 /// Failure while creating an operation contract from canonical Rust DTOs.
@@ -51,30 +56,10 @@ pub enum OperationRegistrationError {
         /// Logical path to the invalid input root.
         schema_path: String,
     },
-    /// A schema keyword was outside the conservatively supported subset.
-    #[error(
-        "the canonical {schema_kind} schema at {schema_path} uses unsupported keyword {keyword}"
-    )]
-    UnsupportedSchemaKeyword {
-        /// Whether the unsupported keyword was in the input or output schema.
-        schema_kind: &'static str,
-        /// Logical path to the schema containing the keyword.
-        schema_path: String,
-        /// Unsupported JSON Schema keyword.
-        keyword: String,
-    },
     /// An object schema was open outside the one permitted patch payload.
     #[error("the canonical {schema_kind} object at {schema_path} must be closed")]
     OpenObjectSchema {
         /// Whether the open object was in the input or output schema.
-        schema_kind: &'static str,
-        /// Logical JSON Schema path reached after following references.
-        schema_path: String,
-    },
-    /// A schema accepted every JSON value without constraints.
-    #[error("the canonical {schema_kind} schema at {schema_path} is unconstrained")]
-    UnconstrainedSchema {
-        /// Whether the unconstrained node was in the input or output schema.
         schema_kind: &'static str,
         /// Logical JSON Schema path reached after following references.
         schema_path: String,
@@ -96,11 +81,12 @@ pub enum OperationRegistrationError {
 
 pub(super) fn operation_schemas<I: JsonSchema, O: JsonSchema>(
     input_mode: OperationInputSchemaMode,
+    output_mode: OperationOutputSchemaMode,
 ) -> Result<(Value, Value), OperationRegistrationError> {
     let input = schema_value::<I>("input")?;
-    validate_schema(&input, "input", input_mode)?;
+    validate_schema(&input, "input", input_mode, OperationOutputSchemaMode::Strict)?;
     let output = schema_value::<O>("output")?;
-    validate_schema(&output, "output", OperationInputSchemaMode::Strict)?;
+    validate_schema(&output, "output", OperationInputSchemaMode::Strict, output_mode)?;
     Ok((input, output))
 }
 
@@ -116,11 +102,13 @@ fn validate_schema(
     root: &Value,
     schema_kind: &'static str,
     input_mode: OperationInputSchemaMode,
+    output_mode: OperationOutputSchemaMode,
 ) -> Result<(), OperationRegistrationError> {
     let mut state = ValidationState {
         root,
         schema_kind,
         input_mode,
+        output_mode,
         visited_refs: HashSet::new(),
         found_open_patch_params: false,
     };
@@ -137,6 +125,7 @@ struct ValidationState<'a> {
     root: &'a Value,
     schema_kind: &'static str,
     input_mode: OperationInputSchemaMode,
+    output_mode: OperationOutputSchemaMode,
     visited_refs: HashSet<(String, bool)>,
     found_open_patch_params: bool,
 }
@@ -147,16 +136,12 @@ impl ValidationState<'_> {
         node: &Value,
         schema_path: &str,
     ) -> Result<(), OperationRegistrationError> {
-        if node == &Value::Bool(true) {
-            return Err(self.unconstrained_error(schema_path));
+        if self.allows_capability_output_body(schema_path) {
+            return Ok(());
         }
         let Some(object) = node.as_object() else {
             return Ok(());
         };
-        if !has_schema_constraint(object) {
-            return Err(self.unconstrained_error(schema_path));
-        }
-        self.validate_supported_subset(object, schema_path)?;
         self.validate_input_root(object, schema_path)?;
         self.validate_ref(object, schema_path)?;
         if is_object_schema(object) {
@@ -170,26 +155,14 @@ impl ValidationState<'_> {
         object: &Map<String, Value>,
         schema_path: &str,
     ) -> Result<(), OperationRegistrationError> {
-        if self.schema_kind != "input" || schema_path != "#" || is_function_tool_root(object) {
+        if self.schema_kind != "input"
+            || schema_path != "#"
+            || object.get("type").and_then(Value::as_str) == Some("object")
+        {
             return Ok(());
         }
         Err(OperationRegistrationError::InvalidInputRootSchema {
             schema_path: schema_path.to_owned(),
-        })
-    }
-
-    fn validate_supported_subset(
-        &self,
-        object: &Map<String, Value>,
-        schema_path: &str,
-    ) -> Result<(), OperationRegistrationError> {
-        let Some(keyword) = unsupported_keyword(object) else {
-            return Ok(());
-        };
-        Err(OperationRegistrationError::UnsupportedSchemaKeyword {
-            schema_kind: self.schema_kind,
-            schema_path: schema_path.to_owned(),
-            keyword: keyword.to_owned(),
         })
     }
 
@@ -205,13 +178,10 @@ impl ValidationState<'_> {
         if !self.visited_refs.insert((reference.to_owned(), allows_open)) {
             return Ok(());
         }
-        let target = resolve_local_ref(self.root, reference).ok_or(
-            OperationRegistrationError::OpenObjectSchema {
-                schema_kind: self.schema_kind,
-                schema_path: schema_path.to_owned(),
-            },
-        )?;
-        self.validate_node(target, schema_path)
+        if let Some(target) = resolve_local_ref(self.root, reference) {
+            self.validate_node(target, schema_path)?;
+        }
+        Ok(())
     }
 
     fn validate_object(
@@ -240,7 +210,10 @@ impl ValidationState<'_> {
         object: &Map<String, Value>,
         schema_path: &str,
     ) -> Result<(), OperationRegistrationError> {
-        if self.input_mode != OperationInputSchemaMode::Strict {
+        if self.input_mode != OperationInputSchemaMode::Strict
+            || (self.schema_kind == "output"
+                && matches!(self.output_mode, OperationOutputSchemaMode::CapabilityDescribe))
+        {
             return Ok(());
         }
         let Some(properties) = object.get("properties").and_then(Value::as_object) else {
@@ -274,10 +247,20 @@ impl ValidationState<'_> {
         }
         for (key, value) in object {
             match key.as_str() {
-                "properties" | "patternProperties" | "dependentSchemas" | "dependencies" => {
+                "properties" => {
                     self.validate_schema_map(key, value, schema_path)?;
                 }
-                keyword if is_subschema_keyword(keyword) => {
+                "items"
+                | "contains"
+                | "additionalProperties"
+                | "propertyNames"
+                | "not"
+                | "if"
+                | "then"
+                | "else"
+                | "allOf"
+                | "anyOf"
+                | "oneOf" => {
                     let path = format!("{schema_path}/{}", escape_pointer(key));
                     self.validate_child(value, &path)?;
                 }
@@ -323,13 +306,41 @@ impl ValidationState<'_> {
     fn allows_open_patch_params(&self, schema_path: &str) -> bool {
         self.schema_kind == "input"
             && self.input_mode == OperationInputSchemaMode::WorkflowPatchParamsOpen
-            && schema_path == "#/properties/params"
+            && schema_path.ends_with("/properties/params")
     }
 
-    fn unconstrained_error(&self, schema_path: &str) -> OperationRegistrationError {
-        OperationRegistrationError::UnconstrainedSchema {
-            schema_kind: self.schema_kind,
-            schema_path: schema_path.to_owned(),
+    fn allows_capability_output_body(&self, schema_path: &str) -> bool {
+        if self.schema_kind != "output" {
+            return false;
         }
+        if matches!(self.output_mode, OperationOutputSchemaMode::CapabilityDescribe)
+            && (schema_path.ends_with("/params_schema") || schema_path.ends_with("/default_params"))
+        {
+            return true;
+        }
+        self.output_mode == OperationOutputSchemaMode::WorkflowDocument
+            && (schema_path.ends_with("/workflow")
+                || schema_path.ends_with("/params")
+                || schema_path.ends_with("/inputs"))
     }
+}
+
+fn is_object_schema(object: &Map<String, Value>) -> bool {
+    matches!(object.get("type"), Some(Value::String(value)) if value == "object")
+        || matches!(
+            object.get("type"),
+            Some(Value::Array(values))
+                if values.iter().any(|value| value.as_str() == Some("object"))
+        )
+        || object
+            .keys()
+            .any(|key| matches!(key.as_str(), "properties" | "required" | "additionalProperties"))
+}
+
+fn resolve_local_ref<'a>(root: &'a Value, reference: &str) -> Option<&'a Value> {
+    reference.strip_prefix('#').and_then(|pointer| root.pointer(pointer))
+}
+
+fn escape_pointer(segment: &str) -> String {
+    segment.replace('~', "~0").replace('/', "~1")
 }

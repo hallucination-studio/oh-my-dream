@@ -10,7 +10,7 @@ use super::frames::FrameHandler;
 use super::payload::{ApprovalResponsePayload, InvokePayload};
 use super::process::AssistantProcess;
 use super::types::{
-    AssistantInvocation, AssistantRuntimeOutcome, AssistantWaitingApproval,
+    AssistantEventSink, AssistantInvocation, AssistantRuntimeOutcome, AssistantWaitingApproval,
     TrustedInvocationContext,
 };
 
@@ -18,8 +18,9 @@ pub(super) async fn invoke(
     runtime: &AssistantRuntime,
     invocation: AssistantInvocation,
     trusted: TrustedInvocationContext,
+    sink: &mut dyn AssistantEventSink,
 ) -> Result<AssistantRuntimeOutcome, AssistantRuntimeError> {
-    run_process(runtime, invocation, trusted, RunMode::New).await
+    run_process(runtime, invocation, trusted, RunMode::New, sink).await
 }
 
 pub(super) async fn resume(
@@ -28,6 +29,7 @@ pub(super) async fn resume(
     trusted: TrustedInvocationContext,
     waiting: AssistantWaitingApproval,
     approved: bool,
+    sink: &mut dyn AssistantEventSink,
 ) -> Result<AssistantRuntimeOutcome, AssistantRuntimeError> {
     if invocation.input.is_some() {
         return Err(AssistantRuntimeError::ResumeInputMustBeNull);
@@ -47,6 +49,7 @@ pub(super) async fn resume(
         invocation,
         trusted,
         RunMode::Resume { waiting, approved, consumed: false },
+        sink,
     )
     .await
 }
@@ -61,6 +64,7 @@ async fn run_process(
     invocation: AssistantInvocation,
     trusted: TrustedInvocationContext,
     mode: RunMode,
+    sink: &mut dyn AssistantEventSink,
 ) -> Result<AssistantRuntimeOutcome, AssistantRuntimeError> {
     let invocation_deadline = Instant::now() + runtime.limits.invocation_timeout;
     let mut process = timeout_at(invocation_deadline, runtime.launcher.launch())
@@ -68,7 +72,7 @@ async fn run_process(
         .map_err(|_| AssistantRuntimeError::InvocationTimeout)??;
     let result = timeout_at(
         invocation_deadline,
-        run_loop(runtime, process.as_mut(), &invocation, &trusted, mode),
+        run_loop(runtime, process.as_mut(), &invocation, &trusted, mode, sink),
     )
     .await;
     match result {
@@ -108,12 +112,13 @@ async fn run_loop(
     invocation: &AssistantInvocation,
     trusted: &TrustedInvocationContext,
     mut mode: RunMode,
+    sink: &mut dyn AssistantEventSink,
 ) -> Result<AssistantRuntimeOutcome, AssistantRuntimeError> {
     let mut outgoing = OutgoingSequence::default();
     send_invoke(runtime, process, invocation, &mode, &mut outgoing).await?;
     send_approval_response(process, invocation, &mode, &mut outgoing).await?;
     let mut frames =
-        FrameHandler::new(runtime, process, invocation, trusted, &mut mode, &mut outgoing);
+        FrameHandler::new(runtime, process, invocation, trusted, &mut mode, &mut outgoing, sink);
     loop {
         if let Some(outcome) = frames.next().await? {
             return Ok(outcome);

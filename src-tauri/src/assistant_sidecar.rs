@@ -2,12 +2,9 @@ use crate::assistant_runtime::AssistantSidecarCommand;
 use crate::assistant_transport::{
     AssistantFrameReader, AssistantFrameWriter, AssistantTransportError,
 };
-use crate::dto::AssistantSessionDto;
-use crate::state::AppState;
-use std::io::{self, BufRead};
-use std::net::TcpListener;
+use std::io;
 use std::path::Path;
-use std::process::{Child, Command, Stdio};
+use std::process::Stdio;
 use thiserror::Error;
 use tokio::io::{BufReader as AsyncBufReader, BufWriter as AsyncBufWriter};
 use tokio::process::{
@@ -169,23 +166,7 @@ async fn terminate_stdio_child(child: &mut AsyncChild) {
     }
 }
 
-/// Creates an assistant session, spawning the sidecar when app state enables it.
-pub fn create_assistant_session(
-    state: &AppState,
-) -> Result<(AssistantSessionDto, Option<Child>), String> {
-    let token = generate_token()?;
-    let (port, process) = if state.assistant_sidecar_enabled {
-        spawn_assistant_sidecar(state, &token)?
-    } else {
-        (reserve_loopback_port()?, None)
-    };
-    Ok((AssistantSessionDto { port, token }, process))
-}
-
 /// Resolves the shared stdio command for development or a packaged app.
-///
-/// The legacy TCP session remains available until the Task 19 cutover. New
-/// runtime code must consume this command instead of `create_assistant_session`.
 pub fn configured_assistant_command() -> Result<AssistantSidecarCommand, String> {
     if cfg!(debug_assertions) {
         let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -203,47 +184,6 @@ pub fn configured_assistant_command() -> Result<AssistantSidecarCommand, String>
         .ok_or_else(|| assistant_error("resolve assistant target", "target triple is missing"))?;
     let executable = AssistantSidecarCommand::packaged_executable_path(current_executable, target);
     Ok(AssistantSidecarCommand::packaged(executable))
-}
-
-fn reserve_loopback_port() -> Result<u16, String> {
-    let listener = TcpListener::bind(("127.0.0.1", 0))
-        .map_err(|source| assistant_error("reserve assistant port", source))?;
-    listener
-        .local_addr()
-        .map(|address| address.port())
-        .map_err(|source| assistant_error("read assistant port", source))
-}
-
-fn spawn_assistant_sidecar(state: &AppState, token: &str) -> Result<(u16, Option<Child>), String> {
-    let mut child = Command::new("python3")
-        .args(["-m", "assistant"])
-        .env("OH_MY_DREAM_ASSISTANT_TOKEN", token)
-        .env("OH_MY_DREAM_CONFIG_ROOT", &state.config_root)
-        .env("OH_MY_DREAM_ALLOWED_ORIGINS", "tauri://localhost,http://localhost:5273")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .map_err(|source| assistant_error("spawn assistant sidecar", source))?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| assistant_error("read assistant sidecar stdout", "stdout was not piped"))?;
-    let mut line = String::new();
-    std::io::BufReader::new(stdout)
-        .read_line(&mut line)
-        .map_err(|source| assistant_error("read assistant sidecar port", source))?;
-    let port = line
-        .strip_prefix("PORT=")
-        .and_then(|value| value.trim().parse::<u16>().ok())
-        .ok_or_else(|| assistant_error("parse assistant sidecar port", line.trim()))?;
-    Ok((port, Some(child)))
-}
-
-fn generate_token() -> Result<String, String> {
-    let mut bytes = [0_u8; 32];
-    getrandom::getrandom(&mut bytes)
-        .map_err(|source| assistant_error("generate assistant token", source))?;
-    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 fn assistant_error(operation: &str, error: impl std::fmt::Display) -> String {

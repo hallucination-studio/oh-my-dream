@@ -1,6 +1,0 @@
-fastapi
-uvicorn[standard]
-langgraph
-langchain-openai
-openai-agents==0.18.1
-pyinstaller

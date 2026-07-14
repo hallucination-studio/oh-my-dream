@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type CapabilityManifest, type WorkflowApi } from "../api/index.ts";
-import { AssistantClient, type AssistantEvent, type AssistantSocket } from "./assistantClient.ts";
+import {
+  api,
+  type AssistantContext,
+  type ResponsesStreamEvent,
+  type WorkflowApi,
+  type WorkflowHead,
+} from "../api/index.ts";
 import "./assistantDock.css";
 
-// The stream is a list of typed entries rather than plain messages, so the dock
-// can render user bubbles, full-width assistant text, tool-call step rows, and
-// human-in-the-loop confirm cards inline, in the order they arrive.
+// Keep the product projection small while preserving the order of native stream events.
 type StreamItem =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string }
@@ -13,74 +16,46 @@ type StreamItem =
       kind: "step";
       callId: string;
       capability: string;
-      args: Record<string, unknown>;
       state: "running" | "done" | "error";
       error?: string;
     }
-  | { kind: "confirm"; callId: string; capability: string; summary: string; resolved: "approved" | "denied" | null };
 
 const SUGGESTIONS = [
   "Build a text-to-image → image-to-video pipeline",
   "Add a Text Prompt node and describe a sunset city",
   "Explain what each node in my canvas does",
 ];
+const EMPTY_CONTEXT: AssistantContext = {
+  project_id: null,
+  workflow_present: false,
+  workflow_revision: null,
+  selected_node_ids: [],
+  selected_asset_ids: [],
+};
+const PASS_BARRIER = async () => undefined;
 
 export function AssistantDock({
   onClose,
   apiClient = api,
-  executeCapability = async () => null,
-  getContext = () => ({}),
-  socketFactory,
+  getContext = () => EMPTY_CONTEXT,
+  beforeSend = PASS_BARRIER,
+  onWorkflowHead,
 }: {
   onClose: () => void;
   apiClient?: WorkflowApi;
-  executeCapability?: (capability: string, args: Record<string, unknown>) => Promise<unknown>;
-  getContext?: () => unknown;
-  socketFactory?: (url: string) => AssistantSocket;
+  getContext?: () => AssistantContext;
+  beforeSend?: (restoreFocus: () => void) => Promise<void>;
+  onWorkflowHead?: (head: WorkflowHead) => void | Promise<void>;
 }) {
   const [draft, setDraft] = useState("");
   const [items, setItems] = useState<StreamItem[]>([]);
   const [status, setStatus] = useState<{ text: string; connected: boolean }>({
-    text: "Connecting",
-    connected: false,
+    text: "Ready",
+    connected: true,
   });
-  const client = useRef<AssistantClient | null>(null);
   const streamRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([apiClient.getAssistantSession(), apiClient.getCapabilityManifest()])
-      .then(([session, manifest]) => {
-        if (cancelled) {
-          return;
-        }
-        if (session.port <= 0 || !session.token) {
-          setStatus({ text: "Unavailable", connected: false });
-          return;
-        }
-        const next = new AssistantClient({
-          url: `ws://127.0.0.1:${session.port}`,
-          token: session.token,
-          manifest: compactManifest(manifest),
-          socketFactory,
-          execute: executeCapability,
-          onEvent: handleEvent,
-        });
-        client.current = next;
-        next.connect();
-        setStatus({ text: "Connected", connected: true });
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          setStatus({ text: error instanceof Error ? error.message : String(error), connected: false });
-        }
-      });
-    return () => {
-      cancelled = true;
-      client.current?.close();
-      client.current = null;
-    };
-  }, [apiClient, executeCapability, socketFactory]);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const sendingRef = useRef(false);
 
   // Keep the newest content in view as it streams in.
   useEffect(() => {
@@ -90,64 +65,74 @@ export function AssistantDock({
     }
   }, [items]);
 
-  const handleEvent = (event: AssistantEvent) => {
+  const handleEvent = (event: ResponsesStreamEvent) => {
     switch (event.type) {
-      case "token":
-        setItems((current) => appendAssistantToken(current, event.delta));
+      case "response.output_text.delta":
+        if (typeof event.delta === "string") {
+          const delta = event.delta;
+          setItems((current) => appendAssistantToken(current, delta));
+        }
         break;
-      case "status":
-        setStatus((s) => ({ ...s, text: event.text }));
+      case "response.output_item.added": {
+        const call = functionCallFromEvent(event);
+        if (call) {
+          setItems((current) => [
+            ...current,
+            { kind: "step", callId: call.callId, capability: call.name, state: "running" },
+          ]);
+        }
         break;
+      }
+      case "response.output_item.done": {
+        const call = functionCallFromEvent(event);
+        if (call) {
+          setItems((current) => setStepState(current, call.callId, "done"));
+        }
+        break;
+      }
+      case "response.completed":
+        setStatus((current) => ({ ...current, text: "Ready" }));
+        break;
+      case "response.failed":
+      case "response.incomplete":
       case "error":
-        setStatus((s) => ({ ...s, text: event.message }));
-        break;
-      case "closed":
-        setStatus({ text: "Disconnected", connected: false });
-        break;
-      case "tool_started":
-        setItems((current) => [
-          ...current,
-          { kind: "step", callId: event.callId, capability: event.capability, args: event.args, state: "running" },
-        ]);
-        break;
-      case "tool_succeeded":
-        setItems((current) => setStepState(current, event.callId, "done"));
-        break;
-      case "tool_failed":
-        setItems((current) => setStepState(current, event.callId, "error", event.error));
-        break;
-      case "confirm_request":
-        setItems((current) => [
-          ...current,
-          { kind: "confirm", callId: event.callId, capability: event.capability, summary: event.summary, resolved: null },
-        ]);
+        setStatus((current) => ({ ...current, text: responseError(event) }));
         break;
     }
   };
 
-  const send = () => {
+  const send = async () => {
     const text = draft.trim();
-    if (!text) {
+    if (!text || sendingRef.current) {
       return;
     }
-    setItems((current) => [...current, { kind: "user", text }]);
-    if (client.current) {
-      client.current.sendUserMessage(text, getContext());
-    } else {
-      setItems((current) => [...current, { kind: "assistant", text: "Assistant sidecar is not connected." }]);
+    sendingRef.current = true;
+    try {
+      await beforeSend(() => composerRef.current?.focus());
+      setItems((current) => [...current, { kind: "user", text }]);
+      const context = getContext();
+      const { project_id, ...workspace } = context;
+      if (!project_id) throw new Error("Open a project before using the assistant.");
+      setStatus({ text: "Thinking", connected: true });
+      const workflowHead = await apiClient.sendAssistant(
+        {
+          project_id,
+          ...workspace,
+          text,
+        },
+        handleEvent,
+      );
+      if (workflowHead !== null) {
+        await onWorkflowHead?.(workflowHead);
+      }
+      setStatus((current) => ({ ...current, text: "Ready" }));
+      setDraft("");
+    } catch (error: unknown) {
+      setStatus((current) => ({ ...current, text: String(error) }));
+      composerRef.current?.focus();
+    } finally {
+      sendingRef.current = false;
     }
-    setDraft("");
-  };
-
-  const resolveConfirm = (callId: string, approved: boolean) => {
-    client.current?.resolveConfirm(callId, approved);
-    setItems((current) =>
-      current.map((item) =>
-        item.kind === "confirm" && item.callId === callId
-          ? { ...item, resolved: approved ? "approved" : "denied" }
-          : item,
-      ),
-    );
   };
 
   const hasContent = items.length > 0;
@@ -169,7 +154,7 @@ export function AssistantDock({
 
       <div className="adock__stream" ref={streamRef}>
         {hasContent ? (
-          items.map((item, index) => <StreamRow key={index} item={item} onConfirm={resolveConfirm} />)
+          items.map((item, index) => <StreamRow key={index} item={item} />)
         ) : (
           <EmptyState onPick={(text) => setDraft(text)} />
         )}
@@ -178,17 +163,19 @@ export function AssistantDock({
       <div className="adock__composer">
         <div className="adock__cbox">
           <textarea
+            ref={composerRef}
+            name="assistant-message"
             placeholder="Message the assistant"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                send();
+                void send();
               }
             }}
           />
-          <button className="adock__send" onClick={send} aria-label="Send">
+          <button className="adock__send" onClick={() => void send()} aria-label="Send">
             <SendIcon />
           </button>
         </div>
@@ -200,10 +187,8 @@ export function AssistantDock({
 
 function StreamRow({
   item,
-  onConfirm,
 }: {
   item: StreamItem;
-  onConfirm: (callId: string, approved: boolean) => void;
 }) {
   if (item.kind === "user") {
     return <div className="adock__u">{item.text}</div>;
@@ -218,45 +203,18 @@ function StreamRow({
       </div>
     );
   }
-  if (item.kind === "step") {
-    return (
-      <div className={`adock__step is-${item.state}`}>
-        <span className="adock__si">
-          {item.state === "running" ? (
-            <span className="adock__spin" />
-          ) : item.state === "done" ? (
-            <CheckIcon />
-          ) : (
-            <ErrorIcon />
-          )}
-        </span>
-        <span className="adock__scap">{item.capability}</span>
-        <span className="adock__sarg">{formatArgs(item.args)}</span>
-      </div>
-    );
-  }
-  // confirm
   return (
-    <div className="adock__confirm">
-      <div className="adock__ch">
-        <WarnIcon />
-        Confirm action
-      </div>
-      <div className="adock__cb">
-        <code>{item.capability}</code> — {item.summary}
-      </div>
-      {item.resolved === null ? (
-        <div className="adock__ca">
-          <button className="adock__deny" onClick={() => onConfirm(item.callId, false)}>
-            Cancel
-          </button>
-          <button className="adock__approve" onClick={() => onConfirm(item.callId, true)}>
-            Run &amp; confirm
-          </button>
-        </div>
-      ) : (
-        <div className="adock__cresolved">{item.resolved === "approved" ? "Approved" : "Cancelled"}</div>
-      )}
+    <div className={`adock__step is-${item.state}`}>
+      <span className="adock__si">
+        {item.state === "running" ? (
+          <span className="adock__spin" />
+        ) : item.state === "done" ? (
+          <CheckIcon />
+        ) : (
+          <ErrorIcon />
+        )}
+      </span>
+      <span className="adock__scap">{item.capability}</span>
     </div>
   );
 }
@@ -280,10 +238,6 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
   );
 }
 
-function compactManifest(manifest: CapabilityManifest): CapabilityManifest {
-  return { capabilities: manifest.capabilities.map((capability) => ({ ...capability })) };
-}
-
 function appendAssistantToken(items: StreamItem[], delta: string): StreamItem[] {
   const last = items.at(-1);
   if (last?.kind === "assistant") {
@@ -296,27 +250,36 @@ function setStepState(
   items: StreamItem[],
   callId: string,
   state: "done" | "error",
-  error?: string,
 ): StreamItem[] {
   return items.map((item) =>
-    item.kind === "step" && item.callId === callId ? { ...item, state, error } : item,
+    item.kind === "step" && item.callId === callId ? { ...item, state } : item,
   );
 }
 
-function formatArgs(args: Record<string, unknown>): string {
-  const parts = Object.entries(args).map(([key, value]) => `${key}: ${formatValue(value)}`);
-  const joined = parts.join(", ");
-  return joined.length > 48 ? `${joined.slice(0, 47)}…` : joined;
+function functionCallFromEvent(
+  event: ResponsesStreamEvent,
+): { callId: string; name: string } | null {
+  if (!isJsonObject(event.item) || event.item.type !== "function_call") {
+    return null;
+  }
+  if (typeof event.item.call_id !== "string" || typeof event.item.name !== "string") {
+    return null;
+  }
+  return { callId: event.item.call_id, name: event.item.name };
 }
 
-function formatValue(value: unknown): string {
-  if (typeof value === "string") {
-    return value;
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function responseError(event: ResponsesStreamEvent): string {
+  if (typeof event.error === "string") {
+    return event.error;
   }
-  if (value === null || typeof value !== "object") {
-    return String(value);
+  if (isJsonObject(event.error) && typeof event.error.message === "string") {
+    return event.error.message;
   }
-  return Array.isArray(value) ? `[${value.length}]` : "{…}";
+  return "Assistant response failed";
 }
 
 function BrandMark() {
@@ -356,14 +319,6 @@ function ErrorIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
       <path d="M6 6l12 12M18 6L6 18" />
-    </svg>
-  );
-}
-
-function WarnIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
     </svg>
   );
 }

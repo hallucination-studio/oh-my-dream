@@ -93,7 +93,10 @@ async def pause_approval(session_path: str) -> dict[str, Any]:
         FrameWriter(output),
         model=ToolThenMessageModel("proposal_execute", APPROVAL_ARGUMENTS),
     ).run_once()
-    state = decode_frames(output.bytes)[0].payload["state"]
+    approval = next(
+        frame for frame in decode_frames(output.bytes) if frame.kind is FrameKind.APPROVAL_REQUEST
+    )
+    state = approval.payload["state"]
     if not isinstance(state, dict):
         raise TypeError("approval fixture state must be an object")
     return state
@@ -119,6 +122,7 @@ class ToolThenMessageModel(Model):
         self.operation_id = operation_id
         self.arguments_json = arguments_json
         self.inputs: list[str | list[TResponseInputItem]] = []
+        self.events: list[ResponseStreamEvent] = []
 
     async def get_response(
         self,
@@ -184,6 +188,98 @@ class ToolThenMessageModel(Model):
                 )
             ]
             response_id = "response-tool"
+        event = ResponseCompletedEvent(
+            response=_response(output, response_id),
+            sequence_number=0,
+            type="response.completed",
+        )
+        self.events.append(event)
+        yield event
+
+
+class SequencedDiscoveryModel(Model):
+    """Call capability search, describe its result, then finish."""
+
+    def __init__(self) -> None:
+        self.inputs: list[str | list[TResponseInputItem]] = []
+        self.tool_names: list[str] = []
+        self.calls = [
+            ("capability_search", '{"query":"video","kinds":null}', "search-call"),
+            (
+                "capability_describe",
+                '{"refs":[{"id":"ImageToVideo","version":"1.0"}]}',
+                "describe-call",
+            ),
+        ]
+
+    async def get_response(
+        self,
+        system_instructions: str | None,
+        input: str | list[TResponseInputItem],
+        model_settings: ModelSettings,
+        tools: list[Tool],
+        output_schema: AgentOutputSchemaBase | None,
+        handoffs: list[Handoff],
+        tracing: ModelTracing,
+        *,
+        previous_response_id: str | None,
+        conversation_id: str | None,
+        prompt: ResponsePromptParam | None,
+    ) -> ModelResponse:
+        raise AssertionError("streamed runs must use stream_response")
+
+    async def stream_response(
+        self,
+        system_instructions: str | None,
+        input: str | list[TResponseInputItem],
+        model_settings: ModelSettings,
+        tools: list[Tool],
+        output_schema: AgentOutputSchemaBase | None,
+        handoffs: list[Handoff],
+        tracing: ModelTracing,
+        *,
+        previous_response_id: str | None,
+        conversation_id: str | None,
+        prompt: ResponsePromptParam | None,
+    ) -> AsyncIterator[ResponseStreamEvent]:
+        self.inputs.append(input)
+        self.tool_names = [tool.name for tool in tools]
+        completed_calls = 0
+        if isinstance(input, list):
+            completed_calls = sum(
+                (
+                    item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
+                )
+                == "function_call_output"
+                for item in input
+            )
+        if completed_calls < len(self.calls):
+            operation_id, arguments_json, call_id = self.calls[completed_calls]
+            output: list[Any] = [
+                ResponseFunctionToolCall(
+                    arguments=arguments_json,
+                    call_id=call_id,
+                    name=operation_id,
+                    type="function_call",
+                    status="completed",
+                )
+            ]
+            response_id = f"response-{completed_calls + 1}"
+        else:
+            output = [
+                ResponseOutputMessage(
+                    id="message-discovery-final",
+                    content=[
+                        ResponseOutputText(
+                            annotations=[], text="discovery complete", type="output_text"
+                        )
+                    ],
+                    role="assistant",
+                    status="completed",
+                    type="message",
+                )
+            ]
+            response_id = "response-discovery-final"
         yield ResponseCompletedEvent(
             response=_response(output, response_id),
             sequence_number=0,
@@ -197,6 +293,7 @@ class FinalMessageModel(Model):
     def __init__(self, text: str = "recorded") -> None:
         self.text = text
         self.inputs: list[str | list[TResponseInputItem]] = []
+        self.events: list[ResponseStreamEvent] = []
 
     async def get_response(
         self,
@@ -236,30 +333,38 @@ class FinalMessageModel(Model):
             status="completed",
             type="message",
         )
-        yield ResponseCompletedEvent(
+        event = ResponseCompletedEvent(
             response=_response([message], "response-recorded"),
             sequence_number=0,
             type="response.completed",
         )
+        self.events.append(event)
+        yield event
 
 
 def main() -> None:
     """Run a deterministic transport fixture for Rust integration tests."""
-    if len(sys.argv) != 2 or sys.argv[1] not in {"tool", "approval"}:
+    if len(sys.argv) != 2 or sys.argv[1] not in {"tool", "approval", "coauthor"}:
         raise SystemExit(2)
-    if sys.argv[1] == "tool":
+    if sys.argv[1] == "coauthor":
+        from assistant.tests.coauthor_fixture import CoauthorModel
+
+        model = CoauthorModel()
+    elif sys.argv[1] == "tool":
         operation_id = "workspace_get_snapshot"
         arguments_json = '{  "query" : "current" }'
+        model = ToolThenMessageModel(operation_id, arguments_json)
     else:
         operation_id = "proposal_execute"
         arguments_json = '{\n  "proposal_id": "proposal-42"\n}'
+        model = ToolThenMessageModel(operation_id, arguments_json)
 
     from assistant.stdio_app import AgentStdioApp
 
     app = AgentStdioApp(
         FrameReader(sys.stdin.buffer),
         FrameWriter(sys.stdout.buffer),
-        model=ToolThenMessageModel(operation_id, arguments_json),
+        model=model,
     )
     asyncio.run(app.run_once())
 

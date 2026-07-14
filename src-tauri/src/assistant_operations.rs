@@ -12,7 +12,9 @@ pub use dispatch::{
     OperationDispatchError, OperationHandler, OperationHandlerError, OperationSchemaViolation,
 };
 use schema_policy::operation_schemas;
-pub use schema_policy::{OperationInputSchemaMode, OperationRegistrationError};
+pub use schema_policy::{
+    OperationInputSchemaMode, OperationOutputSchemaMode, OperationRegistrationError,
+};
 /// The durable category of effect produced by an assistant operation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -76,6 +78,8 @@ pub struct RequestContext {
     request_id: String,
     tool_version: u32,
     approved_effect: Option<ApprovedEffect>,
+    selected_node_ids: Vec<String>,
+    selected_asset_ids: Vec<String>,
 }
 
 impl RequestContext {
@@ -94,7 +98,21 @@ impl RequestContext {
             request_id: request_id.into(),
             tool_version,
             approved_effect,
+            selected_node_ids: Vec::new(),
+            selected_asset_ids: Vec::new(),
         }
+    }
+
+    /// Adds the trusted UI selection for this Project-scoped operation.
+    #[must_use]
+    pub fn with_workspace_selection(
+        mut self,
+        selected_node_ids: Vec<String>,
+        selected_asset_ids: Vec<String>,
+    ) -> Self {
+        self.selected_node_ids = selected_node_ids;
+        self.selected_asset_ids = selected_asset_ids;
+        self
     }
 
     /// Returns the trusted project identifier.
@@ -121,6 +139,18 @@ impl RequestContext {
     #[must_use]
     pub fn approved_effect(&self) -> Option<&ApprovedEffect> {
         self.approved_effect.as_ref()
+    }
+
+    /// Returns the trusted selected node pointers for the current Project.
+    #[must_use]
+    pub fn selected_node_ids(&self) -> &[String] {
+        &self.selected_node_ids
+    }
+
+    /// Returns the trusted selected Asset pointers for the current Project.
+    #[must_use]
+    pub fn selected_asset_ids(&self) -> &[String] {
+        &self.selected_asset_ids
     }
 }
 
@@ -151,7 +181,34 @@ impl OperationRegistration {
         O: Serialize + JsonSchema + Send + 'static,
         H: OperationHandler<I, O> + 'static,
     {
-        let (input_schema, output_schema) = operation_schemas::<I, O>(input_schema_mode)?;
+        Self::new_with_output_mode(
+            id,
+            version,
+            description,
+            effect,
+            input_schema_mode,
+            OperationOutputSchemaMode::Strict,
+            handler,
+        )
+    }
+
+    /// Registers an operation with an explicit output-schema policy.
+    pub fn new_with_output_mode<I, O, H>(
+        id: impl Into<String>,
+        version: u32,
+        description: impl Into<String>,
+        effect: OperationEffect,
+        input_schema_mode: OperationInputSchemaMode,
+        output_schema_mode: OperationOutputSchemaMode,
+        handler: H,
+    ) -> Result<Self, OperationRegistrationError>
+    where
+        I: DeserializeOwned + JsonSchema + Send + 'static,
+        O: Serialize + JsonSchema + Send + 'static,
+        H: OperationHandler<I, O> + 'static,
+    {
+        let (input_schema, output_schema) =
+            operation_schemas::<I, O>(input_schema_mode, output_schema_mode)?;
         let handler = TypedOperationHandler::<I, O, H>::new(handler, &input_schema)
             .map_err(|message| OperationRegistrationError::ValidatorCompilation { message })?;
         Ok(Self {

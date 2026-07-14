@@ -1,7 +1,7 @@
 // Right inspector: parameters of the selected node in a calm flush panel, plus
 // a note that generated media auto-saves to the library.
 
-import { findNodeType } from "../nodes/catalog.ts";
+import type { NodeTypeSpec } from "../nodes/catalog.ts";
 import { ParameterInput } from "../nodes/ParameterInput.tsx";
 import { nodeAccent } from "../nodes/typeColor.ts";
 import "./inspector.css";
@@ -10,6 +10,7 @@ export interface SelectedNode {
   id: string;
   type: string;
   params: Record<string, unknown>;
+  capability?: NodeTypeSpec;
 }
 
 export function InspectorPanel({
@@ -35,7 +36,7 @@ export function InspectorPanel({
     );
   }
 
-  const spec = findNodeType(node.type);
+  const spec = node.capability;
   const accent = spec ? nodeAccent(spec.outputs, spec.inputs) : "var(--ink-3)";
   const produces = spec && spec.outputs.some((o) => ["image", "video", "audio"].includes(o.type));
 
@@ -45,6 +46,12 @@ export function InspectorPanel({
         <span className="insp__badge" style={{ background: accent }} />
         <b>{spec?.label ?? node.type}</b>
       </div>
+
+      {spec && spec.status.availability !== "available" && (
+        <div className="insp__note" role="status">
+          {spec.status.reason ?? "Capability needs repair before it can run."}
+        </div>
+      )}
 
       {spec && spec.params.length > 0 ? (
         <>

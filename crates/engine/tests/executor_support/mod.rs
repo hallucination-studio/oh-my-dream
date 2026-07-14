@@ -5,7 +5,7 @@ pub(crate) use cancellation::{
 };
 
 use engine::{
-    InputPort, Node, NodeExecutionState, NodeParams, NodeProgressEvent, NodeRegistry,
+    InputBinding, InputPort, Node, NodeExecutionState, NodeParams, NodeProgressEvent, NodeRegistry,
     NodeRunContext, NodeRunResult, OutputPort, OutputRef, PortCardinality, PortType, Value,
     ValueMap, Workflow, WorkflowNode,
 };
@@ -115,7 +115,7 @@ pub(crate) fn linear_workflow(text: &str) -> Workflow {
                 params: NodeParams::new(),
                 inputs: BTreeMap::from([(
                     "text".to_owned(),
-                    OutputRef("prompt".to_owned(), "text".to_owned()),
+                    InputBinding::single(OutputRef("prompt".to_owned(), "text".to_owned())),
                 )]),
                 position: None,
             },
@@ -126,7 +126,7 @@ pub(crate) fn linear_workflow(text: &str) -> Workflow {
                 params: NodeParams::new(),
                 inputs: BTreeMap::from([(
                     "text".to_owned(),
-                    OutputRef("upper".to_owned(), "text".to_owned()),
+                    InputBinding::single(OutputRef("upper".to_owned(), "text".to_owned())),
                 )]),
                 position: None,
             },

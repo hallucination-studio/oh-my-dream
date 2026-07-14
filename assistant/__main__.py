@@ -1,6 +1,6 @@
-"""Command-line entrypoint for `python -m assistant`."""
+"""Command-line entrypoint for the inherited-stdio sidecar."""
 
-from .server import run
+from .stdio_app import run
 
 
 if __name__ == "__main__":

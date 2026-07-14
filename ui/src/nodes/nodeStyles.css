@@ -31,6 +31,12 @@
 .wf-node.is-error .wf-node__bar {
   background: var(--err);
 }
+.wf-node.is-degraded {
+  border-color: var(--warn);
+}
+.wf-node.is-degraded .wf-node__bar {
+  background: var(--warn);
+}
 
 .wf-node__title {
   display: flex;
@@ -41,6 +47,15 @@
   font-size: 12.5px;
   letter-spacing: -0.01em;
   border-bottom: 1px solid var(--hair);
+}
+
+.wf-node__recovery {
+  padding: 7px 11px 7px 14px;
+  color: #8a5a00;
+  background: rgba(236, 166, 61, 0.12);
+  border-bottom: 1px solid var(--hair);
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .wf-pill {

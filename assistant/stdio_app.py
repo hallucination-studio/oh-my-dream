@@ -8,8 +8,8 @@ from dataclasses import dataclass
 import sys
 from typing import Any, cast
 
-from agents import Agent, ItemHelpers, MessageOutputItem, Model, Runner, RunState, Tool
-from agents.stream_events import RunItemStreamEvent
+from agents import Agent, Model, Runner, RunState, Tool
+from agents.stream_events import RawResponsesStreamEvent
 
 from .sdk_runtime import (
     AGENT_NAME,
@@ -20,6 +20,7 @@ from .sdk_runtime import (
     restore_run_state,
     validate_state_envelope,
 )
+from .system_prompt import build_system_prompt
 from .stdio_protocol import (
     PROTOCOL_VERSION,
     Frame,
@@ -91,6 +92,7 @@ class AgentStdioApp:
             )
             agent: Agent[Any] = Agent(
                 name=AGENT_NAME,
+                instructions=build_system_prompt(),
                 model=self._model,
                 tools=cast(list[Tool], tools),
             )
@@ -110,7 +112,7 @@ class AgentStdioApp:
                 run_config=build_run_config(),
             )
             async for event in result.stream_events():
-                self._emit_message(invocation.invocation_id, event)
+                self._emit_stream_event(invocation.invocation_id, event)
             if result.interruptions:
                 self._emit_interruption(invocation, result)
                 return
@@ -259,19 +261,33 @@ class AgentStdioApp:
     async def _read_frame(self) -> Frame:
         return await asyncio.to_thread(self._reader.read_frame)
 
-    def _emit_message(self, invocation_id: str, event: object) -> None:
-        if not isinstance(event, RunItemStreamEvent):
+    def _emit_stream_event(self, invocation_id: str, event: object) -> None:
+        if not isinstance(event, RawResponsesStreamEvent):
             return
-        if event.name != "message_output_created" or not isinstance(
-            event.item, MessageOutputItem
-        ):
-            return
-        text = ItemHelpers.text_message_output(event.item)
-        if text:
-            self._write(
-                FrameKind.ASSISTANT_MESSAGE,
-                {"invocation_id": invocation_id, "text": text},
+        model_dump = getattr(event.data, "model_dump", None)
+        if not callable(model_dump):
+            raise AgentTransportError(
+                "invalid_stream_event", "Responses stream event data is not serializable"
             )
+        try:
+            data = model_dump(mode="json")
+        except (TypeError, ValueError) as error:
+            raise AgentTransportError(
+                "invalid_stream_event", "Responses stream event data is not serializable"
+            ) from error
+        if not isinstance(data, dict):
+            raise AgentTransportError(
+                "invalid_stream_event", "Responses stream event data must be an object"
+            )
+        event_json = cast(dict[str, JsonValue], data)
+        if not isinstance(event_json.get("type"), str):
+            raise AgentTransportError(
+                "invalid_stream_event", "Responses stream event data must include a type"
+            )
+        self._write(
+            FrameKind.RESPONSES_EVENT,
+            {"invocation_id": invocation_id, "event": event_json},
+        )
 
     def _write(self, kind: FrameKind, payload: dict[str, JsonValue]) -> None:
         self._writer.write_frame(

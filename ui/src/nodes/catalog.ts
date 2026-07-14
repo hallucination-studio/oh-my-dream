@@ -1,15 +1,20 @@
-// Node type catalog for the palette and canvas rendering.
-//
-// This is the UI-side mirror of the node contracts the `nodes` crate will
-// register in the engine. Keeping it declarative lets the palette, the node
-// body, and wiring validation all read from one source.
-
-import nodeContractsFixture from "../__fixtures__/node_contracts.json";
+import type {
+  CapabilityBundle,
+  CapabilityCardinality,
+  CapabilityContract,
+  CapabilityPresentation,
+  CapabilityRef,
+  CapabilityStatus,
+  JsonValue,
+} from "../api/types.ts";
+import type { CapabilityCacheSnapshot } from "../workflow/contractCache.ts";
 import type { PortType } from "../workflow/types.ts";
 
 export interface PortSpec {
   name: string;
   type: PortType;
+  cardinality: CapabilityCardinality;
+  required: boolean;
 }
 
 export interface InputPortSpec extends PortSpec {
@@ -19,107 +24,92 @@ export interface InputPortSpec extends PortSpec {
 export interface ParamSpec {
   name: string;
   label: string;
-  kind: "text" | "int" | "float" | "model";
-  default: unknown;
+  kind: "text" | "int" | "float" | "boolean" | "enum";
+  nullable?: boolean;
+  required?: boolean;
+  default?: JsonValue;
+  options?: JsonValue[];
+  constraints?: ParamConstraints;
+}
+
+export interface ParamConstraints {
+  minimum?: number;
+  exclusiveMinimum?: number;
+  maximum?: number;
+  exclusiveMaximum?: number;
 }
 
 export interface NodeTypeSpec {
+  ref: CapabilityRef;
   type: string;
+  contractVersion: string;
   label: string;
+  description: string;
   category: string;
   inputs: InputPortSpec[];
   outputs: PortSpec[];
   params: ParamSpec[];
+  status: CapabilityStatus;
+  contract: CapabilityContract | null;
+  presentation: CapabilityPresentation | null;
 }
 
-type GeneratedNodeContracts = {
-  port_types: PortType[];
-  compatible: [PortType, PortType][];
-  nodes: {
-    type_id: string;
-    inputs: { name: string; port_type: PortType; required: boolean }[];
-    outputs: { name: string; port_type: PortType }[];
-  }[];
-};
-
-const nodeContracts = nodeContractsFixture as GeneratedNodeContracts;
-
-type NodePresentation = Omit<NodeTypeSpec, "inputs" | "outputs">;
-
-// UI presentation metadata stays local; executable ports come from Rust.
-const NODE_PRESENTATION: NodePresentation[] = [
-  {
-    type: "TextPrompt",
-    label: "Text Prompt",
-    category: "Input",
-    params: [{ name: "text", label: "Prompt", kind: "text", default: "" }],
-  },
-  {
-    type: "TextToImage",
-    label: "Text to Image",
-    category: "Image",
-    params: [
-      { name: "model", label: "Model", kind: "model", default: "mock-image" },
-      { name: "steps", label: "Steps", kind: "int", default: 28 },
-      { name: "seed", label: "Seed", kind: "int", default: 42 },
-    ],
-  },
-  {
-    type: "ImageToVideo",
-    label: "Image to Video",
-    category: "Video",
-    params: [
-      { name: "model", label: "Model", kind: "model", default: "mock-video" },
-      { name: "duration", label: "Duration (s)", kind: "float", default: 4 },
-      { name: "fps", label: "FPS", kind: "int", default: 24 },
-    ],
-  },
-  {
-    type: "VideoConcat",
-    label: "Video Concat",
-    category: "Video",
-    params: [],
-  },
-  {
-    type: "TextToAudio",
-    label: "Text to Audio",
-    category: "Audio",
-    params: [
-      { name: "model", label: "Model", kind: "model", default: "mock-audio" },
-      { name: "seed", label: "Seed", kind: "int", default: 42 },
-    ],
-  },
-];
-
-export const NODE_TYPES: NodeTypeSpec[] = NODE_PRESENTATION.map((presentation) => {
-  const contract = nodeContracts.nodes.find((node) => node.type_id === presentation.type);
-  if (!contract) {
-    throw new Error(`Missing Rust node contract for ${presentation.type}`);
-  }
+/** Projects loaded bundles into the node shape consumed by React Flow. */
+export function nodeSpecFromBundle(bundle: CapabilityBundle): NodeTypeSpec {
+  const { reference, contract, presentation, status } = bundle;
   return {
-    ...presentation,
-    inputs: contract.inputs.map((port) => ({
-      name: port.name,
-      type: port.port_type,
-      required: port.required,
-    })),
-    outputs: contract.outputs.map((port) => ({ name: port.name, type: port.port_type })),
+    ref: reference,
+    type: reference.id,
+    contractVersion: reference.version,
+    label: presentation?.label ?? `Unavailable ${reference.id}`,
+    description: presentation?.description ?? status.reason ?? "Capability unavailable",
+    category: presentation?.category ?? "Recovery",
+    inputs: contract?.inputs.map(portSpec) ?? [],
+    outputs: contract?.outputs.map(portSpec) ?? [],
+    params: contract ? paramsFromContract(contract) : [],
+    status,
+    contract,
+    presentation,
   };
-});
-
-export function arePortTypesCompatible(from: PortType, to: PortType): boolean {
-  return nodeContracts.compatible.some(([source, target]) => source === from && target === to);
 }
 
-export function findNodeType(type: string): NodeTypeSpec | undefined {
-  return NODE_TYPES.find((spec) => spec.type === type);
+/** Creates a stable recovery spec for an unknown or degraded persisted ref. */
+export function recoveryNodeSpec(reference: CapabilityRef, reason: string): NodeTypeSpec {
+  return nodeSpecFromBundle({
+    reference,
+    contract: null,
+    presentation: null,
+    status: {
+      availability: "degraded",
+      reason,
+      provider_health: null,
+      status_revision: 0,
+    },
+  });
 }
 
-/** Node types grouped by category, preserving declaration order. */
-export function nodesByCategory(): { category: string; nodes: NodeTypeSpec[] }[] {
+/** Projects every loaded exact bundle, including degraded placeholders. */
+export function nodeSpecsFromSnapshot(snapshot: CapabilityCacheSnapshot): NodeTypeSpec[] {
+  return [...snapshot.bundles.values()].map(nodeSpecFromBundle);
+}
+
+/** Resolves a node's persisted exact ref from the cache snapshot. */
+export function findNodeType(
+  type: string,
+  contractVersion: string | undefined,
+  snapshot: CapabilityCacheSnapshot,
+): NodeTypeSpec | undefined {
+  const reference = { id: type, version: contractVersion ?? "1.0" };
+  const key = `${encodeURIComponent(reference.id)}@${encodeURIComponent(reference.version)}`;
+  const bundle = snapshot.bundles.get(key);
+  return bundle ? nodeSpecFromBundle(bundle) : undefined;
+}
+
+/** Groups loaded bundles by their non-authoritative presentation category. */
+export function nodesByCategory(specs: NodeTypeSpec[]): { category: string; nodes: NodeTypeSpec[] }[] {
   const groups: { category: string; nodes: NodeTypeSpec[] }[] = [];
-  for (const spec of NODE_TYPES) {
-    let group = groups.find((g) => g.category === spec.category);
+  for (const spec of specs) {
+    let group = groups.find((candidate) => candidate.category === spec.category);
     if (!group) {
       group = { category: spec.category, nodes: [] };
       groups.push(group);
@@ -127,4 +117,123 @@ export function nodesByCategory(): { category: string; nodes: NodeTypeSpec[] }[]
     group.nodes.push(spec);
   }
   return groups;
+}
+
+/** Exact-match compatibility is the React projection of the engine rule. */
+export function arePortTypesCompatible(from: PortType, to: PortType): boolean {
+  return from === to;
+}
+
+/** Validates one generated output/input pair before it reaches the patch queue. */
+export function canConnectPorts(
+  source: NodeTypeSpec | undefined,
+  sourceHandle: string | null | undefined,
+  target: NodeTypeSpec | undefined,
+  targetHandle: string | null | undefined,
+): boolean {
+  if (!source || !target || !sourceHandle || !targetHandle) return false;
+  const output = source.outputs.find((port) => port.name === sourceHandle);
+  const input = target.inputs.find((port) => port.name === targetHandle);
+  return output !== undefined && input !== undefined && arePortTypesCompatible(output.type, input.type);
+}
+
+function portSpec(port: CapabilityContract["inputs"][number]): PortSpec {
+  return {
+    name: port.name,
+    type: port.port_type,
+    cardinality: port.cardinality,
+    required: port.required,
+  };
+}
+
+function paramsFromContract(contract: CapabilityContract): ParamSpec[] {
+  const properties = contract.params_schema.properties;
+  if (!isRecord(properties)) return [];
+  return Object.entries(properties).flatMap(([name, rawSchema]) => {
+    const schema = isRecord(rawSchema) ? rawSchema : {};
+    const options = enumValues(schema.enum);
+    const kind = parameterKind(schema, options);
+    if (!kind) return [];
+    const required = Array.isArray(contract.params_schema.required) &&
+      contract.params_schema.required.includes(name);
+    const defaultValue = Object.hasOwn(contract.default_params, name)
+      ? contract.default_params[name]
+      : Object.hasOwn(schema, "default") && isJsonValue(schema.default)
+        ? schema.default
+        : undefined;
+    const spec: ParamSpec = {
+      name,
+      label: labelFor(name),
+      kind,
+      nullable: isNullable(schema, options),
+      required,
+      constraints: constraintsFromSchema(schema),
+    };
+    if (options) spec.options = options;
+    if (defaultValue !== undefined) spec.default = defaultValue;
+    return [spec];
+  });
+}
+
+function parameterKind(
+  schema: Record<string, unknown>,
+  options: JsonValue[] | undefined,
+): ParamSpec["kind"] | undefined {
+  if (options) return "enum";
+  const types = directSchemaTypes(schema);
+  if (types.includes("string")) return "text";
+  if (types.includes("integer")) return "int";
+  if (types.includes("number")) return "float";
+  if (types.includes("boolean")) return "boolean";
+  return undefined;
+}
+
+function enumValues(value: unknown): JsonValue[] | undefined {
+  return Array.isArray(value) && value.length > 0 && value.every(isJsonValue)
+    ? (value as JsonValue[])
+    : undefined;
+}
+
+function isNullable(schema: Record<string, unknown>, options: JsonValue[] | undefined): boolean {
+  if (options?.some((option) => option === null)) return true;
+  return directSchemaTypes(schema).includes("null");
+}
+
+function directSchemaTypes(schema: Record<string, unknown>): string[] {
+  const types = schema.type;
+  return Array.isArray(types)
+    ? types.filter((type): type is string => typeof type === "string")
+    : typeof types === "string"
+      ? [types]
+      : [];
+}
+
+function constraintsFromSchema(schema: Record<string, unknown>): ParamConstraints {
+  const constraints: ParamConstraints = {};
+  for (const key of ["minimum", "exclusiveMinimum", "maximum", "exclusiveMaximum"] as const) {
+    if (typeof schema[key] === "number" && Number.isFinite(schema[key])) {
+      constraints[key] = schema[key];
+    }
+  }
+  return constraints;
+}
+
+function labelFor(name: string): string {
+  return name
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isJsonValue(value: unknown): value is JsonValue {
+  return value === null ||
+    typeof value === "boolean" ||
+    typeof value === "number" ||
+    typeof value === "string" ||
+    (Array.isArray(value) && value.every(isJsonValue)) ||
+    (isRecord(value) && Object.values(value).every(isJsonValue));
 }

@@ -1,7 +1,7 @@
 //! Validation and preparation of executable workflow plans.
 
 use crate::error::{EngineError, Result};
-use crate::graph::{OutputRef, Workflow, WorkflowNode};
+use crate::graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
 use crate::node::{InputPort, Node};
 use crate::registry::{NodeParams, NodeRegistry};
 use crate::value::ValueMap;
@@ -17,7 +17,7 @@ pub(crate) struct PlanNode {
     pub(crate) id: String,
     pub(crate) type_id: String,
     pub(crate) params: NodeParams,
-    pub(crate) inputs: BTreeMap<String, OutputRef>,
+    pub(crate) inputs: BTreeMap<String, InputBinding<OutputRef>>,
     pub(crate) node: Box<dyn Node>,
 }
 
@@ -107,21 +107,44 @@ fn node_indexes(nodes: &[PlanNode]) -> BTreeMap<String, usize> {
 fn validate_wiring(nodes: &[PlanNode], node_indexes: &BTreeMap<String, usize>) -> Result<()> {
     for node in nodes {
         validate_input_defaults(node)?;
-        for (input_name, source) in &node.inputs {
+        for (input_name, binding) in &node.inputs {
             let input_port = node.node.input_port(input_name).ok_or_else(|| {
                 EngineError::UnknownTargetInput {
                     node_id: node.id.clone(),
                     input: input_name.clone(),
                 }
             })?;
-            let source_index = node_indexes.get(source.node_id()).ok_or_else(|| {
-                EngineError::UnknownSourceNode {
-                    node_id: node.id.clone(),
-                    input: input_name.clone(),
-                    source_node: source.node_id().to_owned(),
-                }
-            })?;
-            validate_source_output(nodes, node, input_port, source, *source_index)?;
+            let sources = binding.sources().collect::<Vec<_>>();
+            if matches!(binding, InputBinding::Single { .. })
+                && !matches!(input_port.cardinality, crate::PortCardinality::One)
+            {
+                return Err(EngineError::InvalidWorkflow {
+                    message: format!(
+                        "input `{input_name}` on node `{}` requires an ordered-many binding",
+                        node.id
+                    ),
+                });
+            }
+            if matches!(binding, InputBinding::OrderedMany { .. })
+                && matches!(input_port.cardinality, crate::PortCardinality::One)
+            {
+                return Err(EngineError::InvalidWorkflow {
+                    message: format!(
+                        "input `{input_name}` on node `{}` accepts one source",
+                        node.id
+                    ),
+                });
+            }
+            for source in sources {
+                let source_index = node_indexes.get(source.node_id()).ok_or_else(|| {
+                    EngineError::UnknownSourceNode {
+                        node_id: node.id.clone(),
+                        input: input_name.clone(),
+                        source_node: source.node_id().to_owned(),
+                    }
+                })?;
+                validate_source_output(nodes, node, input_port, source, *source_index)?;
+            }
         }
     }
     Ok(())
@@ -144,6 +167,19 @@ fn validate_input_defaults(node: &PlanNode) -> Result<()> {
                 node_id: node.id.clone(),
                 input: input.name.clone(),
             });
+        }
+        if let crate::PortCardinality::Many { minimum, .. } = input.cardinality {
+            let count = match node.inputs.get(&input.name) {
+                Some(InputBinding::OrderedMany { sources }) => sources.len(),
+                Some(InputBinding::Single { .. }) => 1,
+                None => 0,
+            };
+            if count < minimum {
+                return Err(EngineError::MissingRequiredInput {
+                    node_id: node.id.clone(),
+                    input: input.name.clone(),
+                });
+            }
         }
     }
     Ok(())

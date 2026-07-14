@@ -1,6 +1,6 @@
 //! Registration-derived capability contract and presentation projections.
 
-use engine::{CapabilityContract, CapabilityPresentation, NodeRegistry};
+use engine::{CapabilityContract, CapabilityPresentation, CapabilityRef, NodeRegistry};
 use thiserror::Error;
 
 /// One exact execution contract paired with its non-authoritative presentation.
@@ -19,19 +19,25 @@ pub fn project_capabilities(
     registry
         .capability_refs()
         .into_iter()
-        .map(|reference| {
-            let registration = registry.capability(reference).map_err(|source| {
-                CapabilityProjectionError::MissingRegistration {
-                    reference: reference.clone(),
-                    message: source.to_string(),
-                }
-            })?;
-            Ok(CapabilityProjection {
-                contract: registration.contract().clone(),
-                presentation: registration.presentation().clone(),
-            })
-        })
+        .map(|reference| project_capability(registry, reference))
         .collect()
+}
+
+/// Projects one exact registration into contract and presentation data.
+pub fn project_capability(
+    registry: &NodeRegistry,
+    reference: &CapabilityRef,
+) -> Result<CapabilityProjection, CapabilityProjectionError> {
+    let registration = registry.capability(reference).map_err(|source| {
+        CapabilityProjectionError::MissingRegistration {
+            reference: reference.clone(),
+            message: source.to_string(),
+        }
+    })?;
+    Ok(CapabilityProjection {
+        contract: registration.contract().clone(),
+        presentation: registration.presentation().clone(),
+    })
 }
 
 /// Projection failure indicating a registry invariant was broken.

@@ -17,6 +17,7 @@ pub mod port;
 pub mod registry;
 mod validation;
 pub mod value;
+pub mod workflow_patch;
 
 pub use cache::ResultCache;
 pub use capability::{
@@ -28,10 +29,15 @@ pub use error::{EngineError, Result};
 pub use executor::{
     CancellationSignal, Executor, NodeExecutionState, NodeProgressEvent, RunOutputs,
 };
-pub use graph::{OutputRef, Workflow, WorkflowNode};
+pub use graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
 pub use node::{
     InputPort, Node, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, cancelled_node_run,
 };
 pub use port::{PortCardinality, PortType};
 pub use registry::{NodeFactory, NodeParams, NodeRegistry};
 pub use value::{Value, ValueMap};
+pub use workflow_patch::{
+    MAX_WORKFLOW_PATCH_BYTES, MAX_WORKFLOW_PATCH_OPERATIONS, NodeRef, WorkflowDiagnostic,
+    WorkflowPatch, WorkflowPatchError, WorkflowPatchOperation, WorkflowPatchResult,
+    WorkflowReadinessBlocker, WorkflowValidationReport, apply_workflow_patch, validate_workflow,
+};

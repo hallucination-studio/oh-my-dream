@@ -1,0 +1,27 @@
+{
+  "project": {
+    "id": "project-0000000000000001",
+    "name": "Default",
+    "created_at": 0
+  },
+  "workflow_head": {
+    "project_id": "project-0000000000000001",
+    "revision": 1,
+    "workflow": {
+      "nodes": [
+        {
+          "contract_version": "1.0",
+          "id": "prompt",
+          "inputs": {},
+          "params": {
+            "text": "hello"
+          },
+          "position": null,
+          "type": "TextPrompt"
+        }
+      ],
+      "project_id": "project-0000000000000001",
+      "version": "1.0"
+    }
+  }
+}

@@ -12,6 +12,20 @@ pub struct AssistantRuntimeLimits {
     pub(super) max_collected_bytes: usize,
 }
 
+/// Consumer-owned sink for native Responses event objects.
+pub trait AssistantEventSink: Send {
+    /// Delivers one validated Responses event without remapping its fields.
+    fn emit(&mut self, event: Value) -> Result<(), super::AssistantRuntimeError>;
+}
+
+pub(super) struct NoopEventSink;
+
+impl AssistantEventSink for NoopEventSink {
+    fn emit(&mut self, _event: Value) -> Result<(), super::AssistantRuntimeError> {
+        Ok(())
+    }
+}
+
 impl AssistantRuntimeLimits {
     /// Creates non-zero invocation limits.
     pub fn new(
@@ -50,12 +64,55 @@ impl Default for AssistantRuntimeLimits {
 pub struct TrustedInvocationContext {
     pub(super) project_id: String,
     pub(super) request_id: String,
+    pub(super) selected_node_ids: Vec<String>,
+    pub(super) selected_asset_ids: Vec<String>,
 }
 
 impl TrustedInvocationContext {
     /// Creates trusted project and request scope for one invocation.
     pub fn new(project_id: impl Into<String>, request_id: impl Into<String>) -> Self {
-        Self { project_id: project_id.into(), request_id: request_id.into() }
+        Self {
+            project_id: project_id.into(),
+            request_id: request_id.into(),
+            selected_node_ids: Vec::new(),
+            selected_asset_ids: Vec::new(),
+        }
+    }
+
+    /// Adds the trusted UI selection for this Project-scoped invocation.
+    #[must_use]
+    pub fn with_selection(
+        mut self,
+        selected_node_ids: Vec<String>,
+        selected_asset_ids: Vec<String>,
+    ) -> Self {
+        self.selected_node_ids = selected_node_ids;
+        self.selected_asset_ids = selected_asset_ids;
+        self
+    }
+
+    /// Returns the trusted Project identifier.
+    #[must_use]
+    pub fn project_id(&self) -> &str {
+        &self.project_id
+    }
+
+    /// Returns the Rust-generated request identifier.
+    #[must_use]
+    pub fn request_id(&self) -> &str {
+        &self.request_id
+    }
+
+    /// Returns the trusted selected node pointers.
+    #[must_use]
+    pub fn selected_node_ids(&self) -> &[String] {
+        &self.selected_node_ids
+    }
+
+    /// Returns the trusted selected Asset pointers.
+    #[must_use]
+    pub fn selected_asset_ids(&self) -> &[String] {
+        &self.selected_asset_ids
     }
 }
 
@@ -82,6 +139,30 @@ impl AssistantInvocation {
             session_path: session_path.as_ref().to_owned(),
             input,
         }
+    }
+
+    /// Returns the Rust-generated invocation correlation identifier.
+    #[must_use]
+    pub fn invocation_id(&self) -> &str {
+        &self.invocation_id
+    }
+
+    /// Returns the Project-scoped SDK session identifier.
+    #[must_use]
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    /// Returns the exact user text passed to the SDK, when this is a new turn.
+    #[must_use]
+    pub fn input(&self) -> Option<&str> {
+        self.input.as_deref()
+    }
+
+    /// Returns the file-backed SDK session path.
+    #[must_use]
+    pub fn session_path(&self) -> &Path {
+        &self.session_path
     }
 }
 
@@ -155,6 +236,21 @@ impl AssistantWaitingApproval {
     pub fn pending(&self) -> &AssistantPendingApproval {
         &self.pending
     }
+
+    /// Returns the trusted Project scope of the pending invocation.
+    pub fn project_id(&self) -> &str {
+        &self.project_id
+    }
+
+    /// Returns the trusted assistant session scope.
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    /// Returns the file-backed SDK session path.
+    pub fn session_path(&self) -> &std::path::Path {
+        &self.session_path
+    }
 }
 
 /// Evidence for one Rust-dispatched operation call.
@@ -194,7 +290,6 @@ impl OperationCallEvidence {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssistantCompleted {
     pub(super) final_output: Value,
-    pub(super) messages: Vec<String>,
     pub(super) snapshot: AssistantSessionSnapshot,
     pub(super) operation_calls: Vec<OperationCallEvidence>,
 }
@@ -203,10 +298,6 @@ impl AssistantCompleted {
     /// Returns the SDK final output value.
     pub fn final_output(&self) -> &Value {
         &self.final_output
-    }
-    /// Returns emitted assistant messages in stream order.
-    pub fn messages(&self) -> &[String] {
-        &self.messages
     }
     /// Returns the terminal session snapshot.
     pub fn snapshot(&self) -> &AssistantSessionSnapshot {

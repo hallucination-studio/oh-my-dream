@@ -34,6 +34,10 @@ pub(super) async fn dispatch_tool(
         &trusted.request_id,
         registration.version(),
         approved_effect,
+    )
+    .with_workspace_selection(
+        trusted.selected_node_ids.clone(),
+        trusted.selected_asset_ids.clone(),
     );
     let output = registration.dispatch(&context, input).await?;
     let output_json = serde_json::to_string(&output).map_err(|source| {

@@ -6,15 +6,15 @@ use super::AssistantRuntime;
 use super::dispatch::{OutgoingSequence, dispatch_tool};
 use super::error::AssistantRuntimeError;
 use super::payload::{
-    ApprovalRequestPayload, AssistantMessagePayload, AssistantTokenPayload, CompletedPayload,
-    ErrorPayload, SnapshotPayload, ToolRequestPayload,
+    ApprovalRequestPayload, CompletedPayload, ErrorPayload, ResponsesEventPayload, SnapshotPayload,
+    ToolRequestPayload,
 };
 use super::process::AssistantProcess;
 use super::runner::RunMode;
 use super::types::{
-    AssistantCompleted, AssistantInvocation, AssistantPendingApproval, AssistantRuntimeOutcome,
-    AssistantSessionSnapshot, AssistantWaitingApproval, OperationCallEvidence,
-    TrustedInvocationContext,
+    AssistantCompleted, AssistantEventSink, AssistantInvocation, AssistantPendingApproval,
+    AssistantRuntimeOutcome, AssistantSessionSnapshot, AssistantWaitingApproval,
+    OperationCallEvidence, TrustedInvocationContext,
 };
 
 pub(super) struct FrameHandler<'a> {
@@ -24,6 +24,7 @@ pub(super) struct FrameHandler<'a> {
     trusted: &'a TrustedInvocationContext,
     mode: &'a mut RunMode,
     outgoing: &'a mut OutgoingSequence,
+    sink: &'a mut dyn AssistantEventSink,
     state: InvocationState,
 }
 
@@ -35,6 +36,7 @@ impl<'a> FrameHandler<'a> {
         trusted: &'a TrustedInvocationContext,
         mode: &'a mut RunMode,
         outgoing: &'a mut OutgoingSequence,
+        sink: &'a mut dyn AssistantEventSink,
     ) -> Self {
         Self {
             runtime,
@@ -43,6 +45,7 @@ impl<'a> FrameHandler<'a> {
             trusted,
             mode,
             outgoing,
+            sink,
             state: InvocationState::default(),
         }
     }
@@ -61,20 +64,13 @@ impl<'a> FrameHandler<'a> {
     ) -> Result<Option<AssistantRuntimeOutcome>, AssistantRuntimeError> {
         validate_frame_order(&self.state, frame.kind())?;
         match frame.kind() {
-            AssistantFrameKind::AssistantToken => handle_token(self.invocation, &frame),
-            AssistantFrameKind::AssistantMessage => {
-                handle_message(self.invocation, &mut self.state, &frame)
-            }
+            AssistantFrameKind::ResponsesEvent => self.handle_responses_event(&frame),
             AssistantFrameKind::ToolRequest => self.handle_tool_request(&frame).await,
-            AssistantFrameKind::ApprovalRequest => {
-                handle_approval(self.runtime, self.invocation, &mut self.state, &frame)
-            }
+            AssistantFrameKind::ApprovalRequest => self.handle_approval(&frame),
             AssistantFrameKind::Snapshot => {
                 handle_snapshot(self.invocation, self.trusted, &mut self.state, &frame)
             }
-            AssistantFrameKind::Completed => {
-                handle_completed(self.invocation, &mut self.state, &frame)
-            }
+            AssistantFrameKind::Completed => self.handle_completed(&frame),
             AssistantFrameKind::Error => Err(sidecar_error(self.invocation, &frame)?),
             kind => Err(AssistantRuntimeError::UnexpectedFrame { kind }),
         }
@@ -86,7 +82,7 @@ impl<'a> FrameHandler<'a> {
     ) -> Result<Option<AssistantRuntimeOutcome>, AssistantRuntimeError> {
         let payload: ToolRequestPayload = decode_payload(frame)?;
         check_invocation(self.invocation, &payload.invocation_id)?;
-        let evidence = dispatch_tool(
+        let evidence = match dispatch_tool(
             self.runtime,
             &mut *self.process,
             self.invocation,
@@ -95,10 +91,47 @@ impl<'a> FrameHandler<'a> {
             &mut *self.mode,
             &mut *self.outgoing,
         )
-        .await?;
+        .await
+        {
+            Ok(evidence) => evidence,
+            Err(error) => return Err(error),
+        };
         self.state.add_bytes(self.runtime, evidence.output_json.len())?;
         self.state.operation_calls.push(evidence);
         Ok(None)
+    }
+
+    fn handle_responses_event(
+        &mut self,
+        frame: &AssistantFrame,
+    ) -> Result<Option<AssistantRuntimeOutcome>, AssistantRuntimeError> {
+        let payload: ResponsesEventPayload = decode_payload(frame)?;
+        check_invocation(self.invocation, &payload.invocation_id)?;
+        if !payload.event.is_object() || payload.event.get("type").and_then(Value::as_str).is_none()
+        {
+            return Err(AssistantRuntimeError::InvalidPayload {
+                kind: frame.kind(),
+                message: "Responses event must be an object with a string type".to_owned(),
+            });
+        }
+        self.sink.emit(payload.event)?;
+        Ok(None)
+    }
+
+    fn handle_approval(
+        &mut self,
+        frame: &AssistantFrame,
+    ) -> Result<Option<AssistantRuntimeOutcome>, AssistantRuntimeError> {
+        let result = handle_approval(self.runtime, self.invocation, &mut self.state, frame)?;
+        Ok(result)
+    }
+
+    fn handle_completed(
+        &mut self,
+        frame: &AssistantFrame,
+    ) -> Result<Option<AssistantRuntimeOutcome>, AssistantRuntimeError> {
+        let result = handle_completed(self.invocation, &mut self.state, frame)?;
+        Ok(result)
     }
 }
 
@@ -106,7 +139,6 @@ impl<'a> FrameHandler<'a> {
 struct InvocationState {
     incoming_frames: usize,
     invocation_bytes: usize,
-    messages: Vec<String>,
     snapshot: Option<AssistantSessionSnapshot>,
     pending: Option<(AssistantPendingApproval, Value)>,
     operation_calls: Vec<OperationCallEvidence>,
@@ -172,27 +204,6 @@ fn validate_frame_order(
     Ok(())
 }
 
-fn handle_token(
-    invocation: &AssistantInvocation,
-    frame: &AssistantFrame,
-) -> Result<Option<AssistantRuntimeOutcome>, AssistantRuntimeError> {
-    let payload: AssistantTokenPayload = decode_payload(frame)?;
-    check_invocation(invocation, &payload.invocation_id)?;
-    let _ = payload.text;
-    Ok(None)
-}
-
-fn handle_message(
-    invocation: &AssistantInvocation,
-    state: &mut InvocationState,
-    frame: &AssistantFrame,
-) -> Result<Option<AssistantRuntimeOutcome>, AssistantRuntimeError> {
-    let payload: AssistantMessagePayload = decode_payload(frame)?;
-    check_invocation(invocation, &payload.invocation_id)?;
-    state.messages.push(payload.text);
-    Ok(None)
-}
-
 fn handle_approval(
     runtime: &AssistantRuntime,
     invocation: &AssistantInvocation,
@@ -253,7 +264,6 @@ fn handle_completed(
     check_invocation(invocation, &payload.invocation_id)?;
     let completed = AssistantCompleted {
         final_output: payload.final_output,
-        messages: std::mem::take(&mut state.messages),
         snapshot: state.snapshot.take().ok_or(AssistantRuntimeError::MissingSnapshot)?,
         operation_calls: std::mem::take(&mut state.operation_calls),
     };

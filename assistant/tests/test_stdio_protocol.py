@@ -64,8 +64,7 @@ class FrameCodecTests(unittest.TestCase):
             [kind.value for kind in FrameKind],
             [
                 "invoke",
-                "assistant_token",
-                "assistant_message",
+                "responses_event",
                 "tool_request",
                 "tool_response",
                 "approval_request",
@@ -105,7 +104,7 @@ class FrameCodecTests(unittest.TestCase):
 
         for sequence in range(3):
             writer.write_frame(
-                Frame(1, sequence, FrameKind.ASSISTANT_TOKEN, {"text": str(sequence)})
+                Frame(1, sequence, FrameKind.RESPONSES_EVENT, {"event": {"type": "response.created"}})
             )
 
         reader = FrameReader(io.BytesIO(output.bytes))

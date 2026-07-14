@@ -45,7 +45,11 @@ export function useRunController(options: RunControllerOptions) {
   );
 
   const run = useCallback(() => {
-    const workflow = toWorkflow(options.nodes, options.edges, options.projectId ?? "default");
+    if (!options.projectId) {
+      options.setStatus({ state: "failed", reason: "Open a project before running a workflow" });
+      return;
+    }
+    const workflow = toWorkflow(options.nodes, options.edges, options.projectId);
     const request = ++runRequest.current;
     let cancellationPending = false;
     options.resetProjection();

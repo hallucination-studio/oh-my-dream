@@ -66,6 +66,21 @@ fn rejects_a_second_active_run_for_the_same_project() {
 }
 
 #[test]
+fn active_run_lookup_is_project_scoped_and_clears_with_registration() {
+    let service = service();
+    let registration = service.register(run_id("run-a"), "project-a").expect("register active run");
+
+    assert_eq!(
+        service.active_run_id("project-a").expect("active lookup").expect("active run").as_str(),
+        "run-a"
+    );
+    assert!(service.active_run_id("project-b").expect("foreign lookup").is_none());
+
+    drop(registration);
+    assert!(service.active_run_id("project-a").expect("cleared lookup").is_none());
+}
+
+#[test]
 fn project_caches_use_independent_mutexes() {
     let service = service();
     let first = service.cache_for("project-a").expect("first cache");

@@ -88,6 +88,19 @@ impl AssetStore {
 
     /// Lists assets using the professional library filters.
     pub fn list_with_query(&self, query: &AssetQuery) -> Result<Vec<Asset>> {
+        self.list_with_query_and_limit(query, None)
+    }
+
+    /// Lists at most `limit` assets using the professional library filters.
+    pub fn list_with_query_limit(&self, query: &AssetQuery, limit: usize) -> Result<Vec<Asset>> {
+        self.list_with_query_and_limit(query, Some(limit))
+    }
+
+    fn list_with_query_and_limit(
+        &self,
+        query: &AssetQuery,
+        limit: Option<usize>,
+    ) -> Result<Vec<Asset>> {
         let mut sql = format!("SELECT {ASSET_COLUMNS} FROM assets");
         let mut clauses = Vec::new();
         let mut params = Vec::new();
@@ -114,6 +127,9 @@ impl AssetStore {
             sql.push_str(&clauses.join(" AND "));
         }
         sql.push_str(order_clause(query.sort));
+        if let Some(limit) = limit {
+            sql.push_str(&format!(" LIMIT {limit}"));
+        }
         self.query_many(&sql, &params)
     }
 
@@ -162,42 +178,6 @@ impl AssetStore {
             .ok_or_else(|| AssetError::NotFound { id: id.to_owned() })
     }
 
-    /// Stores a workflow JSON snapshot for a project.
-    pub fn save_workflow(&self, project_id: &str, workflow: serde_json::Value) -> Result<()> {
-        let workflow_json = json_string(&workflow, "serialize workflow")?;
-        let updated_at = unix_timestamp(project_id)?;
-        self.connection
-            .execute(
-                "INSERT INTO workflows (project_id, workflow_json, updated_at)
-                 VALUES (?1, ?2, ?3)
-                 ON CONFLICT(project_id) DO UPDATE SET
-                    workflow_json = excluded.workflow_json,
-                    updated_at = excluded.updated_at",
-                params![project_id, workflow_json, updated_at],
-            )
-            .map_err(|source| {
-                storage_error(format!("save workflow for `{project_id}`: {source}"))
-            })?;
-        Ok(())
-    }
-
-    /// Loads a workflow JSON snapshot for a project.
-    pub fn load_workflow(&self, project_id: &str) -> Result<serde_json::Value> {
-        let workflow_json: String = self
-            .connection
-            .query_row(
-                "SELECT workflow_json FROM workflows WHERE project_id = ?1",
-                [project_id],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(|source| {
-                storage_error(format!("query workflow for project `{project_id}`: {source}"))
-            })?
-            .ok_or_else(|| AssetError::NotFound { id: project_id.to_owned() })?;
-        parse_json(project_id, &workflow_json, "workflow")
-    }
-
     fn migrate(&self) -> Result<()> {
         self.connection
             .execute_batch(
@@ -222,11 +202,6 @@ impl AssetStore {
                     id TEXT PRIMARY KEY NOT NULL,
                     name TEXT NOT NULL,
                     created_at INTEGER NOT NULL
-                );
-                CREATE TABLE IF NOT EXISTS workflows (
-                    project_id TEXT PRIMARY KEY NOT NULL,
-                    workflow_json TEXT NOT NULL,
-                    updated_at INTEGER NOT NULL
                 );",
             )
             .map_err(|source| storage_error(format!("migrate asset database: {source}")))?;
@@ -383,15 +358,6 @@ fn order_clause(sort: AssetSort) -> &'static str {
 
 fn json_string<T: serde::Serialize>(value: &T, operation: &str) -> Result<String> {
     serde_json::to_string(value).map_err(|source| storage_error(format!("{operation}: {source}")))
-}
-
-fn parse_json<T: serde::de::DeserializeOwned>(
-    asset_id: &str,
-    value: &str,
-    field: &str,
-) -> Result<T> {
-    serde_json::from_str(value)
-        .map_err(|source| storage_error(format!("parse {field} for asset `{asset_id}`: {source}")))
 }
 
 fn storage_error(message: String) -> AssetError {

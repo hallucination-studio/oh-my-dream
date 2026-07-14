@@ -12,6 +12,7 @@ pub const DEFAULT_CAPABILITY_VERSION: &str = "1.0";
 
 /// Exact identity of one executable capability contract.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CapabilityRef {
     /// Stable capability identifier, also persisted as Workflow `type`.
     pub id: String,
@@ -273,6 +274,12 @@ impl CapabilityRegistry {
     #[must_use]
     pub fn references(&self) -> Vec<&CapabilityRef> {
         self.registrations.keys().collect()
+    }
+
+    /// Returns the current exact refs used for new-node discovery.
+    #[must_use]
+    pub fn current_references(&self) -> Vec<CapabilityRef> {
+        self.current_versions.iter().map(|(id, version)| CapabilityRef::new(id, version)).collect()
     }
 }
 

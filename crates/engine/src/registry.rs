@@ -82,6 +82,12 @@ impl NodeRegistry {
         self.capabilities.references()
     }
 
+    /// Returns current exact capability refs eligible for new-node discovery.
+    #[must_use]
+    pub fn current_capability_refs(&self) -> Vec<CapabilityRef> {
+        self.capabilities.current_references()
+    }
+
     /// Instantiates a Workflow node using its persisted exact contract version.
     pub fn instantiate_workflow_node(
         &self,

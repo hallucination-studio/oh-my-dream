@@ -1,7 +1,7 @@
 use engine::{
-    EngineError, Executor, InputPort, Node, NodeExecutionState, NodeParams, NodeRegistry,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortCardinality, PortType,
-    ResultCache, Value, ValueMap, Workflow, WorkflowNode,
+    EngineError, Executor, InputBinding, InputPort, Node, NodeExecutionState, NodeParams,
+    NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef,
+    PortCardinality, PortType, ResultCache, Value, ValueMap, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -60,7 +60,10 @@ fn rejects_wiring_to_undeclared_target_input() {
         valid_definition("Target", Arc::clone(&target_runs)),
     ]);
     let mut target = workflow_node("target", "Target");
-    target.inputs.insert("typo".to_owned(), OutputRef("source".to_owned(), "text".to_owned()));
+    target.inputs.insert(
+        "typo".to_owned(),
+        InputBinding::single(OutputRef("source".to_owned(), "text".to_owned())),
+    );
     let workflow = Workflow {
         version: "1.0".to_owned(),
         project_id: "default".to_owned(),

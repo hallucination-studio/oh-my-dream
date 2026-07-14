@@ -1,8 +1,12 @@
+use crate::assistant_operations::RequestContext;
 use crate::command_error::command_error;
-use crate::dto::{AssetDto, ProjectDto, ProjectWorkspaceDto, ProviderDto};
+use crate::dto::{AssetDto, OpenProjectResultDto, ProjectDto, ProviderDto, WorkflowHeadDto};
 use crate::state::AppState;
+use crate::workflow_patch_operation::{
+    WorkflowApplyPatchError, WorkflowApplyPatchInput, WorkflowApplyPatchOutput,
+    WorkflowPatchService,
+};
 use assets::{AssetKind, AssetQuery, AssetSort};
-use engine::Workflow;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
@@ -10,13 +14,14 @@ use tauri::State;
 use tracing::info;
 
 pub use crate::assistant::{
-    get_assistant_config, get_assistant_config_with_state, get_assistant_session,
-    get_assistant_session_with_state, get_capability_manifest, get_capability_manifest_with_state,
-    install_skill, install_skill_with_state, list_skills, list_skills_with_state,
-    set_assistant_config, set_assistant_config_with_state, set_skill_enabled,
-    set_skill_enabled_with_state, uninstall_skill, uninstall_skill_with_state,
+    get_assistant_config, get_assistant_config_with_state, set_assistant_config,
+    set_assistant_config_with_state,
 };
-pub use crate::capability_catalog::{get_capability_catalog, get_capability_catalog_with_state};
+pub use crate::assistant_commands::assistant_send;
+pub use crate::capability_catalog::{
+    get_capability_bundles, get_capability_bundles_with_state, get_capability_catalog,
+    get_capability_catalog_with_state, search_capabilities, search_capabilities_with_state,
+};
 pub use crate::workflow_run_commands::{
     cancel_workflow_run, cancel_workflow_run_with_state, run_workflow, run_workflow_with_state,
     run_workflow_with_state_and_observer, start_workflow_run, start_workflow_run_with_state,
@@ -121,9 +126,12 @@ pub fn create_project_with_state(name: String, state: &AppState) -> Result<Proje
     Ok(ProjectDto::from(project))
 }
 
-/// Opens a project and its workflow.
+/// Opens a Project and returns its optional authoritative Workflow head.
 #[tauri::command(rename_all = "snake_case")]
-pub fn open_project(id: String, state: State<'_, AppState>) -> Result<ProjectWorkspaceDto, String> {
+pub fn open_project(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<OpenProjectResultDto, String> {
     open_project_with_state(id, &state)
 }
 
@@ -131,62 +139,43 @@ pub fn open_project(id: String, state: State<'_, AppState>) -> Result<ProjectWor
 pub fn open_project_with_state(
     id: String,
     state: &AppState,
-) -> Result<ProjectWorkspaceDto, String> {
-    let store = state
-        .store
-        .lock()
-        .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?;
-    let project = store.get_project(&id).map_err(|source| command_error("open project", source))?;
-    let workflow_json = match store.load_workflow(&id) {
-        Ok(workflow) => validate_stored_workflow(workflow)?,
-        Err(assets::AssetError::NotFound { .. }) => default_workflow_json(&id),
-        Err(source) => return Err(command_error("load workflow", source)),
-    };
-    Ok(ProjectWorkspaceDto { project: ProjectDto::from(project), workflow_json })
-}
-
-/// Saves workflow JSON by its embedded project id.
-#[tauri::command(rename_all = "snake_case")]
-pub fn save_workflow(workflow_json: String, state: State<'_, AppState>) -> Result<(), String> {
-    save_workflow_with_state(workflow_json, &state)
-}
-
-/// Saves workflow JSON against an explicit app state.
-pub fn save_workflow_with_state(workflow_json: String, state: &AppState) -> Result<(), String> {
-    let workflow = serde_json::from_str::<Workflow>(&workflow_json)
-        .map_err(|source| command_error("deserialize workflow", source))?;
-    ensure_project_exists(state, &workflow.project_id)?;
-    let value = serde_json::from_str::<serde_json::Value>(&workflow_json)
-        .map_err(|source| command_error("deserialize workflow JSON", source))?;
-    state
+) -> Result<OpenProjectResultDto, String> {
+    let project = state
         .store
         .lock()
         .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?
-        .save_workflow(&workflow.project_id, value)
-        .map_err(|source| command_error("save workflow", source))
+        .get_project(&id)
+        .map_err(|source| command_error("open project", source))?;
+    let workflow_head = state
+        .workflow_authority
+        .load_head(&id)
+        .map_err(|source| command_error("load Workflow head", source))?
+        .map(WorkflowHeadDto::try_from)
+        .transpose()
+        .map_err(|source| command_error("serialize Workflow head", source))?;
+    Ok(OpenProjectResultDto { project: ProjectDto::from(project), workflow_head })
 }
 
-/// Loads workflow JSON by project id.
+/// Applies one UI Workflow patch through the shared authoritative service.
 #[tauri::command(rename_all = "snake_case")]
-pub fn load_workflow(
+pub fn workflow_apply_patch(
     project_id: String,
+    request_id: String,
+    input: WorkflowApplyPatchInput,
     state: State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
-    load_workflow_with_state(project_id, &state)
+) -> Result<WorkflowApplyPatchOutput, WorkflowApplyPatchError> {
+    workflow_apply_patch_with_state(project_id, request_id, input, &state)
 }
 
-/// Loads and validates persisted workflow JSON against an explicit app state.
-pub fn load_workflow_with_state(
+/// Applies one UI Workflow patch against explicit managed state.
+pub fn workflow_apply_patch_with_state(
     project_id: String,
+    request_id: String,
+    input: WorkflowApplyPatchInput,
     state: &AppState,
-) -> Result<serde_json::Value, String> {
-    let workflow = state
-        .store
-        .lock()
-        .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?
-        .load_workflow(&project_id)
-        .map_err(|source| command_error("load workflow", source))?;
-    validate_stored_workflow(workflow)
+) -> Result<WorkflowApplyPatchOutput, WorkflowApplyPatchError> {
+    let context = RequestContext::new(project_id, "ui", request_id, 1, None);
+    WorkflowPatchService::from_state(state).apply(&context, input)
 }
 
 /// Returns provider summaries without raw keys.
@@ -265,27 +254,6 @@ pub fn parse_asset_sort(sort: Option<String>) -> anyhow::Result<AssetSort> {
         Some("cost_asc") => Ok(AssetSort::CostAsc),
         Some(value) => anyhow::bail!("unsupported asset sort `{value}`"),
     }
-}
-
-fn default_workflow_json(project_id: &str) -> serde_json::Value {
-    serde_json::json!({ "version": "1.0", "project_id": project_id, "nodes": [] })
-}
-
-fn validate_stored_workflow(value: serde_json::Value) -> Result<serde_json::Value, String> {
-    let workflow = serde_json::from_value::<Workflow>(value)
-        .map_err(|source| command_error("deserialize stored workflow", source))?;
-    serde_json::to_value(workflow)
-        .map_err(|source| command_error("serialize validated workflow", source))
-}
-
-fn ensure_project_exists(state: &AppState, project_id: &str) -> Result<(), String> {
-    state
-        .store
-        .lock()
-        .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?
-        .get_project(project_id)
-        .map(|_| ())
-        .map_err(|source| command_error("validate project", source))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,68 +1,105 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AssistantDock } from "./AssistantDock.tsx";
-import type { AssistantSocket } from "./assistantClient.ts";
 import type { WorkflowApi } from "../api/index.ts";
 
+const CONTEXT = {
+  project_id: "project-1",
+  workflow_present: false,
+  workflow_revision: null,
+  selected_node_ids: [],
+  selected_asset_ids: [],
+};
+
 describe("AssistantDock", () => {
-  it("connects to the assistant session and sends user messages", async () => {
-    const socket = new FakeSocket();
+  it("sends user text through the Project-scoped assistant command", async () => {
+    const sendAssistant = vi.fn(async (_input, onEvent) => {
+      onEvent({ type: "future.responses.event" });
+      onEvent({ type: "response.output_text.delta", delta: "Assistant response" });
+      return null;
+    });
+    const apiClient = workflowApi({ sendAssistant });
+
     render(
       <AssistantDock
         onClose={() => {}}
-        apiClient={workflowApi()}
-        executeCapability={vi.fn()}
-        getContext={() => ({ project_id: "default" })}
-        socketFactory={() => socket}
+        apiClient={apiClient}
+        getContext={() => CONTEXT}
       />,
     );
 
-    await waitFor(() => expect(socket.onopen).not.toBeNull());
-    socket.open();
-    socket.receive({ type: "auth_ok" });
+    const composer = screen.getByPlaceholderText("Message the assistant");
+    fireEvent.change(composer, { target: { value: "Add a prompt node" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(sendAssistant).toHaveBeenCalledTimes(1));
+    expect(sendAssistant.mock.calls[0]?.[0]).toEqual({
+      project_id: "project-1",
+      workflow_present: false,
+      workflow_revision: null,
+      selected_node_ids: [],
+      selected_asset_ids: [],
+      text: "Add a prompt node",
+    });
+    expect(screen.getByText("Assistant response")).toBeTruthy();
+  });
+
+  it("keeps the draft focused and sends nothing when the write barrier fails", async () => {
+    const sendAssistant = vi.fn();
+    const composerBarrier = vi.fn().mockRejectedValue(new Error("patch conflict"));
+    render(
+      <AssistantDock
+        onClose={() => {}}
+        apiClient={workflowApi({ sendAssistant })}
+        beforeSend={composerBarrier}
+        getContext={() => CONTEXT}
+      />,
+    );
+
+    const composer = screen.getByPlaceholderText("Message the assistant");
+    fireEvent.change(composer, { target: { value: "Keep this draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(document.activeElement).toBe(composer));
+    expect((composer as HTMLTextAreaElement).value).toBe("Keep this draft");
+    expect(sendAssistant).not.toHaveBeenCalled();
+  });
+
+  it("forwards the canonical Workflow head returned by the assistant command", async () => {
+    const workflowHead = {
+      project_id: "project-1",
+      revision: 1,
+      workflow: {
+        version: "1.0",
+        project_id: "project-1",
+        nodes: [],
+      },
+    };
+    const sendAssistant = vi.fn(async (_input, onEvent) => {
+      onEvent({ type: "response.completed" });
+      return workflowHead;
+    });
+    const onWorkflowHead = vi.fn();
+
+    render(
+      <AssistantDock
+        onClose={() => {}}
+        apiClient={workflowApi({ sendAssistant })}
+        getContext={() => CONTEXT}
+        onWorkflowHead={onWorkflowHead}
+      />,
+    );
+
     fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
-      target: { value: "Add a prompt node" },
+      target: { value: "Build the workflow" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(socket.sent).toContainEqual({ type: "auth", token: "secret-token" });
-    expect(socket.sent).toContainEqual({
-      type: "client_ready",
-      manifest: { capabilities: [{ name: "workflow.add_node" }] },
-    });
-    expect(socket.sent).toContainEqual({
-      type: "user_message",
-      text: "Add a prompt node",
-      context: { project_id: "default" },
-    });
+    await waitFor(() => expect(onWorkflowHead).toHaveBeenCalledWith(workflowHead));
   });
 });
 
-class FakeSocket implements AssistantSocket {
-  sent: unknown[] = [];
-  onopen: (() => void) | null = null;
-  onmessage: ((event: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-
-  send(data: string): void {
-    this.sent.push(JSON.parse(data) as unknown);
-  }
-
-  close(): void {
-    this.onclose?.();
-  }
-
-  open(): void {
-    this.onopen?.();
-  }
-
-  receive(frame: unknown): void {
-    this.onmessage?.({ data: JSON.stringify(frame) });
-  }
-}
-
-function workflowApi(): WorkflowApi {
+function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
   return {
     runWorkflow: vi.fn(),
     assetsRoot: vi.fn(),
@@ -71,20 +108,15 @@ function workflowApi(): WorkflowApi {
     listProjects: vi.fn(),
     createProject: vi.fn(),
     openProject: vi.fn(),
-    saveWorkflow: vi.fn(),
-    loadWorkflow: vi.fn(),
+    searchCapabilities: vi.fn(),
+    getCapabilityBundles: vi.fn(),
+    applyWorkflowPatch: vi.fn(),
     getProviders: vi.fn(),
     setActiveProvider: vi.fn(),
     setProviderKey: vi.fn(),
     getAssistantConfig: vi.fn(),
     setAssistantConfig: vi.fn(),
-    getAssistantSession: vi.fn().mockResolvedValue({ port: 55123, token: "secret-token" }),
-    getCapabilityManifest: vi.fn().mockResolvedValue({
-      capabilities: [{ name: "workflow.add_node" }],
-    }),
-    listSkills: vi.fn(),
-    installSkill: vi.fn(),
-    setSkillEnabled: vi.fn(),
-    uninstallSkill: vi.fn(),
+    sendAssistant: vi.fn(),
+    ...overrides,
   };
 }

@@ -1,8 +1,8 @@
 use assets::AssetStore;
 use engine::{
-    CancellationSignal, EngineError, Executor, InputPort, Node, NodeParams, NodeRegistry,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache,
-    Value, ValueMap, Workflow, WorkflowNode,
+    CancellationSignal, EngineError, Executor, InputBinding, InputPort, Node, NodeParams,
+    NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType,
+    ResultCache, Value, ValueMap, Workflow, WorkflowNode,
 };
 use nodes::{
     GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
@@ -159,7 +159,7 @@ fn text_to_image_workflow(project_id: String) -> Workflow {
                 params: params(serde_json::json!({"model": "fixed-output"})),
                 inputs: BTreeMap::from([(
                     "prompt".to_owned(),
-                    engine::OutputRef("prompt".to_owned(), "text".to_owned()),
+                    InputBinding::single(engine::OutputRef("prompt".to_owned(), "text".to_owned())),
                 )]),
                 position: None,
             },
@@ -187,7 +187,7 @@ fn local_image_workflow(project_id: String) -> Workflow {
                 params: params(serde_json::json!({"model": "fixed-video"})),
                 inputs: BTreeMap::from([(
                     "image".to_owned(),
-                    OutputRef("source".to_owned(), "image".to_owned()),
+                    InputBinding::single(OutputRef("source".to_owned(), "image".to_owned())),
                 )]),
                 position: None,
             },

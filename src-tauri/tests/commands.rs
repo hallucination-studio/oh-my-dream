@@ -1,13 +1,14 @@
 use assets::{AssetKind, NewAsset};
-use engine::NodeProgressEvent;
+use engine::{CapabilityRef, NodeProgressEvent, WorkflowPatchOperation};
 use oh_my_dream_tauri::commands::{
     assets_root_with_state, create_project_with_state, get_providers_with_state,
-    list_assets_with_state, list_projects_with_state, load_workflow_with_state,
-    open_project_with_state, parse_asset_kind_filter, parse_asset_sort,
-    run_workflow_with_state_and_observer, save_workflow_with_state, set_active_provider_with_state,
-    set_provider_key_with_state,
+    list_assets_with_state, list_projects_with_state, open_project_with_state,
+    parse_asset_kind_filter, parse_asset_sort, run_workflow_with_state_and_observer,
+    set_active_provider_with_state, set_provider_key_with_state, workflow_apply_patch_with_state,
 };
 use oh_my_dream_tauri::state::AppState;
+use oh_my_dream_tauri::workflow_authority::WorkflowCommitRequest;
+use oh_my_dream_tauri::workflow_patch_operation::WorkflowApplyPatchInput;
 use serde_json::json;
 use std::fs;
 use tempfile::tempdir;
@@ -44,26 +45,83 @@ fn returns_configured_asset_root_for_commands() {
 }
 
 #[test]
-fn project_commands_create_list_open_save_and_load_workflows() {
+fn project_commands_create_list_and_open_without_a_workflow_head() {
     let root = tempdir().expect("create temp asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
 
     let project = create_project_with_state("Launch".to_owned(), &state).expect("create project");
-    save_workflow_with_state(
-        json!({"version": "1.0", "project_id": project.id, "nodes": []}).to_string(),
-        &state,
-    )
-    .expect("save workflow");
-
     let projects = list_projects_with_state(&state).expect("list projects");
     let workspace = open_project_with_state(project.id.clone(), &state).expect("open project");
 
     assert_eq!(
         projects.iter().map(|project| project.name.as_str()).collect::<Vec<_>>(),
-        vec!["Default", "Launch"]
+        vec!["Launch"]
     );
     assert_eq!(workspace.project.id, project.id);
-    assert_eq!(workspace.workflow_json["project_id"], project.id);
+    assert!(workspace.workflow_head.is_none());
+}
+
+#[test]
+fn open_project_returns_the_authoritative_workflow_head() {
+    let root = tempdir().expect("create temp asset root");
+    let state = AppState::from_asset_root(root.path()).expect("build app state");
+    let project = create_project_with_state("Headed".to_owned(), &state).expect("create project");
+    let workflow = serde_json::from_value(json!({
+        "version": "1.0",
+        "project_id": project.id,
+        "nodes": [{
+            "id": "prompt",
+            "type": "TextPrompt",
+            "contract_version": "1.0",
+            "params": {"text": "hello"},
+            "inputs": {},
+            "position": null
+        }]
+    }))
+    .expect("build empty Workflow document");
+    state
+        .workflow_authority
+        .apply(WorkflowCommitRequest::new(
+            project.id.clone(),
+            None,
+            "request-1",
+            "hash-1",
+            workflow,
+        ))
+        .expect("persist Workflow head");
+
+    let opened = open_project_with_state(project.id, &state).expect("open project");
+    let head = opened.workflow_head.expect("head should be returned");
+    assert_eq!(head.revision, 1);
+    assert_eq!(head.workflow["nodes"][0]["id"], "prompt");
+}
+
+#[test]
+fn ui_patch_command_uses_the_authoritative_workflow_service() {
+    let root = tempdir().expect("create temp asset root");
+    let state = AppState::from_asset_root(root.path()).expect("build app state");
+    let project = create_project_with_state("Patched".to_owned(), &state).expect("create project");
+
+    let output = workflow_apply_patch_with_state(
+        project.id.clone(),
+        "ui-request-1".to_owned(),
+        WorkflowApplyPatchInput {
+            expected_revision: None,
+            operations: vec![WorkflowPatchOperation::AddNode {
+                alias: "prompt".to_owned(),
+                capability: CapabilityRef::new("TextPrompt", "1.0"),
+                params: serde_json::Map::from_iter([("text".to_owned(), json!("hello"))]),
+                position: Some([20.0, 30.0]),
+            }],
+        },
+        &state,
+    )
+    .expect("apply UI patch");
+
+    let head = output.workflow_head.expect("patch creates a head");
+    let opened = open_project_with_state(project.id, &state).expect("open project");
+    assert_eq!(head.revision, 1);
+    assert_eq!(opened.workflow_head, Some(head));
 }
 
 #[test]
@@ -77,34 +135,10 @@ fn workflow_commands_reject_unknown_project_ids() {
     })
     .to_string();
 
-    let save_error =
-        save_workflow_with_state(workflow.clone(), &state).expect_err("save should fail");
     let run_error = run_workflow_with_state_and_observer(workflow, &state, &mut |_event| {})
         .expect_err("run should fail");
 
-    assert!(save_error.contains("validate project"));
     assert!(run_error.contains("validate project"));
-}
-
-#[test]
-fn workflow_commands_reject_invalid_persisted_workflows() {
-    let root = tempdir().expect("create temp asset root");
-    let state = AppState::from_asset_root(root.path()).expect("build app state");
-    let project = create_project_with_state("Broken".to_owned(), &state).expect("create project");
-    state
-        .store
-        .lock()
-        .expect("store lock")
-        .save_workflow(&project.id, json!({"version": "1.0", "project_id": project.id}))
-        .expect("persist invalid workflow fixture");
-
-    let open_error = open_project_with_state(project.id.clone(), &state)
-        .expect_err("open should reject invalid workflow");
-    let load_error = load_workflow_with_state(project.id, &state)
-        .expect_err("load should reject invalid workflow");
-
-    assert!(open_error.contains("deserialize stored workflow"));
-    assert!(load_error.contains("deserialize stored workflow"));
 }
 
 #[test]
@@ -177,16 +211,13 @@ fn unavailable_providers_cannot_be_selected_or_configured() {
 }
 
 #[test]
-fn app_state_seeds_default_project_outside_workflow_commands() {
+fn app_state_does_not_seed_a_default_project() {
     let root = tempdir().expect("create temp asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
 
     let projects = list_projects_with_state(&state).expect("list projects");
 
-    assert_eq!(
-        projects.iter().map(|project| project.id.as_str()).collect::<Vec<_>>(),
-        vec!["default"]
-    );
+    assert!(projects.is_empty());
 }
 
 #[test]

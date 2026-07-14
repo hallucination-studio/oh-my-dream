@@ -1,0 +1,244 @@
+{
+  "capabilities": [
+    {
+      "contract": {
+        "reference": {
+          "id": "ImageToVideo",
+          "version": "1.0"
+        },
+        "inputs": [
+          {
+            "name": "image",
+            "port_type": "image",
+            "cardinality": "one",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "video",
+            "port_type": "video",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "duration": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "duration_seconds": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "fps": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "model": {
+              "default": "mock-video",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "default_params": {
+          "model": "mock-video"
+        },
+        "effects": [
+          "external"
+        ]
+      },
+      "presentation": {
+        "label": "Image to Video",
+        "description": "Generate a video clip from an image.",
+        "category": "video",
+        "search_terms": [
+          "video",
+          "generation",
+          "image to video"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": "unknown",
+        "status_revision": 0
+      }
+    },
+    {
+      "contract": {
+        "reference": {
+          "id": "TextPrompt",
+          "version": "1.0"
+        },
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "text",
+            "port_type": "string",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "prompt": {
+              "type": "string"
+            },
+            "text": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "default_params": {
+          "text": ""
+        },
+        "effects": [
+          "pure"
+        ]
+      },
+      "presentation": {
+        "label": "Text Prompt",
+        "description": "Provide a reusable text prompt to downstream nodes.",
+        "category": "input",
+        "search_terms": [
+          "prompt",
+          "text"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": null,
+        "status_revision": 0
+      }
+    },
+    {
+      "contract": {
+        "reference": {
+          "id": "TextToImage",
+          "version": "1.0"
+        },
+        "inputs": [
+          {
+            "name": "prompt",
+            "port_type": "string",
+            "cardinality": "one",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "image",
+            "port_type": "image",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "model": {
+              "default": "mock-image",
+              "type": "string"
+            },
+            "negative_prompt": {
+              "type": "string"
+            },
+            "seed": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "steps": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "default_params": {
+          "model": "mock-image"
+        },
+        "effects": [
+          "external"
+        ]
+      },
+      "presentation": {
+        "label": "Text to Image",
+        "description": "Generate an image from a text prompt.",
+        "category": "image",
+        "search_terms": [
+          "image",
+          "generation",
+          "text to image"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": "unknown",
+        "status_revision": 0
+      }
+    },
+    {
+      "contract": {
+        "reference": {
+          "id": "VideoConcat",
+          "version": "1.0"
+        },
+        "inputs": [
+          {
+            "name": "clips",
+            "port_type": "video",
+            "cardinality": {
+              "many": {
+                "minimum": 2,
+                "maximum": null
+              }
+            },
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "video",
+            "port_type": "video",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {},
+          "type": "object"
+        },
+        "default_params": {},
+        "effects": [
+          "pure"
+        ]
+      },
+      "presentation": {
+        "label": "Video Concat",
+        "description": "Join ordered video clips into one sequence.",
+        "category": "video",
+        "search_terms": [
+          "concat",
+          "sequence",
+          "video"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": null,
+        "status_revision": 0
+      }
+    }
+  ]
+}

@@ -15,16 +15,9 @@ pub(super) struct InvokePayload<'a> {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct AssistantTokenPayload {
+pub(super) struct ResponsesEventPayload {
     pub(super) invocation_id: String,
-    pub(super) text: String,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct AssistantMessagePayload {
-    pub(super) invocation_id: String,
-    pub(super) text: String,
+    pub(super) event: Value,
 }
 
 #[derive(Deserialize)]

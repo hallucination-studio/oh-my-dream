@@ -4,18 +4,7 @@
 
 import type { Connection, Node } from "@xyflow/react";
 import type { FlowNodeData } from "../nodes/WorkflowFlowNode.tsx";
-import { arePortTypesCompatible, findNodeType } from "../nodes/catalog.ts";
-import type { PortType } from "./types.ts";
-
-function outputType(node: Node, handle: string | null | undefined): PortType | undefined {
-  const spec = findNodeType((node.data as FlowNodeData).type);
-  return spec?.outputs.find((p) => p.name === handle)?.type;
-}
-
-function inputType(node: Node, handle: string | null | undefined): PortType | undefined {
-  const spec = findNodeType((node.data as FlowNodeData).type);
-  return spec?.inputs.find((p) => p.name === handle)?.type;
-}
+import { canConnectPorts } from "../nodes/catalog.ts";
 
 export function isValidConnection(connection: Connection, nodes: Node[]): boolean {
   const source = nodes.find((n) => n.id === connection.source);
@@ -23,7 +12,10 @@ export function isValidConnection(connection: Connection, nodes: Node[]): boolea
   if (!source || !target) {
     return false;
   }
-  const from = outputType(source, connection.sourceHandle);
-  const to = inputType(target, connection.targetHandle);
-  return from !== undefined && to !== undefined && arePortTypesCompatible(from, to);
+  return canConnectPorts(
+    (source.data as FlowNodeData).capability,
+    connection.sourceHandle,
+    (target.data as FlowNodeData).capability,
+    connection.targetHandle,
+  );
 }

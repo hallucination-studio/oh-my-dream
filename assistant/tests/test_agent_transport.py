@@ -58,9 +58,9 @@ def assert_paused_approval(
 ) -> dict[str, JsonValue]:
     test.assertEqual(
         [frame.kind for frame in frames],
-        [FrameKind.APPROVAL_REQUEST, FrameKind.SNAPSHOT],
+        [FrameKind.RESPONSES_EVENT, FrameKind.APPROVAL_REQUEST, FrameKind.SNAPSHOT],
     )
-    approval_payload = frames[0].payload
+    approval_payload = frames[1].payload
     state = approval_payload["state"]
     test.assertIsInstance(state, dict)
     state_object = cast(dict[str, JsonValue], state)
@@ -86,7 +86,7 @@ def assert_paused_approval(
         },
     )
     test.assertEqual(
-        frames[1].payload,
+        frames[2].payload,
         {
             "invocation_id": "invoke-pause",
             "session_id": "approval-session",
@@ -165,6 +165,7 @@ class AgentTransportTests(unittest.IsolatedAsyncioTestCase):
         output_json = '{ "result" : "unchanged" }'
         with tempfile.TemporaryDirectory() as directory:
             session_path = str(Path(directory) / "session.sqlite3")
+            model = ToolThenMessageModel("workspace_get_snapshot", arguments_json)
             frames = await run_agent(
                 [
                     (
@@ -186,11 +187,18 @@ class AgentTransportTests(unittest.IsolatedAsyncioTestCase):
                         },
                     ),
                 ],
-                ToolThenMessageModel("workspace_get_snapshot", arguments_json),
+                model,
             )
         self.assertEqual(
             [(frame.kind, frame.payload) for frame in frames],
             [
+                (
+                    FrameKind.RESPONSES_EVENT,
+                    {
+                        "invocation_id": "invoke-1",
+                        "event": model.events[0].model_dump(mode="json"),
+                    },
+                ),
                 (
                     FrameKind.TOOL_REQUEST,
                     {
@@ -201,8 +209,11 @@ class AgentTransportTests(unittest.IsolatedAsyncioTestCase):
                     },
                 ),
                 (
-                    FrameKind.ASSISTANT_MESSAGE,
-                    {"invocation_id": "invoke-1", "text": "tool completed"},
+                    FrameKind.RESPONSES_EVENT,
+                    {
+                        "invocation_id": "invoke-1",
+                        "event": model.events[1].model_dump(mode="json"),
+                    },
                 ),
                 (
                     FrameKind.SNAPSHOT,
@@ -288,7 +299,7 @@ class AgentTransportTests(unittest.IsolatedAsyncioTestCase):
             [frame.kind for frame in resumed_frames],
             [
                 FrameKind.TOOL_REQUEST,
-                FrameKind.ASSISTANT_MESSAGE,
+                FrameKind.RESPONSES_EVENT,
                 FrameKind.SNAPSHOT,
                 FrameKind.COMPLETED,
             ],

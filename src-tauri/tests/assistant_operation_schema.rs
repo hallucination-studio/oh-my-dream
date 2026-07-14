@@ -71,18 +71,6 @@ struct PatchWithOpenNestedInput {
     nested: OpenNested,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-struct StrictInputWithValue {
-    value: Value,
-}
-
-#[derive(Debug, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-struct StrictOutputWithValue {
-    value: Value,
-}
-
 #[derive(Debug, Deserialize)]
 struct EmptySchemaInput;
 
@@ -101,13 +89,6 @@ impl JsonSchema for EmptySchemaInput {
 struct ClosedRecursiveInput {
     label: String,
     next: Box<ClosedRecursiveInput>,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-struct RecursiveInputWithValue {
-    value: Value,
-    next: Box<RecursiveInputWithValue>,
 }
 
 #[test]
@@ -215,38 +196,7 @@ fn assistant_operation_patch_mode_rejects_openness_outside_params() {
 }
 
 #[test]
-fn assistant_operation_strict_mode_rejects_value_input_and_output_fields() {
-    let input_error = OperationRegistration::new::<StrictInputWithValue, StrictOutput, _>(
-        "workspace.value_input",
-        1,
-        "Reject unconstrained input.",
-        OperationEffect::LocalRead,
-        OperationInputSchemaMode::Strict,
-        |_context: &RequestContext, input: StrictInputWithValue| async move {
-            Ok(StrictOutput { result: input.value.to_string() })
-        },
-    )
-    .err()
-    .expect("unconstrained input field must be rejected");
-    let output_error = OperationRegistration::new::<StrictInput, StrictOutputWithValue, _>(
-        "workspace.value_output",
-        1,
-        "Reject unconstrained output.",
-        OperationEffect::LocalRead,
-        OperationInputSchemaMode::Strict,
-        |_context: &RequestContext, input: StrictInput| async move {
-            Ok(StrictOutputWithValue { value: Value::String(input.query) })
-        },
-    )
-    .err()
-    .expect("unconstrained output field must be rejected");
-
-    assert_unconstrained_error(input_error, "input", "#/properties/value");
-    assert_unconstrained_error(output_error, "output", "#/properties/value");
-}
-
-#[test]
-fn assistant_operation_strict_mode_rejects_empty_schema() {
+fn assistant_operation_requires_an_object_root_schema() {
     let error = OperationRegistration::new::<EmptySchemaInput, StrictOutput, _>(
         "workspace.empty_schema",
         1,
@@ -260,7 +210,10 @@ fn assistant_operation_strict_mode_rejects_empty_schema() {
     .err()
     .expect("empty schema must be rejected");
 
-    assert_unconstrained_error(error, "input", "#");
+    assert_eq!(
+        error,
+        OperationRegistrationError::InvalidInputRootSchema { schema_path: "#".to_owned() }
+    );
 }
 
 #[test]
@@ -279,32 +232,6 @@ fn assistant_operation_closed_recursive_schema_terminates() {
     .expect("closed recursive schema should register");
 
     assert!(registration.input_schema().to_string().contains("\"$ref\""));
-}
-
-#[test]
-fn assistant_operation_rejects_unconstrained_schema_reached_through_cycle() {
-    let error = OperationRegistration::new::<RecursiveInputWithValue, StrictOutput, _>(
-        "workspace.recursive_value",
-        1,
-        "Reject an unconstrained recursive field.",
-        OperationEffect::LocalRead,
-        OperationInputSchemaMode::Strict,
-        |_context: &RequestContext, input: RecursiveInputWithValue| async move {
-            let _next = input.next;
-            Ok(StrictOutput { result: input.value.to_string() })
-        },
-    )
-    .err()
-    .expect("recursive unconstrained field must be rejected");
-
-    assert!(matches!(
-        error,
-        OperationRegistrationError::UnconstrainedSchema {
-            schema_kind: "input",
-            schema_path,
-        } if schema_path.starts_with("#/properties/next/")
-            && schema_path.ends_with("/properties/value")
-    ));
 }
 
 fn strict_registration() -> OperationRegistration {
@@ -340,19 +267,5 @@ fn assert_open_error(error: OperationRegistrationError, schema_kind: &'static st
     assert_eq!(
         error,
         OperationRegistrationError::OpenObjectSchema { schema_kind, schema_path: path.to_owned() }
-    );
-}
-
-fn assert_unconstrained_error(
-    error: OperationRegistrationError,
-    schema_kind: &'static str,
-    path: &str,
-) {
-    assert_eq!(
-        error,
-        OperationRegistrationError::UnconstrainedSchema {
-            schema_kind,
-            schema_path: path.to_owned(),
-        }
     );
 }

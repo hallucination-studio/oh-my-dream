@@ -26,8 +26,7 @@ const RAW_DRAIN_BUFFER_SIZE: usize = 8 * 1_024;
 #[serde(rename_all = "snake_case")]
 pub enum AssistantFrameKind {
     Invoke,
-    AssistantToken,
-    AssistantMessage,
+    ResponsesEvent,
     ToolRequest,
     ToolResponse,
     ApprovalRequest,

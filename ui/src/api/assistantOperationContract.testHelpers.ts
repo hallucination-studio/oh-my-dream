@@ -20,6 +20,8 @@ const TRUSTED_CONTEXT_NAMES = new Set([
   "request_id",
   "tool_version",
   "approved_effect",
+  "selected_node_ids",
+  "selected_asset_ids",
 ]);
 
 export function hasAssistantOperationsShape(
@@ -86,8 +88,8 @@ function isJsonSchemaObject(
   return (
     isJsonObject(value) &&
     value.type === "object" &&
-    isJsonObject(value.properties) &&
-    isStringArray(value.required) &&
+    (value.properties === undefined || isJsonObject(value.properties)) &&
+    (value.required === undefined || isStringArray(value.required)) &&
     typeof value.additionalProperties === "boolean"
   );
 }

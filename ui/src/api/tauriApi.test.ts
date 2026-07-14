@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AssetDto,
+  AssistantSendInput,
   RunObserver,
   WorkflowRunEvent,
   WorkflowRunResult,
@@ -82,6 +83,47 @@ it("leaves null thumbnails and paths outside the asset root unchanged", async ()
   expect(converted.file_path).toBe("/tmp/outside/video.mp4");
   expect(converted.thumbnail_path).toBeNull();
   expect(convertFileSrcMock).not.toHaveBeenCalledWith("/tmp/outside/video.mp4");
+});
+
+it("applies Workflow patches through the shared Tauri command", async () => {
+  const { tauriApi } = await import("./tauriApi.ts");
+  const input = {
+    expected_revision: 4,
+    operations: [
+      {
+        op: "replace_params" as const,
+        node: { kind: "id" as const, id: "prompt" },
+        params: { text: "updated" },
+      },
+    ],
+  };
+  invokeMock.mockResolvedValueOnce({ workflow_head: null, aliases: [] });
+
+  await tauriApi.applyWorkflowPatch("project", "request-5", input);
+
+  expect(invokeMock).toHaveBeenCalledWith("workflow_apply_patch", {
+    project_id: "project",
+    request_id: "request-5",
+    input,
+  });
+});
+
+it("searches paged capability summaries and loads exact bundles", async () => {
+  const { tauriApi } = await import("./tauriApi.ts");
+  const request = { query: "video", category: "video", cursor: null, limit: 12 };
+  const refs = [{ id: "ImageToVideo", version: "1.0" }];
+  invokeMock
+    .mockResolvedValueOnce({ capabilities: [], next_cursor: "12" })
+    .mockResolvedValueOnce({ capabilities: [] });
+
+  await expect(tauriApi.searchCapabilities(request)).resolves.toEqual({
+    capabilities: [],
+    next_cursor: "12",
+  });
+  await expect(tauriApi.getCapabilityBundles(refs)).resolves.toEqual({ capabilities: [] });
+
+  expect(invokeMock).toHaveBeenCalledWith("search_capabilities", request);
+  expect(invokeMock).toHaveBeenCalledWith("get_capability_bundles", { refs });
 });
 
 it("streams scoped progress and completes from the authoritative result", async () => {
@@ -256,37 +298,44 @@ it("rejects a terminal result for a different run", async () => {
 });
 
 describe("tauriApi assistant commands", () => {
-  it("invokes assistant config, session, manifest, and skill commands", async () => {
+  it("invokes the surviving assistant configuration commands", async () => {
     const { tauriApi } = await import("./tauriApi.ts");
     invokeMock
-      .mockResolvedValueOnce({ enabled: true, base_url: "https://api.openai.com/v1", model: "gpt-5.4", has_key: false, temperature: 0.3, max_tool_iters: 20, system_prompt_extra: null, developer_mode: false, skills: { installed: [], enabled: [] } })
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce({ port: 55123, token: "token" })
-      .mockResolvedValueOnce({ capabilities: [] })
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce({ name: "portrait", version: "1.0.0", description: "Portrait", enabled: false, developer_mode_required: false, status: "disabled" })
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ enabled: true, base_url: "https://api.openai.com/v1", model: "gpt-5.4", has_key: false })
       .mockResolvedValueOnce(undefined);
 
     await expect(tauriApi.getAssistantConfig()).resolves.toMatchObject({ model: "gpt-5.4" });
-    await tauriApi.setAssistantConfig({ enabled: true, base_url: "https://api.openai.com/v1", model: "gpt-5.4", api_key: null, clear_api_key: false, temperature: 0.3, max_tool_iters: 20, system_prompt_extra: null, developer_mode: false, enabled_skills: [] });
-    await expect(tauriApi.getAssistantSession()).resolves.toEqual({ port: 55123, token: "token" });
-    await expect(tauriApi.getCapabilityManifest()).resolves.toEqual({ capabilities: [] });
-    await expect(tauriApi.listSkills()).resolves.toEqual([]);
-    await expect(tauriApi.installSkill("/tmp/skill")).resolves.toMatchObject({ name: "portrait" });
-    await tauriApi.setSkillEnabled("portrait", true);
-    await tauriApi.uninstallSkill("portrait");
+    await tauriApi.setAssistantConfig({ enabled: true, base_url: "https://api.openai.com/v1", model: "gpt-5.4", api_key: null, clear_api_key: false });
 
     expect(invokeMock).toHaveBeenCalledWith("get_assistant_config");
     expect(invokeMock).toHaveBeenCalledWith("set_assistant_config", {
-      input: { enabled: true, base_url: "https://api.openai.com/v1", model: "gpt-5.4", api_key: null, clear_api_key: false, temperature: 0.3, max_tool_iters: 20, system_prompt_extra: null, developer_mode: false, enabled_skills: [] },
+      input: { enabled: true, base_url: "https://api.openai.com/v1", model: "gpt-5.4", api_key: null, clear_api_key: false },
     });
-    expect(invokeMock).toHaveBeenCalledWith("get_assistant_session");
-    expect(invokeMock).toHaveBeenCalledWith("get_capability_manifest");
-    expect(invokeMock).toHaveBeenCalledWith("list_skills");
-    expect(invokeMock).toHaveBeenCalledWith("install_skill", { path: "/tmp/skill" });
-    expect(invokeMock).toHaveBeenCalledWith("set_skill_enabled", { name: "portrait", enabled: true });
-    expect(invokeMock).toHaveBeenCalledWith("uninstall_skill", { name: "portrait" });
+  });
+
+  it("returns the canonical Workflow head from an assistant turn", async () => {
+    const { tauriApi } = await import("./tauriApi.ts");
+    const input: AssistantSendInput = {
+      project_id: "project-1",
+      workflow_present: false,
+      workflow_revision: null,
+      selected_node_ids: [],
+      selected_asset_ids: [],
+      text: "Build the workflow",
+    };
+    const head = {
+      project_id: "project-1",
+      revision: 1,
+      workflow: { version: "1.0", project_id: "project-1", nodes: [] },
+    };
+    const onEvent = vi.fn();
+    invokeMock.mockResolvedValueOnce(head);
+
+    await expect(tauriApi.sendAssistant(input, onEvent)).resolves.toEqual(head);
+    expect(invokeMock).toHaveBeenCalledWith("assistant_send", {
+      input,
+      on_event: expect.anything(),
+    });
   });
 });
 

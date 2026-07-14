@@ -1,6 +1,9 @@
 import type { Connection, Edge } from "@xyflow/react";
 import { describe, expect, it, vi } from "vitest";
+import catalogFixture from "../__fixtures__/capability_catalog.json";
+import type { CapabilityCatalog } from "../api/types.ts";
 import type { FlowNodeData } from "../nodes/WorkflowFlowNode.tsx";
+import { capabilityRefKey } from "./contractCache.ts";
 import { fromWorkflow, nextNodeId, upsertIncomingEdge } from "./editor.ts";
 import type { Workflow } from "./types.ts";
 
@@ -28,7 +31,7 @@ describe("fromWorkflow", () => {
       ],
     };
 
-    const graph = fromWorkflow(workflow, onParamChange);
+    const graph = fromWorkflow(workflow, onParamChange, snapshot());
 
     expect(graph.nodes.map(({ id, position }) => ({ id, position }))).toEqual([
       { id: "prompt", position: { x: 25, y: 50 } },
@@ -53,6 +56,24 @@ describe("fromWorkflow", () => {
   });
 });
 
+function snapshot() {
+  const catalog = catalogFixture as unknown as CapabilityCatalog;
+  return {
+    bundles: new Map(
+      catalog.capabilities.map((entry) => [
+        capabilityRefKey(entry.contract.reference),
+        {
+          reference: entry.contract.reference,
+          contract: entry.contract,
+          presentation: entry.presentation,
+          status: entry.status,
+        },
+      ]),
+    ),
+    summaries: [],
+  };
+}
+
 describe("upsertIncomingEdge", () => {
   it("replaces the existing edge for the same target input", () => {
     const existing: Edge[] = [edge("first", "prompt-a", "text", "image", "prompt")];
@@ -73,6 +94,61 @@ describe("upsertIncomingEdge", () => {
       type: "workflow",
       data: { color: "red" },
     });
+  });
+});
+
+describe("ordered-many projection", () => {
+  it("renders every ordered source edge in persisted order", () => {
+    const graph = fromWorkflow(
+      {
+        version: "1.0",
+        project_id: "project-a",
+        nodes: [
+          { id: "first", type: "ImageToVideo", params: {}, inputs: {} },
+          { id: "second", type: "ImageToVideo", params: {}, inputs: {} },
+          {
+            id: "concat",
+            type: "VideoConcat",
+            params: {},
+            inputs: {
+              clips: {
+                kind: "ordered_many",
+                sources: [
+                  ["first", "video"],
+                  ["second", "video"],
+                ],
+              },
+            },
+          },
+        ],
+      },
+      vi.fn(),
+      snapshot(),
+    );
+
+    expect(graph.edges.map((edge) => [edge.source, edge.targetHandle, edge.data])).toEqual([
+      ["first", "clips", { color: "var(--t-video)", order: 0 }],
+      ["second", "clips", { color: "var(--t-video)", order: 1 }],
+    ]);
+  });
+
+  it("keeps an empty ordered binding as an editable readiness state", () => {
+    const graph = fromWorkflow(
+      {
+        version: "1.0",
+        project_id: "project-a",
+        nodes: [{
+          id: "concat",
+          type: "VideoConcat",
+          params: {},
+          inputs: { clips: { kind: "ordered_many", sources: [] } },
+        }],
+      },
+      vi.fn(),
+      snapshot(),
+    );
+
+    expect(graph.edges).toEqual([]);
   });
 });
 

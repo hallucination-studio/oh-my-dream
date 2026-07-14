@@ -10,10 +10,9 @@ use tokio::io::BufReader;
 
 use super::common::{TestWriter, encoded_wire_frame, json_line, read_one, wire_value};
 
-const ALL_KINDS: [AssistantFrameKind; 11] = [
+const ALL_KINDS: [AssistantFrameKind; 10] = [
     AssistantFrameKind::Invoke,
-    AssistantFrameKind::AssistantToken,
-    AssistantFrameKind::AssistantMessage,
+    AssistantFrameKind::ResponsesEvent,
     AssistantFrameKind::ToolRequest,
     AssistantFrameKind::ToolResponse,
     AssistantFrameKind::ApprovalRequest,

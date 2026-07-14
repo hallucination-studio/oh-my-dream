@@ -1,8 +1,8 @@
 mod executor_support;
 
 use engine::{
-    EngineError, Executor, NodeExecutionState, NodeParams, NodeRegistry, OutputRef, PortType,
-    ResultCache, Value, Workflow, WorkflowNode,
+    EngineError, Executor, InputBinding, NodeExecutionState, NodeParams, NodeRegistry, OutputRef,
+    PortType, ResultCache, Value, Workflow, WorkflowNode,
 };
 use executor_support::{
     FailingNode, RunCounters, TestCancellation, commit_then_cancel_registry, event_summary,
@@ -249,7 +249,10 @@ fn rejects_cycles_before_execution() {
     let counters = RunCounters::default();
     let registry = registry(counters);
     let mut nodes = linear_workflow("hello").nodes;
-    nodes[1].inputs.insert("text".to_owned(), OutputRef("collect".to_owned(), "text".to_owned()));
+    nodes[1].inputs.insert(
+        "text".to_owned(),
+        InputBinding::single(OutputRef("collect".to_owned(), "text".to_owned())),
+    );
     let workflow = Workflow { version: "1.0".to_owned(), project_id: "default".to_owned(), nodes };
 
     let error = Executor::new(&registry)
@@ -282,7 +285,7 @@ fn rejects_type_mismatches_while_building_plan() {
                 params: NodeParams::new(),
                 inputs: BTreeMap::from([(
                     "text".to_owned(),
-                    OutputRef("image".to_owned(), "image".to_owned()),
+                    InputBinding::single(OutputRef("image".to_owned(), "image".to_owned())),
                 )]),
                 position: None,
             },

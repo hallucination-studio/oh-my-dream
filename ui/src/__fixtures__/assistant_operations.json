@@ -1,21 +1,13 @@
 {
   "operations": [
     {
-      "description": "Read local workspace state.",
+      "description": "Read one bounded authoritative snapshot of the current Project workspace.",
       "effect": "local_read",
       "id": "workspace_get_snapshot",
       "input_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
-        "properties": {
-          "query": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "query"
-        ],
-        "title": "ReadInput",
+        "title": "WorkspaceSnapshotInput",
         "type": "object"
       },
       "needs_approval": false,
@@ -23,21 +15,306 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
-          "result": {
-            "type": "string"
+          "assets": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "created_at": {
+                  "type": "integer"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "image",
+                    "video",
+                    "audio"
+                  ],
+                  "type": "string"
+                },
+                "model": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "project_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "prompt": {
+                  "maxLength": 512,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "prompt_truncated": {
+                  "type": "boolean"
+                },
+                "source_node_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_node_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "created_at",
+                "id",
+                "kind",
+                "model",
+                "project_id",
+                "prompt",
+                "prompt_truncated",
+                "source_node_id",
+                "source_node_type"
+              ],
+              "type": "object"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
+          "project": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": "integer"
+              },
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "created_at",
+              "id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "readiness_blockers": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "constraint": {
+                  "type": "string"
+                },
+                "pointer": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "constraint",
+                "pointer"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "run_id": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "active"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "run_id",
+                "status"
+              ],
+              "type": "object"
+            },
+            "maxItems": 1,
+            "type": "array"
+          },
+          "scope": {
+            "additionalProperties": false,
+            "properties": {
+              "project_id": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              },
+              "session_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "project_id",
+              "request_id",
+              "session_id"
+            ],
+            "type": "object"
+          },
+          "selected_assets": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "created_at": {
+                  "type": "integer"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "image",
+                    "video",
+                    "audio"
+                  ],
+                  "type": "string"
+                },
+                "model": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "project_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "prompt": {
+                  "maxLength": 512,
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "prompt_truncated": {
+                  "type": "boolean"
+                },
+                "source_node_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_node_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "created_at",
+                "id",
+                "kind",
+                "model",
+                "project_id",
+                "prompt",
+                "prompt_truncated",
+                "source_node_id",
+                "source_node_type"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "selected_nodes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "capability": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "version"
+                  ],
+                  "type": "object"
+                },
+                "id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "capability",
+                "id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 16,
+            "type": "array"
+          },
+          "workflow_head": {
+            "additionalProperties": false,
+            "properties": {
+              "project_id": {
+                "type": "string"
+              },
+              "revision": {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              "workflow": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "project_id",
+              "revision",
+              "workflow"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
           }
         },
         "required": [
-          "result"
+          "assets",
+          "project",
+          "readiness_blockers",
+          "runs",
+          "scope",
+          "selected_assets",
+          "selected_nodes",
+          "workflow_head"
         ],
-        "title": "Output",
+        "title": "WorkspaceSnapshotOutput",
         "type": "object"
       },
       "strict_json_schema": true,
       "version": 1
     },
     {
-      "description": "Apply a visible reversible Workflow patch.",
+      "description": "Apply one atomic, reversible Workflow patch using exact capability contracts.",
       "effect": "visible_reversible_workflow_patch",
       "id": "workflow_apply_patch",
       "input_schema": {
@@ -45,20 +322,450 @@
         "additionalProperties": false,
         "properties": {
           "expected_revision": {
-            "format": "uint64",
             "minimum": 0.0,
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
-          "params": {
-            "additionalProperties": true,
-            "type": "object"
+          "operations": {
+            "items": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "alias": {
+                      "type": "string"
+                    },
+                    "capability": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "version"
+                      ],
+                      "type": "object"
+                    },
+                    "op": {
+                      "const": "add_node"
+                    },
+                    "params": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "position": {
+                      "items": {
+                        "type": "number"
+                      },
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "alias",
+                    "capability",
+                    "op",
+                    "params",
+                    "position"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "replace_params"
+                    },
+                    "params": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "node",
+                    "op",
+                    "params"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "binding": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "single"
+                            },
+                            "source": {
+                              "oneOf": [
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "const": "id"
+                                    }
+                                  },
+                                  "required": [
+                                    "id",
+                                    "kind"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "alias": {
+                                      "type": "string"
+                                    },
+                                    "kind": {
+                                      "const": "alias"
+                                    }
+                                  },
+                                  "required": [
+                                    "alias",
+                                    "kind"
+                                  ],
+                                  "type": "object"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "source"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "ordered_many"
+                            },
+                            "sources": {
+                              "items": {
+                                "oneOf": [
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "const": "id"
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "alias": {
+                                        "type": "string"
+                                      },
+                                      "kind": {
+                                        "const": "alias"
+                                      }
+                                    },
+                                    "required": [
+                                      "alias",
+                                      "kind"
+                                    ],
+                                    "type": "object"
+                                  }
+                                ]
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "sources"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "input": {
+                      "type": "string"
+                    },
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "set_input"
+                    }
+                  },
+                  "required": [
+                    "binding",
+                    "input",
+                    "node",
+                    "op"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "input": {
+                      "type": "string"
+                    },
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "clear_input"
+                    }
+                  },
+                  "required": [
+                    "input",
+                    "node",
+                    "op"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "remove_node"
+                    }
+                  },
+                  "required": [
+                    "node",
+                    "op"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "set_position"
+                    },
+                    "position": {
+                      "items": {
+                        "type": "number"
+                      },
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "node",
+                    "op",
+                    "position"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "maxItems": 128,
+            "minItems": 0,
+            "type": "array"
           }
         },
         "required": [
           "expected_revision",
-          "params"
+          "operations"
         ],
-        "title": "PatchInput",
+        "title": "WorkflowApplyPatchInput",
         "type": "object"
       },
       "needs_approval": false,
@@ -66,18 +773,98 @@
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
-          "result": {
-            "type": "string"
+          "aliases": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "alias": {
+                  "type": "string"
+                },
+                "node_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "alias",
+                "node_id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "deduplicated": {
+            "type": "boolean"
+          },
+          "readiness_blockers": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "constraint": {
+                  "type": "string"
+                },
+                "pointer": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "constraint",
+                "pointer"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "undo_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workflow_head": {
+            "additionalProperties": false,
+            "properties": {
+              "project_id": {
+                "type": "string"
+              },
+              "revision": {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              "workflow": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "project_id",
+              "revision",
+              "workflow"
+            ],
+            "type": [
+              "object",
+              "null"
+            ]
           }
         },
         "required": [
-          "result"
+          "aliases",
+          "changed",
+          "deduplicated",
+          "readiness_blockers",
+          "undo_id",
+          "workflow_head"
         ],
-        "title": "Output",
+        "title": "WorkflowApplyPatchOutput",
         "type": "object"
       },
       "strict_json_schema": false,
-      "version": 2
+      "version": 1
     },
     {
       "description": "Execute a previously prepared proposal.",
@@ -114,6 +901,532 @@
       },
       "strict_json_schema": true,
       "version": 3
+    },
+    {
+      "description": "Find a bounded set of exact workflow capabilities for a goal.",
+      "effect": "local_read",
+      "id": "capability_search",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "query": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kinds",
+          "query"
+        ],
+        "title": "CapabilitySearchInput",
+        "type": "object"
+      },
+      "needs_approval": false,
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "CapabilityPresentationDto": {
+            "additionalProperties": false,
+            "description": "Non-authoritative display metadata for one exact capability reference.",
+            "properties": {
+              "category": {
+                "description": "Presentation grouping.",
+                "type": "string"
+              },
+              "description": {
+                "description": "User-facing description.",
+                "type": "string"
+              },
+              "label": {
+                "description": "Short label shown in palettes and node headers.",
+                "type": "string"
+              },
+              "search_terms": {
+                "description": "Search terms used by discovery and UI filtering.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "category",
+              "description",
+              "label",
+              "search_terms"
+            ],
+            "type": "object"
+          },
+          "CapabilityRefDto": {
+            "additionalProperties": false,
+            "description": "Exact identity of one versioned workflow capability.",
+            "properties": {
+              "id": {
+                "description": "Stable capability identifier.",
+                "type": "string"
+              },
+              "version": {
+                "description": "Exact semantic contract version.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "version"
+            ],
+            "type": "object"
+          },
+          "CapabilityStatusDto": {
+            "additionalProperties": false,
+            "properties": {
+              "availability": {
+                "enum": [
+                  "available",
+                  "unavailable",
+                  "degraded"
+                ],
+                "type": "string"
+              },
+              "provider_health": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status_revision": {
+                "minimum": 0.0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "availability",
+              "provider_health",
+              "reason",
+              "status_revision"
+            ],
+            "type": "object"
+          },
+          "CapabilitySummaryDto": {
+            "additionalProperties": false,
+            "description": "A compact palette result containing presentation and live status only.",
+            "properties": {
+              "presentation": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/CapabilityPresentationDto"
+                  }
+                ],
+                "description": "Non-authoritative display metadata."
+              },
+              "reference": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/CapabilityRefDto"
+                  }
+                ],
+                "description": "Exact capability identity that may be loaded into the editor."
+              },
+              "status": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/CapabilityStatusDto"
+                  }
+                ],
+                "description": "Current availability metadata."
+              }
+            },
+            "required": [
+              "presentation",
+              "reference",
+              "status"
+            ],
+            "type": "object"
+          }
+        },
+        "description": "Output for the bounded capability search operation.",
+        "properties": {
+          "capabilities": {
+            "description": "At most [`MAX_SEARCH_RESULTS`] stable results.",
+            "items": {
+              "$ref": "#/definitions/CapabilitySummaryDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "capabilities"
+        ],
+        "title": "CapabilitySearchOutput",
+        "type": "object"
+      },
+      "strict_json_schema": true,
+      "version": 1
+    },
+    {
+      "description": "Describe up to three exact capabilities admitted by search or the current Workflow.",
+      "effect": "local_read",
+      "id": "capability_describe",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "CapabilityRefDto": {
+            "additionalProperties": false,
+            "description": "Exact identity of one versioned workflow capability.",
+            "properties": {
+              "id": {
+                "description": "Stable capability identifier.",
+                "type": "string"
+              },
+              "version": {
+                "description": "Exact semantic contract version.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "version"
+            ],
+            "type": "object"
+          }
+        },
+        "description": "Input for exact capability description.",
+        "properties": {
+          "refs": {
+            "description": "Exact refs returned by search or already present in the Workflow.",
+            "items": {
+              "$ref": "#/definitions/CapabilityRefDto"
+            },
+            "maxItems": 3,
+            "type": "array"
+          }
+        },
+        "required": [
+          "refs"
+        ],
+        "title": "CapabilityDescribeInput",
+        "type": "object"
+      },
+      "needs_approval": false,
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "CapabilityBundleDto": {
+            "additionalProperties": false,
+            "description": "One exact capability bundle returned to the React contract cache.",
+            "properties": {
+              "contract": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/CapabilityContractDto"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Immutable contract when the exact registration is available."
+              },
+              "presentation": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/CapabilityPresentationDto"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Presentation metadata when the exact registration is available."
+              },
+              "reference": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/CapabilityRefDto"
+                  }
+                ],
+                "description": "Exact capability identity."
+              },
+              "status": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/CapabilityStatusDto"
+                  }
+                ],
+                "description": "Availability and degradation reason."
+              }
+            },
+            "required": [
+              "reference",
+              "status"
+            ],
+            "type": "object"
+          },
+          "CapabilityCardinalityDto": {
+            "oneOf": [
+              {
+                "enum": [
+                  "one"
+                ],
+                "type": "string"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "many": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "maximum": {
+                        "minimum": 0.0,
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "minimum": {
+                        "minimum": 0.0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "maximum",
+                      "minimum"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "many"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "CapabilityContractDto": {
+            "additionalProperties": false,
+            "description": "Immutable execution contract for one exact capability reference.",
+            "properties": {
+              "default_params": {
+                "additionalProperties": true,
+                "description": "Canonical params used when no params are supplied.",
+                "type": "object"
+              },
+              "effects": {
+                "description": "Policy-relevant execution effects.",
+                "items": {
+                  "$ref": "#/definitions/CapabilityEffectDto"
+                },
+                "type": "array"
+              },
+              "inputs": {
+                "description": "Named input ports.",
+                "items": {
+                  "$ref": "#/definitions/CapabilityPortDto"
+                },
+                "type": "array"
+              },
+              "outputs": {
+                "description": "Named output ports.",
+                "items": {
+                  "$ref": "#/definitions/CapabilityPortDto"
+                },
+                "type": "array"
+              },
+              "params_schema": {
+                "description": "JSON Schema for the normalized params object."
+              },
+              "reference": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/CapabilityRefDto"
+                  }
+                ],
+                "description": "Exact capability identity represented by this contract."
+              }
+            },
+            "required": [
+              "default_params",
+              "effects",
+              "inputs",
+              "outputs",
+              "params_schema",
+              "reference"
+            ],
+            "type": "object"
+          },
+          "CapabilityEffectDto": {
+            "description": "Effect classification owned by an immutable capability contract.",
+            "oneOf": [
+              {
+                "description": "Deterministic local transformation with no external effect.",
+                "enum": [
+                  "pure"
+                ],
+                "type": "string"
+              },
+              {
+                "description": "Provider, filesystem, or other external effect.",
+                "enum": [
+                  "external"
+                ],
+                "type": "string"
+              }
+            ]
+          },
+          "CapabilityPortDto": {
+            "additionalProperties": false,
+            "description": "Execution port metadata exposed by a capability contract.",
+            "properties": {
+              "cardinality": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/CapabilityCardinalityDto"
+                  }
+                ],
+                "description": "Port cardinality and bounds."
+              },
+              "name": {
+                "description": "Stable named port.",
+                "type": "string"
+              },
+              "port_type": {
+                "description": "Canonical engine port type in snake case.",
+                "type": "string"
+              },
+              "required": {
+                "description": "Whether the input must be connected or have a default.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "cardinality",
+              "name",
+              "port_type",
+              "required"
+            ],
+            "type": "object"
+          },
+          "CapabilityPresentationDto": {
+            "additionalProperties": false,
+            "description": "Non-authoritative display metadata for one exact capability reference.",
+            "properties": {
+              "category": {
+                "description": "Presentation grouping.",
+                "type": "string"
+              },
+              "description": {
+                "description": "User-facing description.",
+                "type": "string"
+              },
+              "label": {
+                "description": "Short label shown in palettes and node headers.",
+                "type": "string"
+              },
+              "search_terms": {
+                "description": "Search terms used by discovery and UI filtering.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "category",
+              "description",
+              "label",
+              "search_terms"
+            ],
+            "type": "object"
+          },
+          "CapabilityRefDto": {
+            "additionalProperties": false,
+            "description": "Exact identity of one versioned workflow capability.",
+            "properties": {
+              "id": {
+                "description": "Stable capability identifier.",
+                "type": "string"
+              },
+              "version": {
+                "description": "Exact semantic contract version.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "version"
+            ],
+            "type": "object"
+          },
+          "CapabilityStatusDto": {
+            "additionalProperties": false,
+            "properties": {
+              "availability": {
+                "enum": [
+                  "available",
+                  "unavailable",
+                  "degraded"
+                ],
+                "type": "string"
+              },
+              "provider_health": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status_revision": {
+                "minimum": 0.0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "availability",
+              "provider_health",
+              "reason",
+              "status_revision"
+            ],
+            "type": "object"
+          }
+        },
+        "description": "Output for exact capability description.",
+        "properties": {
+          "capabilities": {
+            "description": "Descriptions in the same order as the requested refs.",
+            "items": {
+              "$ref": "#/definitions/CapabilityBundleDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "capabilities"
+        ],
+        "title": "CapabilityDescribeOutput",
+        "type": "object"
+      },
+      "strict_json_schema": true,
+      "version": 1
     }
   ]
 }

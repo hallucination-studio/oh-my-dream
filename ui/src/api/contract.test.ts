@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 import assetFixture from "../__fixtures__/asset.json";
 import assistantConfigFixture from "../__fixtures__/assistant_config.json";
 import assistantOperationsFixture from "../__fixtures__/assistant_operations.json";
-import assistantSessionFixture from "../__fixtures__/assistant_session.json";
-import capabilityManifestFixture from "../__fixtures__/capability_manifest.json";
+import capabilityCatalogFixture from "../__fixtures__/capability_catalog.json";
 import progressFixture from "../__fixtures__/node_progress_event.json";
+import openProjectFixture from "../__fixtures__/open_project.json";
 import projectFixture from "../__fixtures__/project.json";
 import runWorkflowFixture from "../__fixtures__/run_workflow_result.json";
-import skillFixture from "../__fixtures__/skill.json";
 import {
   fixtureFingerprint,
   hasAssistantOperationsShape,
@@ -18,10 +17,9 @@ import type {
   AssetDto,
   AssistantConfig,
   AssistantOperationsFixture,
-  AssistantSession,
-  CapabilityManifest,
+  CapabilityCatalog,
+  OpenProjectResult,
   Project,
-  Skill,
 } from "./types.ts";
 import type { NodeProgressEvent, RunOutput, RunOutputs } from "../workflow/types.ts";
 
@@ -30,11 +28,10 @@ describe("backend DTO fixtures", () => {
     expect(isRunOutputs(runWorkflowFixture.outputs)).toBe(true);
     expect(isAsset(assetFixture)).toBe(true);
     expect(isProject(projectFixture)).toBe(true);
+    expect(isOpenProject(openProjectFixture)).toBe(true);
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
     expect(isAssistantConfig(assistantConfigFixture)).toBe(true);
-    expect(isAssistantSession(assistantSessionFixture)).toBe(true);
-    expect(isCapabilityManifest(capabilityManifestFixture)).toBe(true);
-    expect(isSkill(skillFixture)).toBe(true);
+    expect(isCapabilityCatalog(capabilityCatalogFixture)).toBe(true);
   });
 });
 
@@ -45,9 +42,33 @@ describe("assistant operation contract fixture", () => {
     expect(isExactAssistantOperationsFixture(assistantOperationsFixture)).toBe(true);
   });
 
+  it("includes bounded capability discovery operations", () => {
+    const operationIds = assistantOperationsFixture.operations.map((operation) => operation.id);
+    expect(operationIds).toContain("capability_search");
+    expect(operationIds).toContain("capability_describe");
+    const search = assistantOperationsFixture.operations.find(
+      (operation) => operation.id === "capability_search",
+    );
+    const describe = assistantOperationsFixture.operations.find(
+      (operation) => operation.id === "capability_describe",
+    );
+    expect(search?.input_schema.required).toEqual(["kinds", "query"]);
+    expect(describe?.input_schema.properties?.refs).toMatchObject({ maxItems: 3 });
+  });
+
+  it("keeps workspace scope out of bounded snapshot model input", () => {
+    const snapshot = assistantOperationsFixture.operations.find(
+      (operation) => operation.id === "workspace_get_snapshot",
+    );
+    expect(snapshot?.input_schema.required).toBeUndefined();
+    expect(snapshot?.input_schema.properties).toBeUndefined();
+    expect(snapshot?.output_schema.properties?.assets).toMatchObject({ maxItems: 8 });
+    expect(snapshot?.output_schema.properties?.runs).toMatchObject({ maxItems: 1 });
+  });
+
   it("rejects a canonical model input field rename", () => {
     const fixture = cloneFixture();
-    const schema = operationInputSchemaAt(fixture, 0);
+    const schema = operationInputSchemaAt(fixture, 1);
     const properties = requiredRecord(schema.properties);
     const [canonicalName] = Object.keys(properties);
     if (canonicalName === undefined) {
@@ -115,7 +136,7 @@ describe("assistant operation contract fixture", () => {
 
   it("ignores trusted names inside annotation instance data", () => {
     const fixture = cloneFixture();
-    const schema = operationInputSchemaAt(fixture, 0);
+    const schema = operationInputSchemaAt(fixture, 1);
     const properties = requiredRecord(schema.properties);
     const propertySchema = requiredRecord(properties[Object.keys(properties)[0] ?? ""]);
 
@@ -131,7 +152,7 @@ describe("assistant operation contract fixture", () => {
 
   it("detects trusted fields beneath contains", () => {
     const fixture = cloneFixture();
-    const schema = operationInputSchemaAt(fixture, 0);
+    const schema = operationInputSchemaAt(fixture, 1);
     const properties = requiredRecord(schema.properties);
     const propertySchema = requiredRecord(properties[Object.keys(properties)[0] ?? ""]);
 
@@ -148,7 +169,7 @@ describe("assistant operation contract fixture", () => {
 });
 
 // Freezes the generated fixture as an opaque artifact, not a semantic source.
-const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:da6c9d64de49cc21";
+const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:fdd3be6289822566";
 
 function isExactAssistantOperationsFixture(value: unknown): value is AssistantOperationsFixture {
   return (
@@ -236,40 +257,97 @@ function isProject(value: unknown): value is Project {
   );
 }
 
+function isOpenProject(value: unknown): value is OpenProjectResult {
+  if (!isRecord(value) || !isProject(value.project)) {
+    return false;
+  }
+  return value.workflow_head === null || isWorkflowHead(value.workflow_head);
+}
+
+function isWorkflowHead(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    typeof value.project_id !== "string" ||
+    typeof value.revision !== "number"
+  ) {
+    return false;
+  }
+  const workflow = value.workflow;
+  return (
+    isRecord(workflow) &&
+    typeof workflow.version === "string" &&
+    typeof workflow.project_id === "string" &&
+    Array.isArray(workflow.nodes)
+  );
+}
+
 function isAssistantConfig(value: unknown): value is AssistantConfig {
   return (
     isRecord(value) &&
     typeof value.enabled === "boolean" &&
     typeof value.base_url === "string" &&
     typeof value.model === "string" &&
-    typeof value.has_key === "boolean" &&
-    typeof value.temperature === "number" &&
-    typeof value.max_tool_iters === "number" &&
-    (value.system_prompt_extra === null || typeof value.system_prompt_extra === "string") &&
-    typeof value.developer_mode === "boolean" &&
-    isRecord(value.skills) &&
-    Array.isArray(value.skills.installed) &&
-    Array.isArray(value.skills.enabled)
+    typeof value.has_key === "boolean"
   );
 }
 
-function isAssistantSession(value: unknown): value is AssistantSession {
-  return isRecord(value) && typeof value.port === "number" && typeof value.token === "string";
+function isCapabilityCatalog(value: unknown): value is CapabilityCatalog {
+  return isRecord(value) && Array.isArray(value.capabilities) && value.capabilities.every(isCatalogEntry);
 }
 
-function isCapabilityManifest(value: unknown): value is CapabilityManifest {
-  return isRecord(value) && Array.isArray(value.capabilities);
+function isCatalogEntry(value: unknown): boolean {
+  if (!isRecord(value) || !isCapabilityContract(value.contract)) return false;
+  return isPresentation(value.presentation) && isCapabilityStatus(value.status);
 }
 
-function isSkill(value: unknown): value is Skill {
+function isCapabilityContract(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isCapabilityRef(value.reference) &&
+    Array.isArray(value.inputs) &&
+    value.inputs.every(isCapabilityPort) &&
+    Array.isArray(value.outputs) &&
+    value.outputs.every(isCapabilityPort) &&
+    isRecord(value.params_schema) &&
+    isRecord(value.default_params) &&
+    Array.isArray(value.effects) &&
+    value.effects.every((effect) => effect === "pure" || effect === "external")
+  );
+}
+
+function isCapabilityRef(value: unknown): boolean {
+  return isRecord(value) && typeof value.id === "string" && typeof value.version === "string";
+}
+
+function isCapabilityPort(value: unknown): boolean {
   return (
     isRecord(value) &&
     typeof value.name === "string" &&
-    typeof value.version === "string" &&
+    typeof value.port_type === "string" &&
+    (value.cardinality === "one" || isRecord(value.cardinality)) &&
+    typeof value.required === "boolean"
+  );
+}
+
+function isPresentation(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.label === "string" &&
     typeof value.description === "string" &&
-    typeof value.enabled === "boolean" &&
-    typeof value.developer_mode_required === "boolean" &&
-    typeof value.status === "string"
+    typeof value.category === "string" &&
+    isStringArray(value.search_terms)
+  );
+}
+
+function isCapabilityStatus(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.availability === "available" ||
+      value.availability === "unavailable" ||
+      value.availability === "degraded") &&
+    (value.reason === null || typeof value.reason === "string") &&
+    (value.provider_health === null || typeof value.provider_health === "string") &&
+    typeof value.status_revision === "number"
   );
 }
 

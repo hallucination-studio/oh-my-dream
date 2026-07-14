@@ -105,6 +105,7 @@ function ProviderRow({
           <input
             className="prow__v"
             type="password"
+            autoComplete="current-password"
             placeholder={provider.has_key ? "•••••••••••• (set)" : "Paste key…"}
             value={key}
             onChange={(e) => setKey(e.target.value)}

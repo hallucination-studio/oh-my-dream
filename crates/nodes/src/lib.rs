@@ -28,7 +28,9 @@ use assets::AssetStore;
 use engine::NodeRegistry;
 use std::sync::{Arc, Mutex};
 
-pub use contracts::{CapabilityProjection, CapabilityProjectionError, project_capabilities};
+pub use contracts::{
+    CapabilityProjection, CapabilityProjectionError, project_capabilities, project_capability,
+};
 pub use generation::{
     GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
     ImageToVideoRequest, InlineMedia, MediaFormat, MediaKind, TextToAudioGenerator,

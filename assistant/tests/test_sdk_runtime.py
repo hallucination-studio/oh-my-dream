@@ -26,11 +26,12 @@ from assistant.tests.sdk_runtime_fakes import (
 
 
 ASSISTANT_ROOT = Path(__file__).resolve().parents[1]
+STDIO_LOCKFILE = ASSISTANT_ROOT / "requirements-stdio.txt"
 
 
 class SdkDependencyTests(unittest.TestCase):
     def test_openai_agents_is_pinned_to_characterized_version(self) -> None:
-        requirements = (ASSISTANT_ROOT / "requirements.txt").read_text(encoding="utf-8")
+        requirements = STDIO_LOCKFILE.read_text(encoding="utf-8")
 
         self.assertIn("openai-agents==0.18.1", requirements.splitlines())
 

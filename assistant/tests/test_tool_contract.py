@@ -39,17 +39,23 @@ class FunctionToolContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_builds_fixture_tools_and_preserves_opaque_json(self) -> None:
         operations = load_operations()
         arguments_by_id = {
-            "workspace_get_snapshot": '{  "query" : "current" }',
+            "workspace_get_snapshot": "{}",
             "workflow_apply_patch": (
                 '{ "params": { "position": 2, "type": "image" }, '
                 '"expected_revision": 7 }'
             ),
             "proposal_execute": '{\n  "proposal_id": "proposal-42"\n}',
+            "capability_search": '{"query":"three-shot video","kinds":null}',
+            "capability_describe": (
+                '{"refs":[{"id":"ImageToVideo","version":"1.0"}]}'
+            ),
         }
         output_by_id = {
             "workspace_get_snapshot": '{ "result" : "snapshot" }',
             "workflow_apply_patch": '{"result":"patched", "revision": 8}',
             "proposal_execute": '{\n "result": "started"\n}',
+            "capability_search": '{"capabilities":[]}',
+            "capability_describe": '{"capabilities":[]}',
         }
         invokers = {
             operation["id"]: RecordingInvoker(output_by_id[operation["id"]])
@@ -117,11 +123,14 @@ class FunctionToolContractTests(unittest.IsolatedAsyncioTestCase):
             context=None,
             tool_name=operation["id"],
             tool_call_id="expected-call",
-            tool_arguments='{"query":"current"}',
+            tool_arguments="{}",
         )
 
         with self.assertRaisesRegex(ValueError, "different-call"):
-            await tool.on_invoke_tool(context, '{"query":"current"}')
+            await tool.on_invoke_tool(
+                context,
+                "{}",
+            )
 
 
 if __name__ == "__main__":

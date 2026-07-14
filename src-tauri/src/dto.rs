@@ -1,7 +1,23 @@
+use crate::workflow_authority::WorkflowHead;
 use assets::{Asset, AssetKind, Project};
 use engine::{NodeExecutionState, NodeProgressEvent, RunOutputs, Value, ValueMap};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+
+mod capability;
+mod workspace;
+
+pub use capability::{
+    CapabilityAvailabilityDto, CapabilityBundleDto, CapabilityBundlesDto, CapabilityCardinalityDto,
+    CapabilityCatalogDto, CapabilityCatalogEntryDto, CapabilityContractDto, CapabilityEffectDto,
+    CapabilityPortDto, CapabilityPresentationDto, CapabilityRefDto, CapabilitySearchPageDto,
+    CapabilityStatusDto, CapabilitySummaryDto,
+};
+pub(crate) use workspace::MAX_WORKSPACE_PROMPT_CHARS;
+pub use workspace::{
+    WorkspaceAssetSummaryDto, WorkspaceNodeSummaryDto, WorkspaceRunSummaryDto, WorkspaceScopeDto,
+    WorkspaceSnapshotInput, WorkspaceSnapshotOutput,
+};
 
 /// JSON-friendly result returned by the `run_workflow` command.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -106,14 +122,40 @@ impl From<Project> for ProjectDto {
     }
 }
 
-/// Project plus its persisted workflow JSON.
+/// Authoritative Workflow head returned when a Project is opened.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ProjectWorkspaceDto {
+pub struct WorkflowHeadDto {
+    /// Project scope for this head.
+    pub project_id: String,
+    /// Compare-and-swap revision.
+    pub revision: u64,
+    /// Portable Workflow document.
+    pub workflow: serde_json::Value,
+}
+
+impl TryFrom<WorkflowHead> for WorkflowHeadDto {
+    type Error = serde_json::Error;
+
+    fn try_from(head: WorkflowHead) -> Result<Self, Self::Error> {
+        Ok(Self {
+            project_id: head.project_id,
+            revision: head.revision,
+            workflow: serde_json::to_value(head.workflow)?,
+        })
+    }
+}
+
+/// Project plus its optional authoritative Workflow head.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OpenProjectResultDto {
     /// Project metadata.
     pub project: ProjectDto,
-    /// Persisted workflow JSON for the project.
-    pub workflow_json: serde_json::Value,
+    /// `None` means the Project has never accepted a non-empty Workflow mutation.
+    pub workflow_head: Option<WorkflowHeadDto>,
 }
+
+/// Compatibility name for callers that still refer to an opened Project workspace.
+pub type ProjectWorkspaceDto = OpenProjectResultDto;
 
 /// Provider configuration summary returned to the frontend.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,16 +181,6 @@ pub struct AssistantConfigDto {
     pub model: String,
     /// Whether a local API key exists. Raw keys are never returned.
     pub has_key: bool,
-    /// Sampling temperature.
-    pub temperature: f64,
-    /// Maximum tool iterations per turn.
-    pub max_tool_iters: u32,
-    /// Optional user-provided prompt suffix.
-    pub system_prompt_extra: Option<String>,
-    /// Whether code-carrying skills may run.
-    pub developer_mode: bool,
-    /// Installed and enabled skill names.
-    pub skills: AssistantSkillsDto,
 }
 
 /// Assistant configuration input accepted from the frontend.
@@ -164,197 +196,6 @@ pub struct AssistantConfigInputDto {
     pub api_key: Option<String>,
     /// Whether to remove the stored API key.
     pub clear_api_key: bool,
-    /// Sampling temperature.
-    pub temperature: f64,
-    /// Maximum tool iterations per turn.
-    pub max_tool_iters: u32,
-    /// Optional user-provided prompt suffix.
-    pub system_prompt_extra: Option<String>,
-    /// Whether code-carrying skills may run.
-    pub developer_mode: bool,
-    /// Enabled skill names.
-    pub enabled_skills: Vec<String>,
-}
-
-/// Assistant skill name lists.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AssistantSkillsDto {
-    /// Installed skill names.
-    pub installed: Vec<String>,
-    /// Enabled skill names.
-    pub enabled: Vec<String>,
-}
-
-/// Full capability manifest returned to the frontend.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CapabilityManifestDto {
-    /// Capabilities the assistant may call.
-    pub capabilities: Vec<CapabilityDto>,
-}
-
-/// Exact identity of one versioned workflow capability.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CapabilityRefDto {
-    /// Stable capability identifier.
-    pub id: String,
-    /// Exact semantic contract version.
-    pub version: String,
-}
-
-/// Cardinality of a capability port at the application boundary.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CapabilityCardinalityDto {
-    /// Exactly one value is accepted or produced.
-    One,
-    /// An ordered collection with explicit bounds is accepted.
-    Many {
-        /// Inclusive minimum number of values.
-        minimum: usize,
-        /// Inclusive maximum number of values, when bounded.
-        maximum: Option<usize>,
-    },
-}
-
-/// Execution port metadata exposed by a capability contract.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CapabilityPortDto {
-    /// Stable named port.
-    pub name: String,
-    /// Canonical engine port type in snake case.
-    pub port_type: String,
-    /// Port cardinality and bounds.
-    pub cardinality: CapabilityCardinalityDto,
-    /// Whether the input must be connected or have a default.
-    pub required: bool,
-}
-
-/// Immutable execution contract for one exact capability reference.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CapabilityContractDto {
-    /// Exact capability identity represented by this contract.
-    pub reference: CapabilityRefDto,
-    /// Named input ports.
-    pub inputs: Vec<CapabilityPortDto>,
-    /// Named output ports.
-    pub outputs: Vec<CapabilityPortDto>,
-    /// JSON Schema for the normalized params object.
-    pub params_schema: serde_json::Value,
-    /// Canonical params used when no params are supplied.
-    pub default_params: BTreeMap<String, serde_json::Value>,
-    /// Policy-relevant execution effects.
-    pub effects: Vec<CapabilityEffectDto>,
-}
-
-/// Effect classification owned by an immutable capability contract.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CapabilityEffectDto {
-    /// Deterministic local transformation with no external effect.
-    Pure,
-    /// Provider, filesystem, or other external effect.
-    External,
-}
-
-/// Non-authoritative display metadata for one exact capability reference.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CapabilityPresentationDto {
-    /// Short label shown in palettes and node headers.
-    pub label: String,
-    /// User-facing description.
-    pub description: String,
-    /// Presentation grouping.
-    pub category: String,
-    /// Search terms used by discovery and UI filtering.
-    pub search_terms: Vec<String>,
-}
-
-/// Live availability projection kept separate from execution identity.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum CapabilityAvailabilityDto {
-    /// The exact registration is available for admission or execution.
-    Available,
-    /// The exact registration is known but currently unavailable.
-    Unavailable,
-    /// The registration can be inspected but needs repair or migration.
-    Degraded,
-}
-
-/// Status metadata supplied independently of a capability contract.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CapabilityStatusDto {
-    /// Current availability state.
-    pub availability: CapabilityAvailabilityDto,
-    /// Safe explanation when availability is not fully ready.
-    pub reason: Option<String>,
-    /// Provider health marker, when the capability has an external effect.
-    pub provider_health: Option<String>,
-    /// Monotonic status revision for cache revalidation.
-    pub status_revision: u64,
-}
-
-/// One catalog entry combining independent contract, presentation, and status projections.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CapabilityCatalogEntryDto {
-    /// Immutable execution contract.
-    pub contract: CapabilityContractDto,
-    /// Non-authoritative presentation metadata.
-    pub presentation: CapabilityPresentationDto,
-    /// Current availability metadata.
-    pub status: CapabilityStatusDto,
-}
-
-/// Capability catalog returned to the application and UI boundaries.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CapabilityCatalogDto {
-    /// Entries in stable exact-reference order.
-    pub capabilities: Vec<CapabilityCatalogEntryDto>,
-}
-
-/// One assistant-callable capability.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CapabilityDto {
-    /// Stable capability name.
-    pub name: String,
-    /// Human-readable model guidance.
-    pub description: String,
-    /// `backend` or `ui`.
-    pub kind: String,
-    /// Backing Tauri command for backend capabilities.
-    pub command: Option<String>,
-    /// JSON Schema parameters.
-    pub parameters: serde_json::Value,
-    /// JSON Schema return shape.
-    pub returns: serde_json::Value,
-    /// Whether user confirmation is required before execution.
-    pub confirm: bool,
-}
-
-/// Local assistant sidecar session.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AssistantSessionDto {
-    /// Loopback WebSocket port.
-    pub port: u16,
-    /// Per-launch bearer token.
-    pub token: String,
-}
-
-/// Installed assistant skill summary.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SkillDto {
-    /// Skill package name.
-    pub name: String,
-    /// Skill package version.
-    pub version: String,
-    /// Human-readable description.
-    pub description: String,
-    /// Whether the skill is enabled.
-    pub enabled: bool,
-    /// Whether this skill contains developer-mode code.
-    pub developer_mode_required: bool,
-    /// `ready`, `disabled`, or an install/read status.
-    pub status: String,
 }
 
 /// Node progress event forwarded to the frontend.

@@ -23,8 +23,7 @@ DispatchResult = TypeVar("DispatchResult")
 
 class FrameKind(str, Enum):
     INVOKE = "invoke"
-    ASSISTANT_TOKEN = "assistant_token"
-    ASSISTANT_MESSAGE = "assistant_message"
+    RESPONSES_EVENT = "responses_event"
     TOOL_REQUEST = "tool_request"
     TOOL_RESPONSE = "tool_response"
     APPROVAL_REQUEST = "approval_request"

@@ -11,19 +11,25 @@ import type {
   AssetDto,
   AssistantConfig,
   AssistantConfigInput,
-  AssistantSession,
+  AssistantSendInput,
+  ResponsesStreamEvent,
   CancelWorkflowRunResult,
-  CapabilityManifest,
+  CapabilityBundles,
+  CapabilitySearchPage,
+  CapabilitySearchRequest,
+  CapabilityRef,
   ListAssetsOptions,
   Project,
   ProjectWorkspace,
   Provider,
   RunHandle,
   RunObserver,
-  Skill,
   WorkflowApi,
+  WorkflowApplyPatchInput,
+  WorkflowApplyPatchOutput,
   WorkflowRunEvent,
   WorkflowRunResult,
+  WorkflowHead,
 } from "./types.ts";
 
 function runWorkflow(workflow: Workflow, observe: RunObserver): RunHandle {
@@ -172,12 +178,31 @@ async function openProject(id: string): Promise<ProjectWorkspace> {
   return invoke<ProjectWorkspace>("open_project", { id });
 }
 
-async function saveWorkflow(workflow: Workflow): Promise<void> {
-  await invoke("save_workflow", { workflow_json: JSON.stringify(workflow) });
+async function searchCapabilities(
+  request: CapabilitySearchRequest,
+): Promise<CapabilitySearchPage> {
+  return invoke<CapabilitySearchPage>("search_capabilities", {
+    query: request.query,
+    category: request.category ?? null,
+    cursor: request.cursor ?? null,
+    limit: request.limit ?? null,
+  });
 }
 
-async function loadWorkflow(projectId: string): Promise<Workflow> {
-  return invoke<Workflow>("load_workflow", { project_id: projectId });
+async function getCapabilityBundles(refs: CapabilityRef[]): Promise<CapabilityBundles> {
+  return invoke<CapabilityBundles>("get_capability_bundles", { refs });
+}
+
+async function applyWorkflowPatch(
+  projectId: string,
+  requestId: string,
+  input: WorkflowApplyPatchInput,
+): Promise<WorkflowApplyPatchOutput> {
+  return invoke<WorkflowApplyPatchOutput>("workflow_apply_patch", {
+    project_id: projectId,
+    request_id: requestId,
+    input,
+  });
 }
 
 async function getProviders(): Promise<Provider[]> {
@@ -200,28 +225,13 @@ async function setAssistantConfig(input: AssistantConfigInput): Promise<void> {
   await invoke("set_assistant_config", { input });
 }
 
-async function getAssistantSession(): Promise<AssistantSession> {
-  return invoke<AssistantSession>("get_assistant_session");
-}
-
-async function getCapabilityManifest(): Promise<CapabilityManifest> {
-  return invoke<CapabilityManifest>("get_capability_manifest");
-}
-
-async function listSkills(): Promise<Skill[]> {
-  return invoke<Skill[]>("list_skills");
-}
-
-async function installSkill(path: string): Promise<Skill> {
-  return invoke<Skill>("install_skill", { path });
-}
-
-async function setSkillEnabled(name: string, enabled: boolean): Promise<void> {
-  await invoke("set_skill_enabled", { name, enabled });
-}
-
-async function uninstallSkill(name: string): Promise<void> {
-  await invoke("uninstall_skill", { name });
+async function sendAssistant(
+  input: AssistantSendInput,
+  onEvent: (event: ResponsesStreamEvent) => void,
+): Promise<WorkflowHead | null> {
+  const channel = new Channel<ResponsesStreamEvent>();
+  channel.onmessage = onEvent;
+  return invoke<WorkflowHead | null>("assistant_send", { input, on_event: channel });
 }
 
 function convertAssetPaths(asset: AssetDto, root: string | null): AssetDto {
@@ -257,17 +267,13 @@ export const tauriApi: WorkflowApi = {
   listProjects,
   createProject,
   openProject,
-  saveWorkflow,
-  loadWorkflow,
+  searchCapabilities,
+  getCapabilityBundles,
+  applyWorkflowPatch,
   getProviders,
   setActiveProvider,
   setProviderKey,
   getAssistantConfig,
   setAssistantConfig,
-  getAssistantSession,
-  getCapabilityManifest,
-  listSkills,
-  installSkill,
-  setSkillEnabled,
-  uninstallSkill,
+  sendAssistant,
 };

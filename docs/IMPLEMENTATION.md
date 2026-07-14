@@ -12,8 +12,8 @@ Division of labor:
 
 Confirmed product decisions:
 
-- **Full persistence**: projects and workflows are saved to disk and survive
-  restart.
+- **Full persistence**: projects and the authoritative WorkflowHead are saved to
+  disk and survive restart.
 - **Progress events**: the engine reports per-node execution state/progress; the
   Tauri layer forwards them to the UI.
 - **Cost is estimated** while the mock backend is active; real billing lands with
@@ -70,17 +70,17 @@ Wave 0 contracts, so it is intentionally a single coordinated change.
   `source_node_type`, `model`, `seed`, `cost`.
 - `list` supports filtering by kind / project / model, text search over `prompt`,
   and sort order (newest, cost, …).
-- Full persistence: projects table + workflow persistence (save/load workflow
-  JSON keyed by project).
+- Full persistence: projects remain in the asset store; WorkflowHead revisions,
+  receipts, and undo records remain in the Workflow authority.
 - Acceptance: insert + query round-trips all new fields; text search and filters
-  work; a saved project/workflow reloads after reopening the store.
+  work; an authoritative WorkflowHead reloads after reopening the application.
 
 ### A4. Tauri — commands + progress forwarding
 
 - `run_workflow` wires the engine observer to Tauri `emit` events so the UI gets
   live per-node state/progress/cost.
 - Project commands: `list_projects`, `create_project`, `open_project`,
-  `save_workflow`, `load_workflow`.
+  `workflow_apply_patch`.
 - `list_assets` command signature gains search/filter/sort params.
 - Provider config commands: `get_providers`, `set_active_provider`,
   `set_provider_key` — stored locally, **keys never enter the repo**.

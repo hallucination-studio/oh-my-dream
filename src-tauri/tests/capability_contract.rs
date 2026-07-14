@@ -2,7 +2,10 @@ use engine::{CapabilityRef, WorkflowNode};
 use nodes::{
     CapabilityNodeStatus, DegradedCapabilityReason, migrate_legacy_node, resolve_workflow_node,
 };
-use oh_my_dream_tauri::commands::get_capability_catalog_with_state;
+use oh_my_dream_tauri::commands::{
+    get_capability_bundles_with_state, get_capability_catalog_with_state,
+    search_capabilities_with_state,
+};
 use oh_my_dream_tauri::dto::{
     CapabilityAvailabilityDto, CapabilityCardinalityDto, CapabilityCatalogDto,
 };
@@ -108,6 +111,61 @@ fn missing_exact_version_reopens_as_preserved_degraded_node() {
             reference: CapabilityRef { id, version }
         }) if id == "TextToImage" && version == "9.9"
     ));
+}
+
+#[test]
+fn palette_search_is_paged_and_only_returns_current_summaries() {
+    let root = tempdir().expect("create asset root");
+    let state = AppState::from_asset_root(root.path()).expect("build app state");
+
+    let first = search_capabilities_with_state("video".to_owned(), None, None, Some(1), &state)
+        .expect("search capability summaries");
+
+    assert_eq!(first.capabilities.len(), 1);
+    assert_eq!(first.capabilities[0].reference.id, "ImageToVideo");
+    assert!(first.capabilities[0].presentation.search_terms.iter().any(|term| term == "video"));
+    assert!(first.capabilities[0].status.reason.is_none());
+    assert!(first.capabilities[0].status.status_revision == 0);
+    assert_eq!(first.next_cursor.as_deref(), Some("1"));
+
+    let second = search_capabilities_with_state(
+        "video".to_owned(),
+        None,
+        first.next_cursor,
+        Some(10),
+        &state,
+    )
+    .expect("search next capability page");
+    assert_eq!(second.capabilities.len(), 1);
+    assert_eq!(second.capabilities[0].reference.id, "VideoConcat");
+    assert!(second.next_cursor.is_none());
+}
+
+#[test]
+fn exact_bundle_batch_preserves_unknown_refs_as_degraded_placeholders() {
+    let root = tempdir().expect("create asset root");
+    let state = AppState::from_asset_root(root.path()).expect("build app state");
+
+    let result = get_capability_bundles_with_state(
+        vec![
+            oh_my_dream_tauri::dto::CapabilityRefDto {
+                id: "TextPrompt".to_owned(),
+                version: "1.0".to_owned(),
+            },
+            oh_my_dream_tauri::dto::CapabilityRefDto {
+                id: "TextPrompt".to_owned(),
+                version: "9.9".to_owned(),
+            },
+        ],
+        &state,
+    )
+    .expect("load exact bundles");
+
+    assert_eq!(result.capabilities.len(), 2);
+    assert!(result.capabilities[0].contract.is_some());
+    assert!(result.capabilities[1].contract.is_none());
+    assert_eq!(result.capabilities[1].status.availability, CapabilityAvailabilityDto::Degraded);
+    assert!(result.capabilities[1].status.reason.is_some());
 }
 
 #[derive(Debug, Deserialize)]

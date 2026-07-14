@@ -41,7 +41,7 @@ fn write_large_output(stdout: &mut impl Write) -> io::Result<()> {
     for sequence in 0..LARGE_FRAME_COUNT {
         writeln!(
             stdout,
-            "{{\"protocol_version\":1,\"sequence\":{sequence},\"kind\":\"assistant_token\",\"payload\":{{\"text\":\"{payload}\"}}}}"
+            "{{\"protocol_version\":1,\"sequence\":{sequence},\"kind\":\"responses_event\",\"payload\":{{\"event\":{{\"type\":\"response.output_text.delta\",\"delta\":\"{payload}\"}}}}}}"
         )?;
     }
     stdout.flush()

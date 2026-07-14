@@ -252,34 +252,21 @@ fn cost_ascending_sorts_known_costs_before_unknown_costs() {
 }
 
 #[test]
-fn persists_projects_and_workflows_across_reopen() {
+fn persists_projects_across_reopen() {
     let temp = TempDir::new().expect("temp dir should be created");
-    let project_id = {
+    {
         let store = AssetStore::open(temp.path()).expect("store should open");
         let project = store.create_project("Launch").expect("project should create");
         assert_eq!(project.name, "Launch");
-        store
-            .save_workflow(
-                &project.id,
-                serde_json::json!({
-                    "version": "1.0",
-                    "project_id": project.id,
-                    "nodes": []
-                }),
-            )
-            .expect("workflow should save");
-        project.id
-    };
+    }
 
     let reopened = AssetStore::open(temp.path()).expect("store should reopen");
     let projects = reopened.list_projects().expect("projects should list");
-    let workflow = reopened.load_workflow(&project_id).expect("workflow should load");
 
     assert_eq!(
         projects.iter().map(|project| project.name.as_str()).collect::<Vec<_>>(),
         vec!["Launch"]
     );
-    assert_eq!(workflow["project_id"], project_id);
 }
 
 #[test]

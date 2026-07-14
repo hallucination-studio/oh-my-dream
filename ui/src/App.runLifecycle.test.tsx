@@ -27,13 +27,14 @@ it("keeps a new project run active when the previous run reports a late terminal
   });
 
   render(<App />);
+  await selectProject("No project", "Alpha");
   await screen.findByDisplayValue("alpha prompt");
-  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+  await startRun();
   await selectProject("Alpha", "Beta");
   await waitFor(() => expect(screen.getByDisplayValue("beta prompt")).toBeTruthy());
 
   expect(alphaCancel).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+  await startRun();
   act(() => observers[0]?.onStatus({ state: "cancelled" }));
 
   expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
@@ -54,8 +55,9 @@ it("cancels the active run and clears its projection when the workflow is edited
   });
 
   render(<App />);
+  await selectProject("No project", "Alpha");
   const prompt = await screen.findByDisplayValue("alpha prompt");
-  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+  await startRun();
   act(() => {
     const runObserver = observe as RunObserver | null;
     runObserver?.onProgress({
@@ -92,8 +94,9 @@ it("clears a completed run projection when the workflow is edited", async () => 
   });
 
   render(<App />);
+  await selectProject("No project", "Alpha");
   const prompt = await screen.findByDisplayValue("alpha prompt");
-  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+  await startRun();
   act(() => {
     const runObserver = observe as RunObserver | null;
     runObserver?.onStatus({
@@ -117,8 +120,9 @@ it("cancels the active run before unmounting", async () => {
   const cancel = vi.fn();
   vi.spyOn(api, "runWorkflow").mockReturnValue({ runId: "alpha-run", cancel });
   const view = render(<App />);
+  await selectProject("No project", "Alpha");
   await screen.findByDisplayValue("alpha prompt");
-  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+  await startRun();
 
   view.unmount();
 
@@ -137,8 +141,9 @@ it("shows cancelling until the run reports an authoritative terminal state", asy
   });
 
   render(<App />);
+  await selectProject("No project", "Alpha");
   await screen.findByDisplayValue("alpha prompt");
-  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+  await startRun();
   act(() => observe?.onProgress({
     nodeId: "alpha-prompt",
     progress: 0.5,
@@ -182,8 +187,9 @@ it("keeps the active run cancellable after a cancellation request fails", async 
   });
 
   render(<App />);
+  await selectProject("No project", "Alpha");
   await screen.findByDisplayValue("alpha prompt");
-  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+  await startRun();
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
   expect(screen.getByRole("status").textContent).toContain("Cancel request failed");
@@ -193,4 +199,9 @@ it("keeps the active run cancellable after a cancellation request fails", async 
 
 function runState(): string {
   return document.querySelector(".topbar__state")?.textContent ?? "";
+}
+
+async function startRun(): Promise<void> {
+  fireEvent.click(screen.getByRole("button", { name: "Run" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy());
 }

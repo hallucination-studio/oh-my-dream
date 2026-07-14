@@ -1,7 +1,7 @@
 use assets::{AssetKind, AssetStore};
 use engine::{
-    EngineError, Executor, NodeParams, NodeRegistry, OutputRef, ResultCache, Value, Workflow,
-    WorkflowNode,
+    EngineError, Executor, InputBinding, NodeParams, NodeRegistry, OutputRef, ResultCache, Value,
+    Workflow, WorkflowNode,
 };
 use nodes::{
     GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGenerator,
@@ -159,7 +159,7 @@ fn full_workflow() -> Workflow {
         })),
         inputs: BTreeMap::from([(
             "image".to_owned(),
-            OutputRef("image".to_owned(), "image".to_owned()),
+            InputBinding::single(OutputRef("image".to_owned(), "image".to_owned())),
         )]),
         position: None,
     });
@@ -190,7 +190,7 @@ fn image_workflow() -> Workflow {
                 })),
                 inputs: BTreeMap::from([(
                     "prompt".to_owned(),
-                    OutputRef("prompt".to_owned(), "text".to_owned()),
+                    InputBinding::single(OutputRef("prompt".to_owned(), "text".to_owned())),
                 )]),
                 position: None,
             },
@@ -221,7 +221,7 @@ fn audio_workflow() -> Workflow {
                 })),
                 inputs: BTreeMap::from([(
                     "prompt".to_owned(),
-                    OutputRef("prompt".to_owned(), "text".to_owned()),
+                    InputBinding::single(OutputRef("prompt".to_owned(), "text".to_owned())),
                 )]),
                 position: None,
             },

@@ -1,27 +1,32 @@
 #![forbid(unsafe_code)]
 
 pub mod assistant;
-pub mod assistant_capabilities;
+pub mod assistant_commands;
 pub mod assistant_operations;
 pub mod assistant_runtime;
 pub mod assistant_sidecar;
 pub mod assistant_transport;
 pub mod capability_catalog;
+pub mod capability_discovery;
 mod command_error;
 pub mod commands;
 pub mod dto;
 mod mock_generation;
 pub mod state;
+pub mod workflow_authority;
+pub mod workflow_patch_operation;
+mod workflow_repository;
 pub mod workflow_run_commands;
 pub mod workflow_run_dto;
 pub mod workflow_runs;
+pub mod workspace_snapshot;
 
 use commands::{
-    assets_root, cancel_workflow_run, create_project, get_asset, get_assistant_config,
-    get_assistant_session, get_capability_catalog, get_capability_manifest, get_providers,
-    install_skill, list_assets, list_projects, list_skills, load_workflow, open_project,
-    run_workflow, save_workflow, set_active_provider, set_assistant_config, set_provider_key,
-    set_skill_enabled, start_workflow_run, uninstall_skill,
+    assets_root, assistant_send, cancel_workflow_run, create_project, get_asset,
+    get_assistant_config, get_capability_bundles, get_capability_catalog, get_providers,
+    list_assets, list_projects, open_project, run_workflow, search_capabilities,
+    set_active_provider, set_assistant_config, set_provider_key, start_workflow_run,
+    workflow_apply_patch,
 };
 use tauri::Manager;
 
@@ -37,6 +42,7 @@ pub fn run() -> tauri::Result<()> {
         })
         .invoke_handler(tauri::generate_handler![
             run_workflow,
+            assistant_send,
             start_workflow_run,
             cancel_workflow_run,
             list_assets,
@@ -45,20 +51,15 @@ pub fn run() -> tauri::Result<()> {
             list_projects,
             create_project,
             open_project,
-            save_workflow,
-            load_workflow,
+            workflow_apply_patch,
             get_providers,
             set_active_provider,
             set_provider_key,
             get_capability_catalog,
-            get_capability_manifest,
+            search_capabilities,
+            get_capability_bundles,
             get_assistant_config,
             set_assistant_config,
-            get_assistant_session,
-            list_skills,
-            install_skill,
-            set_skill_enabled,
-            uninstall_skill
         ])
         .run(tauri::generate_context!())
 }
