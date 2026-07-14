@@ -60,7 +60,10 @@ async def test_one_runner_call_owns_plan_patch_correction_and_review(tmp_path: P
         ("workflow_prepare_patch", '{"candidate_id":"candidate-2","patch":"review-fix"}'),
         ("candidate_review", '{"candidate_id":"candidate-2"}'),
     ]
-    model = ScriptedToolModel(steps)
+    model = ScriptedToolModel(
+        steps,
+        required_previous_outputs={4: "PATCH_INVALID", 8: '"verdict": "reject"'},
+    )
     agent = Agent(name="Strong coauthor", model=model, tools=tools)
 
     result = Runner.run_streamed(

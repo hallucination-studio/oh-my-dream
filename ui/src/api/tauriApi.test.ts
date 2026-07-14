@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AssetDto,
-  AssistantApprovalDecisionInput,
   AssistantSendInput,
   RunObserver,
   WorkflowRunEvent,
@@ -338,22 +337,6 @@ describe("tauriApi assistant commands", () => {
     });
   });
 
-  it("resumes the pending assistant run with an explicit approval decision", async () => {
-    const { tauriApi } = await import("./tauriApi.ts");
-    const input: AssistantApprovalDecisionInput = {
-      project_id: "project-1",
-      candidate_digest: "sha256:candidate",
-      approved: true,
-    };
-    const onEvent = vi.fn();
-    invokeMock.mockResolvedValueOnce(null);
-
-    await expect(tauriApi.decideAssistantApproval(input, onEvent)).resolves.toBeNull();
-    expect(invokeMock).toHaveBeenCalledWith("assistant_decide_approval", {
-      input,
-      on_event: expect.anything(),
-    });
-  });
 });
 
 function assetFixture(overrides: Partial<AssetDto> = {}): AssetDto {

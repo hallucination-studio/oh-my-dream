@@ -141,6 +141,7 @@ async fn approval_command_applies_once_replays_and_rejection_has_no_effect() {
     let stale = assistant_decide_approval_with_state(
         AssistantApprovalDecisionInput {
             project_id: "project".to_owned(),
+            approval_scope_id: "stale-scope".to_owned(),
             candidate_digest: "sha256:stale".to_owned(),
             approved: true,
         },
@@ -153,6 +154,7 @@ async fn approval_command_applies_once_replays_and_rejection_has_no_effect() {
     let first = assistant_decide_approval_with_state(
         AssistantApprovalDecisionInput {
             project_id: "project".to_owned(),
+            approval_scope_id: pending_scope(&state),
             candidate_digest: pending_digest(&state),
             approved: true,
         },
@@ -168,6 +170,7 @@ async fn approval_command_applies_once_replays_and_rejection_has_no_effect() {
     let replay = assistant_decide_approval_with_state(
         AssistantApprovalDecisionInput {
             project_id: "project".to_owned(),
+            approval_scope_id: pending_scope(&state),
             candidate_digest: pending_digest(&state),
             approved: true,
         },
@@ -183,6 +186,7 @@ async fn approval_command_applies_once_replays_and_rejection_has_no_effect() {
     let rejected = assistant_decide_approval_with_state(
         AssistantApprovalDecisionInput {
             project_id: "project".to_owned(),
+            approval_scope_id: pending_scope(&state),
             candidate_digest: pending_digest(&state),
             approved: false,
         },
@@ -221,6 +225,7 @@ async fn approval_command_rejects_a_candidate_with_a_stale_base() {
     let error = assistant_decide_approval_with_state(
         AssistantApprovalDecisionInput {
             project_id: "project".to_owned(),
+            approval_scope_id: pending_scope(&state),
             candidate_digest: pending_digest(&state),
             approved: true,
         },
@@ -308,4 +313,11 @@ fn pending_digest(state: &AppState) -> String {
         .expect("pending lookup")
         .expect("pending approval")
         .candidate_digest
+}
+
+fn pending_scope(state: &AppState) -> String {
+    assistant_get_pending_approval_with_state("project", state)
+        .expect("pending lookup")
+        .expect("pending approval")
+        .approval_scope_id
 }

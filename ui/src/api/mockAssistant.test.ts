@@ -8,6 +8,7 @@ import type { AssistantPendingApproval } from "./types.ts";
 
 const APPROVAL: AssistantPendingApproval = {
   project_id: "project-1",
+  approval_scope_id: "scope-1",
   user_intent: "Build a film",
   candidate_digest: "sha256:candidate",
   reviewer_version: "reviewer-v1",
@@ -25,7 +26,12 @@ it.each([true, false])("clears a pending approval after decision %s", async (app
   primeMockAssistantApproval(APPROVAL);
   const onEvent = vi.fn();
   await decideAssistantApproval(
-    { project_id: "project-1", candidate_digest: "sha256:candidate", approved },
+    {
+      project_id: "project-1",
+      approval_scope_id: "scope-1",
+      candidate_digest: "sha256:candidate",
+      approved,
+    },
     onEvent,
   );
   await expect(getPendingAssistantApproval()).resolves.toBeNull();
@@ -35,14 +41,24 @@ it.each([true, false])("clears a pending approval after decision %s", async (app
 it("rejects missing and cross-project pending approvals", async () => {
   await expect(
     decideAssistantApproval(
-      { project_id: "project-1", candidate_digest: "sha256:candidate", approved: true },
+      {
+        project_id: "project-1",
+        approval_scope_id: "scope-1",
+        candidate_digest: "sha256:candidate",
+        approved: true,
+      },
       vi.fn(),
     ),
   ).rejects.toThrow("ASSISTANT_APPROVAL_NOT_FOUND");
   primeMockAssistantApproval(APPROVAL);
   await expect(
     decideAssistantApproval(
-      { project_id: "project-2", candidate_digest: "sha256:candidate", approved: true },
+      {
+        project_id: "project-2",
+        approval_scope_id: "scope-1",
+        candidate_digest: "sha256:candidate",
+        approved: true,
+      },
       vi.fn(),
     ),
   ).rejects.toThrow("ASSISTANT_APPROVAL_SCOPE_MISMATCH");
@@ -52,7 +68,12 @@ it("rejects a decision for a replaced candidate", async () => {
   primeMockAssistantApproval(APPROVAL);
   await expect(
     decideAssistantApproval(
-      { project_id: "project-1", candidate_digest: "sha256:stale", approved: true },
+      {
+        project_id: "project-1",
+        approval_scope_id: "stale-scope",
+        candidate_digest: "sha256:candidate",
+        approved: true,
+      },
       vi.fn(),
     ),
   ).rejects.toThrow("ASSISTANT_APPROVAL_STALE");

@@ -16,6 +16,7 @@ it("loads the exact pending reviewed Assistant candidate", async () => {
   const { tauriApi } = await import("./tauriApi.ts");
   const approval = {
     project_id: "project-1",
+    approval_scope_id: "scope-1",
     user_intent: "Build a film",
     candidate_digest: "sha256:candidate",
     reviewer_version: "reviewer-v1",
@@ -40,4 +41,21 @@ it("propagates pending approval command errors", async () => {
   await expect(tauriApi.getPendingAssistantApproval("project-1")).rejects.toThrow(
     "ASSISTANT_APPROVAL_NOT_FOUND",
   );
+});
+
+it("resumes the exact pending approval scope", async () => {
+  const { tauriApi } = await import("./tauriApi.ts");
+  const input = {
+    project_id: "project-1",
+    approval_scope_id: "scope-1",
+    candidate_digest: "sha256:candidate",
+    approved: true,
+  };
+  invokeMock.mockResolvedValueOnce(null);
+
+  await expect(tauriApi.decideAssistantApproval(input, vi.fn())).resolves.toBeNull();
+  expect(invokeMock).toHaveBeenCalledWith("assistant_decide_approval", {
+    input,
+    on_event: expect.anything(),
+  });
 });

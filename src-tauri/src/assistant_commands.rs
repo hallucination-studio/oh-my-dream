@@ -51,6 +51,7 @@ pub struct AssistantSendInput {
 #[serde(deny_unknown_fields)]
 pub struct AssistantApprovalDecisionInput {
     pub project_id: String,
+    pub approval_scope_id: String,
     pub candidate_digest: String,
     pub approved: bool,
 }
@@ -120,7 +121,9 @@ pub async fn assistant_decide_approval_with_state(
         return Err("ASSISTANT_APPROVAL_SCOPE_MISMATCH".to_owned());
     }
     let pending = pending::pending_approval_dto(&input.project_id, &session_id, &waiting, state)?;
-    if pending.candidate_digest != input.candidate_digest {
+    if pending.approval_scope_id != input.approval_scope_id
+        || pending.candidate_digest != input.candidate_digest
+    {
         return Err("ASSISTANT_APPROVAL_STALE".to_owned());
     }
     let invocation = AssistantInvocation::new(

@@ -13,6 +13,7 @@ pub fn fixture() -> AssistantApprovalFixture {
     AssistantApprovalFixture {
         pending: AssistantPendingApprovalDto {
             project_id: "project-1".to_owned(),
+            approval_scope_id: "scope-1".to_owned(),
             user_intent: "Build a film".to_owned(),
             candidate_digest: "sha256:candidate".to_owned(),
             reviewer_version: "reviewer-v1".to_owned(),
@@ -25,6 +26,7 @@ pub fn fixture() -> AssistantApprovalFixture {
         },
         decision: AssistantApprovalDecisionInput {
             project_id: "project-1".to_owned(),
+            approval_scope_id: "scope-1".to_owned(),
             candidate_digest: "sha256:candidate".to_owned(),
             approved: true,
         },

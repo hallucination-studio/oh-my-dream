@@ -165,6 +165,7 @@ export function AssistantDock({
       const workflowHead = await apiClient.decideAssistantApproval(
         {
           project_id: pendingApproval.project_id,
+          approval_scope_id: pendingApproval.approval_scope_id,
           candidate_digest: pendingApproval.candidate_digest,
           approved,
         },

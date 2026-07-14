@@ -3,11 +3,24 @@ from pathlib import Path
 
 def test_product_has_one_initial_runner_entry_and_no_plan_scheduler() -> None:
     root = Path(__file__).resolve().parents[2]
-    commands = (root / "src-tauri/src/assistant_commands.rs").read_text()
-    production_plan = (root / "src-tauri/src/production_plan/operations.rs").read_text()
+    sources = list((root / "assistant").glob("*.py")) + list(
+        (root / "src-tauri/src").rglob("*.rs")
+    )
+    runner_entries = [
+        path.relative_to(root)
+        for path in sources
+        if "Runner.run_streamed" in path.read_text()
+    ]
+    invoke_entries = [
+        path.relative_to(root) for path in sources if ".invoke_streamed(" in path.read_text()
+    ]
+    resume_entries = [
+        path.relative_to(root) for path in sources if ".resume_streamed(" in path.read_text()
+    ]
+    product_source = "\n".join(path.read_text() for path in sources)
 
-    assert commands.count(".invoke_streamed(") == 1
-    assert commands.count(".resume_streamed(") == 1
-    assert "claim_next" not in production_plan
-    assert "activate_next" not in production_plan
-    assert "Runner.run" not in commands
+    assert runner_entries == [Path("assistant/stdio_app.py")]
+    assert invoke_entries == [Path("src-tauri/src/assistant_commands.rs")]
+    assert resume_entries == [Path("src-tauri/src/assistant_commands.rs")]
+    assert "claim_next" not in product_source
+    assert "activate_next" not in product_source

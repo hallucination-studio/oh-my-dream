@@ -37,6 +37,9 @@ export async function decideAssistantApproval(
   if (pendingApproval.project_id !== _input.project_id) {
     throw new Error("ASSISTANT_APPROVAL_SCOPE_MISMATCH");
   }
+  if (pendingApproval.approval_scope_id !== _input.approval_scope_id) {
+    throw new Error("ASSISTANT_APPROVAL_STALE");
+  }
   if (pendingApproval.candidate_digest !== _input.candidate_digest) {
     throw new Error("ASSISTANT_APPROVAL_STALE");
   }

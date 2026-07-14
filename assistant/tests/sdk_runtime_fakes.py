@@ -237,9 +237,14 @@ class MultiStepToolModel(Model):
 class ScriptedToolModel(MultiStepToolModel):
     """Request exact named tools with exact JSON arguments."""
 
-    def __init__(self, steps: list[tuple[str, str]]) -> None:
+    def __init__(
+        self,
+        steps: list[tuple[str, str]],
+        required_previous_outputs: dict[int, str] | None = None,
+    ) -> None:
         super().__init__([name for name, _arguments in steps])
         self.scripted_steps = steps
+        self.required_previous_outputs = required_previous_outputs or {}
 
     async def stream_response(self, *args: Any, **kwargs: Any) -> AsyncIterator[ResponseStreamEvent]:
         input_value = args[1] if len(args) > 1 else kwargs["input"]
@@ -251,6 +256,16 @@ class ScriptedToolModel(MultiStepToolModel):
                 == "function_call_output"
                 for item in input_value
             )
+        required = self.required_previous_outputs.get(completed_steps)
+        if required is not None:
+            outputs = [
+                item.get("output") if isinstance(item, dict) else getattr(item, "output", None)
+                for item in input_value
+                if (item.get("type") if isinstance(item, dict) else getattr(item, "type", None))
+                == "function_call_output"
+            ]
+            if not outputs or required not in str(outputs[-1]):
+                raise AssertionError(f"expected previous tool output containing {required!r}")
         if completed_steps < len(self.scripted_steps):
             name, arguments = self.scripted_steps[completed_steps]
             self.requested_steps.append(name)

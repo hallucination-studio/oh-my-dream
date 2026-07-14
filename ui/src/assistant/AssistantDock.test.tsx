@@ -12,6 +12,7 @@ const CONTEXT = {
 };
 const PENDING_APPROVAL = {
   project_id: "project-1",
+  approval_scope_id: "scope-1",
   user_intent: "Build a film",
   candidate_digest: "sha256:candidate",
   reviewer_version: "reviewer-v1",
@@ -137,7 +138,12 @@ describe("AssistantDock", () => {
 
     await waitFor(() =>
       expect(decideAssistantApproval).toHaveBeenCalledWith(
-        { project_id: "project-1", candidate_digest: "sha256:candidate", approved: true },
+        {
+          project_id: "project-1",
+          approval_scope_id: "scope-1",
+          candidate_digest: "sha256:candidate",
+          approved: true,
+        },
         expect.any(Function),
       ),
     );

@@ -9,6 +9,7 @@ use tauri::State;
 #[serde(deny_unknown_fields)]
 pub struct AssistantPendingApprovalDto {
     pub project_id: String,
+    pub approval_scope_id: String,
     pub user_intent: String,
     pub candidate_digest: String,
     pub reviewer_version: String,
@@ -55,6 +56,7 @@ pub(super) fn pending_approval_dto(
         .map_err(|error| error.to_string())?;
     Ok(AssistantPendingApprovalDto {
         project_id: project_id.to_owned(),
+        approval_scope_id: receipt.approval_scope_id().to_owned(),
         user_intent: candidate.user_intent().to_owned(),
         candidate_digest: candidate.digest().to_owned(),
         reviewer_version: receipt.reviewer_version().to_owned(),
