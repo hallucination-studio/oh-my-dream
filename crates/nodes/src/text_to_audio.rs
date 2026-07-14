@@ -1,6 +1,8 @@
 use crate::error::{NodesError, boxed, generation_error};
 use crate::media::{AssetMetadata, store_generated_asset};
-use crate::params::{canonicalize_mode, optional_param, string_param, text_input};
+use crate::params::{
+    canonicalize_mode, optional_param, reject_unknown_params, string_param, text_input,
+};
 use crate::ports::{output, required_input};
 use crate::{GenerationContext, SharedAssetStore, TextToAudioGenerator, TextToAudioRequest};
 use assets::AssetKind;
@@ -58,13 +60,7 @@ pub(crate) fn registration(
 }
 
 fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
-    let allowed = ["mode", "model", "seed"];
-    if let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) {
-        return Err(boxed(NodesError::InvalidParam {
-            name: name.clone(),
-            reason: "unknown parameter".to_owned(),
-        }));
-    }
+    reject_unknown_params(params, &["mode", "model", "seed"]).map_err(boxed)?;
     let model = string_param(params, &["model"], "mock-audio").map_err(boxed)?;
     let seed = optional_param::<u64>(params, &["seed"]).map_err(boxed)?;
     let mut normalized =

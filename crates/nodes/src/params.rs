@@ -39,6 +39,16 @@ pub(crate) fn canonicalize_mode(
     Ok(())
 }
 
+pub(crate) fn reject_unknown_params(
+    params: &NodeParams,
+    allowed: &[&str],
+) -> Result<(), NodesError> {
+    let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) else {
+        return Ok(());
+    };
+    Err(invalid_param(name, "unknown parameter".to_owned()))
+}
+
 pub(crate) fn text_input<'a>(inputs: &'a ValueMap, name: &str) -> Result<&'a str, NodesError> {
     match inputs.get(name) {
         Some(Value::String(value)) => Ok(value),

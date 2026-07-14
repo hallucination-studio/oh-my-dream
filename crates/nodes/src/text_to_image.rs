@@ -1,6 +1,8 @@
 use crate::error::{NodesError, boxed, generation_error};
 use crate::media::{AssetMetadata, store_generated_asset};
-use crate::params::{canonicalize_mode, optional_param, string_param, text_input};
+use crate::params::{
+    canonicalize_mode, optional_param, reject_unknown_params, string_param, text_input,
+};
 use crate::ports::{output, required_input};
 use crate::{GenerationContext, SharedAssetStore, TextToImageGenerator, TextToImageRequest};
 use assets::AssetKind;
@@ -60,7 +62,8 @@ pub(crate) fn registration(
 }
 
 fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
-    reject_unknown_params(params)?;
+    reject_unknown_params(params, &["mode", "model", "negative_prompt", "steps", "seed"])
+        .map_err(boxed)?;
     let model = string_param(params, &["model"], "mock-image").map_err(boxed)?;
     let negative_prompt = optional_param::<String>(params, &["negative_prompt"]).map_err(boxed)?;
     let steps = optional_param::<u32>(params, &["steps"]).map_err(boxed)?;
@@ -84,17 +87,6 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
         normalized.insert("seed".to_owned(), serde_json::json!(value));
     }
     Ok(normalized)
-}
-
-fn reject_unknown_params(params: &NodeParams) -> Result<(), NodeRunError> {
-    let allowed = ["mode", "model", "negative_prompt", "steps", "seed"];
-    if let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) {
-        return Err(boxed(NodesError::InvalidParam {
-            name: name.clone(),
-            reason: "unknown parameter".to_owned(),
-        }));
-    }
-    Ok(())
 }
 
 struct TextToImageNode {

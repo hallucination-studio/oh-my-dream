@@ -103,9 +103,7 @@ impl NodeRegistry {
         contract_version: &str,
         params: &NodeParams,
     ) -> Result<Box<dyn Node>, EngineError> {
-        if !self.capabilities.contains_id(type_id)
-            && !self.capabilities.contains_selector_type(type_id)
-        {
+        if !self.contains_capability_type(type_id) {
             return self.instantiate(node_id, type_id, params);
         }
         let reference = self.resolve_workflow_capability_reference(
@@ -148,9 +146,7 @@ impl NodeRegistry {
         contract_version: &str,
         params: &NodeParams,
     ) -> Result<CapabilityRef, EngineError> {
-        if !self.capabilities.contains_id(type_id)
-            && !self.capabilities.contains_selector_type(type_id)
-        {
+        if !self.contains_capability_type(type_id) {
             return Ok(CapabilityRef::new(type_id, contract_version));
         }
         self.resolve_workflow_capability_reference(node_id, type_id, contract_version, params)
@@ -191,9 +187,7 @@ impl NodeRegistry {
     /// Returns whether a `type_id` is registered.
     #[must_use]
     pub fn contains(&self, type_id: &str) -> bool {
-        self.factories.contains_key(type_id)
-            || self.capabilities.contains_id(type_id)
-            || self.capabilities.contains_selector_type(type_id)
+        self.factories.contains_key(type_id) || self.contains_capability_type(type_id)
     }
 
     /// Returns whether an exact id or output modality belongs to a capability registration.

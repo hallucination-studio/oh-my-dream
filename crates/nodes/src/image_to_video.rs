@@ -1,6 +1,8 @@
 use crate::error::{NodesError, boxed, generation_error};
 use crate::media::{AssetMetadata, ResolvedImageInput, resolve_image_input, store_generated_asset};
-use crate::params::{canonicalize_mode, image_input, optional_param, string_param};
+use crate::params::{
+    canonicalize_mode, image_input, optional_param, reject_unknown_params, string_param,
+};
 use crate::ports::{output, required_input};
 use crate::{GenerationContext, ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore};
 use assets::AssetKind;
@@ -60,7 +62,8 @@ pub(crate) fn registration(
 }
 
 fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
-    reject_unknown_params(params)?;
+    reject_unknown_params(params, &["mode", "model", "duration", "duration_seconds", "fps"])
+        .map_err(boxed)?;
     let model = string_param(params, &["model"], "mock-video").map_err(boxed)?;
     let duration =
         optional_param::<f32>(params, &["duration", "duration_seconds"]).map_err(boxed)?;
@@ -87,17 +90,6 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
         normalized.insert("fps".to_owned(), serde_json::json!(value));
     }
     Ok(normalized)
-}
-
-fn reject_unknown_params(params: &NodeParams) -> Result<(), NodeRunError> {
-    let allowed = ["mode", "model", "duration", "duration_seconds", "fps"];
-    if let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) {
-        return Err(boxed(NodesError::InvalidParam {
-            name: name.clone(),
-            reason: "unknown parameter".to_owned(),
-        }));
-    }
-    Ok(())
 }
 
 struct ImageToVideoNode {

@@ -1,5 +1,5 @@
 use crate::error::boxed;
-use crate::params::{canonicalize_mode, string_param};
+use crate::params::{canonicalize_mode, reject_unknown_params, string_param};
 use crate::ports::output;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
@@ -48,21 +48,11 @@ pub(crate) fn registration() -> CapabilityRegistration {
 
 fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     let text = string_param(params, &["text", "prompt"], "").map_err(boxed)?;
-    reject_unknown_params(params, &["mode", "text", "prompt"])?;
+    reject_unknown_params(params, &["mode", "text", "prompt"]).map_err(boxed)?;
     let mut normalized =
         NodeParams::from_iter([("text".to_owned(), serde_json::Value::String(text))]);
     canonicalize_mode(params, &mut normalized, MODE).map_err(boxed)?;
     Ok(normalized)
-}
-
-fn reject_unknown_params(params: &NodeParams, allowed: &[&str]) -> Result<(), NodeRunError> {
-    if let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) {
-        return Err(boxed(crate::error::NodesError::InvalidParam {
-            name: name.clone(),
-            reason: "unknown parameter".to_owned(),
-        }));
-    }
-    Ok(())
 }
 
 struct TextPromptNode {
