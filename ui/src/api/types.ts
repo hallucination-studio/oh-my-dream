@@ -246,6 +246,11 @@ export interface AssistantSendInput {
   text: string;
 }
 
+export interface AssistantApprovalDecisionInput {
+  project_id: string;
+  approved: boolean;
+}
+
 export type ResponsesStreamEvent = JsonObject & { type: string };
 
 export interface ListAssetsOptions {
@@ -310,6 +315,10 @@ export interface WorkflowApi {
   setAssistantConfig: (input: AssistantConfigInput) => Promise<void>;
   sendAssistant: (
     input: AssistantSendInput,
+    onEvent: (event: ResponsesStreamEvent) => void,
+  ) => Promise<WorkflowHead | null>;
+  decideAssistantApproval: (
+    input: AssistantApprovalDecisionInput,
     onEvent: (event: ResponsesStreamEvent) => void,
   ) => Promise<WorkflowHead | null>;
 }

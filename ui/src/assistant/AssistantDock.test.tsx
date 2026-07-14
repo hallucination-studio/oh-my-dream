@@ -97,6 +97,35 @@ describe("AssistantDock", () => {
 
     await waitFor(() => expect(onWorkflowHead).toHaveBeenCalledWith(workflowHead));
   });
+
+  it("shows an explicit approval card and resumes the exact pending run", async () => {
+    const decideAssistantApproval = vi.fn().mockResolvedValue(null);
+    const apiClient = workflowApi({
+      sendAssistant: vi.fn().mockRejectedValue(new Error("ASSISTANT_APPROVAL_DEFERRED")),
+      decideAssistantApproval,
+    });
+
+    render(
+      <AssistantDock
+        onClose={() => {}}
+        apiClient={apiClient}
+        getContext={() => CONTEXT}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
+      target: { value: "Build a film" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Approve and apply" }));
+
+    await waitFor(() =>
+      expect(decideAssistantApproval).toHaveBeenCalledWith(
+        { project_id: "project-1", approved: true },
+        expect.any(Function),
+      ),
+    );
+  });
 });
 
 function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
@@ -117,6 +146,7 @@ function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
     getAssistantConfig: vi.fn(),
     setAssistantConfig: vi.fn(),
     sendAssistant: vi.fn(),
+    decideAssistantApproval: vi.fn(),
     ...overrides,
   };
 }

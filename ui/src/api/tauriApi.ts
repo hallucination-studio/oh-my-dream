@@ -11,6 +11,7 @@ import type {
   AssetDto,
   AssistantConfig,
   AssistantConfigInput,
+  AssistantApprovalDecisionInput,
   AssistantSendInput,
   ResponsesStreamEvent,
   CancelWorkflowRunResult,
@@ -234,6 +235,18 @@ async function sendAssistant(
   return invoke<WorkflowHead | null>("assistant_send", { input, on_event: channel });
 }
 
+async function decideAssistantApproval(
+  input: AssistantApprovalDecisionInput,
+  onEvent: (event: ResponsesStreamEvent) => void,
+): Promise<WorkflowHead | null> {
+  const channel = new Channel<ResponsesStreamEvent>();
+  channel.onmessage = onEvent;
+  return invoke<WorkflowHead | null>("assistant_decide_approval", {
+    input,
+    on_event: channel,
+  });
+}
+
 function convertAssetPaths(asset: AssetDto, root: string | null): AssetDto {
   return {
     ...asset,
@@ -276,4 +289,5 @@ export const tauriApi: WorkflowApi = {
   getAssistantConfig,
   setAssistantConfig,
   sendAssistant,
+  decideAssistantApproval,
 };

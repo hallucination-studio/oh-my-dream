@@ -379,6 +379,14 @@ async function sendAssistant(
   return null;
 }
 
+async function decideAssistantApproval(
+  _input: import("./types.ts").AssistantApprovalDecisionInput,
+  onEvent: (event: ResponsesStreamEvent) => void,
+): Promise<WorkflowHead | null> {
+  onEvent({ type: "response.completed" });
+  return null;
+}
+
 export const mockApi: WorkflowApi = {
   runWorkflow,
   assetsRoot,
@@ -396,4 +404,5 @@ export const mockApi: WorkflowApi = {
   getAssistantConfig,
   setAssistantConfig,
   sendAssistant,
+  decideAssistantApproval,
 };

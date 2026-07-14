@@ -7,6 +7,7 @@ import {
   type WorkflowHead,
 } from "../api/index.ts";
 import "./assistantDock.css";
+import { AssistantApprovalCard } from "./AssistantApprovalCard.tsx";
 
 // Keep the product projection small while preserving the order of native stream events.
 type StreamItem =
@@ -53,6 +54,8 @@ export function AssistantDock({
     text: "Ready",
     connected: true,
   });
+  const [pendingApprovalProject, setPendingApprovalProject] = useState<string | null>(null);
+  const [approvalBusy, setApprovalBusy] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const sendingRef = useRef(false);
@@ -128,10 +131,36 @@ export function AssistantDock({
       setStatus((current) => ({ ...current, text: "Ready" }));
       setDraft("");
     } catch (error: unknown) {
-      setStatus((current) => ({ ...current, text: String(error) }));
+      const message = String(error);
+      if (message.includes("ASSISTANT_APPROVAL_DEFERRED")) {
+        setPendingApprovalProject(getContext().project_id);
+        setStatus((current) => ({ ...current, text: "Waiting for approval" }));
+        setDraft("");
+      } else {
+        setStatus((current) => ({ ...current, text: message }));
+      }
       composerRef.current?.focus();
     } finally {
       sendingRef.current = false;
+    }
+  };
+
+  const decideApproval = async (approved: boolean) => {
+    if (!pendingApprovalProject || approvalBusy) return;
+    setApprovalBusy(true);
+    setStatus((current) => ({ ...current, text: approved ? "Applying" : "Rejecting" }));
+    try {
+      const workflowHead = await apiClient.decideAssistantApproval(
+        { project_id: pendingApprovalProject, approved },
+        handleEvent,
+      );
+      if (workflowHead !== null) await onWorkflowHead?.(workflowHead);
+      setPendingApprovalProject(null);
+      setStatus((current) => ({ ...current, text: approved ? "Applied" : "Rejected" }));
+    } catch (error: unknown) {
+      setStatus((current) => ({ ...current, text: String(error) }));
+    } finally {
+      setApprovalBusy(false);
     }
   };
 
@@ -158,6 +187,9 @@ export function AssistantDock({
         ) : (
           <EmptyState onPick={(text) => setDraft(text)} />
         )}
+        {pendingApprovalProject ? (
+          <AssistantApprovalCard busy={approvalBusy} onDecision={(value) => void decideApproval(value)} />
+        ) : null}
       </div>
 
       <div className="adock__composer">

@@ -208,6 +208,28 @@
   border-top: 1px solid var(--hair);
   padding: 10px;
 }
+
+.adock__approval {
+  margin: 12px;
+  padding: 14px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.adock__approval-kicker {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.adock__approval h3 { margin: 6px 0; font-size: 14px; }
+.adock__approval p { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+.adock__approval-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.adock__approval-actions button { padding: 6px 10px; border: 1px solid var(--hair); border-radius: var(--r-sm); }
+.adock__approval-actions .is-primary { color: white; background: var(--accent-strong); border-color: var(--accent-strong); }
 .adock__cbox {
   background: var(--surface-sunk);
   border: 1px solid transparent;
