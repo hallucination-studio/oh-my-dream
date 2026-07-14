@@ -80,6 +80,10 @@ const dimensions = rubric?.dimensions ?? [];
 assert(dimensions.length === 13 && new Set(dimensions.map((item) => item.id)).size === 13, "Expected 13 unique rubric dimensions");
 assert(dimensions.every((item) => item.weight > 0 && ["0", "1", "2", "3", "4"].every((score) => typeof item.scoring?.[score] === "string")), "Rubric scoring or weights are invalid");
 assert(rubric?.aggregation?.partial_run_policy?.includes("never award a full-project score"), "Partial-run scoring policy is missing");
+const calibration = await readJson(resolve(root, "rubrics/calibration-cases.json"));
+const calibrationIds = new Set(calibration?.cases?.map((item) => item.case_id));
+for (const requiredCase of ["missing-group", "missing-modality", "exact-copy-bias", "simulator-gaming", "cascading-error", "provider-coupling", "unbounded-cost", "provider-failure", "abstention"])
+  assert(calibrationIds.has(requiredCase), `Missing calibration case ${requiredCase}`);
 assert(taskSchema?.$schema?.includes("2020-12") && rubricSchema?.$schema?.includes("2020-12"), "Schemas must use JSON Schema 2020-12");
 
 const generatedFiles = (await walk(root)).filter((path) => /\.(json|md)$/.test(path) && !path.includes("benchmark-research.md") && !path.includes("source/production-branch-catalog.json") && !path.includes("source/workflow-inventory.json"));

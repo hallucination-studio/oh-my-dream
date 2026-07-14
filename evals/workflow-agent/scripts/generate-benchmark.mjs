@@ -197,6 +197,9 @@ await writeJson("rubrics/calibration-cases.json", {
     ["missing-group", 0, "Coverage hard gate"], ["missing-modality", 0, "Modality hard gate"], ["invalid-workflow", 0, "Workflow hard gate"],
     ["provider-failure", 2, "Correct bounded recovery and honest report earn process credit"], ["abstention", 3, "Correct abstention when evidence is insufficient"],
     ["simulator-gaming", 0, "Keyword matching without contract evidence"], ["cascading-error", 1, "Later local passes cannot hide an earlier broken handoff"],
+    ["exact-copy-bias", 4, "A professionally equivalent implementation earns full credit without copying source wording"],
+    ["provider-coupling", 0, "A provider-specific contract violates implementation neutrality"],
+    ["unbounded-cost", 0, "Missing attempt, candidate, cost, or latency bounds violates the execution gate"],
   ].map(([case_id, expected_score, rationale]) => ({ case_id, expected_score, rationale })),
 });
 

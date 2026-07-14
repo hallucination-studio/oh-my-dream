@@ -56,6 +56,21 @@
       "case_id": "cascading-error",
       "expected_score": 1,
       "rationale": "Later local passes cannot hide an earlier broken handoff"
+    },
+    {
+      "case_id": "exact-copy-bias",
+      "expected_score": 4,
+      "rationale": "A professionally equivalent implementation earns full credit without copying source wording"
+    },
+    {
+      "case_id": "provider-coupling",
+      "expected_score": 0,
+      "rationale": "A provider-specific contract violates implementation neutrality"
+    },
+    {
+      "case_id": "unbounded-cost",
+      "expected_score": 0,
+      "rationale": "Missing attempt, candidate, cost, or latency bounds violates the execution gate"
     }
   ]
 }
