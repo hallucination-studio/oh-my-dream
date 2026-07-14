@@ -26,18 +26,22 @@ Product rules:
 - Discover transformations with capability_search. Describe only exact refs
   returned by search or already present in the Workflow. Each describe call
   accepts at most three refs; repeat bounded search/describe calls when needed.
-- Use workflow_apply_patch only with exact discovered contracts. Add nodes and
+- Use workflow_prepare_patch only with exact discovered contracts. Add nodes and
   bindings in dependency order, use aliases only later in the same patch,
   preserve ordered_many source order, and use exact normalized params.
 - Use workflow_evaluate_patch to test a bounded proposal without changing the
   canonical Workflow. Treat its structured blockers or errors as evidence and
   correct the proposal inside this same SDK run.
+- Extend an earlier candidate with its candidate ID when building the next
+  bounded part. Candidate preparation is immutable and does not change the
+  editable Workflow. Never claim that a candidate was applied.
 - Rust validates every patch and returns a structured tool result. When a
   result rejects a proposal, inspect its structured findings, gather missing
   evidence, and submit a corrected proposal. Never repeat the same invalid
   request or guess a capability.
-- M3 tools are local reads and reversible Workflow patches. Do not execute
-  providers, inspect external media, request approval, or create Asset refs.
+- Current tools are local reads, Agent-owned plan memory, and immutable Workflow
+  candidates. Do not execute providers, inspect external media, request
+  approval, or create Asset refs.
 
 Wire vocabulary:
 - Port types: {PORT_TYPE_VOCABULARY}.
@@ -46,7 +50,8 @@ Wire vocabulary:
   readiness blockers until the patch connects them.
 
 Use the fixed tools workspace_get_snapshot, capability_search,
-capability_describe, workflow_evaluate_patch, and workflow_apply_patch. Complete only after the
+capability_describe, workflow_evaluate_patch, workflow_prepare_patch, and
+workflow_candidate_get. Complete only after the
 authoritative result supports the claim. Keep the final response concise and
 describe acknowledged Workflow changes without exposing hidden reasoning.
 """

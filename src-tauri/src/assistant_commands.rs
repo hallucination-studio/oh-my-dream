@@ -8,6 +8,7 @@ use crate::assistant_runtime::{
 use crate::capability_discovery::CapabilityDiscovery;
 use crate::dto::WorkflowHeadDto;
 use crate::production_plan::operations::ProductionPlanOperations;
+use crate::reviewed_change::ReviewedChangeOperations;
 use crate::state::AppState;
 use crate::workflow_patch_operation::WorkflowPatchService;
 use crate::workspace_snapshot::WorkspaceSnapshotService;
@@ -86,8 +87,6 @@ fn operation_registrations(state: &AppState) -> Result<Vec<OperationRegistration
         .operation_registration()
         .map_err(|error| error.to_string())?;
     let patch_service = Arc::new(WorkflowPatchService::from_state(state));
-    let patch =
-        Arc::clone(&patch_service).operation_registration().map_err(|error| error.to_string())?;
     let evaluate =
         patch_service.evaluation_operation_registration().map_err(|error| error.to_string())?;
     let discovery = Arc::new(CapabilityDiscovery::from_state(state))
@@ -96,10 +95,21 @@ fn operation_registrations(state: &AppState) -> Result<Vec<OperationRegistration
     let plan = ProductionPlanOperations::new(Arc::clone(&state.production_plan))
         .registrations()
         .map_err(|error| error.to_string())?;
-    let mut registrations = vec![snapshot, patch, evaluate];
+    let candidates = ReviewedChangeOperations::new(Arc::clone(&state.reviewed_change))
+        .registrations()
+        .map_err(|error| error.to_string())?;
+    let mut registrations = vec![snapshot, evaluate];
     registrations.extend(discovery);
     registrations.extend(plan);
+    registrations.extend(candidates);
     Ok(registrations)
+}
+
+/// Returns the exact production Assistant operation IDs for architecture tests.
+pub fn production_operation_ids(state: &AppState) -> Result<Vec<String>, String> {
+    operation_registrations(state).map(|registrations| {
+        registrations.into_iter().map(|registration| registration.id().to_owned()).collect()
+    })
 }
 
 fn validate_send(input: &AssistantSendInput, state: &AppState) -> Result<(), String> {
@@ -276,6 +286,8 @@ mod tests {
 
         for expected in [
             "workflow_evaluate_patch",
+            "workflow_prepare_patch",
+            "workflow_candidate_get",
             "production_plan_get",
             "production_plan_create",
             "production_plan_replace",
@@ -284,6 +296,7 @@ mod tests {
             assert!(ids.iter().any(|id| id == expected), "missing {expected}");
         }
         assert!(ids.iter().all(|id| !id.contains("next") && !id.contains("claim")));
+        assert!(!ids.iter().any(|id| id == "workflow_apply_patch"));
     }
 
     #[test]

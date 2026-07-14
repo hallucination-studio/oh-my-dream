@@ -13,6 +13,7 @@ pub mod commands;
 pub mod dto;
 mod mock_generation;
 pub mod production_plan;
+pub mod reviewed_change;
 pub mod state;
 pub mod workflow_authority;
 pub mod workflow_patch_operation;

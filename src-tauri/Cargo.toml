@@ -35,6 +35,7 @@ rusqlite.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tauri = { workspace = true, features = ["protocol-asset"] }
 thiserror.workspace = true
 tokio.workspace = true

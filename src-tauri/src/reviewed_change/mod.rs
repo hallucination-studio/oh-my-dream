@@ -1,0 +1,240 @@
+//! Immutable reviewed-change candidates prepared before human approval.
+
+use engine::{
+    NodeRegistry, Workflow, WorkflowPatch, WorkflowReadinessBlocker, apply_workflow_patch,
+};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
+use std::time::{SystemTime, UNIX_EPOCH};
+use thiserror::Error;
+
+mod operations;
+mod sqlite;
+
+pub use operations::ReviewedChangeOperations;
+pub use sqlite::ReviewedChangeSqliteRepository;
+
+static NEXT_CANDIDATE_ID: AtomicU64 = AtomicU64::new(1);
+const CANDIDATE_TTL_SECONDS: u64 = 3_600;
+
+/// Immutable proposal built from an exact ordered patch sequence.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct WorkflowCandidate {
+    id: String,
+    project_id: String,
+    session_id: String,
+    base_revision: Option<u64>,
+    patches: Vec<WorkflowPatch>,
+    digest: String,
+    workflow_fingerprint: String,
+    workflow: Workflow,
+    readiness_blockers: Vec<WorkflowReadinessBlocker>,
+    expires_at: u64,
+}
+
+impl WorkflowCandidate {
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+    #[must_use]
+    pub fn project_id(&self) -> &str {
+        &self.project_id
+    }
+    #[must_use]
+    pub fn session_id(&self) -> &str {
+        &self.session_id
+    }
+    #[must_use]
+    pub fn base_revision(&self) -> Option<u64> {
+        self.base_revision
+    }
+    #[must_use]
+    pub fn patches(&self) -> &[WorkflowPatch] {
+        &self.patches
+    }
+    #[must_use]
+    pub fn digest(&self) -> &str {
+        &self.digest
+    }
+    #[must_use]
+    pub fn workflow_fingerprint(&self) -> &str {
+        &self.workflow_fingerprint
+    }
+    #[must_use]
+    pub fn workflow(&self) -> &Workflow {
+        &self.workflow
+    }
+    #[must_use]
+    pub fn readiness_blockers(&self) -> &[WorkflowReadinessBlocker] {
+        &self.readiness_blockers
+    }
+    #[must_use]
+    pub fn expires_at(&self) -> u64 {
+        self.expires_at
+    }
+}
+
+/// Trusted input for one bounded candidate extension.
+pub struct PrepareCandidateInput {
+    pub project_id: String,
+    pub session_id: String,
+    pub expected_revision: Option<u64>,
+    pub prior_candidate_id: Option<String>,
+    pub patch: WorkflowPatch,
+}
+
+/// Persistence boundary consumed by immutable reviewed changes.
+pub trait ReviewedChangeRepository: Send + Sync {
+    fn insert(&self, candidate: &WorkflowCandidate) -> Result<(), ReviewedChangeError>;
+    fn get(&self, candidate_id: &str) -> Result<Option<WorkflowCandidate>, ReviewedChangeError>;
+}
+
+/// Read boundary for the authoritative Workflow base.
+pub trait CandidateWorkflowSource: Send + Sync {
+    fn load(&self, project_id: &str) -> Result<Option<(u64, Workflow)>, ReviewedChangeError>;
+}
+
+/// Prepares and retrieves immutable candidates without committing a Workflow.
+pub struct ReviewedChangeService {
+    registry: Arc<NodeRegistry>,
+    source: Arc<dyn CandidateWorkflowSource>,
+    repository: Arc<dyn ReviewedChangeRepository>,
+}
+
+impl ReviewedChangeService {
+    #[must_use]
+    pub fn new(
+        registry: Arc<NodeRegistry>,
+        source: Arc<dyn CandidateWorkflowSource>,
+        repository: Arc<dyn ReviewedChangeRepository>,
+    ) -> Self {
+        Self { registry, source, repository }
+    }
+
+    pub fn prepare(
+        &self,
+        input: PrepareCandidateInput,
+    ) -> Result<WorkflowCandidate, ReviewedChangeError> {
+        let current = self.source.load(&input.project_id)?;
+        let current_revision = current.as_ref().map(|(revision, _)| *revision);
+        if input.expected_revision != current_revision {
+            return Err(ReviewedChangeError::RevisionConflict {
+                expected: input.expected_revision,
+                actual: current_revision,
+            });
+        }
+        let (base, mut patches) = self.candidate_base(&input, current)?;
+        let result = apply_workflow_patch(&self.registry, &base, &input.patch)
+            .map_err(|error| ReviewedChangeError::InvalidPatch(error.to_string()))?;
+        patches.push(input.patch.clone());
+        let candidate = new_candidate(input, patches, result)?;
+        self.repository.insert(&candidate)?;
+        Ok(candidate)
+    }
+
+    pub fn get(
+        &self,
+        candidate_id: &str,
+    ) -> Result<Option<WorkflowCandidate>, ReviewedChangeError> {
+        self.repository.get(candidate_id)
+    }
+
+    fn candidate_base(
+        &self,
+        input: &PrepareCandidateInput,
+        current: Option<(u64, Workflow)>,
+    ) -> Result<(Workflow, Vec<WorkflowPatch>), ReviewedChangeError> {
+        let Some(prior_id) = input.prior_candidate_id.as_deref() else {
+            let workflow = current.map(|(_, workflow)| workflow).unwrap_or_else(|| Workflow {
+                version: "1.0".to_owned(),
+                project_id: input.project_id.clone(),
+                nodes: Vec::new(),
+            });
+            return Ok((workflow, Vec::new()));
+        };
+        let prior = self
+            .repository
+            .get(prior_id)?
+            .ok_or_else(|| ReviewedChangeError::CandidateNotFound(prior_id.to_owned()))?;
+        if prior.project_id != input.project_id
+            || prior.session_id != input.session_id
+            || prior.base_revision != input.expected_revision
+        {
+            return Err(ReviewedChangeError::CandidateScopeMismatch);
+        }
+        if prior.expires_at <= now_seconds()? {
+            return Err(ReviewedChangeError::CandidateExpired);
+        }
+        Ok((prior.workflow, prior.patches))
+    }
+}
+
+fn new_candidate(
+    input: PrepareCandidateInput,
+    patches: Vec<WorkflowPatch>,
+    result: engine::WorkflowPatchResult,
+) -> Result<WorkflowCandidate, ReviewedChangeError> {
+    let digest = fingerprint(&patches)?;
+    let workflow_fingerprint = fingerprint(&result.workflow)?;
+    let sequence = NEXT_CANDIDATE_ID.fetch_add(1, Ordering::Relaxed);
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| ReviewedChangeError::Clock(error.to_string()))?
+        .as_nanos();
+    Ok(WorkflowCandidate {
+        id: format!("candidate-{timestamp:032x}-{sequence:016x}"),
+        project_id: input.project_id,
+        session_id: input.session_id,
+        base_revision: input.expected_revision,
+        patches,
+        digest,
+        workflow_fingerprint,
+        workflow: result.workflow,
+        readiness_blockers: result.readiness_blockers,
+        expires_at: now_seconds()?.saturating_add(CANDIDATE_TTL_SECONDS),
+    })
+}
+
+fn fingerprint(value: &impl Serialize) -> Result<String, ReviewedChangeError> {
+    let bytes = serde_json::to_vec(value)
+        .map_err(|error| ReviewedChangeError::Storage(error.to_string()))?;
+    Ok(format!("sha256:{:x}", Sha256::digest(bytes)))
+}
+
+fn now_seconds() -> Result<u64, ReviewedChangeError> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .map_err(|error| ReviewedChangeError::Clock(error.to_string()))
+}
+
+#[derive(Debug, Error)]
+pub enum ReviewedChangeError {
+    #[error("Workflow revision conflict: expected {expected:?}, actual {actual:?}")]
+    RevisionConflict { expected: Option<u64>, actual: Option<u64> },
+    #[error("candidate not found: {0}")]
+    CandidateNotFound(String),
+    #[error("candidate scope does not match the request")]
+    CandidateScopeMismatch,
+    #[error("candidate has expired")]
+    CandidateExpired,
+    #[error("invalid Workflow patch: {0}")]
+    InvalidPatch(String),
+    #[error("reviewed-change storage failed: {0}")]
+    Storage(String),
+    #[error("system clock failed: {0}")]
+    Clock(String),
+}
+
+impl CandidateWorkflowSource for crate::workflow_authority::WorkflowAuthority {
+    fn load(&self, project_id: &str) -> Result<Option<(u64, Workflow)>, ReviewedChangeError> {
+        self.load_head(project_id)
+            .map(|head| head.map(|head| (head.revision, head.workflow)))
+            .map_err(|error| ReviewedChangeError::Storage(error.to_string()))
+    }
+}

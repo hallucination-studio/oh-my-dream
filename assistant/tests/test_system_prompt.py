@@ -15,6 +15,8 @@ class SystemPromptTests(unittest.TestCase):
         self.assertIn("choose the next creative step", prompt)
         self.assertIn("structured tool result", prompt)
         self.assertIn("workflow_evaluate_patch", prompt)
+        self.assertIn("workflow_prepare_patch", prompt)
+        self.assertNotIn("Use workflow_apply_patch", prompt)
 
     def test_prompt_treats_production_plan_as_agent_memory_not_a_queue(self) -> None:
         prompt = build_system_prompt()

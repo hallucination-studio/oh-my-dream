@@ -2,6 +2,7 @@ use crate::assistant_runtime::AssistantSidecarCommand;
 use crate::assistant_sidecar::configured_assistant_command;
 use crate::mock_generation::MockGenerationAdapter;
 use crate::production_plan::{ProductionPlanService, ProductionPlanSqliteRepository};
+use crate::reviewed_change::{ReviewedChangeService, ReviewedChangeSqliteRepository};
 use crate::workflow_authority::WorkflowAuthority;
 use crate::workflow_repository::WorkflowSqliteRepository;
 use crate::workflow_runs::WorkflowRuns;
@@ -32,6 +33,8 @@ pub struct AppState {
     pub workflow_authority: Arc<WorkflowAuthority>,
     /// Durable Agent-owned production memory.
     pub production_plan: Arc<ProductionPlanService>,
+    /// Immutable Workflow candidates awaiting review and approval.
+    pub reviewed_change: Arc<ReviewedChangeService>,
     /// Command selected by the composition root for the framed stdio runtime.
     pub assistant_sidecar_command: AssistantSidecarCommand,
 }
@@ -101,6 +104,17 @@ impl AppState {
         .context("open production plan memory")?;
         let production_plan =
             Arc::new(ProductionPlanService::new(Arc::new(production_plan_repository)));
+        let reviewed_change_repository = ReviewedChangeSqliteRepository::open(
+            ReviewedChangeSqliteRepository::path(&config_root),
+        )
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
+        .context("open reviewed-change candidates")?;
+        let reviewed_change = Arc::new(ReviewedChangeService::new(
+            Arc::clone(&registry),
+            Arc::clone(&workflow_authority)
+                as Arc<dyn crate::reviewed_change::CandidateWorkflowSource>,
+            Arc::new(reviewed_change_repository),
+        ));
         Ok(Self {
             root,
             config_root,
@@ -110,6 +124,7 @@ impl AppState {
             workflow_runs,
             workflow_authority,
             production_plan,
+            reviewed_change,
             assistant_sidecar_command,
         })
     }
