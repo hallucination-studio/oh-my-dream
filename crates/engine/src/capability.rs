@@ -227,23 +227,11 @@ impl CapabilityRegistration {
 #[derive(Default)]
 pub struct CapabilityRegistry {
     registrations: BTreeMap<CapabilityRef, CapabilityRegistration>,
-    current_versions: BTreeMap<String, String>,
     selector_ids: BTreeMap<CapabilitySelector, String>,
     current_selectors: BTreeMap<CapabilitySelector, CapabilityRef>,
 }
 
 impl CapabilityRegistry {
-    /// Registers a capability and marks its version as current for discovery.
-    pub fn register_current(
-        &mut self,
-        registration: CapabilityRegistration,
-    ) -> Result<(), CapabilityRegistryError> {
-        let reference = registration.reference().clone();
-        self.register(registration)?;
-        self.current_versions.insert(reference.id.clone(), reference.version.clone());
-        Ok(())
-    }
-
     /// Registers a selector-aware capability and marks it current for that selector.
     pub fn register_selector_current(
         &mut self,
@@ -294,18 +282,6 @@ impl CapabilityRegistry {
         Ok(())
     }
 
-    /// Marks an already registered exact version as current for new-node search.
-    pub fn mark_current(
-        &mut self,
-        reference: &CapabilityRef,
-    ) -> Result<(), CapabilityRegistryError> {
-        if !self.registrations.contains_key(reference) {
-            return Err(CapabilityRegistryError::UnknownReference { reference: reference.clone() });
-        }
-        self.current_versions.insert(reference.id.clone(), reference.version.clone());
-        Ok(())
-    }
-
     /// Resolves only the requested exact `{id, version}`.
     pub fn resolve(
         &self,
@@ -314,12 +290,6 @@ impl CapabilityRegistry {
         self.registrations.get(reference).ok_or_else(|| CapabilityRegistryError::UnknownReference {
             reference: reference.clone(),
         })
-    }
-
-    /// Returns the current exact ref for new-node discovery.
-    #[must_use]
-    pub fn current(&self, id: &str) -> Option<CapabilityRef> {
-        self.current_versions.get(id).map(|version| CapabilityRef::new(id, version))
     }
 
     /// Returns the current exact ref selected by one Workflow modality and mode.
@@ -343,7 +313,10 @@ impl CapabilityRegistry {
     /// Returns the current exact refs used for new-node discovery.
     #[must_use]
     pub fn current_references(&self) -> Vec<CapabilityRef> {
-        self.current_versions.iter().map(|(id, version)| CapabilityRef::new(id, version)).collect()
+        let mut references = self.current_selectors.values().cloned().collect::<Vec<_>>();
+        references.sort_unstable();
+        references.dedup();
+        references
     }
 
     fn validate_selector_binding(

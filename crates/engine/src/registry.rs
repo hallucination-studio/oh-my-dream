@@ -53,20 +53,18 @@ impl NodeRegistry {
                 source,
             });
         }
-        let reference =
-            self.capabilities.current(type_id).ok_or_else(|| EngineError::UnknownNodeType {
+        let reference = params
+            .get("mode")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|mode| {
+                self.capabilities
+                    .current_for_selector(&CapabilitySelector::new(type_id, mode))
+            })
+            .ok_or_else(|| EngineError::UnknownNodeType {
                 node_id: node_id.to_owned(),
                 type_id: type_id.to_owned(),
             })?;
         self.instantiate_capability(node_id, &reference, params)
-    }
-
-    /// Registers one exact capability and marks it current for compatibility discovery.
-    pub fn register_capability(
-        &mut self,
-        registration: CapabilityRegistration,
-    ) -> Result<(), CapabilityRegistryError> {
-        self.capabilities.register_current(registration)
     }
 
     /// Registers one exact capability and marks it current for its declared selector.

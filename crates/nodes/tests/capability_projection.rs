@@ -24,6 +24,7 @@ fn capability_projection_contains_exact_contract_and_presentation_pairs() {
         vec![
             CapabilityRef::new("ImageToVideo", "1.0"),
             CapabilityRef::new("TextPrompt", "1.0"),
+            CapabilityRef::new("TextToAudio", "1.0"),
             CapabilityRef::new("TextToImage", "1.0"),
             CapabilityRef::new("VideoConcat", "1.0"),
         ]

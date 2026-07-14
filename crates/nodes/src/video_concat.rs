@@ -1,14 +1,16 @@
 use crate::error::boxed;
+use crate::params::canonicalize_mode;
 use crate::ports::{output, required_many_input};
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult,
+    CapabilityRegistration, CapabilitySelector, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult,
     OutputPort, PortCardinality, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 
 const TYPE_ID: &str = "VideoConcat";
 const CONTRACT_VERSION: &str = engine::DEFAULT_CAPABILITY_VERSION;
+const MODE: &str = "concat";
 
 pub(crate) fn registration() -> CapabilityRegistration {
     let reference = CapabilityRef::new(TYPE_ID, CONTRACT_VERSION);
@@ -21,10 +23,15 @@ pub(crate) fn registration() -> CapabilityRegistration {
         vec![CapabilityPort::output("video", PortType::Video)],
         serde_json::json!({
             "type": "object",
-            "properties": {},
+            "properties": {
+                "mode": {"type": "string", "const": MODE, "default": MODE}
+            },
             "additionalProperties": false
         }),
-        NodeParams::new(),
+        NodeParams::from_iter([(
+            "mode".to_owned(),
+            serde_json::Value::String(MODE.to_owned()),
+        )]),
         vec![CapabilityEffect::Pure],
     );
     CapabilityRegistration::new(
@@ -38,16 +45,19 @@ pub(crate) fn registration() -> CapabilityRegistration {
         Box::new(normalize_params),
         Box::new(|_| Ok(Box::new(VideoConcatNode::new()))),
     )
+    .with_selector(CapabilitySelector::new("Video", MODE))
 }
 
 fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
-    if let Some(name) = params.keys().next() {
+    if let Some(name) = params.keys().find(|name| name.as_str() != "mode") {
         return Err(boxed(crate::error::NodesError::InvalidParam {
             name: name.clone(),
             reason: "VideoConcat does not accept params".to_owned(),
         }));
     }
-    Ok(NodeParams::new())
+    let mut normalized = NodeParams::new();
+    canonicalize_mode(params, &mut normalized, MODE).map_err(boxed)?;
+    Ok(normalized)
 }
 
 struct VideoConcatNode {

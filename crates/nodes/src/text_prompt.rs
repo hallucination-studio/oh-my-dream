@@ -1,15 +1,16 @@
 use crate::error::boxed;
-use crate::params::string_param;
+use crate::params::{canonicalize_mode, string_param};
 use crate::ports::output;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
+    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
     NodeRunResult, OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use tracing::info;
 
 const TYPE_ID: &str = "TextPrompt";
+const MODE: &str = "literal";
 
 pub(crate) fn registration() -> CapabilityRegistration {
     let contract = CapabilityContract::new(
@@ -19,12 +20,16 @@ pub(crate) fn registration() -> CapabilityRegistration {
         serde_json::json!({
             "type": "object",
             "properties": {
+                "mode": {"type": "string", "const": MODE, "default": MODE},
                 "text": {"type": "string", "default": ""},
                 "prompt": {"type": "string"}
             },
             "additionalProperties": false
         }),
-        NodeParams::from_iter([("text".to_owned(), serde_json::Value::String(String::new()))]),
+        NodeParams::from_iter([
+            ("mode".to_owned(), serde_json::Value::String(MODE.to_owned())),
+            ("text".to_owned(), serde_json::Value::String(String::new())),
+        ]),
         vec![CapabilityEffect::Pure],
     );
     CapabilityRegistration::new(
@@ -38,12 +43,16 @@ pub(crate) fn registration() -> CapabilityRegistration {
         Box::new(normalize_params),
         Box::new(|params| TextPromptNode::from_params(params).map(boxed_node).map_err(boxed)),
     )
+    .with_selector(CapabilitySelector::new("Text", MODE))
 }
 
 fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     let text = string_param(params, &["text", "prompt"], "").map_err(boxed)?;
-    reject_unknown_params(params, &["text", "prompt"])?;
-    Ok(NodeParams::from_iter([("text".to_owned(), serde_json::Value::String(text))]))
+    reject_unknown_params(params, &["mode", "text", "prompt"])?;
+    let mut normalized =
+        NodeParams::from_iter([("text".to_owned(), serde_json::Value::String(text))]);
+    canonicalize_mode(params, &mut normalized, MODE).map_err(boxed)?;
+    Ok(normalized)
 }
 
 fn reject_unknown_params(params: &NodeParams, allowed: &[&str]) -> Result<(), NodeRunError> {

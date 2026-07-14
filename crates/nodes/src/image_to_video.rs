@@ -1,12 +1,12 @@
 use crate::error::{NodesError, boxed, generation_error};
 use crate::media::{AssetMetadata, ResolvedImageInput, resolve_image_input, store_generated_asset};
-use crate::params::{image_input, optional_param, string_param};
+use crate::params::{canonicalize_mode, image_input, optional_param, string_param};
 use crate::ports::{output, required_input};
 use crate::{GenerationContext, ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore};
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
+    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
     NodeRunResult, OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tracing::info;
 
 const TYPE_ID: &str = "ImageToVideo";
+const MODE: &str = "image";
 
 pub(crate) fn registration(
     generator: Arc<dyn ImageToVideoGenerator>,
@@ -26,6 +27,7 @@ pub(crate) fn registration(
         serde_json::json!({
             "type": "object",
             "properties": {
+                "mode": {"type": "string", "const": MODE, "default": MODE},
                 "model": {"type": "string", "default": "mock-video"},
                 "duration": {"type": "number", "exclusiveMinimum": 0},
                 "duration_seconds": {"type": "number", "exclusiveMinimum": 0},
@@ -33,10 +35,10 @@ pub(crate) fn registration(
             },
             "additionalProperties": false
         }),
-        NodeParams::from_iter([(
-            "model".to_owned(),
-            serde_json::Value::String("mock-video".to_owned()),
-        )]),
+        NodeParams::from_iter([
+            ("mode".to_owned(), serde_json::Value::String(MODE.to_owned())),
+            ("model".to_owned(), serde_json::Value::String("mock-video".to_owned())),
+        ]),
         vec![CapabilityEffect::External],
     );
     CapabilityRegistration::new(
@@ -54,6 +56,7 @@ pub(crate) fn registration(
                 .map_err(boxed)
         }),
     )
+    .with_selector(CapabilitySelector::new("Video", MODE))
 }
 
 fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
@@ -76,6 +79,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     }
     let mut normalized =
         NodeParams::from_iter([("model".to_owned(), serde_json::Value::String(model))]);
+    canonicalize_mode(params, &mut normalized, MODE).map_err(boxed)?;
     if let Some(value) = duration {
         normalized.insert("duration".to_owned(), serde_json::json!(value));
     }
@@ -86,7 +90,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
 }
 
 fn reject_unknown_params(params: &NodeParams) -> Result<(), NodeRunError> {
-    let allowed = ["model", "duration", "duration_seconds", "fps"];
+    let allowed = ["mode", "model", "duration", "duration_seconds", "fps"];
     if let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) {
         return Err(boxed(NodesError::InvalidParam {
             name: name.clone(),

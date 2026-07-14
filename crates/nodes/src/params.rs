@@ -25,6 +25,20 @@ where
         .map_err(|source| invalid_param(name, source.to_string()))
 }
 
+pub(crate) fn canonicalize_mode(
+    params: &NodeParams,
+    normalized: &mut NodeParams,
+    expected: &str,
+) -> Result<(), NodesError> {
+    if let Some(mode) = optional_param::<String>(params, &["mode"])?
+        && mode != expected
+    {
+        return Err(invalid_param("mode", format!("must be `{expected}`")));
+    }
+    normalized.insert("mode".to_owned(), serde_json::Value::String(expected.to_owned()));
+    Ok(())
+}
+
 pub(crate) fn text_input<'a>(inputs: &'a ValueMap, name: &str) -> Result<&'a str, NodesError> {
     match inputs.get(name) {
         Some(Value::String(value)) => Ok(value),

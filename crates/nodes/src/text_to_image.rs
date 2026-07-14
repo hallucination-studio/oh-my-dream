@@ -1,12 +1,12 @@
 use crate::error::{NodesError, boxed, generation_error};
 use crate::media::{AssetMetadata, store_generated_asset};
-use crate::params::{optional_param, string_param, text_input};
+use crate::params::{canonicalize_mode, optional_param, string_param, text_input};
 use crate::ports::{output, required_input};
 use crate::{GenerationContext, SharedAssetStore, TextToImageGenerator, TextToImageRequest};
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
+    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
     NodeRunResult, OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tracing::info;
 
 const TYPE_ID: &str = "TextToImage";
+const MODE: &str = "text";
 
 pub(crate) fn registration(
     generator: Arc<dyn TextToImageGenerator>,
@@ -26,6 +27,7 @@ pub(crate) fn registration(
         serde_json::json!({
             "type": "object",
             "properties": {
+                "mode": {"type": "string", "const": MODE, "default": MODE},
                 "model": {"type": "string", "default": "mock-image"},
                 "negative_prompt": {"type": "string"},
                 "steps": {"type": "integer", "minimum": 1},
@@ -33,10 +35,10 @@ pub(crate) fn registration(
             },
             "additionalProperties": false
         }),
-        NodeParams::from_iter([(
-            "model".to_owned(),
-            serde_json::Value::String("mock-image".to_owned()),
-        )]),
+        NodeParams::from_iter([
+            ("mode".to_owned(), serde_json::Value::String(MODE.to_owned())),
+            ("model".to_owned(), serde_json::Value::String("mock-image".to_owned())),
+        ]),
         vec![CapabilityEffect::External],
     );
     CapabilityRegistration::new(
@@ -54,6 +56,7 @@ pub(crate) fn registration(
                 .map_err(boxed)
         }),
     )
+    .with_selector(CapabilitySelector::new("Image", MODE))
 }
 
 fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
@@ -70,6 +73,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     }
     let mut normalized =
         NodeParams::from_iter([("model".to_owned(), serde_json::Value::String(model))]);
+    canonicalize_mode(params, &mut normalized, MODE).map_err(boxed)?;
     if let Some(value) = negative_prompt {
         normalized.insert("negative_prompt".to_owned(), serde_json::Value::String(value));
     }
@@ -83,7 +87,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
 }
 
 fn reject_unknown_params(params: &NodeParams) -> Result<(), NodeRunError> {
-    let allowed = ["model", "negative_prompt", "steps", "seed"];
+    let allowed = ["mode", "model", "negative_prompt", "steps", "seed"];
     if let Some(name) = params.keys().find(|name| !allowed.contains(&name.as_str())) {
         return Err(boxed(NodesError::InvalidParam {
             name: name.clone(),

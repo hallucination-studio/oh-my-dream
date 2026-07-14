@@ -4,7 +4,7 @@ use crate::{SharedAssetStore, TextToAudioGenerator};
 use engine::{CapabilityRegistryError, NodeRegistry};
 use std::sync::Arc;
 
-/// Registers the versioned co-author capability set and the legacy audio node.
+/// Registers the versioned co-author capability set.
 pub(crate) fn register_all(
     registry: &mut NodeRegistry,
     text_to_image_generator: Arc<dyn crate::TextToImageGenerator>,
@@ -12,16 +12,19 @@ pub(crate) fn register_all(
     text_to_audio_generator: Arc<dyn TextToAudioGenerator>,
     store: SharedAssetStore,
 ) -> Result<(), CapabilityRegistryError> {
-    registry.register_capability(crate::text_prompt::registration())?;
-    registry.register_capability(crate::text_to_image::registration(
+    registry.register_selector_capability(crate::text_prompt::registration())?;
+    registry.register_selector_capability(crate::text_to_image::registration(
         text_to_image_generator,
         Arc::clone(&store),
     ))?;
-    registry.register_capability(crate::image_to_video::registration(
+    registry.register_selector_capability(crate::image_to_video::registration(
         image_to_video_generator,
         Arc::clone(&store),
     ))?;
-    registry.register_capability(crate::video_concat::registration())?;
-    crate::text_to_audio::register(registry, text_to_audio_generator, store);
+    registry.register_selector_capability(crate::video_concat::registration())?;
+    registry.register_selector_capability(crate::text_to_audio::registration(
+        text_to_audio_generator,
+        store,
+    ))?;
     Ok(())
 }
