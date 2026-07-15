@@ -278,16 +278,49 @@ noun-specific accessors and fallible constructors where invariants exist:
 `Video(WorkflowManagedVideoRef)`, or `Audio(WorkflowManagedAudioRef)`. Its variant is the expected
 kind; there is no second kind field or untyped Asset ID.
 
-`NodeCapabilityManagedMediaReadRequest` contains Project ID, one typed managed-media reference, and
-one exact process-monotonic `Instant`. Readiness passes
+`NodeCapabilityManagedMediaReadSelection` is the closed union
+`AssetId(NodeCapabilityAssetIdMediaReadSelection)` or
+`ExactReference(NodeCapabilityManagedMediaReference)`.
+`NodeCapabilityAssetIdMediaReadSelection::new` has private Asset ID and expected-kind fields with
+noun-specific accessors.
+
+| Selection | Inputs | Resolution | Stable failure |
+| --- | --- | --- | --- |
+| `AssetId` | `WorkflowManagedAssetIdBoundaryValue`, expected `NodeCapabilityMediaKind` | Resolve the visible Available exact-kind Asset and return its typed reference | absent/Pending/Missing `Unavailable`; another kind `KindMismatch` |
+| `ExactReference` | one typed `NodeCapabilityManagedMediaReference` | Read only that Available reference and fingerprint | absent `Unavailable`; byte disagreement `DigestMismatch` |
+
+The three Asset-read capabilities use `AssetId` because their persisted parameter intentionally has
+no content fingerprint. A capability uses `ExactReference` when Workflow already carries an exact
+Available reference. There is no path, URL, untyped kind, optional fingerprint, lookup mode flag,
+or extra exact-reference wrapper.
+
+`NodeCapabilityManagedMediaReadRequest` contains Project ID, one
+`NodeCapabilityManagedMediaReadSelection`, and one exact process-monotonic `Instant`. Readiness passes
 `NodeCapabilityReadinessDeadline::monotonic_instant`; execution passes
 `NodeCapabilityExecutionDeadline::monotonic_instant`.
 `NodeCapabilityManagedMediaReaderInterface::read_managed_media`
 returns `Result<NodeCapabilityReadableMediaInput, NodeCapabilityMediaBoundaryError>`. The result is the
-matching closed Image/Video/Audio variant containing the same managed reference, exact MIME, byte
+matching closed Image/Video/Audio variant containing the resolved exact managed reference, exact MIME, byte
 length, declared media facts, and one `NodeCapabilityMediaSourceLease`. A mismatched result is
 `KindMismatch`; absent/Pending/Missing content is `Unavailable`; Asset storage and validation errors
 map only to the existing exact `NodeCapabilityMediaFailure` categories.
+
+Both selections resolve only within the supplied Project. Deadline is checked before lookup and
+before returning the source. The reader applies exactly this precedence:
+
+1. reject an elapsed deadline as `DeadlineExceeded`;
+2. resolve the Asset inside the supplied Project;
+3. require the selected or referenced media kind;
+4. require Available content;
+5. for `ExactReference` only, compare the resolved `AssetContentDescriptor.digest` with the reference
+   fingerprint without consuming or rehashing the one-shot source;
+6. return the typed reference, facts, MIME, descriptor length/digest, and source lease.
+
+`NotFound`, `NotVisible`, `ContentPending`, and `ContentMissing` translate to `Unavailable`;
+`MediaKindMismatch` translates to `KindMismatch`; an exact-reference descriptor digest difference
+translates to `DigestMismatch`. All other already-frozen Asset, media, and deadline translations are
+unchanged. These are selection semantics inside the existing reader interface; they do not add an
+Asset repository interface, metadata query, readiness cache, stream rehash, or fallback lookup.
 
 `NodeCapabilityMediaMimeType` is exactly `ImagePng`, `ImageJpeg`, `ImageWebp`, `VideoMp4`,
 `VideoWebm`, `AudioMpeg`, `AudioWav`, or `AudioOgg`. Generated MVP payloads restrict those values to
