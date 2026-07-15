@@ -232,6 +232,8 @@ when referring to creative Workflow work.
 | `NodeCapabilityNormalizedParameters` | validated normalized parameters plus stable input-item references |
 | `NodeCapabilityExecutionRequest` | exact frozen inputs and execution context supplied by Workflow |
 | `NodeCapabilityProducedMediaOutputKey` | node-owned idempotency value translated to `AssetNodeOutputKey` |
+| `NodeCapabilityGenerationProfileRefParameterValue` | engine boundary shape translated to nodes-owned `GenerationProfileRef` |
+| `NodeCapabilityManagedAssetIdParameterValue` | engine boundary UUID bytes translated to Asset-owned `AssetId` |
 | `GenerationProfileRef` | stable provider-independent user selection persisted on a model-powered node |
 | `GenerationProfileDefinition` | profile identity, lifecycle, and compatible capability refs |
 | `GenerationProfileAvailabilityObservation` | expiring operational observation, never persisted on a node |

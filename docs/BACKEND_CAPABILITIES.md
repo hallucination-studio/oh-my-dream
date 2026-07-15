@@ -76,6 +76,20 @@ matching `[a-z][a-z0-9_]*`. Display labels are never identity.
 | `3` | `GenerationProfile` | canonical D0.3 `GenerationProfileRef` bytes |
 | `4` | `ManagedAsset` | canonical D0.4 `AssetId` bytes |
 
+Engine stores those two cross-context variants as
+`NodeCapabilityGenerationProfileRefParameterValue` and
+`NodeCapabilityManagedAssetIdParameterValue`. They are mechanical boundary representations, not a
+second Generation Profile or Asset identity owner. The first contains the validated canonical
+profile ID bytes plus non-zero version; the second contains exact RFC 9562 UUIDv4 bytes. They expose
+only canonical bytes, equality, and ordering and cannot answer lifecycle, compatibility,
+availability, Project visibility, media kind, or Asset state.
+
+The Generation Profile module implements explicit conversion between `GenerationProfileRef` and
+`NodeCapabilityGenerationProfileRefParameterValue`. The Desktop node-to-Asset bridge converts
+between `NodeCapabilityManagedAssetIdParameterValue` and Asset-owned `AssetId` at its boundary.
+Engine performs only canonical shape validation; each semantic owner revalidates and interprets its
+domain value. No crate aliases, re-exports, or wraps these boundary values as its authoritative ID.
+
 The parameter set is a `BTreeMap<NodeCapabilityParameterKey, NodeCapabilityParameterValue>` with at
 most 64 entries. Its canonical bytes are entry count as big-endian `u32`, then ascending key/value
 pairs; keys and variable bytes use big-endian `u32` lengths and the explicit tags above. Unknown
