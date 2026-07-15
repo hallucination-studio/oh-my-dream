@@ -1,6 +1,6 @@
 # Strong Assistant MVP
 
-> Status: implemented and code-review approved
+> Status: Strong Assistant MVP implemented; ADR-002 extensions accepted and pending implementation
 > Last updated: 2026-07-15
 
 This document describes the implemented in-app Assistant architecture. Assistant
@@ -96,6 +96,11 @@ Assistant-authored changes cannot directly call the canonical mutating
 `workflow_apply_patch` operation. Manual UI editing may continue to use the
 canonical patch command.
 
+Every binding names both its source node or alias and exact output. Manual
+apply, non-mutating evaluation, candidate preparation, Reviewer evidence, and
+exact replay share this semantic. There is no first-output fallback, and ordered
+bindings retain their declared order through hashing and replay.
+
 ### Candidate preparation
 
 `workflow_prepare_patch` evaluates one bounded patch against an authoritative
@@ -139,6 +144,39 @@ sequence and commits one Workflow revision and one undo unit. Its existing
 request receipt is the idempotency authority. A crash before commit leaves no
 change; replay after commit returns the prior result. Stale revisions, changed
 identity, cross-Project use, and receipt reuse fail closed.
+
+For Asset Source candidates, approved apply also revalidates stable Asset
+identity, current-Project/global visibility, concrete media kind, and managed
+content availability. A missing or changed Asset leaves the Workflow unchanged.
+
+## Asset Source context
+
+The UI sends selected stable Asset IDs through trusted `selected_asset_ids`.
+`workspace_get_snapshot` resolves them within the current Project scope and
+returns bounded summaries. The model may see identity, kind, bounded prompt, and
+provenance, but never local paths, converted URLs, bytes, or filesystem data.
+
+Explicit selection takes priority. Without one, the Assistant may choose only
+from the bounded snapshot when the user request authorizes that choice. Asset
+Source params contain canonical `mode` and `asset_id`; the Assistant does not
+invent an empty or sentinel identity.
+
+Current-Project and global local Assets are visible. Another Project's private
+Asset is out of scope. The same Rust policy governs snapshots, candidate
+admission, approval revalidation, and execution.
+
+## Contract hard cut
+
+Structured `NodeInputs`, explicit patch outputs, and Asset-aware Assistant
+contracts are introduced as one hard cut. Only one active operation version and
+Reviewer contract exists. Old schemas, parsers, branches, and fixtures are
+deleted.
+
+A new Assistant contract epoch selects a fresh state namespace. ProductionPlans,
+candidates, receipts, approvals, repair state, SDK Sessions, and Runner state
+from an older epoch are not parsed or migrated. Users start a new turn from the
+current Workflow. Assistant configuration, Assets, and Workflow `1.0` documents
+remain because their formats are unchanged.
 
 ## Mock execution and repair
 
@@ -193,10 +231,11 @@ Deliberately post-MVP:
 - broad automated media-quality inspection;
 - automatic continuation after Runner exhaustion.
 
-## Frozen discovery boundary
+## Discovery contract
 
-The Strong Assistant MVP adds separate production operations and tests. It does
-not change the existing Assistant discovery contract or its frozen fixtures:
+Capability discovery remains Rust-generated and bounded. Asset Sources extend
+the exact catalog as contextual capabilities, so fixtures and cross-language
+tests change atomically with that catalog:
 
 - `src-tauri/src/capability_discovery.rs`
 - `src-tauri/src/capability_discovery/support.rs`
