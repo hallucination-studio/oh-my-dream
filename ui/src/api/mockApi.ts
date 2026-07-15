@@ -14,8 +14,6 @@ import type {
   AssetDto,
   AssistantConfig,
   AssistantConfigInput,
-  AssistantSendInput,
-  ResponsesStreamEvent,
   CapabilityBundle,
   CapabilityCatalog,
   CapabilityRef,
@@ -32,6 +30,11 @@ import type {
 } from "./types.ts";
 import capabilityCatalogFixture from "../__fixtures__/capability_catalog.json";
 import { createRunId } from "./runId.ts";
+import {
+  decideAssistantApproval,
+  getPendingAssistantApproval,
+  sendAssistant,
+} from "./mockAssistant.ts";
 
 const STEP_MS = 400;
 const mockHeads = new Map<string, WorkflowHead>();
@@ -379,16 +382,6 @@ async function setAssistantConfig(input: AssistantConfigInput): Promise<void> {
   };
 }
 
-async function sendAssistant(
-  input: AssistantSendInput,
-  onEvent: (event: ResponsesStreamEvent) => void,
-): Promise<WorkflowHead | null> {
-  if (!input.project_id) throw new Error("Open a project before using the assistant");
-  onEvent({ type: "response.output_text.delta", delta: "Mock assistant is available only for transport previews." });
-  onEvent({ type: "response.completed" });
-  return null;
-}
-
 export const mockApi: WorkflowApi = {
   runWorkflow,
   assetsRoot,
@@ -406,4 +399,6 @@ export const mockApi: WorkflowApi = {
   getAssistantConfig,
   setAssistantConfig,
   sendAssistant,
+  getPendingAssistantApproval,
+  decideAssistantApproval,
 };

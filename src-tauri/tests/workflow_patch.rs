@@ -122,6 +122,55 @@ fn workflow_apply_patch_failure_does_not_write_a_partial_head() {
 }
 
 #[test]
+fn workflow_evaluate_patch_returns_engine_findings_without_mutating_authority() {
+    let (_root, state) = state_with_project();
+    let service = WorkflowPatchService::from_state(&state);
+
+    let output = service
+        .evaluate(
+            &context("evaluate"),
+            WorkflowApplyPatchInput {
+                expected_revision: None,
+                operations: vec![add("video", "ImageToVideo")],
+            },
+        )
+        .expect("incomplete workflow should evaluate with blockers");
+
+    assert_eq!(output.base_revision, None);
+    assert_eq!(output.workflow.nodes.len(), 1);
+    assert!(!output.readiness_blockers.is_empty());
+    assert!(state.workflow_authority.load_head("project").expect("load head").is_none());
+}
+
+#[test]
+fn workflow_evaluate_patch_rejects_a_stale_base_before_proposing_changes() {
+    let (_root, state) = state_with_project();
+    let service = WorkflowPatchService::from_state(&state);
+    service
+        .apply(
+            &context("commit"),
+            WorkflowApplyPatchInput {
+                expected_revision: None,
+                operations: vec![add("prompt", "TextPrompt")],
+            },
+        )
+        .expect("create head");
+
+    let error = service
+        .evaluate(
+            &context("stale-evaluate"),
+            WorkflowApplyPatchInput {
+                expected_revision: None,
+                operations: vec![add("other", "TextPrompt")],
+            },
+        )
+        .expect_err("absent revision is stale once a head exists");
+
+    assert_eq!(error.code, "WORKFLOW_REVISION_CONFLICT");
+    assert_eq!(error.current_revision, Some(1));
+}
+
+#[test]
 fn workflow_apply_patch_reports_current_revision_for_stale_writes() {
     let (_root, state) = state_with_project();
     let service = WorkflowPatchService::from_state(&state);

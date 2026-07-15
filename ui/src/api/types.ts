@@ -251,6 +251,27 @@ export interface AssistantSendInput {
   text: string;
 }
 
+export interface AssistantApprovalDecisionInput {
+  project_id: string;
+  approval_scope_id: string;
+  candidate_digest: string;
+  approved: boolean;
+}
+
+export interface AssistantPendingApproval {
+  project_id: string;
+  approval_scope_id: string;
+  user_intent: string;
+  candidate_digest: string;
+  reviewer_version: string;
+  evidence_hash: string;
+  review_summary: string;
+  review_findings: string[];
+  effect: "apply_reviewed_workflow_candidate";
+  workflow: Workflow;
+  readiness_blockers: JsonValue;
+}
+
 export type ResponsesStreamEvent = JsonObject & { type: string };
 
 export interface ListAssetsOptions {
@@ -315,6 +336,11 @@ export interface WorkflowApi {
   setAssistantConfig: (input: AssistantConfigInput) => Promise<void>;
   sendAssistant: (
     input: AssistantSendInput,
+    onEvent: (event: ResponsesStreamEvent) => void,
+  ) => Promise<WorkflowHead | null>;
+  getPendingAssistantApproval: (projectId: string) => Promise<AssistantPendingApproval | null>;
+  decideAssistantApproval: (
+    input: AssistantApprovalDecisionInput,
     onEvent: (event: ResponsesStreamEvent) => void,
   ) => Promise<WorkflowHead | null>;
 }

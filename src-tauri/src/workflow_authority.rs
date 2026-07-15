@@ -104,6 +104,14 @@ pub trait WorkflowRepository: Send + Sync {
     /// Loads the current optional head without creating one.
     fn load_head(&self, project_id: &str) -> Result<Option<WorkflowHead>, WorkflowAuthorityError>;
 
+    /// Loads an exact prior request result without performing a mutation.
+    fn load_receipt(
+        &self,
+        project_id: &str,
+        request_id: &str,
+        request_hash: &str,
+    ) -> Result<Option<WorkflowCommitResult>, WorkflowAuthorityError>;
+
     /// Atomically applies CAS, dedupe, head, receipt, and undo semantics.
     fn commit(
         &self,
@@ -139,6 +147,21 @@ impl WorkflowAuthority {
     ) -> Result<Option<WorkflowHead>, WorkflowAuthorityError> {
         validate_identifier(project_id, "project_id")?;
         self.repository.load_head(project_id)
+    }
+
+    /// Reads a prior exact request result for crash-after-commit recovery.
+    pub fn load_receipt(
+        &self,
+        project_id: &str,
+        request_id: &str,
+        request_hash: &str,
+    ) -> Result<Option<WorkflowCommitResult>, WorkflowAuthorityError> {
+        validate_identifier(project_id, "project_id")?;
+        validate_identifier(request_id, "request_id")?;
+        validate_identifier(request_hash, "request_hash")?;
+        self.repository
+            .load_receipt(project_id, request_id, request_hash)
+            .map(|result| result.map(WorkflowCommitResult::mark_deduplicated))
     }
 
     /// Applies one canonical mutation through the repository transaction.

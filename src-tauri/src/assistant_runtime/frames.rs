@@ -3,10 +3,12 @@ use serde_json::Value;
 use crate::assistant_transport::{AssistantFrame, AssistantFrameKind};
 
 use super::AssistantRuntime;
+use super::InternalReviewSubmission;
 use super::dispatch::{OutgoingSequence, dispatch_tool};
 use super::error::AssistantRuntimeError;
 use super::payload::{
-    ApprovalRequestPayload, CompletedPayload, ErrorPayload, ResponsesEventPayload, SnapshotPayload,
+    ApprovalRequestPayload, CompletedPayload, ErrorPayload, ResponsesEventPayload,
+    ReviewCheckPayload, ReviewCheckResponsePayload, ReviewResponsePayload, SnapshotPayload,
     ToolRequestPayload,
 };
 use super::process::AssistantProcess;
@@ -66,6 +68,8 @@ impl<'a> FrameHandler<'a> {
         match frame.kind() {
             AssistantFrameKind::ResponsesEvent => self.handle_responses_event(&frame),
             AssistantFrameKind::ToolRequest => self.handle_tool_request(&frame).await,
+            AssistantFrameKind::ReviewSubmit => self.handle_review_submit(&frame).await,
+            AssistantFrameKind::ReviewCheck => self.handle_review_check(&frame).await,
             AssistantFrameKind::ApprovalRequest => self.handle_approval(&frame),
             AssistantFrameKind::Snapshot => {
                 handle_snapshot(self.invocation, self.trusted, &mut self.state, &frame)
@@ -74,6 +78,61 @@ impl<'a> FrameHandler<'a> {
             AssistantFrameKind::Error => Err(sidecar_error(self.invocation, &frame)?),
             kind => Err(AssistantRuntimeError::UnexpectedFrame { kind }),
         }
+    }
+
+    async fn handle_review_submit(
+        &mut self,
+        frame: &AssistantFrame,
+    ) -> Result<Option<AssistantRuntimeOutcome>, AssistantRuntimeError> {
+        let submission: InternalReviewSubmission = decode_payload(frame)?;
+        check_invocation(self.invocation, &submission.invocation_id)?;
+        let handler = self.runtime.review_handler.as_ref().ok_or_else(|| {
+            AssistantRuntimeError::InternalReview {
+                message: "review handler is unavailable".to_owned(),
+            }
+        })?;
+        let receipt = handler
+            .record(&self.trusted.project_id, &self.invocation.session_id, submission)
+            .map_err(|message| AssistantRuntimeError::InternalReview { message })?;
+        let response = ReviewResponsePayload {
+            invocation_id: &self.invocation.invocation_id,
+            candidate_id: &receipt.candidate_id,
+            review_receipt_id: &receipt.review_receipt_id,
+        };
+        self.outgoing
+            .write(&mut *self.process, AssistantFrameKind::ReviewResponse, &response)
+            .await?;
+        Ok(None)
+    }
+
+    async fn handle_review_check(
+        &mut self,
+        frame: &AssistantFrame,
+    ) -> Result<Option<AssistantRuntimeOutcome>, AssistantRuntimeError> {
+        let payload: ReviewCheckPayload = decode_payload(frame)?;
+        check_invocation(self.invocation, &payload.invocation_id)?;
+        let handler = self.runtime.review_handler.as_ref().ok_or_else(|| {
+            AssistantRuntimeError::InternalReview {
+                message: "review handler is unavailable".to_owned(),
+            }
+        })?;
+        let valid = handler
+            .valid_for_approval(
+                &self.trusted.project_id,
+                &self.invocation.session_id,
+                &payload.operation_id,
+                &payload.arguments_json,
+            )
+            .map_err(|message| AssistantRuntimeError::InternalReview { message })?;
+        let response = ReviewCheckResponsePayload {
+            invocation_id: &self.invocation.invocation_id,
+            operation_id: &payload.operation_id,
+            valid,
+        };
+        self.outgoing
+            .write(&mut *self.process, AssistantFrameKind::ReviewCheckResponse, &response)
+            .await?;
+        Ok(None)
     }
 
     async fn handle_tool_request(

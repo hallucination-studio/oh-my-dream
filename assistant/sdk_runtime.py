@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from agents import (
     Agent,
+    ModelSettings,
     RunConfig,
     RunResultStreaming,
     RunState,
@@ -24,6 +25,7 @@ set_tracing_disabled(True)
 AGENT_NAME = "workflow_assistant"
 SDK_VERSION = "0.18.1"
 STATE_ENVELOPE_VERSION = 1
+SDK_MAX_TURNS = 64
 
 
 class StateEnvelopeError(ValueError):
@@ -46,6 +48,11 @@ def build_run_config(
         session_input_callback=session_input_callback,
         call_model_input_filter=call_model_input_filter,
     )
+
+
+def build_model_settings() -> ModelSettings:
+    """Keep the MVP on one ordered tool/approval path per model turn."""
+    return ModelSettings(parallel_tool_calls=False)
 
 
 def build_file_session(session_id: str, database: str | Path) -> SQLiteSession:

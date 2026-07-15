@@ -26,6 +26,10 @@ class FrameKind(str, Enum):
     RESPONSES_EVENT = "responses_event"
     TOOL_REQUEST = "tool_request"
     TOOL_RESPONSE = "tool_response"
+    REVIEW_SUBMIT = "review_submit"
+    REVIEW_RESPONSE = "review_response"
+    REVIEW_CHECK = "review_check"
+    REVIEW_CHECK_RESPONSE = "review_check_response"
     APPROVAL_REQUEST = "approval_request"
     APPROVAL_RESPONSE = "approval_response"
     CANCEL = "cancel"
@@ -382,7 +386,6 @@ def _validate_json_value(value: object, depth: int = 0) -> None:
 
 def _validate_utf8(value: str) -> None:
     value.encode("utf-8")
-
 
 def _object_without_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}

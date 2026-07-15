@@ -84,6 +84,16 @@ impl WorkflowRepository for WorkflowSqliteRepository {
         row.map(decode_head).transpose()
     }
 
+    fn load_receipt(
+        &self,
+        project_id: &str,
+        request_id: &str,
+        request_hash: &str,
+    ) -> Result<Option<WorkflowCommitResult>, WorkflowAuthorityError> {
+        let connection = self.connection.lock().map_err(|_| lock_error())?;
+        existing_receipt_values(&connection, project_id, request_id, request_hash)
+    }
+
     fn commit(
         &self,
         request: &WorkflowCommitRequest,
@@ -118,11 +128,25 @@ fn existing_receipt(
     transaction: &Transaction<'_>,
     request: &WorkflowCommitRequest,
 ) -> Result<Option<WorkflowCommitResult>, WorkflowAuthorityError> {
-    let row = transaction
+    existing_receipt_values(
+        transaction,
+        &request.project_id,
+        &request.request_id,
+        &request.request_hash,
+    )
+}
+
+fn existing_receipt_values(
+    connection: &Connection,
+    project_id: &str,
+    request_id: &str,
+    expected_hash: &str,
+) -> Result<Option<WorkflowCommitResult>, WorkflowAuthorityError> {
+    let row = connection
         .query_row(
             "SELECT request_hash, outcome_json FROM workflow_receipts
              WHERE project_id = ?1 AND request_id = ?2",
-            params![request.project_id, request.request_id],
+            params![project_id, request_id],
             |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
         )
         .optional()
@@ -130,9 +154,9 @@ fn existing_receipt(
     let Some((request_hash, outcome_json)) = row else {
         return Ok(None);
     };
-    if request_hash != request.request_hash {
+    if request_hash != expected_hash {
         return Err(WorkflowAuthorityError::RequestHashMismatch {
-            request_id: request.request_id.clone(),
+            request_id: request_id.to_owned(),
         });
     }
     let result = serde_json::from_str(&outcome_json).map_err(|error| corrupt(error.to_string()))?;

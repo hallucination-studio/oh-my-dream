@@ -203,11 +203,49 @@
   white-space: nowrap;
 }
 
+.adock__task { display: grid; grid-template-columns: 36px 1fr auto; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--hair); border-radius: var(--r-md); background: var(--surface-2); font-size: 11px; }
+.adock__task span, .adock__task em { color: var(--ink-3); font-style: normal; }
+.adock__task b { overflow-wrap: anywhere; font-weight: 600; }
+.adock__task.is-failed { border-color: color-mix(in srgb, var(--err) 35%, var(--hair)); }
+.adock__task.is-failed b, .adock__task.is-failed em { color: var(--err); }
+.adock__task.is-succeeded em { color: var(--ok); }
+
 /* composer */
 .adock__composer {
   border-top: 1px solid var(--hair);
   padding: 10px;
 }
+
+.adock__approval {
+  margin: 12px;
+  padding: 14px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.adock__approval-kicker {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.adock__approval h3 { margin: 6px 0; font-size: 14px; }
+.adock__approval p { margin: 0; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+.adock__approval-details { display: grid; gap: 6px; margin: 10px 0; }
+.adock__approval-details div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 8px; }
+.adock__approval-details dt { color: var(--ink-3); }
+.adock__approval-details dd { margin: 0; overflow-wrap: anywhere; }
+.adock__approval-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.adock__approval-actions button { padding: 6px 10px; border: 1px solid var(--hair); border-radius: var(--r-sm); }
+.adock__approval-actions .is-primary { color: white; background: var(--accent-strong); border-color: var(--accent-strong); }
+.adock__preview { padding: 9px; border-radius: var(--r-sm); background: var(--surface); font-size: 11px; }
+.adock__preview strong { display: block; margin-bottom: 5px; }
+.adock__preview span { color: var(--ink-3); }
+.adock__preview ul { display: flex; flex-wrap: wrap; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.adock__preview li { padding: 3px 6px; border: 1px solid var(--hair); border-radius: 999px; font-family: var(--font-mono); }
 .adock__cbox {
   background: var(--surface-sunk);
   border: 1px solid transparent;

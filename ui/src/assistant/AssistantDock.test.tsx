@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AssistantDock } from "./AssistantDock.tsx";
 import type { WorkflowApi } from "../api/index.ts";
@@ -9,6 +9,19 @@ const CONTEXT = {
   workflow_revision: null,
   selected_node_ids: [],
   selected_asset_ids: [],
+};
+const PENDING_APPROVAL = {
+  project_id: "project-1",
+  approval_scope_id: "scope-1",
+  user_intent: "Build a film",
+  candidate_digest: "sha256:candidate",
+  reviewer_version: "reviewer-v1",
+  evidence_hash: "sha256:evidence",
+  review_summary: "Ready to apply",
+  review_findings: ["Matches the requested production"],
+  effect: "apply_reviewed_workflow_candidate" as const,
+  workflow: { version: "1.0", project_id: "project-1", nodes: [] },
+  readiness_blockers: [],
 };
 
 describe("AssistantDock", () => {
@@ -97,6 +110,140 @@ describe("AssistantDock", () => {
 
     await waitFor(() => expect(onWorkflowHead).toHaveBeenCalledWith(workflowHead));
   });
+
+  it("shows an explicit approval card and resumes the exact pending run", async () => {
+    const decideAssistantApproval = vi.fn().mockResolvedValue(null);
+    const apiClient = workflowApi({
+      sendAssistant: vi.fn().mockRejectedValue(new Error("ASSISTANT_APPROVAL_DEFERRED")),
+      getPendingAssistantApproval: vi.fn().mockResolvedValue(PENDING_APPROVAL),
+      decideAssistantApproval,
+    });
+
+    render(
+      <AssistantDock
+        onClose={() => {}}
+        apiClient={apiClient}
+        getContext={() => CONTEXT}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
+      target: { value: "Build a film" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    const approval = await screen.findByRole("region", { name: "Review before applying" });
+    expect(within(approval).getByText("Build a film")).toBeTruthy();
+    expect(within(approval).getByText("sha256:candidate")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Approve and apply" }));
+
+    await waitFor(() =>
+      expect(decideAssistantApproval).toHaveBeenCalledWith(
+        {
+          project_id: "project-1",
+          approval_scope_id: "scope-1",
+          candidate_digest: "sha256:candidate",
+          approved: true,
+        },
+        expect.any(Function),
+      ),
+    );
+  });
+
+  it("shows Agent-authored plan progress and factual mock run lifecycle", async () => {
+    const sendAssistant = vi.fn(async (_input, onEvent) => {
+      onEvent({
+        type: "response.output_item.done",
+        item: {
+          type: "function_call",
+          call_id: "plan-1",
+          name: "production_plan_update_item",
+          arguments:
+            '{"expected_revision":2,"item_id":"shot-2","action":{"type":"complete","acceptance_note":"ready"}}',
+        },
+      });
+      onEvent({
+        type: "assistant.workflow_run.started",
+        run_id: "assistant-run-1",
+        project_id: "project-1",
+      });
+      onEvent({
+        type: "assistant.workflow_run.progress",
+        run_id: "assistant-run-1",
+        node_id: "image",
+        node_state: "running",
+        progress: 0.5,
+      });
+      onEvent({
+        type: "assistant.workflow_run.failed",
+        run_id: "assistant-run-1",
+        reason: "provider outage",
+      });
+      return null;
+    });
+    render(
+      <AssistantDock
+        onClose={() => {}}
+        apiClient={workflowApi({ sendAssistant })}
+        getContext={() => CONTEXT}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
+      target: { value: "Build both shots" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("shot-2")).toBeTruthy();
+    expect(screen.getByText("complete")).toBeTruthy();
+    expect(screen.getByText(/image · 50%/)).toBeTruthy();
+    expect(screen.getByText(/provider outage/)).toBeTruthy();
+  });
+
+  it("replaces the first approval with the repair approval after mock failure", async () => {
+    const repairApproval = {
+      ...PENDING_APPROVAL,
+      approval_scope_id: "repair-scope",
+      candidate_digest: "sha256:repair",
+      user_intent: "Repair the failed image run",
+      workflow: {
+        version: "1.0",
+        project_id: "project-1",
+        nodes: [{ id: "prompt", type: "TextPrompt", params: {}, inputs: {} }],
+      },
+    };
+    const getPendingAssistantApproval = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(PENDING_APPROVAL)
+      .mockResolvedValueOnce(repairApproval);
+    const decideAssistantApproval = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("ASSISTANT_APPROVAL_DEFERRED"))
+      .mockResolvedValueOnce(null);
+    const apiClient = workflowApi({
+      sendAssistant: vi.fn().mockRejectedValue(new Error("ASSISTANT_APPROVAL_DEFERRED")),
+      getPendingAssistantApproval,
+      decideAssistantApproval,
+    });
+    render(
+      <AssistantDock onClose={() => {}} apiClient={apiClient} getContext={() => CONTEXT} />,
+    );
+    fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
+      target: { value: "Build a film" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Approve and apply" }));
+
+    expect(await screen.findByText("Repair the failed image run")).toBeTruthy();
+    expect(screen.getByText("TextPrompt")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Approve and apply" }));
+    await waitFor(() => expect(decideAssistantApproval).toHaveBeenCalledTimes(2));
+    expect(decideAssistantApproval.mock.calls[1]?.[0]).toMatchObject({
+      approval_scope_id: "repair-scope",
+      candidate_digest: "sha256:repair",
+      approved: true,
+    });
+  });
 });
 
 function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
@@ -117,6 +264,8 @@ function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
     getAssistantConfig: vi.fn(),
     setAssistantConfig: vi.fn(),
     sendAssistant: vi.fn(),
+    getPendingAssistantApproval: vi.fn().mockResolvedValue(null),
+    decideAssistantApproval: vi.fn(),
     ...overrides,
   };
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import assetFixture from "../__fixtures__/asset.json";
 import assistantConfigFixture from "../__fixtures__/assistant_config.json";
 import assistantOperationsFixture from "../__fixtures__/assistant_operations.json";
+import assistantApprovalFixture from "../__fixtures__/assistant_approval.json";
 import capabilityCatalogFixture from "../__fixtures__/capability_catalog.json";
 import progressFixture from "../__fixtures__/node_progress_event.json";
 import openProjectFixture from "../__fixtures__/open_project.json";
@@ -16,6 +17,8 @@ import {
 import type {
   AssetDto,
   AssistantConfig,
+  AssistantApprovalDecisionInput,
+  AssistantPendingApproval,
   AssistantOperationsFixture,
   CapabilityCatalog,
   OpenProjectResult,
@@ -32,8 +35,46 @@ describe("backend DTO fixtures", () => {
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
     expect(isAssistantConfig(assistantConfigFixture)).toBe(true);
     expect(isCapabilityCatalog(capabilityCatalogFixture)).toBe(true);
+    if (!isAssistantApprovalFixture(assistantApprovalFixture)) {
+      throw new Error("assistant approval fixture does not match the DTO contract");
+    }
+    const approval: AssistantPendingApproval = assistantApprovalFixture.pending;
+    const decision: AssistantApprovalDecisionInput = assistantApprovalFixture.decision;
+    expect(approval.candidate_digest).toBe("sha256:candidate");
+    expect(decision).toEqual({
+      project_id: "project-1",
+      approval_scope_id: "scope-1",
+      candidate_digest: "sha256:candidate",
+      approved: true,
+    });
   });
 });
+
+function isAssistantApprovalFixture(value: unknown): value is {
+  pending: AssistantPendingApproval;
+  decision: AssistantApprovalDecisionInput;
+} {
+  if (!isRecord(value) || !isRecord(value.pending) || !isRecord(value.decision)) return false;
+  const pending = value.pending;
+  const decision = value.decision;
+  return (
+    typeof pending.project_id === "string" &&
+    typeof pending.approval_scope_id === "string" &&
+    typeof pending.user_intent === "string" &&
+    typeof pending.candidate_digest === "string" &&
+    typeof pending.reviewer_version === "string" &&
+    typeof pending.evidence_hash === "string" &&
+    typeof pending.review_summary === "string" &&
+    isStringArray(pending.review_findings) &&
+    pending.effect === "apply_reviewed_workflow_candidate" &&
+    isRecord(pending.workflow) &&
+    Array.isArray(pending.readiness_blockers) &&
+    typeof decision.project_id === "string" &&
+    typeof decision.approval_scope_id === "string" &&
+    typeof decision.candidate_digest === "string" &&
+    typeof decision.approved === "boolean"
+  );
+}
 
 describe("assistant operation contract fixture", () => {
   it("matches the exact generated operation contract", () => {

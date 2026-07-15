@@ -17,7 +17,9 @@ pub use crate::assistant::{
     get_assistant_config, get_assistant_config_with_state, set_assistant_config,
     set_assistant_config_with_state,
 };
-pub use crate::assistant_commands::assistant_send;
+pub use crate::assistant_commands::{
+    assistant_decide_approval, assistant_get_pending_approval, assistant_send,
+};
 pub use crate::capability_catalog::{
     get_capability_bundles, get_capability_bundles_with_state, get_capability_catalog,
     get_capability_catalog_with_state, search_capabilities, search_capabilities_with_state,

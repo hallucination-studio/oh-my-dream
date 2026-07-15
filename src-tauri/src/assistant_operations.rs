@@ -21,6 +21,8 @@ pub use schema_policy::{
 pub enum OperationEffect {
     /// Reads local state without changing it.
     LocalRead,
+    /// Mutates durable Assistant-owned memory without executing creative effects.
+    AssistantStateMutation,
     /// Applies a user-visible Workflow change that can be reversed.
     VisibleReversibleWorkflowPatch,
     /// Executes an effect prepared earlier and authorized by trusted context.
@@ -80,6 +82,7 @@ pub struct RequestContext {
     approved_effect: Option<ApprovedEffect>,
     selected_node_ids: Vec<String>,
     selected_asset_ids: Vec<String>,
+    user_request: Option<String>,
 }
 
 impl RequestContext {
@@ -100,7 +103,15 @@ impl RequestContext {
             approved_effect,
             selected_node_ids: Vec::new(),
             selected_asset_ids: Vec::new(),
+            user_request: None,
         }
+    }
+
+    /// Adds the trusted user-authored request for this Runner invocation.
+    #[must_use]
+    pub fn with_user_request(mut self, user_request: Option<String>) -> Self {
+        self.user_request = user_request;
+        self
     }
 
     /// Adds the trusted UI selection for this Project-scoped operation.
@@ -119,6 +130,11 @@ impl RequestContext {
     #[must_use]
     pub fn project_id(&self) -> &str {
         &self.project_id
+    }
+    /// Returns the user-authored request outside model-controlled tool input.
+    #[must_use]
+    pub fn user_request(&self) -> Option<&str> {
+        self.user_request.as_deref()
     }
     /// Returns the trusted assistant session identifier.
     #[must_use]

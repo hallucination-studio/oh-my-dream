@@ -2,23 +2,29 @@ import { useEffect, useRef, useState } from "react";
 import {
   api,
   type AssistantContext,
+  type AssistantPendingApproval,
   type ResponsesStreamEvent,
   type WorkflowApi,
   type WorkflowHead,
 } from "../api/index.ts";
 import "./assistantDock.css";
+import { AssistantApprovalCard } from "./AssistantApprovalCard.tsx";
+import {
+  StrongAssistantTask,
+} from "./StrongAssistantTask.tsx";
+import {
+  appendAssistantToken,
+  functionCallFromEvent,
+  planItemFromCall,
+  responseError,
+  setStepState,
+  upsertPlanItem,
+  upsertRunItem,
+  type AssistantStreamItem,
+} from "./assistantStream.ts";
 
 // Keep the product projection small while preserving the order of native stream events.
-type StreamItem =
-  | { kind: "user"; text: string }
-  | { kind: "assistant"; text: string }
-  | {
-      kind: "step";
-      callId: string;
-      capability: string;
-      state: "running" | "done" | "error";
-      error?: string;
-    }
+type StreamItem = AssistantStreamItem;
 
 const SUGGESTIONS = [
   "Build a text-to-image → image-to-video pipeline",
@@ -33,11 +39,12 @@ const EMPTY_CONTEXT: AssistantContext = {
   selected_asset_ids: [],
 };
 const PASS_BARRIER = async () => undefined;
+const GET_EMPTY_CONTEXT = () => EMPTY_CONTEXT;
 
 export function AssistantDock({
   onClose,
   apiClient = api,
-  getContext = () => EMPTY_CONTEXT,
+  getContext = GET_EMPTY_CONTEXT,
   beforeSend = PASS_BARRIER,
   onWorkflowHead,
 }: {
@@ -53,6 +60,8 @@ export function AssistantDock({
     text: "Ready",
     connected: true,
   });
+  const [pendingApproval, setPendingApproval] = useState<AssistantPendingApproval | null>(null);
+  const [approvalBusy, setApprovalBusy] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const sendingRef = useRef(false);
@@ -64,6 +73,13 @@ export function AssistantDock({
       el.scrollTop = el.scrollHeight;
     }
   }, [items]);
+
+  useEffect(() => {
+    const projectId = getContext().project_id;
+    if (projectId) {
+      void apiClient.getPendingAssistantApproval(projectId).then(setPendingApproval).catch(() => {});
+    }
+  }, [apiClient, getContext]);
 
   const handleEvent = (event: ResponsesStreamEvent) => {
     switch (event.type) {
@@ -87,9 +103,36 @@ export function AssistantDock({
         const call = functionCallFromEvent(event);
         if (call) {
           setItems((current) => setStepState(current, call.callId, "done"));
+          const plan = planItemFromCall(call);
+          if (plan) setItems((current) => upsertPlanItem(current, plan));
         }
         break;
       }
+      case "assistant.workflow_run.started":
+        if (typeof event.run_id === "string") {
+          setItems((current) => upsertRunItem(current, event.run_id as string, "running", "Starting"));
+        }
+        break;
+      case "assistant.workflow_run.progress":
+        if (typeof event.run_id === "string" && typeof event.node_id === "string") {
+          const progress = typeof event.progress === "number" ? ` · ${Math.round(event.progress * 100)}%` : "";
+          setItems((current) =>
+            upsertRunItem(current, event.run_id as string, "running", `${event.node_id}${progress}`),
+          );
+        }
+        break;
+      case "assistant.workflow_run.succeeded":
+      case "assistant.workflow_run.cancelled":
+      case "assistant.workflow_run.failed":
+        if (typeof event.run_id === "string") {
+          const state = event.type.slice("assistant.workflow_run.".length) as
+            | "succeeded"
+            | "cancelled"
+            | "failed";
+          const detail = typeof event.reason === "string" ? event.reason : "Workflow run complete";
+          setItems((current) => upsertRunItem(current, event.run_id as string, state, detail));
+        }
+        break;
       case "response.completed":
         setStatus((current) => ({ ...current, text: "Ready" }));
         break;
@@ -128,10 +171,51 @@ export function AssistantDock({
       setStatus((current) => ({ ...current, text: "Ready" }));
       setDraft("");
     } catch (error: unknown) {
-      setStatus((current) => ({ ...current, text: String(error) }));
+      const message = String(error);
+      if (message.includes("ASSISTANT_APPROVAL_DEFERRED")) {
+        const projectId = getContext().project_id;
+        setPendingApproval(
+          projectId ? await apiClient.getPendingAssistantApproval(projectId) : null,
+        );
+        setStatus((current) => ({ ...current, text: "Waiting for approval" }));
+        setDraft("");
+      } else {
+        setStatus((current) => ({ ...current, text: message }));
+      }
       composerRef.current?.focus();
     } finally {
       sendingRef.current = false;
+    }
+  };
+
+  const decideApproval = async (approved: boolean) => {
+    if (!pendingApproval || approvalBusy) return;
+    setApprovalBusy(true);
+    setStatus((current) => ({ ...current, text: approved ? "Applying" : "Rejecting" }));
+    try {
+      const workflowHead = await apiClient.decideAssistantApproval(
+        {
+          project_id: pendingApproval.project_id,
+          approval_scope_id: pendingApproval.approval_scope_id,
+          candidate_digest: pendingApproval.candidate_digest,
+          approved,
+        },
+        handleEvent,
+      );
+      if (workflowHead !== null) await onWorkflowHead?.(workflowHead);
+      setPendingApproval(null);
+      setStatus((current) => ({ ...current, text: approved ? "Applied" : "Rejected" }));
+    } catch (error: unknown) {
+      const message = String(error);
+      if (message.includes("ASSISTANT_APPROVAL_DEFERRED")) {
+        const replacement = await apiClient.getPendingAssistantApproval(pendingApproval.project_id);
+        setPendingApproval(replacement);
+        setStatus((current) => ({ ...current, text: "Repair waiting for approval" }));
+      } else {
+        setStatus((current) => ({ ...current, text: message }));
+      }
+    } finally {
+      setApprovalBusy(false);
     }
   };
 
@@ -158,6 +242,13 @@ export function AssistantDock({
         ) : (
           <EmptyState onPick={(text) => setDraft(text)} />
         )}
+        {pendingApproval ? (
+          <AssistantApprovalCard
+            approval={pendingApproval}
+            busy={approvalBusy}
+            onDecision={(value) => void decideApproval(value)}
+          />
+        ) : null}
       </div>
 
       <div className="adock__composer">
@@ -203,6 +294,9 @@ function StreamRow({
       </div>
     );
   }
+  if (item.kind === "plan" || item.kind === "run") {
+    return <StrongAssistantTask item={item} />;
+  }
   return (
     <div className={`adock__step is-${item.state}`}>
       <span className="adock__si">
@@ -236,50 +330,6 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
       </div>
     </div>
   );
-}
-
-function appendAssistantToken(items: StreamItem[], delta: string): StreamItem[] {
-  const last = items.at(-1);
-  if (last?.kind === "assistant") {
-    return [...items.slice(0, -1), { kind: "assistant", text: last.text + delta }];
-  }
-  return [...items, { kind: "assistant", text: delta }];
-}
-
-function setStepState(
-  items: StreamItem[],
-  callId: string,
-  state: "done" | "error",
-): StreamItem[] {
-  return items.map((item) =>
-    item.kind === "step" && item.callId === callId ? { ...item, state } : item,
-  );
-}
-
-function functionCallFromEvent(
-  event: ResponsesStreamEvent,
-): { callId: string; name: string } | null {
-  if (!isJsonObject(event.item) || event.item.type !== "function_call") {
-    return null;
-  }
-  if (typeof event.item.call_id !== "string" || typeof event.item.name !== "string") {
-    return null;
-  }
-  return { callId: event.item.call_id, name: event.item.name };
-}
-
-function isJsonObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function responseError(event: ResponsesStreamEvent): string {
-  if (typeof event.error === "string") {
-    return event.error;
-  }
-  if (isJsonObject(event.error) && typeof event.error.message === "string") {
-    return event.error.message;
-  }
-  return "Assistant response failed";
 }
 
 function BrandMark() {

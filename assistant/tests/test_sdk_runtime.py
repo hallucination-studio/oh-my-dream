@@ -54,6 +54,12 @@ class SdkRuntimeModuleTests(unittest.TestCase):
         self.assertIn("session_input_callback", parameters)
         self.assertIn("call_model_input_filter", parameters)
 
+    def test_sdk_runtime_exposes_explicit_max_turns(self) -> None:
+        sdk_runtime = importlib.import_module("assistant.sdk_runtime")
+
+        self.assertIsInstance(sdk_runtime.SDK_MAX_TURNS, int)
+        self.assertGreater(sdk_runtime.SDK_MAX_TURNS, 10)
+
     def test_fake_models_match_public_model_method_signatures(self) -> None:
         for fake_model in (DeterministicToolModel, RecordingFinalModel):
             for method_name in ("get_response", "stream_response"):

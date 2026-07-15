@@ -36,6 +36,28 @@ pub(super) struct ToolResponsePayload<'a> {
     pub(super) output_json: &'a str,
 }
 
+#[derive(Serialize)]
+pub(super) struct ReviewResponsePayload<'a> {
+    pub(super) invocation_id: &'a str,
+    pub(super) candidate_id: &'a str,
+    pub(super) review_receipt_id: &'a str,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ReviewCheckPayload {
+    pub(super) invocation_id: String,
+    pub(super) operation_id: String,
+    pub(super) arguments_json: String,
+}
+
+#[derive(Serialize)]
+pub(super) struct ReviewCheckResponsePayload<'a> {
+    pub(super) invocation_id: &'a str,
+    pub(super) operation_id: &'a str,
+    pub(super) valid: bool,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ApprovalRequestPayload {
