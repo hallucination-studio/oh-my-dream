@@ -10,13 +10,14 @@ use assets::asset::application::{
     AssetContentFinalization, AssetContentFinalizationRecoveryPage,
     AssetFinalizationRecoveryCursor, AssetFinalizeContentUseCase, AssetImportCommand,
     AssetImportSourceLease, AssetImportUseCase, AssetInspectedMedia, AssetListPage, AssetListQuery,
-    AssetManagedContentLease, AssetPageLimit, AssetStagedContent, AssetStagedContentRecoveryCursor,
-    AssetStagedContentRecoveryPage, AssetStagedContentRef,
+    AssetManagedContentLease, AssetPageLimit, AssetRecordNodeOutputUseCase, AssetStagedContent,
+    AssetStagedContentRecoveryCursor, AssetStagedContentRecoveryPage, AssetStagedContentRef,
 };
 use assets::asset::domain::{
     AssetAggregate, AssetContentDescriptor, AssetContentDigest, AssetContentFinalizationId,
     AssetCreatedAt, AssetDisplayName, AssetId, AssetImportId, AssetMediaFacts, AssetMediaKind,
-    AssetMediaMimeType, AssetNodeOutputKey, AssetOriginalFileName, AssetPreviewLeaseId,
+    AssetMediaMimeType, AssetNodeOutputKey, AssetOrigin, AssetOriginalFileName,
+    AssetPreviewLeaseId,
 };
 use assets::asset::interfaces::{
     AssetClockInterface, AssetIdentityGeneratorInterface, AssetIngestTransactionInterface,
@@ -62,6 +63,21 @@ impl AssetImportFixtureFakeImpl {
         )
     }
 
+    #[allow(dead_code)]
+    pub fn record_node_output_use_case(self: &Arc<Self>) -> AssetRecordNodeOutputUseCase {
+        let finalizer =
+            Arc::new(AssetFinalizeContentUseCase::new(self.clone(), self.clone(), self.clone()));
+        AssetRecordNodeOutputUseCase::new(
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            self.clone(),
+            finalizer,
+        )
+    }
+
     pub fn import_command(&self) -> AssetImportCommand {
         AssetImportCommand::new(
             project_id(),
@@ -91,6 +107,11 @@ impl AssetImportFixtureFakeImpl {
         self.events.lock().unwrap().clone()
     }
 
+    #[allow(dead_code)]
+    pub fn clear_events(&self) {
+        self.events.lock().unwrap().clear();
+    }
+
     pub fn committed_asset(&self) -> Option<AssetAggregate> {
         self.committed_asset.lock().unwrap().clone()
     }
@@ -111,9 +132,12 @@ impl AssetRepositoryInterface for AssetImportFixtureFakeImpl {
 
     async fn find_asset_by_node_output_key(
         &self,
-        _output_key: AssetNodeOutputKey,
+        output_key: AssetNodeOutputKey,
     ) -> Result<Option<AssetAggregate>, AssetApplicationError> {
-        Ok(None)
+        self.record("find_by_output_key");
+        Ok(self.committed_asset().filter(|asset| {
+            matches!(asset.origin(), AssetOrigin::WorkflowNodeOutput(fields) if fields.output_key() == &output_key)
+        }))
     }
 
     async fn list_project_assets(
@@ -178,6 +202,7 @@ impl AssetIngestTransactionInterface for AssetImportFixtureFakeImpl {
         &self,
         command: AssetCommitPendingContentCommand,
     ) -> Result<AssetCommitWorkflowNodeOutputPendingResult, AssetApplicationError> {
+        self.record("commit_pending");
         *self.committed_asset.lock().unwrap() = Some(command.asset().clone());
         *self.finalization.lock().unwrap() = Some(command.finalization().clone());
         Ok(AssetCommitWorkflowNodeOutputPendingResult::Committed)
@@ -219,6 +244,7 @@ impl AssetManagedContentStoreInterface for AssetImportFixtureFakeImpl {
         _expected_media_kind: AssetMediaKind,
         created_at: AssetCreatedAt,
     ) -> Result<AssetStagedContent, AssetApplicationError> {
+        self.record("stage_node_output");
         AssetStagedContent::try_new(staged_ref(), digest(), 10, created_at)
     }
 

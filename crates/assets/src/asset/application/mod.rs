@@ -12,6 +12,7 @@ mod lease;
 mod orchestration;
 mod query;
 mod reconcile_content;
+mod record_node_output;
 mod staged_content;
 
 pub use error::*;
@@ -23,6 +24,7 @@ pub use lease::*;
 pub use orchestration::*;
 pub use query::*;
 pub use reconcile_content::*;
+pub use record_node_output::*;
 pub use staged_content::*;
 
 pub(crate) use deadline::*;
