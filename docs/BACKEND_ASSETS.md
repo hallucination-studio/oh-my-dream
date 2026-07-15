@@ -223,8 +223,10 @@ inspection, transaction, inline finalization, and any cleanup.
 `record_asset_node_output` returns an `AssetAggregate` only when it is Available. It stages once and
 calculates the digest before replay lookup. The use case owns this exact decision:
 
-1. If no Asset is bound, inspect the staged bytes, observe time and generate Asset/finalization IDs
-   once, then attempt the atomic node-output Pending commit.
+1. Check the deadline, observe one `AssetCreatedAt`, stage with that timestamp, and perform replay
+   lookup from the calculated digest. If no Asset is bound, inspect the staged bytes and generate
+   Asset/finalization IDs once, then attempt the atomic node-output Pending commit. Replay paths do
+   not generate identities; their observed staging time is used only for stale cleanup ordering.
 2. If lookup or the atomic commit returns an existing binding, require the same Project, media kind,
    producer, production, output key, descriptor digest, and byte length. Any difference removes the
    new staging once and returns `NodeOutputConflict`.
