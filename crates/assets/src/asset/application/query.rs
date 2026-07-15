@@ -24,6 +24,12 @@ impl AssetPageLimit {
     pub const fn get(self) -> u16 {
         self.0
     }
+
+    /// Returns the frozen default recovery page limit.
+    #[must_use]
+    pub const fn reconciliation_default() -> Self {
+        Self(50)
+    }
 }
 
 /// Stable position after one Project Asset in descending list order.
