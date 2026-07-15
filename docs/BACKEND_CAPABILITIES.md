@@ -50,13 +50,20 @@ The names make all four behaviors explicit. Workflow uses the contract for struc
 normalization for an immutable execution plan, external readiness for Assets and Generation
 Profiles, and execution only after durable Run admission.
 
-`NodeCapabilityNormalizedParameters` contains normalized parameters plus mechanically extracted
-stable input-item references. Exact typed parameters and provider requests remain private to the
-implementation.
+`NodeCapabilityNormalizedParameters` contains only the complete normalized parameter set. Runtime
+input-item references belong to `WorkflowTextValue`, never to node parameters. Exact typed
+parameters and provider requests remain private to the implementation.
 
 `WorkflowNodeCapabilityRegistry` is a concrete immutable collection, not another trait. It rejects
 duplicate refs, lists the same contracts used at execution, resolves one exact implementation, and
 never reimplements capability rules.
+
+`WorkflowNodeCapabilityRegistry::try_new` consumes capability implementations and returns
+`NodeCapabilityRegistryError::DuplicateContractRef` on the first duplicate in input order.
+`list_node_capability_contracts` returns borrowed contracts in ascending contract-ref order;
+`resolve_node_capability` returns the matching shared implementation or
+`NodeCapabilityRegistryError::ContractNotRegistered`. The registry has no mutation, fallback,
+version negotiation, provider lookup, roadmap entry, or second catalog.
 
 ## Frozen Shared Capability Values
 
@@ -99,11 +106,17 @@ keys, duplicate keys, wrong variants, and values outside the exact contract are 
 no null, nested map/list, arbitrary JSON, provider option, or untyped string enum.
 
 `NodeCapabilityParameterContract` declares key, exact variant, Required or Optional-with-default,
-and only variant-appropriate bounds/allowed choices. Normalization inserts declared defaults,
-normalizes values, and returns `NodeCapabilityNormalizedParameters` plus ascending unique referenced
-`WorkflowInputItemId` values. It never reads vendor defaults. Contract construction rejects
+and only variant-appropriate bounds/allowed choices. Normalization inserts declared defaults and
+returns `NodeCapabilityNormalizedParameters`. It never reads vendor defaults. Construction rejects
 duplicate keys, empty/invalid ranges or choices, invalid defaults, duplicate inputs/outputs, no
 output, or more than one primary output.
+
+Its constraint is exactly one closed variant: `UnsignedIntegerRange { minimum, maximum }`,
+`UnsignedIntegerAllowedValues(non-empty sorted set)`, `TextUtf8Bytes { minimum, maximum }`,
+`ChoiceAllowedKeys(non-empty sorted set)`, `GenerationProfileRef`, or
+`ManagedAssetId { media_kind }`. Minimum is not greater than maximum. Presence is exactly `Required`
+or `OptionalWithDefault(value)`; the default must satisfy the same constraint. Constraint and value
+tags must match, and no independent optional bound, validator callback, or generic metadata exists.
 
 ## Versioned Contract
 
@@ -116,6 +129,58 @@ pub struct NodeCapabilityContract {
     pub execution_kind: NodeCapabilityExecutionKind,
 }
 ```
+
+Input binding contracts and their role/type rules are defined once in
+[`BACKEND_WORKFLOW_GRAPH.md`](BACKEND_WORKFLOW_GRAPH.md#input-contract-model).
+`NodeCapabilityOutputContract` contains one output key, one exact `WorkflowDataType`, and
+`is_primary`; a contract has 1..=64 outputs and exactly one primary output. No output is optional,
+multi-typed, nullable, or role-bearing.
+
+Parameter, input, and output vectors preserve declaration order for presentation while their keys
+remain unique identity. Registry order is independent and always ascending by contract ref.
+
+## Frozen Capability Call Values
+
+```rust
+pub struct NodeCapabilityReadinessRequest {
+    pub project_id: ProjectId,
+    pub normalized_parameters: NodeCapabilityNormalizedParameters,
+}
+
+pub struct WorkflowNodeExecutionContext {
+    pub project_id: ProjectId,
+    pub workflow_run_id: WorkflowRunId,
+    pub node_execution_id: WorkflowNodeExecutionId,
+    pub deadline: NodeCapabilityExecutionDeadline,
+    pub cancellation: NodeCapabilityExecutionCancellation,
+}
+
+pub struct NodeCapabilityExecutionRequest {
+    pub context: WorkflowNodeExecutionContext,
+    pub normalized_parameters: NodeCapabilityNormalizedParameters,
+    pub inputs: WorkflowNodeInputSet,
+}
+```
+
+Readiness checks only parameter-selected external state: managed Assets and Generation Profiles.
+They do not resolve upstream runtime inputs, dispatch providers, mutate state, or write media. An
+empty issue vector means ready; otherwise it contains 1..=64 unique issues sorted by category tag,
+target kind, then target bytes. Every issue identifies one parameter key and its typed Asset ID or
+Generation Profile ref. At most one issue is returned per parameter; when several observations could
+apply, the category table order wins. The capability ref comes from the resolved implementation and
+is not duplicated in either request.
+
+`NodeCapabilityExecutionDeadline` is one call-scoped monotonic instant. It is never serialized or
+persisted. `NodeCapabilityExecutionCancellation` is a cloneable, concurrent signal with initially
+active and idempotently cancelled states. A capability checks cancellation and deadline before each
+external effect and after each await; cancellation wins when both are observed together. Neither
+state authorizes rollback, automatic retry, provider resubmission, or a new Run state.
+
+`WorkflowNodeInputSet` is a map with at most 64 exact declared input keys. Each value has the exact
+single/ordered shape, stable item identity, role, and runtime type required by the contract; ordered
+items preserve vector order. `WorkflowNodeOutputSet` is a map with 1..=64 entries containing every
+declared output exactly once, no extras, and values of the exact declared type. A media value must be
+an Available managed reference. Input/output set construction rejects partial or invalid sets.
 
 Changing parameter meaning, input cardinality, role meaning, output type, or result guarantee
 requires a new contract version. The exact implementation is the semantic owner; Workflow, DTOs,
@@ -250,19 +315,48 @@ Workflow output only after every corresponding Asset is Available; partial Asset
 becomes a partial `WorkflowNodeOutputSet`.
 
 `NodeCapabilityParameterError` and `NodeCapabilityReadinessIssue` occur before dispatch.
-`NodeCapabilityProviderFailure` and `NodeCapabilityMediaFailure` use closed categories,
-retryability, and optional safe retry time. `NodeCapabilityExecutionError` adds capability, stage,
-and safe target. Raw provider text, native IDs, URLs, paths, credentials, and response bodies never
-cross these errors.
+`NodeCapabilityProviderFailure` uses closed categories, retryability, and optional safe retry time.
+`NodeCapabilityMediaFailure` uses closed categories without authorizing retry.
+`NodeCapabilityExecutionError` adds capability, stage, and safe target. Raw provider text, native
+IDs, URLs, paths, credentials, and response bodies never cross these errors.
 
 The closed parameter categories are `UnknownParameter`, `RequiredParameterMissing`,
 `ParameterValueKindMismatch`, `ParameterValueOutOfBounds`, `ParameterChoiceNotDeclared`, and
 `ParameterSetTooLarge`. Readiness categories are `ManagedAssetUnavailable`,
 `ManagedAssetKindMismatch`, `GenerationProfileIncompatible`, `GenerationProfileUnavailable`, and
-`GenerationProfileAvailabilityIndeterminate`. Execution stages are `NormalizeParameters`,
-`ResolveInputs`, `CallProvider`, `ValidateProviderResult`, and `WriteManagedMedia`.
-`NodeCapabilityExecutionError` wraps one typed parameter, readiness, provider, media, cancellation,
-or deadline category with contract ref, node execution ID, stage, and safe parameter/input/output key.
+`GenerationProfileAvailabilityIndeterminate`. Execution stages are `ResolveInputs`, `CallProvider`,
+`ValidateProviderResult`, and `WriteManagedMedia`; normalization has its own pre-admission result.
+`NodeCapabilityExecutionError` wraps one readiness, provider, media, cancellation, or deadline
+category with contract ref, node execution ID, stage, and a structured safe target.
+
+The error values are closed and field-exact:
+
+- `NodeCapabilityParameterError` contains one parameter category and
+  `NodeCapabilityParameterErrorTarget`, either `ParameterSet` or `Parameter(key)`;
+- `NodeCapabilityReadinessIssue` contains one readiness category,
+  `NodeCapabilityReadinessTarget`, and the relevant typed boundary identity. The target is exactly
+  `ManagedAsset { parameter_key, asset_id }` or
+  `GenerationProfile { parameter_key, generation_profile_ref }`; kind-mismatch detail additionally
+  contains expected and observed `WorkflowDataType` values;
+- `NodeCapabilityProviderFailure` contains its provider category, retryable flag, and optional safe
+  retry instant; the category-specific retry rules remain owned by `BACKEND_PROVIDERS.md`;
+- `NodeCapabilityMediaFailure` contains exactly one of `Unavailable`, `KindMismatch`, `InvalidMedia`,
+  `SizeLimitExceeded`, `DigestMismatch`, `OutputConflict`, `StorageFailed`, `InspectionFailed`,
+  or `FinalizationFailed`, plus no adapter text;
+- `NodeCapabilityExecutionError` contains contract ref, node execution ID, stage, one
+  `NodeCapabilityExecutionFailure`, and `NodeCapabilityExecutionTarget` (`Capability`, parameter key,
+  input key, or output key). Its failure is exactly Readiness, Provider, Media, Cancelled, or
+  DeadlineExceeded.
+
+Construction rejects an execution target inconsistent with its stage: ResolveInputs targets a
+parameter, input, or capability; CallProvider targets the capability; result validation/media write
+targets an output or capability. Readiness targets only a declared parameter. Cancellation/deadline use
+the operation target active when observed; no absent-key convention carries target meaning.
+
+An optional retry instant is present only when retryable and later than error creation. Cancellation,
+invalid requests/results, policy rejection, kind mismatch, digest mismatch, and output conflict are
+not retryable. Safe identifiers may cross the boundary; message text, provider IDs, URLs, paths,
+credentials, response bodies, and adapter errors may not.
 
 ## Contract Tests
 

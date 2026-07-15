@@ -234,8 +234,12 @@ when referring to creative Workflow work.
 | `NodeCapabilityOutputKey` | stable key for one declared capability output |
 | `WorkflowNodeCapabilityInterface` | Workflow-owned interface implemented by every exact capability |
 | `WorkflowNodeCapabilityRegistry` | immutable active implementation collection |
-| `NodeCapabilityNormalizedParameters` | validated normalized parameters plus stable input-item references |
+| `NodeCapabilityNormalizedParameters` | complete validated and defaulted parameter set |
+| `NodeCapabilityReadinessRequest` | Project-scoped normalized parameters checked without dispatch |
 | `NodeCapabilityExecutionRequest` | exact frozen inputs and execution context supplied by Workflow |
+| `NodeCapabilityExecutionDeadline` | non-persisted monotonic deadline for one node execution call |
+| `NodeCapabilityExecutionCancellation` | cloneable idempotent cancellation signal for one node execution |
+| `NodeCapabilityExecutionError` | staged structured node-capability failure with one safe target |
 | `NodeCapabilityProducedMediaOutputKey` | node-owned idempotency value translated to `AssetNodeOutputKey` |
 | `NodeCapabilityGenerationProfileRefParameterValue` | engine boundary shape translated to nodes-owned `GenerationProfileRef` |
 | `NodeCapabilityManagedAssetIdParameterValue` | engine boundary UUID bytes translated to Asset-owned `AssetId` |
