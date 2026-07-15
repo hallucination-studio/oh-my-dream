@@ -62,20 +62,25 @@ pub(super) fn fixture() -> Value {
         },
     )
     .expect("register prepared execution contract");
-    let patch = Arc::new(WorkflowPatchService::from_state(&state))
+    let patch_service = Arc::new(WorkflowPatchService::from_state(&state));
+    let patch = Arc::clone(&patch_service)
         .operation_registration()
         .expect("register Workflow patch contract");
+    let evaluate = patch_service
+        .evaluation_operation_registration()
+        .expect("register Workflow evaluation contract");
     let discovery = Arc::new(CapabilityDiscovery::from_state(&state))
         .operation_registrations()
         .expect("register capability discovery contracts");
-    let mut operations = vec![read.contract(), patch.contract(), prepared.contract()];
+    let mut operations =
+        vec![read.contract(), patch.contract(), evaluate.contract(), prepared.contract()];
     operations.extend(discovery.into_iter().map(|registration| registration.contract()));
     json!({ "operations": operations })
 }
 
 pub(super) fn assert_fixture(fixture: &Value) {
     let operations = fixture["operations"].as_array().expect("operations array");
-    assert_eq!(operations.len(), 5);
+    assert_eq!(operations.len(), 6);
     assert_operation(&operations[0], "workspace_get_snapshot", "local_read", true, false);
     assert_operation(
         &operations[1],
@@ -84,9 +89,10 @@ pub(super) fn assert_fixture(fixture: &Value) {
         false,
         false,
     );
-    assert_operation(&operations[2], "proposal_execute", "prepared_approval_execution", true, true);
-    assert_operation(&operations[3], "capability_search", "local_read", true, false);
-    assert_operation(&operations[4], "capability_describe", "local_read", true, false);
+    assert_operation(&operations[2], "workflow_evaluate_patch", "local_read", false, false);
+    assert_operation(&operations[3], "proposal_execute", "prepared_approval_execution", true, true);
+    assert_operation(&operations[4], "capability_search", "local_read", true, false);
+    assert_operation(&operations[5], "capability_describe", "local_read", true, false);
     assert!(operations[0]["input_schema"].get("required").is_none());
     assert!(operations[0]["input_schema"].get("properties").is_none());
     assert_eq!(operations[0]["output_schema"]["properties"]["assets"]["maxItems"], 8);
@@ -94,15 +100,17 @@ pub(super) fn assert_fixture(fixture: &Value) {
         operations[1]["input_schema"]["required"],
         json!(["expected_revision", "operations"])
     );
-    assert_eq!(operations[2]["input_schema"]["required"], json!(["proposal_id"]));
-    assert_eq!(operations[3]["input_schema"]["required"], json!(["kinds", "query"]));
-    assert_eq!(operations[4]["input_schema"]["required"], json!(["refs"]));
+    assert_eq!(operations[2]["input_schema"], operations[1]["input_schema"]);
+    assert_eq!(operations[2]["version"], 2);
+    assert_eq!(operations[3]["input_schema"]["required"], json!(["proposal_id"]));
+    assert_eq!(operations[4]["input_schema"]["required"], json!(["kinds", "query"]));
+    assert_eq!(operations[5]["input_schema"]["required"], json!(["refs"]));
     assert_eq!(
         operations[1]["input_schema"]["properties"]["operations"]["items"]["oneOf"][0]["properties"]
             ["params"]["additionalProperties"],
         true
     );
-    assert_eq!(operations[4]["input_schema"]["properties"]["refs"]["maxItems"], 3);
+    assert_eq!(operations[5]["input_schema"]["properties"]["refs"]["maxItems"], 3);
 }
 
 fn assert_operation(operation: &Value, id: &str, effect: &str, strict: bool, approval: bool) {

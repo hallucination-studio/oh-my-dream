@@ -222,7 +222,7 @@ impl WorkflowPatchService {
             _,
         >(
             "workflow_apply_patch",
-            1,
+            2,
             "Apply one atomic, reversible Workflow patch using exact capability contracts.",
             OperationEffect::VisibleReversibleWorkflowPatch,
             OperationInputSchemaMode::WorkflowPatchParamsOpen,
@@ -246,7 +246,7 @@ impl WorkflowPatchService {
             _,
         >(
             "workflow_evaluate_patch",
-            1,
+            2,
             "Evaluate one bounded Workflow patch without changing canonical state.",
             OperationEffect::LocalRead,
             OperationInputSchemaMode::WorkflowPatchParamsOpen,

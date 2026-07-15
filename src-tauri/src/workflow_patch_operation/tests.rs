@@ -18,6 +18,39 @@ fn operation_input_schema_closes_envelope_and_opens_only_params() {
         value["properties"]["operations"]["items"]["oneOf"][0]["properties"]["params"]["additionalProperties"],
         json!(true)
     );
+    let source = &value["properties"]["operations"]["items"]["oneOf"][2]["properties"]["binding"]["oneOf"]
+        [0]["properties"]["source"];
+    assert_eq!(source["required"], json!(["node", "output"]));
+    assert_eq!(source["additionalProperties"], json!(false));
+}
+
+#[test]
+fn patch_operations_reject_node_only_and_unknown_output_reference_fields() {
+    let node_only = json!({
+        "expected_revision": null,
+        "operations": [{
+            "op": "set_input",
+            "node": {"kind": "id", "id": "target"},
+            "input": "text",
+            "binding": {"kind": "single", "source": {"kind": "id", "id": "source"}}
+        }]
+    });
+    assert!(serde_json::from_value::<WorkflowApplyPatchInput>(node_only).is_err());
+
+    let unknown = json!({
+        "expected_revision": null,
+        "operations": [{
+            "op": "set_input",
+            "node": {"kind": "id", "id": "target"},
+            "input": "text",
+            "binding": {"kind": "single", "source": {
+                "node": {"kind": "id", "id": "source"},
+                "output": "text",
+                "extra": true
+            }}
+        }]
+    });
+    assert!(serde_json::from_value::<WorkflowApplyPatchInput>(unknown).is_err());
 }
 
 #[test]

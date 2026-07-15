@@ -1,6 +1,6 @@
 use engine::{
-    CapabilityRef, InputBinding, NodeRef, Workflow, WorkflowNode, WorkflowPatchOperation,
-    WorkflowReadinessBlocker,
+    CapabilityRef, InputBinding, NodeRef, PatchOutputRef, Workflow, WorkflowNode,
+    WorkflowPatchOperation, WorkflowReadinessBlocker,
 };
 use oh_my_dream_tauri::assistant_operations::RequestContext;
 use oh_my_dream_tauri::state::AppState;
@@ -34,6 +34,10 @@ fn add(alias: &str, id: &str) -> WorkflowPatchOperation {
         params: Map::new(),
         position: None,
     }
+}
+
+fn source(alias: &str, output: &str) -> PatchOutputRef {
+    PatchOutputRef { node: NodeRef::Alias { alias: alias.to_owned() }, output: output.to_owned() }
 }
 
 #[test]
@@ -79,9 +83,7 @@ fn workflow_apply_patch_resolves_later_aliases_and_preserves_ordered_blockers() 
                     WorkflowPatchOperation::SetInput {
                         node: NodeRef::Alias { alias: "concat".to_owned() },
                         input: "clips".to_owned(),
-                        binding: InputBinding::ordered_many(vec![NodeRef::Alias {
-                            alias: "video".to_owned(),
-                        }]),
+                        binding: InputBinding::ordered_many(vec![source("video", "video")]),
                     },
                 ],
             },
@@ -218,8 +220,8 @@ fn workflow_apply_patch_removes_incident_bindings_atomically() {
                         node: NodeRef::Alias { alias: "concat".to_owned() },
                         input: "clips".to_owned(),
                         binding: InputBinding::ordered_many(vec![
-                            NodeRef::Alias { alias: "first".to_owned() },
-                            NodeRef::Alias { alias: "second".to_owned() },
+                            source("first", "video"),
+                            source("second", "video"),
                         ]),
                     },
                     WorkflowPatchOperation::RemoveNode {
@@ -248,6 +250,7 @@ fn workflow_apply_patch_operation_registration_is_non_strict_only_for_params() {
         .operation_registration()
         .expect("register workflow patch operation");
     assert_eq!(registration.id(), "workflow_apply_patch");
+    assert_eq!(registration.version(), 2);
     assert!(!registration.sdk_strict_json_schema());
     assert_eq!(registration.input_schema()["additionalProperties"], json!(false));
     assert_eq!(
@@ -272,9 +275,7 @@ fn workflow_apply_patch_attributes_type_mismatch_to_the_set_input_operation() {
                     WorkflowPatchOperation::SetInput {
                         node: NodeRef::Alias { alias: "video".to_owned() },
                         input: "image".to_owned(),
-                        binding: InputBinding::single(NodeRef::Alias {
-                            alias: "prompt".to_owned(),
-                        }),
+                        binding: InputBinding::single(source("prompt", "text")),
                     },
                     WorkflowPatchOperation::SetPosition {
                         node: NodeRef::Alias { alias: "video".to_owned() },
@@ -287,7 +288,7 @@ fn workflow_apply_patch_attributes_type_mismatch_to_the_set_input_operation() {
 
     assert_eq!(error.code, "INPUT_OUTPUT_TYPE_MISMATCH");
     assert_eq!(error.operation_index, Some(2));
-    assert_eq!(error.pointer, "/operations/2/binding/source");
+    assert_eq!(error.pointer, "/operations/2/binding/source/output");
     assert!(state.workflow_authority.load_head("project").expect("head").is_none());
 }
 
@@ -306,8 +307,8 @@ fn workflow_apply_patch_attributes_cycles_to_the_set_input_operation() {
                         node: NodeRef::Alias { alias: "concat".to_owned() },
                         input: "clips".to_owned(),
                         binding: InputBinding::ordered_many(vec![
-                            NodeRef::Alias { alias: "concat".to_owned() },
-                            NodeRef::Alias { alias: "concat".to_owned() },
+                            source("concat", "video"),
+                            source("concat", "video"),
                         ]),
                     },
                     WorkflowPatchOperation::SetPosition {

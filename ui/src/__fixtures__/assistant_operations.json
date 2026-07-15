@@ -447,40 +447,53 @@
                               "const": "single"
                             },
                             "source": {
-                              "oneOf": [
-                                {
-                                  "additionalProperties": false,
-                                  "properties": {
-                                    "id": {
-                                      "type": "string"
+                              "additionalProperties": false,
+                              "properties": {
+                                "node": {
+                                  "oneOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "kind": {
+                                          "const": "id"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "kind"
+                                      ],
+                                      "type": "object"
                                     },
-                                    "kind": {
-                                      "const": "id"
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "alias": {
+                                          "type": "string"
+                                        },
+                                        "kind": {
+                                          "const": "alias"
+                                        }
+                                      },
+                                      "required": [
+                                        "alias",
+                                        "kind"
+                                      ],
+                                      "type": "object"
                                     }
-                                  },
-                                  "required": [
-                                    "id",
-                                    "kind"
-                                  ],
-                                  "type": "object"
+                                  ]
                                 },
-                                {
-                                  "additionalProperties": false,
-                                  "properties": {
-                                    "alias": {
-                                      "type": "string"
-                                    },
-                                    "kind": {
-                                      "const": "alias"
-                                    }
-                                  },
-                                  "required": [
-                                    "alias",
-                                    "kind"
-                                  ],
-                                  "type": "object"
+                                "output": {
+                                  "type": "string"
                                 }
-                              ]
+                              },
+                              "required": [
+                                "node",
+                                "output"
+                              ],
+                              "type": "object"
                             }
                           },
                           "required": [
@@ -497,40 +510,53 @@
                             },
                             "sources": {
                               "items": {
-                                "oneOf": [
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "id": {
-                                        "type": "string"
+                                "additionalProperties": false,
+                                "properties": {
+                                  "node": {
+                                    "oneOf": [
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "kind": {
+                                            "const": "id"
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "kind"
+                                        ],
+                                        "type": "object"
                                       },
-                                      "kind": {
-                                        "const": "id"
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "alias": {
+                                            "type": "string"
+                                          },
+                                          "kind": {
+                                            "const": "alias"
+                                          }
+                                        },
+                                        "required": [
+                                          "alias",
+                                          "kind"
+                                        ],
+                                        "type": "object"
                                       }
-                                    },
-                                    "required": [
-                                      "id",
-                                      "kind"
-                                    ],
-                                    "type": "object"
+                                    ]
                                   },
-                                  {
-                                    "additionalProperties": false,
-                                    "properties": {
-                                      "alias": {
-                                        "type": "string"
-                                      },
-                                      "kind": {
-                                        "const": "alias"
-                                      }
-                                    },
-                                    "required": [
-                                      "alias",
-                                      "kind"
-                                    ],
-                                    "type": "object"
+                                  "output": {
+                                    "type": "string"
                                   }
-                                ]
+                                },
+                                "required": [
+                                  "node",
+                                  "output"
+                                ],
+                                "type": "object"
                               },
                               "type": "array"
                             }
@@ -864,7 +890,558 @@
         "type": "object"
       },
       "strict_json_schema": false,
-      "version": 1
+      "version": 2
+    },
+    {
+      "description": "Evaluate one bounded Workflow patch without changing canonical state.",
+      "effect": "local_read",
+      "id": "workflow_evaluate_patch",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "operations": {
+            "items": {
+              "oneOf": [
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "alias": {
+                      "type": "string"
+                    },
+                    "capability": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "version"
+                      ],
+                      "type": "object"
+                    },
+                    "op": {
+                      "const": "add_node"
+                    },
+                    "params": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    "position": {
+                      "items": {
+                        "type": "number"
+                      },
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "type": [
+                        "array",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "alias",
+                    "capability",
+                    "op",
+                    "params",
+                    "position"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "replace_params"
+                    },
+                    "params": {
+                      "additionalProperties": true,
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "node",
+                    "op",
+                    "params"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "binding": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "single"
+                            },
+                            "source": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "node": {
+                                  "oneOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "kind": {
+                                          "const": "id"
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "alias": {
+                                          "type": "string"
+                                        },
+                                        "kind": {
+                                          "const": "alias"
+                                        }
+                                      },
+                                      "required": [
+                                        "alias",
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "output": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "node",
+                                "output"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "source"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "ordered_many"
+                            },
+                            "sources": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "node": {
+                                    "oneOf": [
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "kind": {
+                                            "const": "id"
+                                          }
+                                        },
+                                        "required": [
+                                          "id",
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "alias": {
+                                            "type": "string"
+                                          },
+                                          "kind": {
+                                            "const": "alias"
+                                          }
+                                        },
+                                        "required": [
+                                          "alias",
+                                          "kind"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    ]
+                                  },
+                                  "output": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "node",
+                                  "output"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "sources"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "input": {
+                      "type": "string"
+                    },
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "set_input"
+                    }
+                  },
+                  "required": [
+                    "binding",
+                    "input",
+                    "node",
+                    "op"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "input": {
+                      "type": "string"
+                    },
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "clear_input"
+                    }
+                  },
+                  "required": [
+                    "input",
+                    "node",
+                    "op"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "remove_node"
+                    }
+                  },
+                  "required": [
+                    "node",
+                    "op"
+                  ],
+                  "type": "object"
+                },
+                {
+                  "additionalProperties": false,
+                  "properties": {
+                    "node": {
+                      "oneOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "id"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "alias": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "alias"
+                            }
+                          },
+                          "required": [
+                            "alias",
+                            "kind"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "op": {
+                      "const": "set_position"
+                    },
+                    "position": {
+                      "items": {
+                        "type": "number"
+                      },
+                      "maxItems": 2,
+                      "minItems": 2,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "node",
+                    "op",
+                    "position"
+                  ],
+                  "type": "object"
+                }
+              ]
+            },
+            "maxItems": 128,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "operations"
+        ],
+        "title": "WorkflowApplyPatchInput",
+        "type": "object"
+      },
+      "needs_approval": false,
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "aliases": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "alias": {
+                  "type": "string"
+                },
+                "node_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "alias",
+                "node_id"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "base_revision": {
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "readiness_blockers": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "constraint": {
+                  "type": "string"
+                },
+                "pointer": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "constraint",
+                "pointer"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "workflow": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "aliases",
+          "base_revision",
+          "readiness_blockers",
+          "workflow"
+        ],
+        "title": "WorkflowEvaluatePatchOutput",
+        "type": "object"
+      },
+      "strict_json_schema": false,
+      "version": 2
     },
     {
       "description": "Execute a previously prepared proposal.",

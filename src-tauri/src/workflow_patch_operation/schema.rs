@@ -151,6 +151,18 @@ fn node_ref_schema() -> Value {
     })
 }
 
+fn patch_output_ref_schema() -> Value {
+    json!({
+        "type": "object",
+        "required": ["node", "output"],
+        "properties": {
+            "node": node_ref_schema(),
+            "output": { "type": "string" }
+        },
+        "additionalProperties": false
+    })
+}
+
 fn capability_ref_schema() -> Value {
     json!({
         "type": "object",
@@ -164,11 +176,11 @@ fn binding_schema() -> Value {
     json!({
         "oneOf": [
             { "type": "object", "required": ["kind", "source"], "properties": {
-                "kind": { "const": "single" }, "source": node_ref_schema()
+                "kind": { "const": "single" }, "source": patch_output_ref_schema()
             }, "additionalProperties": false },
             { "type": "object", "required": ["kind", "sources"], "properties": {
                 "kind": { "const": "ordered_many" }, "sources": {
-                    "type": "array", "items": node_ref_schema()
+                    "type": "array", "items": patch_output_ref_schema()
                 }
             }, "additionalProperties": false }
         ]

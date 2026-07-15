@@ -210,7 +210,7 @@ describe("assistant operation contract fixture", () => {
 });
 
 // Freezes the generated fixture as an opaque artifact, not a semantic source.
-const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:e259465392ec488e";
+const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:7e304e950c332169";
 
 function isExactAssistantOperationsFixture(value: unknown): value is AssistantOperationsFixture {
   return (

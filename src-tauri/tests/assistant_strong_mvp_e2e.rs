@@ -1,5 +1,7 @@
 use backends::MockBackend;
-use engine::{CapabilityRef, InputBinding, NodeRef, WorkflowPatch, WorkflowPatchOperation};
+use engine::{
+    CapabilityRef, InputBinding, NodeRef, PatchOutputRef, WorkflowPatch, WorkflowPatchOperation,
+};
 use oh_my_dream_tauri::assistant_operations::{ApprovedEffect, RequestContext};
 use oh_my_dream_tauri::assistant_repair::{ApprovedWorkflowAction, AssistantRepairService};
 use oh_my_dream_tauri::production_plan::NewPlanItem;
@@ -178,7 +180,12 @@ fn add_image(prompt_id: &str) -> WorkflowPatch {
             WorkflowPatchOperation::SetInput {
                 node: NodeRef::Alias { alias: "image".to_owned() },
                 input: "prompt".to_owned(),
-                binding: InputBinding::Single { source: NodeRef::Id { id: prompt_id.to_owned() } },
+                binding: InputBinding::Single {
+                    source: PatchOutputRef {
+                        node: NodeRef::Id { id: prompt_id.to_owned() },
+                        output: "text".to_owned(),
+                    },
+                },
             },
         ],
     }
