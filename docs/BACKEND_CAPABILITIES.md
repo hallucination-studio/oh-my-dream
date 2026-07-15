@@ -58,6 +58,37 @@ implementation.
 duplicate refs, lists the same contracts used at execution, resolves one exact implementation, and
 never reimplements capability rules.
 
+## Frozen Shared Capability Values
+
+`NodeCapabilityContractId` is 3..=128 lowercase ASCII bytes with two or more dot-separated segments;
+each segment matches `[a-z][a-z0-9_]*`. `NodeCapabilityContractVersion { major, minor }` uses a
+non-zero `u16` major and `u16` minor. `NodeCapabilityContractRef` canonically displays
+`<id>@<major>.<minor>`. Input, output, parameter, and role keys are distinct 1..=64-byte newtypes
+matching `[a-z][a-z0-9_]*`. Display labels are never identity.
+
+`NodeCapabilityParameterValue` is a closed union:
+
+| Tag | Variant | Canonical value |
+| --- | --- | --- |
+| `0` | `UnsignedInteger` | big-endian `u64` |
+| `1` | `Text` | UTF-8, bounded by its exact contract |
+| `2` | `Choice` | one declared capability-owned key |
+| `3` | `GenerationProfile` | canonical D0.3 `GenerationProfileRef` bytes |
+| `4` | `ManagedAsset` | canonical D0.4 `AssetId` bytes |
+
+The parameter set is a `BTreeMap<NodeCapabilityParameterKey, NodeCapabilityParameterValue>` with at
+most 64 entries. Its canonical bytes are entry count as big-endian `u32`, then ascending key/value
+pairs; keys and variable bytes use big-endian `u32` lengths and the explicit tags above. Unknown
+keys, duplicate keys, wrong variants, and values outside the exact contract are rejected. There is
+no null, nested map/list, arbitrary JSON, provider option, or untyped string enum.
+
+`NodeCapabilityParameterContract` declares key, exact variant, Required or Optional-with-default,
+and only variant-appropriate bounds/allowed choices. Normalization inserts declared defaults,
+normalizes values, and returns `NodeCapabilityNormalizedParameters` plus ascending unique referenced
+`WorkflowInputItemId` values. It never reads vendor defaults. Contract construction rejects
+duplicate keys, empty/invalid ranges or choices, invalid defaults, duplicate inputs/outputs, no
+output, or more than one primary output.
+
 ## Versioned Contract
 
 ```rust
@@ -86,6 +117,32 @@ contains exactly that set; this document does not maintain a second copy.
 
 The active runtime data types are `Text`, `Image`, `Video`, and `Audio`. The UI derives those four
 shells from each contract's primary output; shell kind is never persisted as domain identity.
+
+## Frozen Seven Contract Shapes
+
+The refs and implementation names remain single-sourced in `BACKEND.md#active-node-capabilities`.
+Their exact semantic shapes are:
+
+| Implementation | Parameters | Inputs | Output | Kind |
+| --- | --- | --- | --- | --- |
+| `ProvideLiteralTextCapabilityImpl` | required `text`: Text, 1..=65,536 UTF-8 bytes | none | primary `text`: Text | `PureValue` |
+| `ReadImageAssetCapabilityImpl` | required `asset_id`: ManagedAsset(Image) | none | primary `image`: Image | `ManagedAssetRead` |
+| `ReadVideoAssetCapabilityImpl` | required `asset_id`: ManagedAsset(Video) | none | primary `video`: Video | `ManagedAssetRead` |
+| `ReadAudioAssetCapabilityImpl` | required `asset_id`: ManagedAsset(Audio) | none | primary `audio`: Audio | `ManagedAssetRead` |
+| `TextToImageCapabilityImpl` | required `generation_profile_ref`; optional `aspect_ratio`, default `square` | required single `prompt`: Text | primary `image`: Image | `ContentGeneration` |
+| `ImageToVideoCapabilityImpl` | required `generation_profile_ref`; optional `duration_seconds`, default `5` | required single `image`: Image; optional single `prompt`: Text | primary `video`: Video | `MediaTransformation` |
+| `TextToSpeechCapabilityImpl` | required `generation_profile_ref` | required single `text`: Text | primary `audio`: Audio | `ContentGeneration` |
+
+`aspect_ratio` choices are `square`, `landscape_4_3`, `portrait_3_4`, `landscape_16_9`, and
+`portrait_9_16`. `duration_seconds` is UnsignedInteger restricted to `{5, 10}`. Every model-powered
+contract requires exactly one compatible active Generation Profile. Voice/model/style behavior for
+speech belongs to the selected profile, not an extra provider-native node parameter.
+
+All seven return exactly one output. Asset-read capabilities resolve an Available exact-kind Asset
+on every readiness check and execution. Generation capabilities never return provider bytes
+directly: they validate one provider payload, write it through the media writer, and return one
+Available managed reference. No batch count, negative prompt, guidance, safety level, native voice,
+native aspect token, or provider seed is an MVP node parameter.
 
 ## Implementation Shape
 
@@ -121,8 +178,9 @@ It never reads a provider name, route ID, path, URL, Asset repository, or concre
 | `TextToSpeechProviderInterface` | `synthesize_speech_from_text` | `TextToSpeechProviderRequest` | `SynthesizedSpeechPayload` |
 
 Every exact provider request contains semantic inputs, typed parameters, `GenerationProfileRef`,
-and `WorkflowNodeExecutionId`. It contains no provider name, native model ID, credential, endpoint,
-URL, path, provider task, wire DTO, or generic options map.
+and `WorkflowNodeExecutionContext`; that context contains `WorkflowNodeExecutionId`, deadline, and
+cancellation. It contains no provider name, native model ID, credential, endpoint, URL, path,
+provider task, wire DTO, or generic options map.
 
 The media-write request includes `NodeCapabilityProducedMediaOutputKey`, derived from Workflow Run,
 node execution, output key, and ordinal. The Desktop bridge translates it to the Asset-owned
@@ -180,6 +238,15 @@ becomes a partial `WorkflowNodeOutputSet`.
 retryability, and optional safe retry time. `NodeCapabilityExecutionError` adds capability, stage,
 and safe target. Raw provider text, native IDs, URLs, paths, credentials, and response bodies never
 cross these errors.
+
+The closed parameter categories are `UnknownParameter`, `RequiredParameterMissing`,
+`ParameterValueKindMismatch`, `ParameterValueOutOfBounds`, `ParameterChoiceNotDeclared`, and
+`ParameterSetTooLarge`. Readiness categories are `ManagedAssetUnavailable`,
+`ManagedAssetKindMismatch`, `GenerationProfileIncompatible`, `GenerationProfileUnavailable`, and
+`GenerationProfileAvailabilityIndeterminate`. Execution stages are `NormalizeParameters`,
+`ResolveInputs`, `CallProvider`, `ValidateProviderResult`, and `WriteManagedMedia`.
+`NodeCapabilityExecutionError` wraps one typed parameter, readiness, provider, media, cancellation,
+or deadline category with contract ref, node execution ID, stage, and safe parameter/input/output key.
 
 ## Contract Tests
 

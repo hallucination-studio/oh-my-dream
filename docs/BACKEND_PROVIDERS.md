@@ -96,6 +96,24 @@ pub struct GenerationProfileDefinition {
 }
 ```
 
+`GenerationProfileId` is 3..=128 lowercase ASCII bytes with two or more dot-separated segments;
+each segment matches `[a-z][a-z0-9_]*`. `GenerationProfileVersion` is a non-zero `u32`, and the
+canonical ref is `<id>@<version>`. `GenerationProfileDisplayName` is trimmed, contains 1..=80
+Unicode scalar values, and contains no control character. Lifecycle is the closed union `Active |
+Retired`.
+
+The frozen MVP catalog contains exactly these definitions:
+
+| Profile ref | Display name | Compatible capability |
+| --- | --- | --- |
+| `image.high_quality_general@1` | High Quality Image | `image.generate_from_text@1.0` |
+| `video.cinematic_image_animation@1` | Cinematic Image Animation | `video.generate_from_image@1.0` |
+| `speech.multilingual_narration@1` | Multilingual Narration | `audio.synthesize_speech_from_text@1.0` |
+
+The capability refs above must belong to the exact set in `BACKEND.md#active-node-capabilities`;
+display text is not identity. Adding a profile, compatibility, or lifecycle state changes this
+frozen catalog and is not configuration.
+
 A profile is an immutable product promise, not an alias for today's native model.
 
 - compatibility names exact capability versions;
@@ -130,6 +148,14 @@ Unavailable reasons include `NoConfiguredRoute`, `AuthenticationRequired`, `Poli
 `QuotaUnavailable`, `RateLimited`, `ProviderUnavailable`, and `NativeModelUnavailable`. Probe
 timeout, offline state, and an untrustworthy response are `Indeterminate` rather than a false claim.
 
+`GenerationProfileAvailabilityObservation` contains the requested profile ref, state,
+`observed_at_epoch_ms`, and `expires_at_epoch_ms`. Both times are non-negative; expiry is later than
+observation and no more than 30 seconds later. A bulk request contains one exact capability ref and
+1..=100 unique compatible profile refs and has a five-second deadline. It returns exactly one
+observation per requested ref in request order. `retry_after_epoch_ms`, when present, is later than
+observation. Indeterminate reasons are exactly `ProbeTimedOut`, `NetworkOffline`, and
+`UntrustedResponse`.
+
 `GenerationProfileAvailabilityReaderInterface` is consumer-owned by the profile application module.
 `ProviderRouterGenerationProfileAvailabilityReaderAdapterImpl` performs one bounded bulk
 observation for one exact capability and profile set. It reads the same three router
@@ -143,14 +169,27 @@ No route may silently substitute a different profile.
 
 ## Frozen MVP Provider Interfaces
 
-[`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md#mvp-external-interfaces) is the only authority
-for public interface signatures, requests, and results. Provider infrastructure implements exactly its
-three MVP interfaces: `TextToImageProviderInterface`, `ImageToVideoProviderInterface`, and
-`TextToSpeechProviderInterface`.
+[`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md#mvp-external-interfaces) owns public interface,
+request, and result names. This section freezes their field semantics. Provider infrastructure
+implements exactly its three MVP interfaces: `TextToImageProviderInterface`,
+`ImageToVideoProviderInterface`, and `TextToSpeechProviderInterface`.
 
-Their requests carry `GenerationProfileRef` and `WorkflowNodeExecutionId`; the execution ID becomes
-the native submission idempotency key where supported. Roadmap interface names are reserved by the
-capability document but do not exist in the MVP runtime.
+Their requests carry `GenerationProfileRef` and `WorkflowNodeExecutionContext`; the context contains
+`WorkflowNodeExecutionId`, one deadline, and cancellation, but no credential or provider value. The
+execution ID becomes the native submission idempotency key where supported. Exact semantic fields
+and results are:
+
+| Interface method | Request after profile/context | Success result |
+| --- | --- | --- |
+| `generate_image_from_text` | `prompt: WorkflowTextValue`, `aspect_ratio: ImageAspectRatio` | one `GeneratedImagePayload` |
+| `generate_video_from_image` | readable Image, optional `prompt: WorkflowTextValue`, `duration_seconds: 5 | 10` | one `GeneratedVideoPayload` |
+| `synthesize_speech_from_text` | `text: WorkflowTextValue` | one `SynthesizedSpeechPayload` |
+
+Each payload has its fixed media kind, MIME, byte length, SHA-256 digest, declared media facts, and
+one bounded asynchronous byte stream. Frozen profile outputs are respectively `image/png` up to 32
+MiB, `video/mp4` up to 512 MiB, and `audio/mpeg` up to 64 MiB. Zero bytes, a second output, unknown
+length, mismatched facts, trailing bytes, or digest mismatch is `InvalidResponse`. Roadmap interface
+names are reserved by the capability document but do not exist in the MVP runtime.
 
 ## Router And Private Route
 
@@ -188,6 +227,18 @@ struct FalImageToVideoProviderRouteImpl {
     transport: FalHttpTransport,
 }
 ```
+
+The frozen composition map is exact:
+
+| Profile ref | Production route implementation | Native operation |
+| --- | --- | --- |
+| `image.high_quality_general@1` | `FalTextToImageProviderRouteImpl` | configured fal FLUX Pro Kontext text-to-image endpoint |
+| `video.cinematic_image_animation@1` | `FalImageToVideoProviderRouteImpl` | configured fal Kling image-to-video endpoint |
+| `speech.multilingual_narration@1` | `ElevenLabsTextToSpeechProviderRouteImpl` | configured ElevenLabs text-to-speech endpoint |
+
+Native endpoint and model identifiers are private typed configuration. Tests replace each production
+route with its matching `Deterministic<Input>To<Output>ProviderRouteImpl`; they do not add catalog
+profiles or routes.
 
 Router construction rejects unknown or incompatible profiles, duplicate profile mappings,
 duplicate route IDs, and incomplete credentials. A missing mapping is represented by
@@ -232,6 +283,13 @@ Each concrete route:
 - maps provider status exactly once into `NodeCapabilityProviderFailure`;
 - keeps credentials, raw bodies, signed URLs, remote handles, and route details private.
 
+Submission/status response bodies are at most 1 MiB. Text-to-image, image-to-video, and
+text-to-speech deadlines are respectively 180, 900, and 120 seconds. Poll delay stays within
+500..=5,000 milliseconds and attempt count is derived from the operation deadline. Downloads allow
+at most three redirects, require HTTPS and an allowlisted host, and reject loopback, private,
+link-local, and changed resolved addresses. A route never resubmits after an ambiguous acceptance;
+it may only recover the same submission with the same route and idempotency key.
+
 Remote media is downloaded and validated inside the route. The route returns a semantic payload but
 never creates an Asset; the capability owns the call to the Asset-write boundary.
 
@@ -253,10 +311,13 @@ credential makes affected profiles unavailable without preventing application st
 Profile failures are `GenerationProfileNotFound`, `GenerationProfileIncompatible`,
 `GenerationProfileUnavailable`, and `GenerationProfileAvailabilityIndeterminate`.
 
-`NodeCapabilityProviderFailure` uses closed categories for invalid semantic request, authentication,
-permission, content policy, rate limit, provider unavailable, timeout, provider rejection, invalid
-response, download rejection, and ambiguous submission. It carries safe retryability and optional
-retry time. Provider strings never determine Workflow state.
+`NodeCapabilityProviderFailure` categories are exactly `InvalidSemanticRequest`,
+`AuthenticationFailed`, `PermissionDenied`, `ContentPolicyRejected`, `RateLimited`,
+`ProviderUnavailable`, `DeadlineExceeded`, `ProviderRejected`, `InvalidResponse`,
+`DownloadRejected`, and `AmbiguousSubmission`. Only `RateLimited` and `ProviderUnavailable` are
+retryable; `DeadlineExceeded` is retryable only before accepted submission. `AmbiguousSubmission`
+is never automatically retried. Optional retry time is valid only for a retryable category and must
+be in the future when returned. Provider strings never determine Workflow state.
 
 No database transaction remains open during any provider call. A capability translates one
 provider failure into `NodeCapabilityExecutionError`; Workflow then owns the node/Run transition.
