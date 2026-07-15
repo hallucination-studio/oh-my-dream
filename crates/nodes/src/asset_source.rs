@@ -149,3 +149,98 @@ fn output_name(kind: AssetMediaKind) -> &'static str {
         AssetMediaKind::Audio => "audio",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::registrations;
+    use crate::{
+        AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver, ResolvedAssetReference,
+    };
+    use engine::{Executor, NodeParams, NodeRegistry, ResultCache, Value, Workflow, WorkflowNode};
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    struct RecordingResolver(AtomicUsize);
+
+    impl AssetReferenceResolver for RecordingResolver {
+        fn resolve(
+            &self,
+            request: AssetReferenceRequest<'_>,
+        ) -> Result<ResolvedAssetReference, AssetReferenceError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(ResolvedAssetReference {
+                asset_id: request.asset_id.to_owned(),
+                local_path: PathBuf::from("managed"),
+                prompt: None,
+            })
+        }
+    }
+
+    #[test]
+    fn asset_source_typed_outputs_and_every_run_resolution() {
+        let resolver = Arc::new(RecordingResolver(AtomicUsize::new(0)));
+        let mut registry = NodeRegistry::new();
+        for registration in registrations(resolver.clone()) {
+            registry.register_selector_capability(registration).expect("register Asset Source");
+        }
+        for (type_id, expected) in [
+            ("Image", Value::Image("asset-1".to_owned())),
+            ("Video", Value::Video("asset-1".to_owned())),
+            ("Audio", Value::Audio("asset-1".to_owned())),
+        ] {
+            let workflow = Workflow {
+                version: "1.0".to_owned(),
+                project_id: "project-1".to_owned(),
+                nodes: vec![WorkflowNode {
+                    id: "source".to_owned(),
+                    type_id: type_id.to_owned(),
+                    contract_version: "1.0".to_owned(),
+                    params: NodeParams::from_iter([
+                        ("mode".to_owned(), serde_json::json!("asset")),
+                        ("asset_id".to_owned(), serde_json::json!("asset-1")),
+                    ]),
+                    inputs: BTreeMap::new(),
+                    position: None,
+                }],
+            };
+            let mut cache = ResultCache::new();
+            let outputs = Executor::new(&registry)
+                .execute(&workflow, &mut cache)
+                .expect("first Asset Source run");
+            Executor::new(&registry)
+                .execute(&workflow, &mut cache)
+                .expect("second Asset Source run");
+            let output_name = type_id.to_lowercase();
+            assert_eq!(outputs["source"][&output_name], expected);
+        }
+        assert_eq!(resolver.0.load(Ordering::SeqCst), 6);
+    }
+
+    #[test]
+    fn asset_source_rejects_empty_ids_and_boundary_fields() {
+        let resolver: Arc<dyn AssetReferenceResolver> =
+            Arc::new(RecordingResolver(AtomicUsize::new(0)));
+        let registration = registrations(resolver).into_iter().next().expect("image registration");
+        assert!(
+            registration
+                .normalize_params(&NodeParams::from_iter([
+                    ("mode".to_owned(), serde_json::json!("asset")),
+                    ("asset_id".to_owned(), serde_json::json!(""))
+                ]))
+                .is_err()
+        );
+        assert!(
+            registration
+                .normalize_params(&NodeParams::from_iter([
+                    ("mode".to_owned(), serde_json::json!("asset")),
+                    ("asset_id".to_owned(), serde_json::json!("asset-1")),
+                    ("file_path".to_owned(), serde_json::json!("/tmp/private"))
+                ]))
+                .is_err()
+        );
+    }
+}
