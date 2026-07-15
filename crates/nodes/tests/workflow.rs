@@ -5,8 +5,8 @@ use engine::{
 };
 use nodes::{
     GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, InlineMedia, TextToAudioGenerator, TextToAudioRequest,
-    TextToImageGenerator, TextToImageRequest,
+    ImageToVideoRequest, InlineMedia, ReferenceImageGenerationRequest, ReferenceImageGenerator,
+    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -257,10 +257,11 @@ fn register_test_generators(
     store: nodes::SharedAssetStore,
 ) {
     let image: Arc<dyn TextToImageGenerator> = generators.clone();
+    let reference_image: Arc<dyn ReferenceImageGenerator> = generators.clone();
     let video: Arc<dyn ImageToVideoGenerator> = generators.clone();
     let audio: Arc<dyn TextToAudioGenerator> = generators;
     let resolver = Arc::new(support::StoreResolver(Arc::clone(&store)));
-    nodes::register_all(registry, image, video, audio, store, resolver)
+    nodes::register_all(registry, image, reference_image, video, audio, store, resolver)
         .expect("register workflow capabilities");
 }
 
@@ -307,6 +308,18 @@ impl ImageToVideoGenerator for TestGenerators {
         context.progress(0.25);
         context.progress(0.75);
         self.result(InlineMedia::opaque_video(b"OH_MY_DREAM_MOCK_VIDEO_V1\n".to_vec()), 900)
+    }
+}
+
+impl ReferenceImageGenerator for TestGenerators {
+    fn generate(
+        &self,
+        _request: ReferenceImageGenerationRequest,
+        context: &mut dyn nodes::GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        context.progress(0.25);
+        context.progress(0.75);
+        self.result(InlineMedia::png(MOCK_IMAGE_PNG.to_vec()), 400)
     }
 }
 

@@ -98,13 +98,22 @@ impl AppState {
         let mut registry = NodeRegistry::new();
         let adapter = Arc::new(MockGenerationAdapter::new(Arc::clone(&backend)));
         let image: Arc<dyn nodes::TextToImageGenerator> = adapter.clone();
+        let reference_image: Arc<dyn nodes::ReferenceImageGenerator> = adapter.clone();
         let video: Arc<dyn nodes::ImageToVideoGenerator> = adapter.clone();
         let audio: Arc<dyn nodes::TextToAudioGenerator> = adapter;
         let asset_resolver: Arc<dyn nodes::AssetReferenceResolver> = Arc::new(
             crate::asset_reference_adapter::AssetStoreReferenceResolver::new(Arc::clone(&store)),
         );
-        nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store), asset_resolver)
-            .context("register workflow capabilities")?;
+        nodes::register_all(
+            &mut registry,
+            image,
+            reference_image,
+            video,
+            audio,
+            Arc::clone(&store),
+            asset_resolver,
+        )
+        .context("register workflow capabilities")?;
         let registry = Arc::new(registry);
         let workflow_runs = Arc::new(WorkflowRuns::new(Arc::clone(&registry)));
         let workflow_repository =

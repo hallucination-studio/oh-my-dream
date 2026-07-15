@@ -67,6 +67,23 @@ pub(crate) fn image_input<'a>(inputs: &'a NodeInputs, name: &str) -> Result<&'a 
     }
 }
 
+pub(crate) fn image_inputs<'a>(
+    inputs: &'a NodeInputs,
+    name: &str,
+) -> Result<Vec<&'a str>, NodesError> {
+    match inputs.get(name) {
+        Some(InputValue::OrderedMany(values)) => values
+            .iter()
+            .map(|value| match value {
+                Value::Image(image) => Ok(image.as_str()),
+                _ => wrong_input(name, "image"),
+            })
+            .collect(),
+        Some(InputValue::Single(_)) => wrong_cardinality(name, "ordered many"),
+        None => Err(NodesError::MissingInput { name: name.to_owned() }),
+    }
+}
+
 fn find_param<'a>(
     params: &'a NodeParams,
     names: &[&'a str],

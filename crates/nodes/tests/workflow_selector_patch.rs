@@ -5,8 +5,9 @@ use engine::{
 };
 use nodes::{
     CapabilityNodeStatus, GeneratedOutput, GenerationContext, GenerationError,
-    ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore, TextToAudioGenerator,
-    TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+    ImageToVideoGenerator, ImageToVideoRequest, ReferenceImageGenerationRequest,
+    ReferenceImageGenerator, SharedAssetStore, TextToAudioGenerator, TextToAudioRequest,
+    TextToImageGenerator, TextToImageRequest,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -214,6 +215,7 @@ fn registry() -> (TempDir, NodeRegistry) {
         Arc::new(NoopGenerator),
         Arc::new(NoopGenerator),
         Arc::new(NoopGenerator),
+        Arc::new(NoopGenerator),
         store,
         Arc::new(support::MissingResolver),
     )
@@ -237,6 +239,16 @@ impl ImageToVideoGenerator for NoopGenerator {
     fn generate(
         &self,
         _request: ImageToVideoRequest,
+        _context: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        unreachable!("patch tests do not execute nodes")
+    }
+}
+
+impl ReferenceImageGenerator for NoopGenerator {
+    fn generate(
+        &self,
+        _request: ReferenceImageGenerationRequest,
         _context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!("patch tests do not execute nodes")

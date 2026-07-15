@@ -20,6 +20,7 @@ mod media;
 mod migrations;
 mod params;
 mod ports;
+mod reference_image_generation;
 mod registry;
 mod text_prompt;
 mod text_to_audio;
@@ -59,6 +60,7 @@ pub type SharedAssetStore = Arc<Mutex<AssetStore>>;
 pub fn register_all(
     registry: &mut NodeRegistry,
     text_to_image_generator: Arc<dyn TextToImageGenerator>,
+    reference_image_generator: Arc<dyn ReferenceImageGenerator>,
     image_to_video_generator: Arc<dyn ImageToVideoGenerator>,
     text_to_audio_generator: Arc<dyn TextToAudioGenerator>,
     store: SharedAssetStore,
@@ -67,6 +69,7 @@ pub fn register_all(
     registry::register_all(
         registry,
         text_to_image_generator,
+        reference_image_generator,
         image_to_video_generator,
         text_to_audio_generator,
         store,

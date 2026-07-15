@@ -8,6 +8,7 @@ use std::sync::Arc;
 pub(crate) fn register_all(
     registry: &mut NodeRegistry,
     text_to_image_generator: Arc<dyn crate::TextToImageGenerator>,
+    reference_image_generator: Arc<dyn crate::ReferenceImageGenerator>,
     image_to_video_generator: Arc<dyn crate::ImageToVideoGenerator>,
     text_to_audio_generator: Arc<dyn TextToAudioGenerator>,
     store: SharedAssetStore,
@@ -20,6 +21,11 @@ pub(crate) fn register_all(
     registry.register_selector_capability(crate::text_to_image::registration(
         text_to_image_generator,
         Arc::clone(&store),
+    ))?;
+    registry.register_selector_capability(crate::reference_image_generation::registration(
+        reference_image_generator,
+        Arc::clone(&store),
+        Arc::clone(&asset_resolver),
     ))?;
     registry.register_selector_capability(crate::image_to_video::registration(
         image_to_video_generator,
