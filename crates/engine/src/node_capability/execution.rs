@@ -52,10 +52,14 @@ impl NodeCapabilityReadinessDeadline {
 /// Closed readiness category ordered by frozen table order.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NodeCapabilityReadinessCategory {
+    /// Direct readiness request did not satisfy the resolved capability contract.
+    InvalidCapabilityInvocation,
     /// Selected managed Asset is not Available and visible.
     ManagedAssetUnavailable,
     /// Selected managed Asset has a different media kind.
     ManagedAssetKindMismatch,
+    /// Selected managed Asset readiness cannot be determined reliably.
+    ManagedAssetReadinessIndeterminate,
     /// Selected Generation Profile does not support the exact capability.
     GenerationProfileIncompatible,
     /// Selected Generation Profile is currently unavailable.
@@ -67,6 +71,8 @@ pub enum NodeCapabilityReadinessCategory {
 /// Exact external selection targeted by a readiness issue.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NodeCapabilityReadinessTarget {
+    /// Resolved capability invocation as a whole.
+    Capability,
     /// Parameter-selected managed Asset.
     ManagedAsset {
         /// Parameter that selected the Asset.
@@ -97,6 +103,55 @@ pub struct NodeCapabilityReadinessIssue {
 pub struct NodeCapabilityReadinessIssueConstructionError;
 
 impl NodeCapabilityReadinessIssue {
+    /// Creates the fixed issue for a malformed direct readiness invocation.
+    #[must_use]
+    pub const fn invalid_capability_invocation() -> Self {
+        Self {
+            category: NodeCapabilityReadinessCategory::InvalidCapabilityInvocation,
+            target: NodeCapabilityReadinessTarget::Capability,
+            media_kind_mismatch: None,
+        }
+    }
+    /// Creates an unavailable issue for one managed-Asset parameter.
+    #[must_use]
+    pub fn managed_asset_unavailable(
+        parameter_key: NodeCapabilityParameterKey,
+        asset_id: WorkflowManagedAssetIdBoundaryValue,
+    ) -> Self {
+        Self {
+            category: NodeCapabilityReadinessCategory::ManagedAssetUnavailable,
+            target: NodeCapabilityReadinessTarget::ManagedAsset { parameter_key, asset_id },
+            media_kind_mismatch: None,
+        }
+    }
+
+    /// Creates a kind-mismatch issue from distinct non-Text boundary facts.
+    pub fn managed_asset_kind_mismatch(
+        parameter_key: NodeCapabilityParameterKey,
+        asset_id: WorkflowManagedAssetIdBoundaryValue,
+        expected: WorkflowDataType,
+        observed: WorkflowDataType,
+    ) -> Result<Self, NodeCapabilityReadinessIssueConstructionError> {
+        Self::try_new(
+            NodeCapabilityReadinessCategory::ManagedAssetKindMismatch,
+            NodeCapabilityReadinessTarget::ManagedAsset { parameter_key, asset_id },
+            Some((expected, observed)),
+        )
+    }
+
+    /// Creates an indeterminate issue for one managed-Asset parameter.
+    #[must_use]
+    pub fn managed_asset_readiness_indeterminate(
+        parameter_key: NodeCapabilityParameterKey,
+        asset_id: WorkflowManagedAssetIdBoundaryValue,
+    ) -> Self {
+        Self {
+            category: NodeCapabilityReadinessCategory::ManagedAssetReadinessIndeterminate,
+            target: NodeCapabilityReadinessTarget::ManagedAsset { parameter_key, asset_id },
+            media_kind_mismatch: None,
+        }
+    }
+
     /// Creates one issue only when category, target, and kind detail agree.
     pub fn try_new(
         category: NodeCapabilityReadinessCategory,
@@ -107,6 +162,10 @@ impl NodeCapabilityReadinessIssue {
         let profile_target =
             matches!(target, NodeCapabilityReadinessTarget::GenerationProfile { .. });
         let valid = match category {
+            NodeCapabilityReadinessCategory::InvalidCapabilityInvocation => {
+                matches!(target, NodeCapabilityReadinessTarget::Capability)
+                    && media_kind_mismatch.is_none()
+            }
             NodeCapabilityReadinessCategory::ManagedAssetUnavailable => {
                 managed_target && media_kind_mismatch.is_none()
             }
@@ -117,6 +176,9 @@ impl NodeCapabilityReadinessIssue {
                             && expected != WorkflowDataType::Text
                             && observed != WorkflowDataType::Text
                     })
+            }
+            NodeCapabilityReadinessCategory::ManagedAssetReadinessIndeterminate => {
+                managed_target && media_kind_mismatch.is_none()
             }
             NodeCapabilityReadinessCategory::GenerationProfileIncompatible
             | NodeCapabilityReadinessCategory::GenerationProfileUnavailable

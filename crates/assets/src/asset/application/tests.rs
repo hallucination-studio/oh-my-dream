@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::*;
 use crate::asset::domain::{
-    AssetContentDigest, AssetId, AssetManagedContentId, AssetPreviewLeaseId,
+    AssetContentDigest, AssetId, AssetManagedContentId, AssetMediaKind, AssetPreviewLeaseId,
 };
 
 fn content_id() -> AssetManagedContentId {
@@ -92,7 +92,10 @@ fn application_error_has_exact_frozen_categories() {
     let errors = [
         AssetApplicationError::NotFound,
         AssetApplicationError::NotVisible,
-        AssetApplicationError::MediaKindMismatch,
+        AssetApplicationError::MediaKindMismatch {
+            expected: AssetMediaKind::Image,
+            observed: AssetMediaKind::Video,
+        },
         AssetApplicationError::ContentPending,
         AssetApplicationError::ContentMissing,
         AssetApplicationError::InvalidMedia,
@@ -119,7 +122,7 @@ const fn frozen_error_category(error: AssetApplicationError) -> AssetApplication
     match error {
         AssetApplicationError::NotFound => error,
         AssetApplicationError::NotVisible => error,
-        AssetApplicationError::MediaKindMismatch => error,
+        AssetApplicationError::MediaKindMismatch { .. } => error,
         AssetApplicationError::ContentPending => error,
         AssetApplicationError::ContentMissing => error,
         AssetApplicationError::InvalidMedia => error,

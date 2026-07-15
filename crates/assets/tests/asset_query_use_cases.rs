@@ -117,7 +117,13 @@ async fn resolve_rejects_media_kind_before_opening_content() {
         Err(error) => error,
     };
 
-    assert_eq!(error, AssetApplicationError::MediaKindMismatch);
+    assert_eq!(
+        error,
+        AssetApplicationError::MediaKindMismatch {
+            expected: AssetMediaKind::Video,
+            observed: AssetMediaKind::Image,
+        }
+    );
 }
 
 #[tokio::test]

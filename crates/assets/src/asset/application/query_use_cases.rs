@@ -82,7 +82,10 @@ impl AssetResolveContentUseCase {
             find_visible_asset(self.repository.as_ref(), query.project_id(), query.asset_id())
                 .await?;
         if asset.media_kind() != query.expected_media_kind() {
-            return Err(AssetApplicationError::MediaKindMismatch);
+            return Err(AssetApplicationError::MediaKindMismatch {
+                expected: query.expected_media_kind(),
+                observed: asset.media_kind(),
+            });
         }
         let descriptor = available_descriptor(&asset)?.clone();
         let lease = run_asset_operation_before_deadline(

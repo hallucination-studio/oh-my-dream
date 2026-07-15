@@ -223,6 +223,12 @@ impl WorkflowNodeInputSet {
     pub fn get(&self, key: &NodeCapabilityInputKey) -> Option<&WorkflowNodeInputValue> {
         self.0.get(key)
     }
+
+    /// Reports whether the validated input set has no values.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 fn input_matches(

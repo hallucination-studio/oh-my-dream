@@ -114,7 +114,12 @@ pub enum NodeCapabilityMediaFailure {
     /// Selected managed media was unavailable.
     Unavailable,
     /// Selected managed media had the wrong kind.
-    KindMismatch,
+    KindMismatch {
+        /// Media kind required by the caller.
+        expected: super::WorkflowDataType,
+        /// Media kind observed at the boundary.
+        observed: super::WorkflowDataType,
+    },
     /// Media content failed validation.
     InvalidMedia,
     /// Media exceeded its exact size limit.
@@ -160,6 +165,8 @@ pub enum NodeCapabilityExecutionTarget {
 /// Closed execution failure source.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NodeCapabilityExecutionFailure {
+    /// Direct execution request did not satisfy the resolved capability contract.
+    InvalidCapabilityInvocation,
     /// External readiness changed after admission.
     Readiness(NodeCapabilityReadinessIssue),
     /// Provider boundary failed.
@@ -189,6 +196,107 @@ pub struct NodeCapabilityExecutionError {
 }
 
 impl NodeCapabilityExecutionError {
+    /// Creates the fixed error for a malformed direct capability invocation.
+    #[must_use]
+    pub fn invalid_capability_invocation(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+    ) -> Self {
+        Self::resolve_inputs_capability_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionFailure::InvalidCapabilityInvocation,
+        )
+    }
+
+    /// Creates a cancellation observed while resolving capability inputs.
+    #[must_use]
+    pub fn cancelled_while_resolving_inputs(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+    ) -> Self {
+        Self::resolve_inputs_capability_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionFailure::Cancelled,
+        )
+    }
+
+    /// Creates a deadline failure observed while resolving capability inputs.
+    #[must_use]
+    pub fn deadline_exceeded_while_resolving_inputs(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+    ) -> Self {
+        Self::resolve_inputs_capability_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionFailure::DeadlineExceeded,
+        )
+    }
+
+    /// Creates cancellation observed while resolving one parameter.
+    #[must_use]
+    pub fn cancelled_while_resolving_parameter(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        parameter_key: NodeCapabilityParameterKey,
+    ) -> Self {
+        Self {
+            contract_ref,
+            node_execution_id,
+            stage: NodeCapabilityExecutionStage::ResolveInputs,
+            failure: NodeCapabilityExecutionFailure::Cancelled,
+            target: NodeCapabilityExecutionTarget::Parameter(parameter_key),
+        }
+    }
+
+    /// Creates deadline failure observed while resolving one parameter.
+    #[must_use]
+    pub fn deadline_exceeded_while_resolving_parameter(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        parameter_key: NodeCapabilityParameterKey,
+    ) -> Self {
+        Self {
+            contract_ref,
+            node_execution_id,
+            stage: NodeCapabilityExecutionStage::ResolveInputs,
+            failure: NodeCapabilityExecutionFailure::DeadlineExceeded,
+            target: NodeCapabilityExecutionTarget::Parameter(parameter_key),
+        }
+    }
+
+    /// Creates an exact managed-media failure for one Asset parameter resolution.
+    #[must_use]
+    pub fn managed_media_parameter_resolution_failed(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        parameter_key: NodeCapabilityParameterKey,
+        failure: NodeCapabilityMediaFailure,
+    ) -> Self {
+        Self {
+            contract_ref,
+            node_execution_id,
+            stage: NodeCapabilityExecutionStage::ResolveInputs,
+            failure: NodeCapabilityExecutionFailure::Media(failure),
+            target: NodeCapabilityExecutionTarget::Parameter(parameter_key),
+        }
+    }
+
+    fn resolve_inputs_capability_failure(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        failure: NodeCapabilityExecutionFailure,
+    ) -> Self {
+        Self {
+            contract_ref,
+            node_execution_id,
+            stage: NodeCapabilityExecutionStage::ResolveInputs,
+            failure,
+            target: NodeCapabilityExecutionTarget::Capability,
+        }
+    }
     /// Creates an error only when its stage and target agree.
     pub fn try_new(
         contract_ref: NodeCapabilityContractRef,
@@ -218,11 +326,15 @@ impl NodeCapabilityExecutionError {
             (
                 NodeCapabilityExecutionFailure::Readiness(issue),
                 NodeCapabilityExecutionTarget::Parameter(execution_parameter_key),
-            ) => readiness_parameter_key(issue) == execution_parameter_key,
+            ) => readiness_parameter_key(issue).is_some_and(|key| key == execution_parameter_key),
             (NodeCapabilityExecutionFailure::Readiness(_), _) => false,
             _ => true,
         };
-        if !valid_target || !readiness_target_matches {
+        let invalid_invocation_shape = failure
+            == NodeCapabilityExecutionFailure::InvalidCapabilityInvocation
+            && (stage != NodeCapabilityExecutionStage::ResolveInputs
+                || target != NodeCapabilityExecutionTarget::Capability);
+        if !valid_target || !readiness_target_matches || invalid_invocation_shape {
             return Err(NodeCapabilityExecutionErrorConstructionError);
         }
         Ok(Self { contract_ref, node_execution_id, stage, failure, target })
@@ -255,9 +367,14 @@ impl NodeCapabilityExecutionError {
     }
 }
 
-fn readiness_parameter_key(issue: &NodeCapabilityReadinessIssue) -> &NodeCapabilityParameterKey {
+fn readiness_parameter_key(
+    issue: &NodeCapabilityReadinessIssue,
+) -> Option<&NodeCapabilityParameterKey> {
     match issue.target() {
+        NodeCapabilityReadinessTarget::Capability => None,
         NodeCapabilityReadinessTarget::ManagedAsset { parameter_key, .. }
-        | NodeCapabilityReadinessTarget::GenerationProfile { parameter_key, .. } => parameter_key,
+        | NodeCapabilityReadinessTarget::GenerationProfile { parameter_key, .. } => {
+            Some(parameter_key)
+        }
     }
 }

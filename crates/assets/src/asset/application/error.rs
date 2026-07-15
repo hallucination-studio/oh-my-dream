@@ -11,7 +11,12 @@ pub enum AssetApplicationError {
     NotVisible,
     /// The Asset has a different media kind than requested.
     #[error("asset media kind mismatch")]
-    MediaKindMismatch,
+    MediaKindMismatch {
+        /// Media kind required by the caller.
+        expected: crate::asset::domain::AssetMediaKind,
+        /// Media kind owned by the resolved Asset.
+        observed: crate::asset::domain::AssetMediaKind,
+    },
     /// Managed content has not completed finalization.
     #[error("asset content pending")]
     ContentPending,

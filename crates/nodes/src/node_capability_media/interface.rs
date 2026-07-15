@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use engine::node_capability::{
-    NodeCapabilityMediaFailure, WorkflowManagedAudioRef, WorkflowManagedImageRef,
-    WorkflowManagedVideoRef, WorkflowNodeExecutionContext,
+    NodeCapabilityMediaFailure, WorkflowManagedAssetIdBoundaryValue, WorkflowManagedAudioRef,
+    WorkflowManagedImageRef, WorkflowManagedVideoRef, WorkflowNodeExecutionContext,
 };
 use projects::project::domain::ProjectId;
 
@@ -28,10 +28,47 @@ pub enum NodeCapabilityMediaBoundaryError {
     DeadlineExceeded,
 }
 
+/// Asset-ID selection with one required media kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NodeCapabilityAssetIdMediaReadSelection {
+    asset_id: WorkflowManagedAssetIdBoundaryValue,
+    expected_media_kind: NodeCapabilityMediaKind,
+}
+
+impl NodeCapabilityAssetIdMediaReadSelection {
+    /// Selects one Asset ID with its required media kind.
+    #[must_use]
+    pub const fn new(
+        asset_id: WorkflowManagedAssetIdBoundaryValue,
+        expected_media_kind: NodeCapabilityMediaKind,
+    ) -> Self {
+        Self { asset_id, expected_media_kind }
+    }
+    /// Returns the selected Asset ID.
+    #[must_use]
+    pub const fn asset_id(self) -> WorkflowManagedAssetIdBoundaryValue {
+        self.asset_id
+    }
+    /// Returns the required media kind.
+    #[must_use]
+    pub const fn expected_media_kind(self) -> NodeCapabilityMediaKind {
+        self.expected_media_kind
+    }
+}
+
+/// Exact managed-media selection accepted by the reader.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeCapabilityManagedMediaReadSelection {
+    /// Resolve an Asset ID inside one Project.
+    AssetId(NodeCapabilityAssetIdMediaReadSelection),
+    /// Read one exact Available managed-media reference.
+    ExactReference(NodeCapabilityManagedMediaReference),
+}
+
 /// Exact Project-scoped managed-media read request.
 pub struct NodeCapabilityManagedMediaReadRequest {
     project_id: ProjectId,
-    media_reference: NodeCapabilityManagedMediaReference,
+    selection: NodeCapabilityManagedMediaReadSelection,
     deadline: std::time::Instant,
 }
 
@@ -40,20 +77,20 @@ impl NodeCapabilityManagedMediaReadRequest {
     #[must_use]
     pub const fn new(
         project_id: ProjectId,
-        media_reference: NodeCapabilityManagedMediaReference,
+        selection: NodeCapabilityManagedMediaReadSelection,
         deadline: std::time::Instant,
     ) -> Self {
-        Self { project_id, media_reference, deadline }
+        Self { project_id, selection, deadline }
     }
     /// Returns the owning Project.
     #[must_use]
     pub const fn project_id(&self) -> ProjectId {
         self.project_id
     }
-    /// Returns the typed managed-media reference.
+    /// Returns the Asset-ID or exact-reference read selection.
     #[must_use]
-    pub const fn media_reference(&self) -> NodeCapabilityManagedMediaReference {
-        self.media_reference
+    pub const fn selection(&self) -> NodeCapabilityManagedMediaReadSelection {
+        self.selection
     }
     /// Returns the exact monotonic deadline.
     #[must_use]
@@ -248,7 +285,7 @@ pub enum NodeCapabilityProducedMediaReference {
 /// Reads exact Project-visible managed media for node capabilities.
 #[async_trait]
 pub trait NodeCapabilityManagedMediaReaderInterface: Send + Sync {
-    /// Reads one typed exact-content reference.
+    /// Resolves and reads one typed managed-media selection.
     async fn read_managed_media(
         &self,
         request: NodeCapabilityManagedMediaReadRequest,

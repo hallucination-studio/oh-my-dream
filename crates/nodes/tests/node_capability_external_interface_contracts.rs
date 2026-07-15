@@ -30,6 +30,16 @@ async fn managed_media_reader_fake_impl_satisfies_reader_contract() {
             bytes.clone(),
         )
         .unwrap();
+    let conflicting_reference =
+        WorkflowManagedVideoRef::new(reference.asset_id(), reference.content_fingerprint());
+    let conflict = reader.register_managed_media(
+        owning_project_id,
+        NodeCapabilityManagedMediaReference::Video(conflicting_reference),
+        NodeCapabilityMediaMimeType::VideoMp4,
+        NodeCapabilityDeclaredMediaFacts::try_video(32, 32, 1_000, false).unwrap(),
+        bytes.clone(),
+    );
+    assert_eq!(conflict, Err(NodeCapabilityMediaValueError::InvalidMediaFacts));
     assert_managed_media_reader_contract(
         &reader,
         owning_project_id,
@@ -38,6 +48,7 @@ async fn managed_media_reader_fake_impl_satisfies_reader_contract() {
         bytes,
     )
     .await;
+    assert_managed_media_selection_contract(&reader, owning_project_id, reference).await;
 }
 
 async fn assert_managed_media_reader_contract(
@@ -50,7 +61,9 @@ async fn assert_managed_media_reader_contract(
     let missing = reader
         .read_managed_media(NodeCapabilityManagedMediaReadRequest::new(
             other_project_id,
-            NodeCapabilityManagedMediaReference::Image(reference),
+            NodeCapabilityManagedMediaReadSelection::ExactReference(
+                NodeCapabilityManagedMediaReference::Image(reference),
+            ),
             future_instant(),
         ))
         .await;
@@ -62,23 +75,30 @@ async fn assert_managed_media_reader_contract(
     let wrong_kind = reader
         .read_managed_media(NodeCapabilityManagedMediaReadRequest::new(
             owning_project_id,
-            NodeCapabilityManagedMediaReference::Video(WorkflowManagedVideoRef::new(
-                reference.asset_id(),
-                reference.content_fingerprint(),
-            )),
+            NodeCapabilityManagedMediaReadSelection::ExactReference(
+                NodeCapabilityManagedMediaReference::Video(WorkflowManagedVideoRef::new(
+                    reference.asset_id(),
+                    reference.content_fingerprint(),
+                )),
+            ),
             future_instant(),
         ))
         .await;
     let Err(wrong_kind) = wrong_kind else { panic!("wrong media kind unexpectedly succeeded") };
     assert_eq!(
         wrong_kind,
-        NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::KindMismatch)
+        NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::KindMismatch {
+            expected: engine::node_capability::WorkflowDataType::Video,
+            observed: engine::node_capability::WorkflowDataType::Image,
+        })
     );
 
     let readable = reader
         .read_managed_media(NodeCapabilityManagedMediaReadRequest::new(
             owning_project_id,
-            NodeCapabilityManagedMediaReference::Image(reference),
+            NodeCapabilityManagedMediaReadSelection::ExactReference(
+                NodeCapabilityManagedMediaReference::Image(reference),
+            ),
             future_instant(),
         ))
         .await
@@ -89,6 +109,61 @@ async fn assert_managed_media_reader_contract(
     assert_eq!(readable.media_reference(), reference);
     assert_eq!(readable.mime_type(), NodeCapabilityMediaMimeType::ImagePng);
     assert_eq!(read_stream(readable.into_source()).await, bytes);
+}
+
+async fn assert_managed_media_selection_contract(
+    reader: &impl NodeCapabilityManagedMediaReaderInterface,
+    owning_project_id: ProjectId,
+    reference: WorkflowManagedImageRef,
+) {
+    let by_asset_id = reader
+        .read_managed_media(NodeCapabilityManagedMediaReadRequest::new(
+            owning_project_id,
+            NodeCapabilityManagedMediaReadSelection::AssetId(
+                NodeCapabilityAssetIdMediaReadSelection::new(
+                    reference.asset_id(),
+                    NodeCapabilityMediaKind::Image,
+                ),
+            ),
+            future_instant(),
+        ))
+        .await
+        .unwrap();
+    let NodeCapabilityReadableMediaInput::Image(by_asset_id) = by_asset_id else {
+        panic!("Asset-ID selection returned the wrong type")
+    };
+    assert_eq!(by_asset_id.media_reference(), reference);
+
+    let stale_reference = WorkflowManagedImageRef::new(
+        reference.asset_id(),
+        WorkflowManagedContentFingerprint::from_bytes([99; 32]),
+    );
+    let stale = reader
+        .read_managed_media(NodeCapabilityManagedMediaReadRequest::new(
+            owning_project_id,
+            NodeCapabilityManagedMediaReadSelection::ExactReference(
+                NodeCapabilityManagedMediaReference::Image(stale_reference),
+            ),
+            future_instant(),
+        ))
+        .await;
+    let Err(stale) = stale else { panic!("stale fingerprint unexpectedly resolved") };
+    assert_eq!(
+        stale,
+        NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::DigestMismatch)
+    );
+
+    let expired = reader
+        .read_managed_media(NodeCapabilityManagedMediaReadRequest::new(
+            owning_project_id,
+            NodeCapabilityManagedMediaReadSelection::ExactReference(
+                NodeCapabilityManagedMediaReference::Image(reference),
+            ),
+            Instant::now(),
+        ))
+        .await;
+    let Err(expired) = expired else { panic!("expired read unexpectedly succeeded") };
+    assert_eq!(expired, NodeCapabilityMediaBoundaryError::DeadlineExceeded);
 }
 
 #[tokio::test]

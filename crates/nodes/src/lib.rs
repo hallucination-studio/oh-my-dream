@@ -10,6 +10,7 @@
 
 #![forbid(unsafe_code)]
 
+mod asset_read_capability;
 mod asset_reference;
 mod asset_source;
 mod contracts;
@@ -17,6 +18,7 @@ mod error;
 mod generation;
 mod generation_profile;
 mod image_to_video;
+mod literal_text_capability;
 mod media;
 mod migrations;
 mod node_capability_media;
@@ -34,6 +36,7 @@ use assets::AssetStore;
 use engine::NodeRegistry;
 use std::sync::{Arc, Mutex};
 
+pub use asset_read_capability::*;
 pub use asset_reference::{
     AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver,
     ResolvedAssetReference,
@@ -48,6 +51,7 @@ pub use generation::{
     TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 pub use generation_profile::*;
+pub use literal_text_capability::*;
 pub use migrations::{
     CapabilityMigrationError, CapabilityNodeResolution, CapabilityNodeStatus,
     DegradedCapabilityReason, frozen_legacy_examples, migrate_legacy_node, resolve_workflow_node,

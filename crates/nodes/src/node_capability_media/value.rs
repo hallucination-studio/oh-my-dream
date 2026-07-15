@@ -70,6 +70,16 @@ pub enum NodeCapabilityMediaKind {
     Audio,
 }
 
+impl NodeCapabilityMediaKind {
+    pub(crate) const fn to_workflow_data_type(self) -> engine::node_capability::WorkflowDataType {
+        match self {
+            Self::Image => engine::node_capability::WorkflowDataType::Image,
+            Self::Video => engine::node_capability::WorkflowDataType::Video,
+            Self::Audio => engine::node_capability::WorkflowDataType::Audio,
+        }
+    }
+}
+
 impl NodeCapabilityMediaMimeType {
     /// Returns the MIME's exact media kind.
     #[must_use]

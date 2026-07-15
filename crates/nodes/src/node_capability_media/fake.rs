@@ -3,6 +3,7 @@ use std::io::Cursor;
 use std::sync::Mutex;
 use std::time::Instant;
 
+use super::*;
 use async_trait::async_trait;
 use engine::node_capability::{
     NodeCapabilityMediaFailure, NodeCapabilityProviderFailure,
@@ -12,8 +13,6 @@ use engine::node_capability::{
 };
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncReadExt;
-
-use super::*;
 
 #[derive(Clone)]
 struct ManagedMediaFakeContent {
@@ -56,13 +55,27 @@ impl NodeCapabilityManagedMediaReaderFakeImpl {
         if !byte_length_within_kind_limit(bytes.len() as u64, media_reference.media_kind()) {
             return Err(NodeCapabilityMediaValueError::InvalidByteLength);
         }
-        self.content_by_project_and_reference
+        let mut content_by_reference = self
+            .content_by_project_and_reference
             .lock()
-            .map_err(|_| NodeCapabilityMediaValueError::InvalidMediaFacts)?
-            .insert(
-                (project_id, media_reference),
-                ManagedMediaFakeContent { mime_type, facts, bytes },
-            );
+            .map_err(|_| NodeCapabilityMediaValueError::InvalidMediaFacts)?;
+        if let Some((_, existing_reference)) =
+            content_by_reference.keys().find(|(stored_project_id, stored_reference)| {
+                *stored_project_id == project_id
+                    && reference_asset_id(*stored_reference) == reference_asset_id(media_reference)
+            })
+            && *existing_reference != media_reference
+        {
+            return Err(if existing_reference.media_kind() == media_reference.media_kind() {
+                NodeCapabilityMediaValueError::ContentFingerprintMismatch
+            } else {
+                NodeCapabilityMediaValueError::InvalidMediaFacts
+            });
+        }
+        content_by_reference.insert(
+            (project_id, media_reference),
+            ManagedMediaFakeContent { mime_type, facts, bytes },
+        );
         Ok(())
     }
 }
@@ -79,23 +92,15 @@ impl NodeCapabilityManagedMediaReaderInterface for NodeCapabilityManagedMediaRea
         let content_by_reference = self.content_by_project_and_reference.lock().map_err(|_| {
             NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::StorageFailed)
         })?;
-        let content =
-            content_by_reference.get(&(request.project_id(), request.media_reference())).cloned();
-        if content.is_none()
-            && content_by_reference.keys().any(|(project_id, reference)| {
-                *project_id == request.project_id()
-                    && reference_asset_id(*reference)
-                        == reference_asset_id(request.media_reference())
-            })
-        {
-            return Err(NodeCapabilityMediaBoundaryError::Media(
-                NodeCapabilityMediaFailure::KindMismatch,
-            ));
-        }
-        let content = content.ok_or(NodeCapabilityMediaBoundaryError::Media(
-            NodeCapabilityMediaFailure::Unavailable,
-        ))?;
+        let (media_reference, content) = resolve_fake_media_selection(
+            &content_by_reference,
+            request.project_id(),
+            request.selection(),
+        )?;
         drop(content_by_reference);
+        if Instant::now() >= request.deadline() {
+            return Err(NodeCapabilityMediaBoundaryError::DeadlineExceeded);
+        }
         let source = NodeCapabilityMediaSourceLease::try_new(
             content.bytes.len() as u64,
             digest_bytes(&content.bytes),
@@ -103,7 +108,7 @@ impl NodeCapabilityManagedMediaReaderInterface for NodeCapabilityManagedMediaRea
             Box::pin(Cursor::new(content.bytes)),
         )
         .map_err(media_value_to_boundary_error)?;
-        match request.media_reference() {
+        match media_reference {
             NodeCapabilityManagedMediaReference::Image(reference) => {
                 NodeCapabilityReadableImageInput::try_new(
                     reference,
@@ -273,7 +278,6 @@ provider_fake!(
 fn digest_bytes(bytes: &[u8]) -> NodeCapabilityMediaContentDigest {
     NodeCapabilityMediaContentDigest::from_bytes(Sha256::digest(bytes).into())
 }
-
 fn reference_fingerprint(reference: NodeCapabilityManagedMediaReference) -> [u8; 32] {
     match reference {
         NodeCapabilityManagedMediaReference::Image(value) => value.content_fingerprint().as_bytes(),
@@ -281,7 +285,6 @@ fn reference_fingerprint(reference: NodeCapabilityManagedMediaReference) -> [u8;
         NodeCapabilityManagedMediaReference::Audio(value) => value.content_fingerprint().as_bytes(),
     }
 }
-
 fn reference_asset_id(
     reference: NodeCapabilityManagedMediaReference,
 ) -> WorkflowManagedAssetIdBoundaryValue {
@@ -290,6 +293,53 @@ fn reference_asset_id(
         NodeCapabilityManagedMediaReference::Video(value) => value.asset_id(),
         NodeCapabilityManagedMediaReference::Audio(value) => value.asset_id(),
     }
+}
+fn resolve_fake_media_selection(
+    content_by_reference: &HashMap<
+        (projects::project::domain::ProjectId, NodeCapabilityManagedMediaReference),
+        ManagedMediaFakeContent,
+    >,
+    project_id: projects::project::domain::ProjectId,
+    selection: NodeCapabilityManagedMediaReadSelection,
+) -> Result<
+    (NodeCapabilityManagedMediaReference, ManagedMediaFakeContent),
+    NodeCapabilityMediaBoundaryError,
+> {
+    if let NodeCapabilityManagedMediaReadSelection::ExactReference(reference) = selection
+        && let Some(content) = content_by_reference.get(&(project_id, reference))
+    {
+        return Ok((reference, content.clone()));
+    }
+    let (asset_id, expected_kind, exact_reference) = match selection {
+        NodeCapabilityManagedMediaReadSelection::AssetId(value) => {
+            (value.asset_id(), value.expected_media_kind(), None)
+        }
+        NodeCapabilityManagedMediaReadSelection::ExactReference(reference) => {
+            (reference_asset_id(reference), reference.media_kind(), Some(reference))
+        }
+    };
+    let observed = content_by_reference.iter().find(|((stored_project_id, reference), _)| {
+        *stored_project_id == project_id && reference_asset_id(*reference) == asset_id
+    });
+    let Some(((_, observed_reference), content)) = observed else {
+        return Err(NodeCapabilityMediaBoundaryError::Media(
+            NodeCapabilityMediaFailure::Unavailable,
+        ));
+    };
+    if observed_reference.media_kind() != expected_kind {
+        return Err(NodeCapabilityMediaBoundaryError::Media(
+            NodeCapabilityMediaFailure::KindMismatch {
+                expected: expected_kind.to_workflow_data_type(),
+                observed: observed_reference.media_kind().to_workflow_data_type(),
+            },
+        ));
+    }
+    if exact_reference.is_some_and(|reference| reference != *observed_reference) {
+        return Err(NodeCapabilityMediaBoundaryError::Media(
+            NodeCapabilityMediaFailure::DigestMismatch,
+        ));
+    }
+    Ok((*observed_reference, content.clone()))
 }
 
 fn media_value_to_boundary_error(
@@ -343,7 +393,6 @@ fn produced_reference(
         ),
     })
 }
-
 fn provider_failure(
     category: NodeCapabilityProviderFailureCategory,
 ) -> Result<NodeCapabilityProviderFailure, NodeCapabilityProviderFailureConstructionError> {
