@@ -2068,11 +2068,13 @@ name = "nodes"
 version = "0.1.0"
 dependencies = [
  "assets",
+ "async-trait",
  "engine",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
 ]
 

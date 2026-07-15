@@ -15,6 +15,7 @@ mod asset_source;
 mod contracts;
 mod error;
 mod generation;
+mod generation_profile;
 mod image_to_video;
 mod media;
 mod migrations;
@@ -45,6 +46,7 @@ pub use generation::{
     ReferenceImageGenerator, ReferenceVideoGenerationRequest, ReferenceVideoGenerator,
     TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
+pub use generation_profile::*;
 pub use migrations::{
     CapabilityMigrationError, CapabilityNodeResolution, CapabilityNodeStatus,
     DegradedCapabilityReason, frozen_legacy_examples, migrate_legacy_node, resolve_workflow_node,
