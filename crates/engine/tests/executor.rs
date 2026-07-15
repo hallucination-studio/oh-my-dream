@@ -1,18 +1,18 @@
 mod executor_support;
 
 use engine::{
-    EngineError, Executor, InputBinding, NodeExecutionState, NodeParams, NodeRegistry, OutputRef,
-    PortType, ResultCache, Value, Workflow, WorkflowNode,
+    CapabilityEffect, EngineError, Executor, InputBinding, NodeExecutionState, NodeParams,
+    NodeRegistry, OutputRef, PortType, ResultCache, Value, Workflow, WorkflowNode,
 };
 use executor_support::{
-    FailingNode, RunCounters, TestCancellation, commit_then_cancel_registry, event_summary,
-    fail_then_cancel_registry, linear_workflow, ordered_video_workflow, registry,
-    single_node_workflow,
+    FailingNode, RunCounters, TestCancellation, capability_effect_registry,
+    commit_then_cancel_registry, event_summary, fail_then_cancel_registry, linear_workflow,
+    local_read_workflow, ordered_video_workflow, registry, single_node_workflow,
 };
 use std::collections::BTreeMap;
 use std::sync::{
     Arc,
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
 #[test]
@@ -45,6 +45,60 @@ fn reuses_cached_node_outputs_on_second_run() {
     assert_eq!(counters.text_prompt.load(Ordering::SeqCst), 1);
     assert_eq!(counters.upper_case.load(Ordering::SeqCst), 1);
     assert_eq!(counters.collect.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn local_read_reruns_while_unchanged_downstream_output_is_cached() {
+    let counters = RunCounters::default();
+    let registry = capability_effect_registry(
+        counters.clone(),
+        Arc::new(AtomicBool::new(true)),
+        CapabilityEffect::LocalRead,
+    );
+    let workflow = local_read_workflow();
+    let mut cache = ResultCache::new();
+    let executor = Executor::new(&registry);
+
+    executor.execute(&workflow, &mut cache).expect("first run should execute");
+    executor.execute(&workflow, &mut cache).expect("second run should resolve local state");
+
+    assert_eq!(counters.text_prompt.load(Ordering::SeqCst), 2);
+    assert_eq!(counters.upper_case.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn local_read_observes_unavailability_after_a_successful_run() {
+    let counters = RunCounters::default();
+    let available = Arc::new(AtomicBool::new(true));
+    let registry =
+        capability_effect_registry(counters, Arc::clone(&available), CapabilityEffect::LocalRead);
+    let workflow = local_read_workflow();
+    let mut cache = ResultCache::new();
+    let executor = Executor::new(&registry);
+
+    executor.execute(&workflow, &mut cache).expect("available source should execute");
+    available.store(false, Ordering::SeqCst);
+    let error = executor
+        .execute(&workflow, &mut cache)
+        .expect_err("unavailable source must not be hidden by cache");
+
+    assert!(matches!(error, EngineError::NodeExecution { node_id, .. } if node_id == "source"));
+}
+
+#[test]
+fn pure_and_external_capabilities_retain_cache_reuse() {
+    for effect in [CapabilityEffect::Pure, CapabilityEffect::External] {
+        let counters = RunCounters::default();
+        let registry =
+            capability_effect_registry(counters.clone(), Arc::new(AtomicBool::new(true)), effect);
+        let mut cache = ResultCache::new();
+        let executor = Executor::new(&registry);
+
+        executor.execute(&local_read_workflow(), &mut cache).expect("first run should execute");
+        executor.execute(&local_read_workflow(), &mut cache).expect("second run should use cache");
+
+        assert_eq!(counters.text_prompt.load(Ordering::SeqCst), 1, "effect {effect:?}");
+    }
 }
 
 #[test]

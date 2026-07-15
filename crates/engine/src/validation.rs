@@ -1,5 +1,6 @@
 //! Validation and preparation of executable workflow plans.
 
+use crate::capability::CapabilityEffect;
 use crate::error::{EngineError, Result};
 use crate::graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
 use crate::node::{InputPort, Node};
@@ -18,16 +19,22 @@ pub(crate) struct PlanNode {
     pub(crate) type_id: String,
     pub(crate) params: NodeParams,
     pub(crate) inputs: BTreeMap<String, InputBinding<OutputRef>>,
+    pub(crate) effects: Vec<CapabilityEffect>,
     pub(crate) node: Box<dyn Node>,
 }
 
 impl PlanNode {
-    fn from_workflow_node(workflow_node: &WorkflowNode, node: Box<dyn Node>) -> Self {
+    fn from_workflow_node(
+        workflow_node: &WorkflowNode,
+        effects: Vec<CapabilityEffect>,
+        node: Box<dyn Node>,
+    ) -> Self {
         Self {
             id: workflow_node.id.clone(),
             type_id: workflow_node.type_id.clone(),
             params: workflow_node.params.clone(),
             inputs: workflow_node.inputs.clone(),
+            effects,
             node,
         }
     }
@@ -88,6 +95,20 @@ fn instantiate_nodes(registry: &NodeRegistry, workflow: &Workflow) -> Result<Vec
         .nodes
         .iter()
         .map(|workflow_node| {
+            let effects = if registry.contains_capability_type(&workflow_node.type_id) {
+                registry
+                    .workflow_capability(
+                        &workflow_node.id,
+                        &workflow_node.type_id,
+                        &workflow_node.contract_version,
+                        &workflow_node.params,
+                    )?
+                    .contract()
+                    .effects
+                    .clone()
+            } else {
+                Vec::new()
+            };
             registry
                 .instantiate_workflow_node(
                     &workflow_node.id,
@@ -95,7 +116,7 @@ fn instantiate_nodes(registry: &NodeRegistry, workflow: &Workflow) -> Result<Vec
                     &workflow_node.contract_version,
                     &workflow_node.params,
                 )
-                .map(|node| PlanNode::from_workflow_node(workflow_node, node))
+                .map(|node| PlanNode::from_workflow_node(workflow_node, effects, node))
         })
         .collect()
 }

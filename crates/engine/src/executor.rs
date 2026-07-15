@@ -1,6 +1,7 @@
 //! Workflow executor and deterministic result cache.
 
 use crate::cache::{ResultCache, cache_fingerprint};
+use crate::capability::CapabilityEffect;
 use crate::error::{EngineError, Result};
 use crate::graph::{InputBinding, Workflow};
 use crate::node::{NodeRunContext, NodeRunResult, is_cancelled_node_run};
@@ -121,7 +122,9 @@ fn execute_plan_node(
 ) -> Result<()> {
     let inputs = resolve_inputs(node, outputs)?;
     let fingerprint = cache_fingerprint(project_id, &node.type_id, &node.params, &inputs);
-    if reuse_cached_output(node, project_id, fingerprint, cache, outputs, observer) {
+    if !node.effects.contains(&CapabilityEffect::LocalRead)
+        && reuse_cached_output(node, project_id, fingerprint, cache, outputs, observer)
+    {
         return Ok(());
     }
 

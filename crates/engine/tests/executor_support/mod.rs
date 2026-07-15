@@ -1,8 +1,10 @@
 mod cancellation;
+mod capability_effect;
 
 pub(crate) use cancellation::{
     TestCancellation, commit_then_cancel_registry, fail_then_cancel_registry, single_node_workflow,
 };
+pub(crate) use capability_effect::{capability_effect_registry, local_read_workflow};
 
 use engine::{
     InputBinding, InputPort, InputValue, Node, NodeExecutionState, NodeInputs, NodeParams,
