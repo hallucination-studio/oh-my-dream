@@ -216,6 +216,19 @@ other maps use ascending typed-key order. Matching replay returns that snapshot 
 different content is `WorkflowMutationIdempotencyConflict`; corrupt fingerprints are persistence
 failures. Current readiness is recomputed after replay and is not frozen inside the receipt.
 
+The fingerprint byte stream is exact. The domain is one big-endian `u32` byte length followed by
+its UTF-8 bytes. Schema is big-endian `u16`; UUIDs are 16 bytes; revision and UTC-millisecond times
+are big-endian `u64` and `i64`. Node and binding map counts and ordered-item counts are big-endian
+`u64`. Each node is node UUID, capability ID as `u32` byte length plus UTF-8, capability major and
+minor as big-endian `u16`, canonical parameter bytes prefixed by their big-endian `u32` byte
+length, then normalized canvas `x` and `y` IEEE-754 bits as big-endian `u64`. Each binding starts
+with target node UUID and input key as `u32` byte length plus UTF-8, then tag `0` for `Single` or
+`1` for `OrderedReferences`; the ordered form then carries its `u64` item count. Each item is item
+UUID, source node UUID, source output key as `u32` byte length plus UTF-8, then role-presence tag
+`0` for absent or `1` followed by the role key as `u32` byte length plus UTF-8. No DTO encoding,
+database row encoding, readiness value, receipt metadata, provider value, or presentation value
+participates.
+
 Mutation domain failures are the closed structured categories `WorkflowActionLimitExceeded`,
 `WorkflowRevisionOverflow`, `WorkflowTimestampOutOfRange`, `WorkflowTimestampOverflow`,
 `WorkflowSchemaVersionUnsupported`, `WorkflowIdentityNotVersionFour`,
