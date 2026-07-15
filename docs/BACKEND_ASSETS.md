@@ -64,6 +64,19 @@ pub enum AssetMediaKind {
 object. Two Assets remain distinct even when their verified bytes match. MVP Assets are visible only
 inside their owning Project.
 
+## Frozen Asset Values
+
+`AssetId`, `AssetImportId`, `AssetContentFinalizationId`, and `AssetPreviewLeaseId` are UUIDv4 values
+stored as exact 16 bytes and displayed as lowercase hyphenated UUIDs. `AssetCreatedAt` is a
+non-negative signed UTC-millisecond integer. `AssetDisplayName` is trimmed, contains 1..=255 Unicode
+scalar values and no control character. `AssetOriginalFileName` has the same bound, stores only the
+final file name, and rejects path separators.
+
+`AssetContentDigest` is exactly 32 SHA-256 bytes. `AssetManagedContentId` has canonical bytes
+`1 || digest`, where `1` is the one-byte scheme version; its display form is
+`sha256-v1:<64 lowercase hex digits>`. Neither value is accepted from an import caller. Identity
+generators reject nil and non-v4 UUIDs; ingest transactions reject identity conflicts.
+
 ## Managed Content State
 
 ```rust
@@ -90,6 +103,10 @@ pub enum AssetManagedContentState {
 }
 ```
 
+`AssetContentMissingReason` is exactly `FinalizationSourceMissing` or `ManagedContentMissing`.
+`AssetFinalizeContentEffect` contains only `AssetContentFinalizationId`; the finalization record owns
+the expected descriptor and adapter-private staging reference.
+
 `AssetManagedContentId` is derived from a versioned SHA-256 scheme. Only the filesystem adapter maps
 it to a private location. MIME is sniffed from bytes and verified against media kind; caller MIME
 and extension are hints only.
@@ -109,6 +126,18 @@ Audio { duration_ms, sample_rate_hz, channels }
 
 Facts are immutable observations extracted before availability. Invalid, unreadable, oversized, or
 unsupported media is rejected rather than stored with guessed metadata.
+
+The frozen accepted media contracts are:
+
+| Kind | MIME | Byte maximum | Required fact bounds |
+| --- | --- | --- | --- |
+| Image | `image/png`, `image/jpeg`, `image/webp` | 32 MiB | width and height `1..=16,384` |
+| Video | `video/mp4`, `video/webm` | 512 MiB | width and height `1..=16,384`; duration `1..=86,400,000` ms |
+| Audio | `audio/mpeg`, `audio/wav`, `audio/ogg` | 64 MiB | duration `1..=86,400,000` ms; sample rate `8,000..=192,000` Hz; channels `1..=8` |
+
+Video `has_audio` is an inspected Boolean. Dimensions and duration use non-zero `u32` and `u64`
+values respectively. The inspector rejects animated images, multiple video programs, unknown
+duration, and a container/MIME mismatch. It never transcodes or repairs content.
 
 ## Provenance
 
@@ -254,6 +283,11 @@ Resolution verifies Project visibility, exact kind, `Available` state, and curre
 existence. It returns `AssetManagedContentLease` plus `AssetContentDescriptor`. The lease is bounded
 and opaque; provider upload and Desktop preview can stream it but cannot discover a path.
 
+`AssetManagedContentLease` is call-scoped to one exact content ID and byte length, supports one
+forward asynchronous stream, and expires at its caller-supplied deadline. `AssetImportSourceLease`
+is the equivalent one-shot opaque stream over the already-open trusted file handle. Neither lease
+is cloneable, serializable, persisted, or convertible to a path.
+
 `AssetListQuery` accepts Project, optional media kind, opaque cursor, and limit `1..=100`. Ordering
 is always `(created_at DESC, asset_id DESC)`, and the cursor contains both values.
 
@@ -274,15 +308,30 @@ Every request rechecks token signature, expiry, Project, current Asset state, an
 descriptor. It supports bounded `GET` and `HEAD`, sets `nosniff`, and exposes no managed path. React
 owns zoom, seek, playback, volume, and object-URL lifetime.
 
+`AssetPreviewLease` contains an `AssetPreviewLeaseId`, Project ID, Asset ID, exact content ID,
+issued-at, and expiry. Its lifetime is exactly five minutes; the signed protocol token is
+process-scoped and is not persisted. Image rejects Range. Video and Audio accept either no Range or
+one `bytes=start-end`, `bytes=start-`, or `bytes=-suffix` range. Multiple ranges, invalid syntax,
+zero suffix, unsatisfiable bounds, or a range spanning more than 16 MiB is rejected. `HEAD` returns
+the same status and headers as `GET` without opening or returning a body.
+
 ## Recovery
 
-`AssetReconcileContentUseCase` and the post-commit worker process a configured maximum number of
-Pending `AssetFinalizeContentEffect` values at startup:
+`AssetReconcileContentUseCase` and the post-commit worker process bounded recovery candidates at
+startup:
 
 - publish or verify the exact expected managed bytes when staging exists;
 - mark Pending content Missing when neither exact staging nor managed bytes can complete it;
 - mark Available content Missing when its exact managed bytes are absent;
 - remove stale unreferenced staging entries after a configured retention window.
+
+One reconciliation call accepts limit `1..=100`, default `50`, independently for unfinished
+finalizations, Available-content checks, and stale staging; it returns one opaque continuation cursor
+for each non-exhausted class. Finalizations and Assets order by creation time then identity ascending;
+adapter-private staging orders by creation time then private reference. Each candidate is claimed at
+most once in that call. Unreferenced staging is stale after 24 hours. Effect delivery is at-least-once;
+`AssetContentFinalizationId` is its business and idempotency identity. Attempts are bounded by the
+caller deadline, not by an Asset retry counter or new terminal state.
 
 Recovery compares content ID, digest, and length. It never searches by filename, crosses Project
 scope, substitutes similar bytes, or changes an output key.
@@ -296,17 +345,29 @@ scope, substitutes similar bytes, or changes an output key.
 | `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove managed bytes |
 | `AssetMediaInspectorInterface` | sniff MIME and extract verified media facts |
 | `AssetClockInterface` | provide deterministic Asset timestamps |
-| `AssetIdentityGeneratorInterface` | create Asset, import, and finalization identities |
+| `AssetIdentityGeneratorInterface` | create Asset, import, finalization, and preview-lease identities |
 
 Fake and production implementations run the same ordering, idempotency, Project-isolation,
 transaction, and failure contract suites.
 
+Production adapter names are frozen as `SqliteAssetRepositoryAdapterImpl`,
+`SqliteAssetIngestTransactionAdapterImpl`, `LocalFilesystemAssetManagedContentStoreAdapterImpl`,
+`ImageAndFfprobeAssetMediaInspectorAdapterImpl`, `SystemAssetClockAdapterImpl`, and
+`UuidV4AssetIdentityGeneratorAdapterImpl`. SQLite owns metadata transactions, the restricted local
+filesystem owns staging and managed bytes, the Rust image decoder inspects images, and a bundled
+`ffprobe` process inspects Video and Audio. Only `DesktopCompositionRoot` constructs them. Adapter
+private paths, process output, rows, and handles never cross an Asset interface.
+
 ## Errors And Verification
 
-`AssetDomainError` covers invariants and transitions. `AssetApplicationError` adds not found, not
-visible, kind mismatch, Pending, Missing, invalid media, size limit, digest mismatch, output-key
-conflict, managed-storage failure, and finalization failure. Errors contain safe typed identities,
-never paths or raw content.
+`AssetDomainError` categories are exactly `InvalidIdentity`, `InvalidDisplayName`,
+`InvalidOriginalFileName`, `InvalidDescriptor`, `InvalidMediaFacts`, `InvalidOrigin`,
+`InvalidTransition`, and `FinalizationIdentityMismatch`. `AssetApplicationError` adds exactly
+`NotFound`, `NotVisible`, `MediaKindMismatch`, `ContentPending`, `ContentMissing`, `InvalidMedia`,
+`MediaSizeLimitExceeded`, `ContentDigestMismatch`, `NodeOutputConflict`, `ManagedStorageFailed`,
+`IdentityConflict`, `InspectionFailed`, `FinalizationFailed`, `PreviewLeaseInvalid`,
+`PreviewLeaseExpired`, `PreviewRangeInvalid`, `Cancelled`, and `DeadlineExceeded`. Errors contain safe
+typed identities, never paths, tokens, process output, or raw content.
 
 Verification covers:
 
@@ -321,5 +382,5 @@ Verification covers:
 ## Post-MVP
 
 Archive/delete/purge, tags, search, export, remote import, thumbnails, posters, waveforms, content
-retention, deduplication, garbage collection, cloud sync, multiview, 3D, and scene Assets require
-separate product and migration decisions.
+retention, logical Asset deduplication, garbage collection, cloud sync, multiview, 3D, and scene
+Assets require separate product and migration decisions.
