@@ -210,7 +210,7 @@ describe("assistant operation contract fixture", () => {
 });
 
 // Freezes the generated fixture as an opaque artifact, not a semantic source.
-const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:7e304e950c332169";
+const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:a3f3bcd4bf16e851";
 
 function isExactAssistantOperationsFixture(value: unknown): value is AssistantOperationsFixture {
   return (
@@ -358,7 +358,9 @@ function isCapabilityContract(value: unknown): boolean {
     isRecord(value.params_schema) &&
     isRecord(value.default_params) &&
     Array.isArray(value.effects) &&
-    value.effects.every((effect) => effect === "pure" || effect === "external")
+    value.effects.every(
+      (effect) => effect === "pure" || effect === "local_read" || effect === "external",
+    )
   );
 }
 

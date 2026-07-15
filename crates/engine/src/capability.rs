@@ -89,8 +89,27 @@ impl CapabilityPort {
 pub enum CapabilityEffect {
     /// Deterministic local transformation with no external effect.
     Pure,
+    /// Read from managed local state without contacting an external provider.
+    LocalRead,
     /// Provider, filesystem, or other external effect.
     External,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CapabilityEffect;
+
+    #[test]
+    fn local_read_effect_round_trips_as_snake_case() {
+        let encoded = serde_json::to_string(&CapabilityEffect::LocalRead)
+            .expect("serialize local-read effect");
+        assert_eq!(encoded, r#""local_read""#);
+        assert_eq!(
+            serde_json::from_str::<CapabilityEffect>(&encoded)
+                .expect("deserialize local-read effect"),
+            CapabilityEffect::LocalRead
+        );
+    }
 }
 
 /// Immutable execution contract derived from one capability registration.

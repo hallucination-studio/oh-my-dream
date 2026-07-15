@@ -99,7 +99,7 @@ export interface CapabilityPort {
   required: boolean;
 }
 
-export type CapabilityEffect = "pure" | "external";
+export type CapabilityEffect = "pure" | "local_read" | "external";
 
 export interface CapabilityContract {
   reference: CapabilityRef;

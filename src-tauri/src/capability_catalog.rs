@@ -212,6 +212,7 @@ fn cardinality_to_dto(cardinality: engine::PortCardinality) -> CapabilityCardina
 fn effect_to_dto(effect: CapabilityEffect) -> CapabilityEffectDto {
     match effect {
         CapabilityEffect::Pure => CapabilityEffectDto::Pure,
+        CapabilityEffect::LocalRead => CapabilityEffectDto::LocalRead,
         CapabilityEffect::External => CapabilityEffectDto::External,
     }
 }
@@ -282,5 +283,25 @@ fn degraded_status(reason: &str) -> CapabilityStatusDto {
         reason: Some(reason.to_owned()),
         provider_health: None,
         status_revision: 0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::status_for;
+    use engine::{CapabilityContract, CapabilityEffect, CapabilityRef};
+
+    #[test]
+    fn local_read_has_no_provider_health_marker() {
+        let contract = CapabilityContract::new(
+            CapabilityRef::new("ManagedLocalRead", "1.0"),
+            Vec::new(),
+            Vec::new(),
+            serde_json::json!({}),
+            serde_json::Map::new(),
+            vec![CapabilityEffect::LocalRead],
+        );
+
+        assert!(status_for(&contract).provider_health.is_none());
     }
 }

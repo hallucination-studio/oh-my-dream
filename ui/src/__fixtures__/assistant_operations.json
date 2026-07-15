@@ -1896,6 +1896,13 @@
                 "type": "string"
               },
               {
+                "description": "Read from managed local state without contacting an external provider.",
+                "enum": [
+                  "local_read"
+                ],
+                "type": "string"
+              },
+              {
                 "description": "Provider, filesystem, or other external effect.",
                 "enum": [
                   "external"

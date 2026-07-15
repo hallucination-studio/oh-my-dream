@@ -118,6 +118,8 @@ pub struct CapabilityContractDto {
 pub enum CapabilityEffectDto {
     /// Deterministic local transformation with no external effect.
     Pure,
+    /// Read from managed local state without contacting an external provider.
+    LocalRead,
     /// Provider, filesystem, or other external effect.
     External,
 }

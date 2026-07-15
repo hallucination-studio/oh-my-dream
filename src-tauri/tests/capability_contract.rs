@@ -7,7 +7,7 @@ use oh_my_dream_tauri::commands::{
     search_capabilities_with_state,
 };
 use oh_my_dream_tauri::dto::{
-    CapabilityAvailabilityDto, CapabilityCardinalityDto, CapabilityCatalogDto,
+    CapabilityAvailabilityDto, CapabilityCardinalityDto, CapabilityCatalogDto, CapabilityEffectDto,
 };
 use oh_my_dream_tauri::state::AppState;
 use serde::Deserialize;
@@ -73,6 +73,18 @@ fn capability_catalog_keeps_contract_presentation_and_status_independent() {
             id: "ImageToVideo".to_owned(),
             version: "1.0".to_owned(),
         }
+    );
+}
+
+#[test]
+fn local_read_effect_dto_round_trips_as_snake_case() {
+    let encoded = serde_json::to_value(CapabilityEffectDto::LocalRead)
+        .expect("serialize local-read effect DTO");
+    assert_eq!(encoded, json!("local_read"));
+    assert_eq!(
+        serde_json::from_value::<CapabilityEffectDto>(encoded)
+            .expect("deserialize local-read effect DTO"),
+        CapabilityEffectDto::LocalRead
     );
 }
 
