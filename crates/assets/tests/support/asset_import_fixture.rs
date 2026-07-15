@@ -277,10 +277,15 @@ impl AssetManagedContentStoreInterface for AssetImportFixtureFakeImpl {
 
     async fn open_managed_asset_content(
         &self,
-        _descriptor: AssetContentDescriptor,
-        _deadline: Instant,
+        descriptor: AssetContentDescriptor,
+        deadline: Instant,
     ) -> Result<Option<AssetManagedContentLease>, AssetApplicationError> {
-        Ok(None)
+        Ok(Some(AssetManagedContentLease::new(
+            descriptor.content_id(),
+            descriptor.byte_length(),
+            deadline,
+            Box::pin(Cursor::new(vec![1; descriptor.byte_length() as usize])),
+        )))
     }
 
     async fn verify_managed_asset_content(
