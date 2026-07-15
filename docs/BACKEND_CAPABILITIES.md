@@ -1,286 +1,221 @@
-# Backend MVP Node Capabilities
+# Backend Node Capability Architecture
 
-> Status: proposed MVP design
-> Owner: `crates/nodes`
-> Scope: seven exact operations behind Text, Image, Video, and Audio node shells
+> Status: proposed target architecture
+> Owner: capability interface in `crates/engine`; exact implementations in `crates/nodes`
+> Scope: built-in Text, Image, Video, Audio, media-processing, and analysis operations
 
-Naming follows [`BACKEND_GLOSSARY.md`](BACKEND_GLOSSARY.md). Node capabilities are an executable
-sub-capability of the Workflow bounded context, not provider or UI models.
+A node capability is one versioned business operation. It is not a UI shell, provider feature,
+native model, or generic job.
 
-## Responsibility
+## Decision
 
-Each module owns one exact operation: identity, versioned contract, typed parameters, readiness,
-request mapping, result validation, and execution. The Workflow context owns graph and Run
-semantics; Asset owns managed media; provider adapters implement capability-owned generation ports.
+1. Workflow owns one consumer-facing `WorkflowNodeCapabilityPort` interface.
+2. Every exact operation has one named implementation such as `TextToVideoCapability`.
+3. One concrete `WorkflowNodeCapabilityRegistry` stores the implementations by immutable
+   `NodeCapabilityContractRef`. It replaces separate catalog and executor abstractions.
+4. Each implementation owns its contract, parameter rules, readiness, request mapping, result
+   validation, and execution behavior.
+5. An implementation depends only on the focused external ports it actually consumes.
+6. Model-powered implementations persist a provider-independent `GenerationProfileRef`.
 
-React displays four shells, but no broad node union mixes source selection, generation, provider,
-Run, and preview state. A persisted `WorkflowNodeEntity` selects one exact
-`NodeCapabilityContractRef`.
+All capability implementations satisfy the same complete interface. There are no optional methods,
+`Unsupported` results, provider feature probes, or untyped parameter maps.
 
-## DDD Layers
+## Capability Interface
 
-```text
-crates/nodes/src/node_capability/
-  domain/       seven contract instances, typed parameters, result rules, errors
-  application/  built-in catalog and exact capability executors
-  ports/        managed media and three generation provider traits
+The interface is owned by its Workflow consumer in `crates/engine`:
+
+```rust
+#[async_trait]
+pub trait WorkflowNodeCapabilityPort: Send + Sync {
+    fn node_capability_contract(&self) -> &NodeCapabilityContract;
+
+    fn normalize_parameters(
+        &self,
+        parameters: &NodeCapabilityParameterSet,
+    ) -> Result<NormalizedNodeCapabilityParameters, NodeCapabilityParameterError>;
+
+    async fn check_readiness(
+        &self,
+        request: CheckNodeCapabilityReadinessRequest,
+    ) -> Vec<NodeCapabilityReadinessIssue>;
+
+    async fn execute(
+        &self,
+        request: ExecuteNodeCapabilityRequest,
+    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError>;
+}
 ```
 
-`crates/engine` defines the shared `NodeCapabilityContract` shape and the two ports it consumes.
-`crates/nodes` depends on those Workflow contracts, owns the seven exact contract instances and their
-parameter semantics, and implements `WorkflowNodeCapabilityCatalogPort` and
-`NodeCapabilityExecutorPort`. This direction avoids a crate cycle and avoids a duplicate graph-side
-capability model. Asset and provider dependencies enter exact executors through constructor-injected
-ports.
+These four behaviors are cohesive: Workflow needs all of them for editing, validation, planning,
+and execution. `NormalizedNodeCapabilityParameters` contains the normalized parameter set and its
+mechanically projected input-item references. Exact typed parameters and provider requests remain
+private to the implementation.
+
+`WorkflowNodeCapabilityRegistry` is a stable internal collection, not another trait. It rejects
+duplicate refs, exposes immutable contract iteration, resolves one exact implementation, and
+delegates behavior without reimplementing it. The composition root registers implementations once;
+forms, readiness, and execution therefore cannot drift between separate registries.
+
+## Capability Implementations
+
+```text
+crates/engine/src/workflow/node_capability.rs
+  WorkflowNodeCapabilityPort, WorkflowNodeCapabilityRegistry, shared contract values
+
+crates/nodes/src/
+  text_to_video/{capability,parameters,provider_port}.rs
+  first_and_last_frames_to_video/{capability,parameters,provider_port}.rs
+  video_concatenation/{capability,parameters,media_port}.rs
+  ...one business-capability directory per exact implementation
+```
+
+```rust
+pub struct TextToVideoCapability<P, W> {
+    text_to_video_provider: P,
+    produced_media_writer: W,
+    contract: NodeCapabilityContract,
+}
+```
+
+`TextToVideoCapability` implements `WorkflowNodeCapabilityPort`. It converts generic Workflow
+values into a private `TextToVideoParameters` and `TextToVideoProviderRequest`, calls
+`TextToVideoProviderPort`, validates `GeneratedVideoPayload`, stores the result through
+`NodeCapabilityProducedMediaWriterPort`, and returns a managed Video output.
+
+The same pattern applies to every exact operation. Implementations do not inspect provider names,
+look up concrete adapters, access Asset repositories, or branch on unsupported operations.
 
 ## Versioned Contract
 
 ```rust
-pub struct NodeCapabilityContractRef {
-    pub id: NodeCapabilityId,
-    pub version: NodeCapabilityVersion,
-}
-
 pub struct NodeCapabilityContract {
-    pub reference: NodeCapabilityContractRef,
+    pub node_capability_contract_ref: NodeCapabilityContractRef,
     pub parameters: Vec<NodeCapabilityParameterContract>,
     pub inputs: Vec<NodeCapabilityInputPortContract>,
     pub outputs: Vec<NodeCapabilityOutputPortContract>,
-    pub effect: NodeCapabilityEffectKind,
+    pub execution_kind: NodeCapabilityExecutionKind,
 }
 ```
 
-An exact version is immutable. Parameter meaning, port keys, data types, required inputs, effect,
-and output meaning require a new version when changed. The MVP has no automatic upgrade or plugin
-loading.
+An exact version is immutable. Changing parameter meaning, input cardinality, role semantics,
+output type, or result guarantees requires a new version. `execution_kind` describes business
+behavior: `PureValue`, `ManagedAssetRead`, `ContentGeneration`, `MediaTransformation`, or
+`ContentAnalysis`; it does not describe local versus remote deployment.
 
-The built-in catalog is the single source of the seven exact contract instances used for graph
-validation, parameter forms, readiness, execution, connection hints, and catalog DTOs.
-`WorkflowNodeShellKindDto` is mechanically derived from the primary output's `WorkflowDataType`; it
-is not part of this domain contract.
+The implementation is the single semantic owner. DTOs, forms, provider routes, and Workflow graph
+code only consume its contract or translate boundary values.
 
-## Parameter Contract
+## Built-In Implementations
 
-`NodeCapabilityParameterContract` is a closed declarative schema for one field. Unknown fields are rejected.
-Draft normalization validates present values and inserts deterministic defaults while allowing a
-required field to be absent. Execution preparation requires all necessary values and returns a
-private typed parameter value for that exact capability.
+| Contract ref | Implementation | External port |
+| --- | --- | --- |
+| `text.provide_literal@1.0` | `ProvideLiteralTextCapability` | none |
+| `image.read_asset@1.0` | `ReadImageAssetCapability` | `NodeCapabilityManagedMediaReaderPort` |
+| `video.read_asset@1.0` | `ReadVideoAssetCapability` | `NodeCapabilityManagedMediaReaderPort` |
+| `audio.read_asset@1.0` | `ReadAudioAssetCapability` | `NodeCapabilityManagedMediaReaderPort` |
+| `image.generate_from_text@1.0` | `TextToImageCapability` | `TextToImageProviderPort` |
+| `image.generate_from_image@1.0` | `ImageToImageCapability` | `ImageToImageProviderPort` |
+| `image.generate_from_reference_images@1.0` | `ReferenceImagesToImageCapability` | `ReferenceImagesToImageProviderPort` |
+| `image.crop@1.0` | `CropImageCapability` | `ImageCropPort` |
+| `video.generate_from_text@1.0` | `TextToVideoCapability` | `TextToVideoProviderPort` |
+| `video.generate_from_image@1.0` | `ImageToVideoCapability` | `ImageToVideoProviderPort` |
+| `video.generate_from_reference_images@1.0` | `ReferenceImagesToVideoCapability` | `ReferenceImagesToVideoProviderPort` |
+| `video.generate_from_first_frame@1.0` | `FirstFrameToVideoCapability` | `FirstFrameToVideoProviderPort` |
+| `video.generate_from_first_and_last_frames@1.0` | `FirstAndLastFramesToVideoCapability` | `FirstAndLastFramesToVideoProviderPort` |
+| `video.generate_from_mixed_media@1.0` | `MixedMediaToVideoCapability` | `MixedMediaToVideoProviderPort` |
+| `video.upscale@1.0` | `UpscaleVideoCapability` | `VideoUpscaleProviderPort` |
+| `video.extract_frames@1.0` | `ExtractVideoFramesCapability` | `VideoFrameExtractionPort` |
+| `video.concatenate@1.0` | `ConcatenateVideosCapability` | `VideoConcatenationPort` |
+| `video.analyze_storyboard@1.0` | `AnalyzeVideoStoryboardCapability` | `VideoStoryboardProviderPort` |
+| `text.generate_from_text@1.0` | `TextToTextCapability` | `TextToTextProviderPort` |
+| `text.generate_from_mixed_media@1.0` | `MultimodalToTextCapability` | `MultimodalToTextProviderPort` |
+| `audio.synthesize_speech_from_text@1.0` | `TextToSpeechCapability` | `TextToSpeechProviderPort` |
+| `audio.generate_music_from_text@1.0` | `TextToMusicCapability` | `TextToMusicProviderPort` |
 
-The persisted `NodeCapabilityParameterSet` contains no credentials, paths, preview URLs, provider
-names, provider task IDs, progress, errors, or outputs. Startup configuration selects one provider
-and model for each generation capability.
+The contract IDs remain explicit and stable. Rust names use familiar input-to-output terminology;
+verbs are reserved for methods. `TextToAudioCapability` is prohibited because speech and music
+have different parameters, results, profiles, and failure semantics.
 
-React receives `NodeCapabilityParameterContractDto` values for form rendering. Business validation
-remains in the capability module.
+## Exact External Interfaces
 
-## Port And Runtime Types
+Each model-powered port has one behavior-revealing method and exact request/result types:
 
-Capabilities use the engine-owned `WorkflowDataType` and `WorkflowRuntimeValue` definitions in
-[`BACKEND_WORKFLOW.md`](BACKEND_WORKFLOW.md#runtime-values). Each MVP input is optional-single or
-required-single; every output publishes one value. Types match exactly. Managed references contain
-stable Asset identity and a content fingerprint, never bytes, paths, provider URLs, or presentation
-URLs.
+| Port | Method | Request | Result |
+| --- | --- | --- | --- |
+| `TextToImageProviderPort` | `generate_image_from_text` | `TextToImageProviderRequest` | `GeneratedImagePayload` |
+| `ImageToImageProviderPort` | `generate_image_from_image` | `ImageToImageProviderRequest` | `GeneratedImagePayload` |
+| `ReferenceImagesToImageProviderPort` | `generate_image_from_references` | `ReferenceImagesToImageProviderRequest` | `GeneratedImagePayload` |
+| `TextToVideoProviderPort` | `generate_video_from_text` | `TextToVideoProviderRequest` | `GeneratedVideoPayload` |
+| `ImageToVideoProviderPort` | `generate_video_from_image` | `ImageToVideoProviderRequest` | `GeneratedVideoPayload` |
+| `ReferenceImagesToVideoProviderPort` | `generate_video_from_references` | `ReferenceImagesToVideoProviderRequest` | `GeneratedVideoPayload` |
+| `FirstFrameToVideoProviderPort` | `generate_video_from_first_frame` | `FirstFrameToVideoProviderRequest` | `GeneratedVideoPayload` |
+| `FirstAndLastFramesToVideoProviderPort` | `generate_video_from_frames` | `FirstAndLastFramesToVideoProviderRequest` | `GeneratedVideoPayload` |
+| `MixedMediaToVideoProviderPort` | `generate_video_from_media` | `MixedMediaToVideoProviderRequest` | `GeneratedVideoPayload` |
+| `VideoUpscaleProviderPort` | `upscale_video` | `VideoUpscaleProviderRequest` | `UpscaledVideoPayload` |
+| `TextToTextProviderPort` | `generate_text` | `TextToTextProviderRequest` | `GeneratedTextValue` |
+| `MultimodalToTextProviderPort` | `generate_text_from_media` | `MultimodalToTextProviderRequest` | `GeneratedTextValue` |
+| `TextToSpeechProviderPort` | `synthesize_speech` | `TextToSpeechProviderRequest` | `SynthesizedSpeechPayload` |
+| `TextToMusicProviderPort` | `generate_music` | `TextToMusicProviderRequest` | `GeneratedMusicPayload` |
+| `VideoStoryboardProviderPort` | `analyze_storyboard` | `VideoStoryboardProviderRequest` | `VideoStoryboardResult` |
 
-## Exact MVP Catalog
+Media operations are separate interfaces because they do not select a generation profile:
 
-### `text.literal@1.0`
+| Port | Method | Request | Result |
+| --- | --- | --- | --- |
+| `ImageCropPort` | `crop_image` | `ImageCropRequest` | `CroppedImagePayload` |
+| `VideoFrameExtractionPort` | `extract_frames` | `VideoFrameExtractionRequest` | `ExtractedVideoFramesPayload` |
+| `VideoConcatenationPort` | `concatenate_videos` | `VideoConcatenationRequest` | `ConcatenatedVideoPayload` |
 
-```text
-Parameters: text: bounded string
-Inputs:     none
-Outputs:    text: Text
-Effect:     Pure
-```
+Requests preserve semantic input order, stable input-item IDs, explicit roles, typed parameters,
+`GenerationProfileRef` when applicable, and `WorkflowNodeDispatchId`. They contain no provider name,
+native model ID, credential, URL, path, provider task, wire DTO, or generic options map.
 
-This is the editable prompt and speech-text source. Empty text is valid in a draft but not Run-ready.
+## Structured Results
 
-### `image.asset@1.0`
+Media result payloads contain one fixed media kind, declared facts, and a bounded asynchronous byte
+stream. Text and Storyboard results are validated semantic values. Frame extraction produces an
+ordered timestamped `WorkflowImageSequenceValue`; storyboard analysis produces a structured
+`WorkflowVideoStoryboardValue`, never provider JSON disguised as Text.
 
-```text
-Parameters: asset_id: Image Asset ID
-Inputs:     none
-Outputs:    image: Image
-Effect:     Managed read
-```
-
-Execution resolves an available Image Asset in the current Project. It does not copy bytes or put a
-URL into the Workflow.
-
-### `image.text_to_image@1.0`
-
-```text
-Parameters: aspect_ratio, optional seed
-Inputs:     prompt: Text
-Outputs:    image: Image
-Effect:     External generation
-```
-
-The output becomes an available Image Asset before the executor publishes `image`.
-
-### `video.asset@1.0`
-
-```text
-Parameters: asset_id: Video Asset ID
-Inputs:     none
-Outputs:    video: Video
-Effect:     Managed read
-```
-
-### `video.image_to_video@1.0`
-
-```text
-Parameters: bounded duration, aspect_ratio
-Inputs:     image: Image, prompt: Text optional
-Outputs:    video: Video
-Effect:     External generation
-```
-
-The result must be one complete playable video accepted by Asset validation. Embedded audio remains
-part of that video; this capability does not publish a separate Audio output.
-
-### `audio.asset@1.0`
-
-```text
-Parameters: asset_id: Audio Asset ID
-Inputs:     none
-Outputs:    audio: Audio
-Effect:     Managed read
-```
-
-### `audio.text_to_audio@1.0`
-
-```text
-Parameters: voice_profile, speed
-Inputs:     text: Text
-Outputs:    audio: Audio
-Effect:     External generation
-```
-
-The result is one standalone playable Audio Asset. Video/audio muxing is outside the MVP.
-
-## Execution Contract
-
-`NodeCapabilityExecutorPort` is owned by the Workflow application and implemented by the built-in
-capability runtime:
-
-```text
-execute(
-  capability_contract_ref,
-  parameter_set,
-  workflow_node_input_set,
-  workflow_node_execution_context
-) -> WorkflowNodeOutputSet | NodeCapabilityExecutionError
-```
-
-`WorkflowNodeExecutionContext` contains only call-scoped Project, Workflow revision, Run, node
-execution, dispatch identity, deadline, cancellation, and progress sink. Long-lived media and
-provider ports are constructor dependencies of the exact executor.
-
-Every executor must:
-
-- accept only declared named inputs with exact types;
-- prepare a private typed parameter value before side effects;
-- observe cancellation before dispatch and before publishing outputs;
-- report monotonic progress in `[0.0, 1.0]`;
-- use the dispatch identity for one-Run idempotency;
-- validate the operation result;
-- persist generated media before returning a managed reference;
-- return every declared output or no outputs;
-- return structured errors instead of provider message text.
-
-`text.literal` is synchronous and pure. Managed reads and generation are asynchronous.
-
-## Asset Ports
-
-Asset source and media-consuming executors use `NodeCapabilityManagedMediaReaderPort`:
-
-```text
-resolve_asset_reference(project_id, NodeCapabilityAssetRefValue, WorkflowDataType)
-  -> Workflow managed-media reference
-
-open_managed_media(project_id, managed_media_reference, WorkflowDataType)
-  -> NodeCapabilityReadableMediaInput
-```
-
-Generation executors consume `NodeCapabilityGeneratedMediaWriterPort`:
-
-```text
-store_generated_media(
-  project_id,
-  WorkflowGeneratedMediaOriginValue,
-  NodeCapabilityGeneratedMediaPayload
-)
-  -> Workflow managed-media reference
-```
-
-`src-tauri` implements both ports over Asset use cases. Exact capability modules receive neither an
-Asset repository nor a filesystem path. Asset source parameters expose
-`NodeCapabilityAssetRefValue` for readiness validation; the Desktop bridge translates it to
-`AssetId`. Validation never scans arbitrary JSON or URLs.
-
-## Provider Ports
-
-Only three consumer-owned external generation ports exist:
-
-```text
-TextToImageProviderPort
-ImageToVideoProviderPort
-TextToAudioProviderPort
-```
-
-Each uses a capability-owned semantic request and returns `NodeCapabilityGeneratedMediaPayload`. There is no
-broad provider interface, optional unsupported operation, capability probe, or provider-specific
-parameter map.
-
-## Generated Media Payload
-
-```rust
-pub struct NodeCapabilityGeneratedMediaPayload {
-    pub media_kind: NodeCapabilityGeneratedMediaKind,
-    pub declared_mime_type: NodeCapabilityGeneratedMediaMimeTypeValue,
-    pub declared_byte_length: Option<u64>,
-    pub stream: NodeCapabilityGeneratedMediaStream,
-}
-```
-
-`NodeCapabilityGeneratedMediaStream` is a bounded asynchronous stream, never a provider URL or local path.
-`NodeCapabilityGeneratedMediaWriterPort` revalidates kind, MIME, size, and media facts before returning a
-managed reference. These are node-owned pre-storage types; the Desktop bridge translates them to
-Asset application input. Provider DTOs never leave their adapter.
-
-## Constructor Injection
-
-Exact executors declare only the ports they consume:
-
-```rust
-pub struct TextToImageNodeCapabilityExecutor<P, W> {
-    text_to_image_provider: P,
-    generated_media_writer: W,
-}
-```
-
-`P: TextToImageProviderPort` and `W: NodeCapabilityGeneratedMediaWriterPort` are supplied by the
-composition root. Asset source executors receive only `NodeCapabilityManagedMediaReaderPort`; the
-literal executor has no external dependency. No executor looks up an adapter by name at runtime.
+`NodeCapabilityProducedMediaWriterPort` stores one payload or an ordered frame set. A capability
+publishes outputs only after every required Asset is available. Partial storage never becomes a
+partial Workflow result.
 
 ## Errors
 
-`NodeCapabilityExecutionError` has stable categories for invalid parameters, missing input,
-unavailable Asset, authentication, rate limit, provider unavailability, invalid provider output,
-storage failure, timeout, cancellation, and operation failure. Retryability and an optional safe
-retry time are structured fields. Secrets, raw provider bodies, paths, and signed URLs are excluded.
+Exact parameter and readiness errors occur before external calls. Provider ports return the shared
+`NodeCapabilityProviderFailure`; media ports return `NodeCapabilityMediaFailure`. Both carry a
+stable category, retryability, and optional safe retry time. Provider strings, native IDs, URLs,
+paths, credentials, and response bodies never cross the interface.
+
+Every implementation translates these failures once into `NodeCapabilityExecutionError`, which
+identifies the capability, execution stage, safe target, and structured cause. A provider route
+rejecting a semantically valid request is `ProviderRouteContractViolation`, not invalid user input.
+
+## Test Implementations
+
+Capability tests register real capability implementations with deterministic external routes or
+fault-injecting media adapters:
+
+```text
+TextToVideoCapability<DeterministicTextToVideoProviderRoute, TestProducedMediaWriter>
+TextToSpeechCapability<DeterministicTextToSpeechProviderRoute, TestProducedMediaWriter>
+AnalyzeVideoStoryboardCapability<DeterministicVideoStoryboardProviderRoute>
+ConcatenateVideosCapability<FaultInjectingVideoConcatenationAdapter>
+```
+
+There is no configurable mega-mock. The same parameterized `WorkflowNodeCapabilityPort` contract
+suite runs against every registered implementation. Provider port suites separately run against
+deterministic and configured routers.
 
 ## Verification
 
-- catalog tests reject duplicate refs and invalid fixed ports;
-- each capability tests draft normalization and execution preparation;
-- executor tests cover exact inputs, output completeness, progress, cancellation, and errors;
-- Asset port tests prove Project scope, media kind, fingerprint, and provenance;
-- provider port contract tests run against deterministic and configured adapters;
-- boundary tests prove forms, shells, and ports are derived from the catalog.
-
-## Post-MVP
-
-Text generation, reference generation, multiview, text-to-video, concat, multiple inputs, batch
-outputs, per-node provider selection, and dynamic capabilities are not part of the first version.
-3D and scene capabilities are not product scope.
+- registry tests reject duplicate refs and prove one implementation serves contract discovery,
+  normalization, readiness, and execution;
+- every capability interface implementation passes the shared lifecycle contract suite;
+- exact tests cover typed parameter preparation, input order and roles, request mapping, result
+  validation, provenance, and error translation;
+- provider and media port suites prove behavioral equivalence across all implementations;
+- architecture tests reject a second capability catalog, generic provider interface, optional
+  unsupported methods, generic options maps, and concrete adapter selection outside composition.

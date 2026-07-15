@@ -34,8 +34,16 @@ src-tauri/src/
     sqlite.rs
     node_bridge.rs     node-owned media port adapter
     preview.rs         local protocol adapter
-  providers/
+  generation_profiles/
+    commands.rs
+    dto.rs
+    translation.rs
+  generation_providers/
     configuration.rs
+    credentials.rs      encrypted SQLite provider credential adapter
+  storage/
+    sqlite/           connection and migration mechanics
+    configuration/    non-secret config-file adapter
   assistant/           existing boundary, unchanged
   configuration.rs     validated Desktop MVP configuration
   composition.rs       only concrete adapter construction point
@@ -48,13 +56,13 @@ The host is grouped by business capability, not global controller/service/reposi
 
 ```text
 deserialize bounded *RequestDto
-  -> attach trusted Project and ApplicationRequestId
+  -> attach trusted Project context
   -> translate to *Command or *Query
   -> invoke one *UseCase
   -> translate *Result, *View, or structured error to *Dto
 ```
 
-Commands never call SQLite, the filesystem, a provider client, or a node executor directly. They do
+Commands never call SQLite, the filesystem, a provider route, or a capability implementation directly. They do
 not duplicate graph compatibility, parameter normalization, Asset visibility, or legal transitions.
 
 ## MVP Command Surface
@@ -67,6 +75,7 @@ not duplicate graph compatibility, parameter normalization, Asset visibility, or
 | `validate_workflow_readiness` | `ValidateWorkflowReadinessRequestDto` | `ValidateWorkflowReadinessUseCase` |
 | `list_node_capabilities` | `ListNodeCapabilitiesRequestDto` | `ListNodeCapabilitiesUseCase` |
 | `get_node_capability` | `GetNodeCapabilityRequestDto` | `GetNodeCapabilityUseCase` |
+| `list_node_capability_generation_profiles` | `ListNodeCapabilityGenerationProfilesRequestDto` | `ListNodeCapabilityGenerationProfilesUseCase` |
 | `start_workflow_run` | `StartWorkflowRunRequestDto` | `StartWorkflowRunUseCase` |
 | `start_workflow_node_run` | `StartWorkflowNodeRunRequestDto` | `StartWorkflowRunUseCase` |
 | `cancel_workflow_run` | `CancelWorkflowRunRequestDto` | `CancelWorkflowRunUseCase` |
@@ -85,8 +94,8 @@ finishes.
 ## Workflow Editing Boundary
 
 `ApplyWorkflowMutationUseCase` receives `ApplyWorkflowMutationCommand`, loads one
-`WorkflowAggregate`, invokes its transition, and atomically stores the new revision plus idempotency
-receipt. Revision conflict and request replay conflict remain distinct.
+`WorkflowAggregate`, invokes its transition, and stores the new snapshot through revision
+compare-and-swap. A revision conflict never overwrites newer state.
 
 React submits a closed operation list rather than its complete editor state. The same use case is
 available to approved Assistant edits. Node canvas position persists, while selection, viewport,
@@ -97,24 +106,24 @@ drag, menus, preview URLs, and playback remain client state.
 `StartWorkflowRunUseCase` performs the admission transaction:
 
 ```text
-load exact WorkflowAggregate revision
+load current WorkflowAggregate and verify the requested revision
   -> validate readiness and build WorkflowExecutionPlanValue
-  -> commit queued WorkflowRunAggregate + request receipt + first event
+  -> commit queued WorkflowRunAggregate + node executions + first event
   -> return StartWorkflowRunResult
 ```
 
 After commit, `DesktopWorkflowRunTaskHost` starts `ExecuteWorkflowRunUseCase` in a process-owned
 task. That use case advances `WorkflowRunAggregate` and `WorkflowNodeExecutionEntity` through domain
-methods, persists each transition/event, and dispatches prepared nodes through
-`NodeCapabilityExecutorPort`.
+methods, persists each transition/event, resolves the exact implementation through
+`WorkflowNodeCapabilityRegistry`, and calls `WorkflowNodeCapabilityPort::execute`.
 
 Independent branches may execute concurrently within one configured limit. The frozen plan, not
 task timing, determines input/output association. No database transaction remains open during a
 provider call.
 
 `CancelWorkflowRunUseCase` records cancellation before the task host signals active tokens. Late
-outputs are rejected when cancellation wins. On startup, the task host converts previously Running
-MVP Runs to a structured interrupted failure; remote provider task resume is deferred.
+outputs are rejected when cancellation wins. On startup, the task host converts every non-terminal
+MVP Run to a structured interrupted failure; queued work and remote provider tasks are not resumed.
 
 ## Node-To-Asset Bridge
 
@@ -125,13 +134,13 @@ NodeCapabilityManagedMediaReaderPort
   -> ResolveAssetContentUseCase
   -> Workflow managed-media reference
 
-NodeCapabilityGeneratedMediaWriterPort
-  -> RecordGeneratedAssetUseCase
+NodeCapabilityProducedMediaWriterPort
+  -> RecordNodeProducedAssetUseCase
   -> Available AssetAggregate
   -> Workflow managed-media reference
 ```
 
-The adapter translates Project identity and generated origin explicitly. It never gives node code an
+The adapter translates Project identity and produced-media origin explicitly. It never gives node code an
 Asset repository, SQLite connection, path, or preview URL.
 
 `DesktopWorkflowMediaPreviewAdapter` separately implements `WorkflowMediaPreviewIssuerPort` over
@@ -143,7 +152,8 @@ handle; no Asset application type enters `crates/engine`.
 The MVP has two required orderings:
 
 1. `WorkflowRunAggregate` is durably Queued before provider dispatch.
-2. `AssetAggregate` and its finalize job are durably Pending before managed content is published.
+2. `AssetAggregate` and its managed-content finalization are durably Pending before content is
+   published.
 
 SQLite and filesystem/network work are not presented as one transaction. Asset finalization is
 idempotent and bounded startup recovery processes Pending work. A node succeeds only after the Asset
@@ -192,12 +202,17 @@ Progress may be coalesced; state transitions and terminal errors remain durable.
 
 ```text
 load and validate DesktopBackendConfig
+  -> open, verify, and migrate storage
+  -> construct SqliteEncryptedProviderCredentialRepositoryAdapter
+  -> load and decrypt configured provider credentials
   -> construct SQLite Workflow and Asset repository adapters
   -> construct filesystem content and media-inspection adapters
   -> construct Asset use cases
   -> construct DesktopNodeAssetBridgeAdapter and DesktopWorkflowMediaPreviewAdapter
-  -> construct mock or configured provider adapters
-  -> construct seven node capability executors and catalog
+  -> construct the generation-profile catalog
+  -> construct deterministic or configured provider routes and routers
+  -> construct generation-profile availability and query adapters
+  -> construct exact WorkflowNodeCapabilityPort implementations and one registry
   -> construct Workflow use cases and DesktopWorkflowRunTaskHost
   -> register commands, event adapter, and preview protocol adapter
 ```
@@ -218,12 +233,20 @@ without starting Tauri.
 
 ## Configuration
 
-`DesktopBackendConfig` selects managed content location and limits, one adapter/model per generation
-capability, provider deadlines and polling bounds, global Run concurrency, and preview lease expiry.
+`DesktopBackendConfig` selects managed content location and limits, enabled provider accounts,
+regions, route policy, provider deadlines, polling and availability-probe bounds, global Run
+concurrency, and preview lease expiry. The composition root may register multiple equivalent
+routes for one exact generation profile; configuration does not select one global model per
+capability.
 
-Configuration is validated once at startup. Missing provider wiring makes only its related
-capability unavailable. Credentials use redacted values and never enter DTOs or logs. Nodes cannot
-override endpoint, model, or credential settings.
+Configuration is validated once at startup. Missing provider wiring makes only the affected
+generation profiles currently unavailable; it does not remove capability or profile definitions.
+`DesktopBackendConfig` connects each `ProviderAccountId` to a `ProviderCredentialId`; it contains no
+API key.
+`DesktopProviderCredentialRepositoryPort` reads and writes authenticated ciphertext in SQLite.
+Plaintext credentials exist only as short-lived `ProviderCredentialSecretValue` values and never
+enter DTOs or logs. Nodes persist an exact provider-independent `GenerationProfileRef` and cannot
+override endpoints, credentials, providers, native model IDs, or route priority.
 
 ## Representation Boundaries
 
@@ -235,20 +258,27 @@ WorkflowAggregate              -> WorkflowDto
 WorkflowRunAggregate           -> WorkflowRunDto
 WorkflowRunEvent               -> WorkflowRunEventDto
 NodeCapabilityContract         -> NodeCapabilityContractDto
+NodeCapabilityGenerationProfileView -> NodeCapabilityGenerationProfileDto
+GenerationProfileAvailabilityObservation -> GenerationProfileAvailabilityDto
 AssetAggregate                 -> AssetDto
-WorkflowNodePresentationView           -> WorkflowNodePresentationDto
-SqliteWorkflowRow              -> WorkflowAggregate
-SqliteAssetRow                 -> AssetAggregate
+WorkflowNodePresentationView   -> WorkflowNodePresentationDto
+SqliteWorkflowAggregateRow               -> WorkflowAggregate
+SqliteWorkflowRunAggregateRow + children -> WorkflowRunAggregate
+SqliteAssetAggregateRow                  -> AssetAggregate
+SqliteProviderCredentialRow              -> ProviderCredentialSecretValue
 ```
 
 DTO validation checks shape and transport bounds. Domain owners enforce business semantics. A Row,
 provider DTO, path, storage key, credential, or provider task ID is never returned to React.
 
+Complete storage topology and lifecycle are defined in
+[`BACKEND_STORAGE.md`](BACKEND_STORAGE.md).
+
 ## Assistant Boundary
 
-The existing Python Assistant remains unchanged. It continues to use the Rust-authoritative
-capability catalog, Workflow mutation/review, and Run commands. Assistant redesign is not required
-for the four-node MVP.
+The existing Python Assistant remains a catalog consumer. It uses the Rust-authoritative capability
+catalog, Workflow mutation/review, and Run commands; it does not maintain an Assistant-specific
+operation or provider list.
 
 ## Error Translation
 
@@ -270,11 +300,14 @@ provider bodies, signed URLs, and unnecessary paths.
 - task-host tests cover scheduling, concurrency, cancellation, and interrupted startup;
 - event tests cover sequence, duplicate/gap recovery, progress, and terminal state;
 - preview tests cover Project isolation, expiry, MIME, Range, and path non-disclosure;
-- composition tests prove seven contracts exist and runnable contracts have complete executors;
-- end-to-end tests run both required graph branches and preview all four shells.
+- composition tests prove every registered contract has one complete capability implementation;
+- generation-profile query tests prove compatibility, live availability, pagination, expiry, and
+  provider detail redaction;
+- end-to-end tests exercise every capability family and preview every Workflow output type.
 
 ## Post-MVP
 
-Separate layout revisions, durable backend undo, remote task resume, worker leases, multiple provider
-profiles, per-node provider selection, advanced Asset management, multiview, caching, and batches are
-deferred. 3D and scene use cases are not product scope.
+Separate layout revisions, durable backend undo, remote task resume, worker leases, user-defined
+provider accounts, explicit provider choice, advanced Asset management, multiview, caching, and
+batches are deferred. Per-node generation-profile selection is core behavior. 3D and scene use
+cases are not product scope.

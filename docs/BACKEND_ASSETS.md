@@ -80,7 +80,7 @@ pub struct AssetManagedContentDescriptorValue {
 pub enum AssetManagedContentState {
     Pending {
         descriptor: AssetManagedContentDescriptorValue,
-        finalize_job_id: AssetFinalizeJobId,
+        finalization_id: AssetManagedContentFinalizationId,
     },
     Available {
         descriptor: AssetManagedContentDescriptorValue,
@@ -120,12 +120,32 @@ pub enum AssetOriginValue {
         asset_import_id: AssetImportId,
         original_file_name: AssetOriginalFileNameValue,
     },
-    Generated {
+    GeneratedByWorkflowNode {
         workflow_id: AssetOriginWorkflowId,
         workflow_revision: AssetOriginWorkflowRevision,
         workflow_run_id: AssetOriginWorkflowRunId,
         workflow_node_id: AssetOriginWorkflowNodeId,
-        node_capability: AssetOriginNodeCapabilityRef,
+        node_capability_ref: AssetOriginNodeCapabilityRef,
+        generation_profile_ref: AssetOriginGenerationProfileRef,
+        node_output_port: AssetOriginNodeOutputPortKey,
+    },
+    DerivedByWorkflowNode {
+        workflow_id: AssetOriginWorkflowId,
+        workflow_revision: AssetOriginWorkflowRevision,
+        workflow_run_id: AssetOriginWorkflowRunId,
+        workflow_node_id: AssetOriginWorkflowNodeId,
+        node_capability_ref: AssetOriginNodeCapabilityRef,
+        source_asset_ids: NonEmptyVec<AssetOriginSourceAssetId>,
+        node_output_port: AssetOriginNodeOutputPortKey,
+    },
+    ModelDerivedByWorkflowNode {
+        workflow_id: AssetOriginWorkflowId,
+        workflow_revision: AssetOriginWorkflowRevision,
+        workflow_run_id: AssetOriginWorkflowRunId,
+        workflow_node_id: AssetOriginWorkflowNodeId,
+        node_capability_ref: AssetOriginNodeCapabilityRef,
+        source_asset_ids: NonEmptyVec<AssetOriginSourceAssetId>,
+        generation_profile_ref: AssetOriginGenerationProfileRef,
         node_output_port: AssetOriginNodeOutputPortKey,
     },
 }
@@ -133,18 +153,19 @@ pub enum AssetOriginValue {
 
 Asset-owned origin wrappers prevent a dependency on Workflow persistence types. The Desktop bridge
 performs explicit translation. Imported origin does not retain an absolute source path. Generated
-origin records the exact Workflow output but does not duplicate prompts, provider state, progress,
-or cost.
+origin records the provider-independent profile; deterministic derived origin records exact source
+Asset identities; model-derived origin records both. None duplicates prompts, provider/native model
+state, progress, or cost.
 
 ## Aggregate Invariants
 
 - identity, Project, media kind, origin, and content descriptor are immutable;
 - descriptor digest, length, MIME, kind, and verified bytes agree;
-- only `Pending -> Available` or `Available -> Missing` is legal in the MVP;
+- only `Pending -> Available`, `Pending -> Missing`, or `Available -> Missing` is legal in the MVP;
 - `Missing -> Available` requires the exact expected digest and length;
 - only the owning Project may list, resolve, or preview an Asset;
 - paths and preview URLs never enter the aggregate;
-- transitions are idempotent by trusted request or finalize-job identity.
+- finalization transitions are idempotent by `AssetManagedContentFinalizationId`.
 
 Repositories persist transitions already approved by `AssetAggregate`; they expose no arbitrary
 state setter.
@@ -154,7 +175,7 @@ state setter.
 | Use case | Responsibility |
 | --- | --- |
 | `ImportAssetUseCase` | validate a user-selected file and create an Asset |
-| `RecordGeneratedAssetUseCase` | validate a node-generated stream and create an Asset |
+| `RecordNodeProducedAssetUseCase` | validate one generated-or-derived node stream and create an Asset |
 | `GetAssetUseCase` | return one visible Asset |
 | `ListAssetsUseCase` | return one bounded Project page |
 | `ResolveAssetContentUseCase` | return opaque managed-byte access for execution |
@@ -166,15 +187,15 @@ not MVP use cases.
 
 ## Import Flow
 
-`ImportAssetCommand` contains trusted Project and application request identity plus a Tauri-owned
-file handle. It never accepts a reusable path from Workflow JSON.
+`ImportAssetCommand` contains trusted Project scope plus a Tauri-owned file handle. It never accepts
+a reusable path from Workflow JSON.
 
 ```text
 open bounded file stream
   -> write restricted staging content
   -> calculate digest and sniff MIME
   -> extract and validate AssetMediaFactsValue
-  -> commit Pending AssetAggregate + finalize job
+  -> commit Pending AssetAggregate + managed-content finalization
   -> finalize managed bytes after commit
   -> transition AssetAggregate to Available
   -> return ImportAssetResult
@@ -183,21 +204,21 @@ open bounded file stream
 Validation failure creates no aggregate and removes staging. Database failure removes staging. A
 failure after the Pending commit remains recoverable and is never reported as available.
 
-Replaying the same request ID and content fingerprint returns the original result. Reusing the ID
-for different content returns an application replay conflict.
+The local Desktop MVP does not persist import replay receipts. An interrupted import is reconciled
+only after its Pending Asset and managed-content finalization have committed.
 
-## Generated Media Flow
+## Node-Produced Media Flow
 
 ```text
 node capability executor
-  -> NodeCapabilityGeneratedMediaWriterPort
-  -> RecordGeneratedAssetUseCase
-  -> Pending/finalize/Available flow
+  -> NodeCapabilityProducedMediaWriterPort
+  -> RecordNodeProducedAssetUseCase
+  -> Pending/finalization/Available flow
   -> Workflow managed-media reference
 ```
 
-A node cannot succeed until its generated Asset is available. Provider bytes and URLs never enter
-Workflow state. Storage failure publishes no node output.
+A node cannot succeed until every produced Asset needed by its result is available. Provider bytes
+and URLs never enter Workflow state. Storage failure publishes no node output.
 
 ## Resolve Use Case
 
@@ -258,31 +279,34 @@ Recovery never searches by basename, crosses Project scope, or rewrites an Asset
 | Port | Required behavior |
 | --- | --- |
 | `AssetAggregateRepositoryPort` | load aggregates and perform stable cursor queries |
-| `AssetIngestTransactionPort` | atomically persist Pending/finalize and approved transitions |
+| `AssetIngestTransactionPort` | atomically persist Pending, finalization, and approved transitions |
 | `AssetManagedContentStorePort` | stage, finalize, lease, inspect existence, clean staging |
 | `AssetMediaInspectorPort` | sniff MIME and extract verified media facts |
 | `AssetClockPort` | provide deterministic timestamps |
-| `AssetIdentityGeneratorPort` | create Asset, import, and finalize-job identities |
+| `AssetIdentityGeneratorPort` | create Asset, import, and managed-content finalization identities |
 
 Each use case receives only its required ports through its constructor. `crates/nodes` separately
-owns `NodeCapabilityManagedMediaReaderPort` and `NodeCapabilityGeneratedMediaWriterPort`; Desktop
+owns `NodeCapabilityManagedMediaReaderPort` and `NodeCapabilityProducedMediaWriterPort`; Desktop
 implements those ports by calling Asset use cases.
 
 Concrete implementations are named by technology and role, for example
 `SqliteAssetAggregateRepositoryAdapter`, `FileSystemAssetManagedContentStoreAdapter`, and
 `FfprobeAssetMediaInspectorAdapter`.
 
+Logical metadata records, managed-content publication, and crash recovery are defined in
+[`BACKEND_STORAGE.md`](BACKEND_STORAGE.md).
+
 ## Errors
 
 `AssetDomainError` covers invariant and transition failures. `AssetApplicationError` adds not found,
 not visible, kind mismatch, Pending, Missing, invalid media, import limit, digest mismatch, managed
-storage failure, and request replay conflict. Errors include safe typed IDs and structured details,
+storage failure, and finalization failure. Errors include safe typed IDs and structured details,
 never paths or raw untrusted content.
 
 ## Verification
 
 - aggregate tests cover Project scope, kind, origin, and legal transitions;
-- import and generated-media tests cover validation, idempotency, Pending, and storage failure;
+- import and generated-media tests cover validation, Pending finalization, and storage failure;
 - port contract suites run against fake and production adapters;
 - fault-injection tests stop at each write boundary and prove recovery;
 - query tests prove cursor ordering, bounds, and Project isolation;

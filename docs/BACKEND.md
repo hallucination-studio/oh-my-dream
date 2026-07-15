@@ -1,75 +1,71 @@
-# Backend MVP Architecture
+# Backend Architecture
 
-> Status: proposed MVP design
-> Scope: Rust backend for the first complete Text/Image/Video/Audio Workflow
+> Status: proposed target architecture
+> Scope: Rust backend for provider-independent creative Workflows
 
 ## Purpose
 
-The first backend version proves one complete local creation loop:
+The backend supports one durable local creation loop across exact content operations:
 
 ```text
-create Text, Image, Video, and Audio nodes
+select an exact generation, transformation, analysis, or Asset-read capability
   -> edit and connect a typed graph
   -> save and reopen it
   -> run the graph or one node with its dependencies
-  -> persist generated media
-  -> preview text, image, video, and audio
+  -> persist generated and derived media
+  -> preview scalar media, image sequences, and structured storyboards
 ```
 
-The architecture favors this vertical path over a general creative platform. It applies DDD and
-explicit dependency injection where they protect real business or external boundaries, without
-adding speculative abstractions.
+The architecture applies DDD and explicit dependency injection at real business and external
+boundaries. Exact capability semantics remain independent from provider topology, storage, and UI.
 
 ## Document Map
 
 | Document | Authority |
 | --- | --- |
 | [`BACKEND_GLOSSARY.md`](BACKEND_GLOSSARY.md) | authoritative English terms, type naming, layers, and role suffixes |
-| [`BACKEND_WORKFLOW.md`](BACKEND_WORKFLOW.md) | Workflow and Run aggregates, graph, editing, planning, execution, preview association |
-| [`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md) | seven exact node capabilities and execution contracts |
+| [`BACKEND_WORKFLOW_GRAPH.md`](BACKEND_WORKFLOW_GRAPH.md) | Workflow aggregate, typed bindings, ordered references, and graph invariants |
+| [`BACKEND_WORKFLOW.md`](BACKEND_WORKFLOW.md) | readiness, editing use case, planning, Run lifecycle, execution, and preview association |
+| [`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md) | authoritative capability catalog, requests, results, errors, and consumer ports |
 | [`BACKEND_ASSETS.md`](BACKEND_ASSETS.md) | Asset aggregate, managed content, import, generated writes, resolution, and preview |
-| [`BACKEND_PROVIDERS.md`](BACKEND_PROVIDERS.md) | three generation provider port adapters |
+| [`BACKEND_PROVIDERS.md`](BACKEND_PROVIDERS.md) | stable generation profiles, availability, routing, and provider adapters |
 | [`BACKEND_APPLICATION.md`](BACKEND_APPLICATION.md) | Tauri DTO boundary, task host, preview protocol, and composition root |
+| [`BACKEND_STORAGE.md`](BACKEND_STORAGE.md) | local metadata, managed media, and restart durability |
 
 The glossary owns names. Each detailed document owns its business semantics. This index owns only
 cross-context boundaries and dependency direction.
 
-## MVP Product Scope
+## Product Capability Scope
 
-React displays exactly four node shells backed by seven exact capabilities:
-
-```text
-Text:   text.literal
-Image:  image.asset, image.text_to_image
-Video:  video.asset, video.image_to_video
-Audio:  audio.asset, audio.text_to_audio
-```
-
-The required graph is:
+The target catalog covers:
 
 ```text
-Text -> Image -> Video
-  |
-  +------------> Audio
+Foundation: literal Text and Image/Video/Audio Asset reads
+Image:      text, image, and multi-reference generation; crop
+Video:      text, image, multi-reference, first-frame, first-and-last-frame,
+            and mixed-media generation; upscale, frame extraction, concatenation,
+            and storyboard analysis
+Text:       text-only and mixed-media generation
+Audio:      independent speech synthesis and music generation
 ```
 
-Imported Image, Video, and Audio Assets can enter through matching Asset source capabilities. Text
-previews as text; managed Image, Video, and Audio outputs preview through the Asset boundary.
+[`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md) owns the exact versioned contracts. UI shells
+and forms are projections of that catalog, not a second hard-coded capability list.
 
 ## DDD Context Map
 
 ```text
 Workflow bounded context
   crates/engine     graph and Run domain, application use cases, consumer ports
-  crates/nodes      seven built-in node capability contracts and executors
+  crates/nodes      exact built-in capabilities plus generation-profile semantics
        |
-       | NodeCapabilityGeneratedMediaWriterPort / NodeCapabilityManagedMediaReaderPort
+       | NodeCapabilityProducedMediaWriterPort / NodeCapabilityManagedMediaReaderPort
        v
 Asset bounded context
   crates/assets     Asset domain, application use cases, consumer ports, local adapters
 
 Infrastructure boundaries
-  crates/backends   provider adapters -> node-owned provider ports
+  crates/backends   profile routers and provider adapters -> node-owned provider ports
   src-tauri         DTOs, SQLite adapters, bridges, task host, preview, composition
 ```
 
@@ -96,9 +92,10 @@ Compile-time dependencies point toward the consumer-owned abstraction:
 
 - `crates/engine` contains pure Workflow domain/application code and defines the execution ports it
   consumes;
-- `crates/nodes` depends on engine contracts, implements its catalog/executor ports, and owns the
-  media/provider ports its exact executors consume;
-- `crates/backends` depends inward on the three node-owned provider ports;
+- `crates/nodes` depends on the engine-owned `WorkflowNodeCapabilityPort`, implements one exact
+  capability type per operation, and owns the profile plus media/provider ports those types consume;
+- `crates/backends` depends inward on the generation-profile availability port and behavior-named
+  node-owned provider ports;
 - `crates/assets` owns media identity and content behavior without depending on Workflow or provider
   code;
 - `src-tauri` implements persistence and cross-context bridge ports and selects concrete adapters;
@@ -129,12 +126,14 @@ The rules are:
 
 | Concept | Authoritative owner | Primary types |
 | --- | --- | --- |
-| editable graph and revision | Workflow domain | `WorkflowAggregate`, `WorkflowNodeEntity`, `WorkflowEdgeEntity` |
+| editable graph and revision | Workflow domain | `WorkflowAggregate`, `WorkflowNodeEntity`, `WorkflowInputBindingValue`, `WorkflowInputItemEntity` |
 | Run lifecycle and output association | Workflow domain | `WorkflowRunAggregate`, `WorkflowNodeExecutionEntity` |
 | shared capability contract invariants | Workflow domain in `engine` | `NodeCapabilityContract` |
-| seven exact parameter and execution semantics | exact modules in `nodes` | contract instances and `NodeCapabilityParameterSet` |
+| exact parameter, input, result, and execution semantics | capability implementations in `nodes` | `TextToVideoCapability`, `NodeCapabilityParameterSet` |
+| stable generation profile identity and capability compatibility | generation-profile domain in `nodes` | `GenerationProfileDefinition`, `GenerationProfileRef` |
+| current generation profile availability | provider-availability adapter through a consumer-owned reader port | `GenerationProfileAvailabilityObservation` |
 | managed media identity and availability | Asset domain | `AssetAggregate`, `AssetManagedContentState` |
-| external generation protocol | provider adapter private code | private provider `*Dto` and `*AdapterError` |
+| provider model-operation protocol | provider adapter private code | private provider `*Dto` and `*AdapterError` |
 | Tauri wire representation | Desktop boundary | `*RequestDto`, response `*Dto`, `DesktopErrorDto` |
 | UI presentation state | React | editor and playback state, never Rust domain state |
 
@@ -154,11 +153,13 @@ Representative ports are:
 | Consumer | Port |
 | --- | --- |
 | Workflow use cases | `WorkflowAggregateRepositoryPort`, `WorkflowRunRepositoryPort` |
-| Workflow execution | `WorkflowNodeCapabilityCatalogPort`, `NodeCapabilityExecutorPort` |
+| exact capability behavior | `WorkflowNodeCapabilityPort` |
 | Workflow preview projection | `WorkflowMediaPreviewIssuerPort` |
-| node Asset source/generation | `NodeCapabilityManagedMediaReaderPort`, `NodeCapabilityGeneratedMediaWriterPort` |
-| exact generation capabilities | `TextToImageProviderPort`, `ImageToVideoProviderPort`, `TextToAudioProviderPort` |
-| Asset use cases | `AssetAggregateRepositoryPort`, `AssetManagedContentStorePort`, `AssetMediaInspectorPort` |
+| node Asset reads and produced-media writes | `NodeCapabilityManagedMediaReaderPort`, `NodeCapabilityProducedMediaWriterPort` |
+| exact model-powered capabilities | `TextToVideoProviderPort`, `TextToSpeechProviderPort`, and the complete capability-owned port set |
+| deterministic media transformations | `ImageCropPort`, `VideoFrameExtractionPort`, `VideoConcatenationPort` |
+| generation profile availability reads | `GenerationProfileAvailabilityReaderPort` |
+| Asset use cases | `AssetAggregateRepositoryPort`, `AssetIngestTransactionPort`, `AssetManagedContentStorePort`, `AssetMediaInspectorPort` |
 | already-persisted Run events | `WorkflowRunEventPublisherPort` |
 
 ### Constructor Injection
@@ -195,10 +196,11 @@ crates/engine/src/workflow/
   application/
   ports/
 
-crates/nodes/src/node_capability/
-  domain/
-  application/
-  ports/
+crates/nodes/src/
+  generation_profile/{domain,application,ports}/
+  text_to_video/{capability,parameters,provider_port}.rs
+  video_concatenation/{capability,parameters,media_port}.rs
+  <exact_capability>/
 
 crates/assets/src/asset/
   domain/
@@ -207,13 +209,15 @@ crates/assets/src/asset/
   infrastructure/
 
 crates/backends/src/
-  mock/
-  <provider>/
+  provider_routing/
+  deterministic_provider/
+  <provider_name>/
 
 src-tauri/src/
   workflow/
   assets/
-  providers/
+  generation_profiles/
+  generation_providers/
   assistant/       unchanged
   configuration.rs
   composition.rs
@@ -228,7 +232,10 @@ glossary.
 | --- | --- |
 | nodes, edges, revision, canvas position | `WorkflowAggregate` |
 | Run/node execution state, progress, errors, outputs | `WorkflowRunAggregate` |
-| fixed ports and parameter meaning | `NodeCapabilityContract` and exact capability module |
+| fixed ports and parameter meaning | exact `WorkflowNodeCapabilityPort` implementation |
+| selected provider-independent generation profile | `WorkflowNodeEntity` parameter set |
+| profile identity and capability compatibility | generation-profile catalog in `nodes` |
+| current profile availability and equivalent routes | composition-built provider routing adapters |
 | Asset identity, content state, media facts, origin | `AssetAggregate` |
 | provider task/protocol details | concrete provider adapter during active execution |
 | concrete dependency graph | `DesktopCompositionRoot` |
@@ -256,21 +263,24 @@ StartWorkflowRunCommand
   -> readiness + deterministic WorkflowExecutionPlanValue
   -> persist Queued WorkflowRunAggregate and first event
   -> DesktopWorkflowRunTaskHost starts ExecuteWorkflowRunUseCase
-  -> NodeCapabilityExecutorPort executes ready nodes
+  -> WorkflowNodeCapabilityRegistry resolves WorkflowNodeCapabilityPort
+  -> WorkflowNodeCapabilityPort::execute runs each ready node
   -> persist aggregate transitions and events
   -> WorkflowRunEventPublisherPort emits projections
 ```
 
 Provider work starts only after queued intent is durable. Independent branches may execute within a
-bounded concurrency limit. The MVP has no cross-run result cache.
+bounded concurrency limit. Each model-powered node keeps its selected exact
+`GenerationProfileRef`; the provider router fixes one equivalent route per dispatch before paid
+submission. This architecture defines no cross-run result cache.
 
-## Generated Media Flow
+## Node-Produced Media Flow
 
 ```text
-provider adapter returns NodeCapabilityGeneratedMediaPayload
-  -> NodeCapabilityGeneratedMediaWriterPort
-  -> RecordGeneratedAssetUseCase
-  -> persist Pending AssetAggregate and finalize job
+provider or media-operation adapter returns an exact result payload
+  -> NodeCapabilityProducedMediaWriterPort
+  -> RecordNodeProducedAssetUseCase
+  -> persist Pending AssetAggregate and managed-content finalization
   -> finalize and validate managed content
   -> transition AssetAggregate to Available
   -> return Workflow managed-media reference
@@ -309,31 +319,37 @@ bodies, signed URLs, generated content, and unnecessary local paths.
 ## Verification Architecture
 
 - Workflow tests prove graph invariants, readiness, planning, transitions, and cancellation;
-- capability tests prove seven exact parameter, port, and execution contracts;
-- provider port suites run against deterministic and configured adapters;
+- capability tests prove every registered parameter, input, result, error, port, and execution contract;
+- generation-profile tests prove stable node selection, exact compatibility, availability, and
+  provider-independent routing;
+- provider port suites run against deterministic and configured capability routers;
 - Asset tests prove import/generated flow, Project isolation, resolution, recovery, and preview;
 - Desktop tests prove transaction ordering, task hosting, DTO translation, and events;
 - contract tests keep Rust DTOs and TypeScript types aligned;
-- end-to-end tests run both required branches and preview all four shells;
+- end-to-end tests exercise every capability family and preview every Workflow output type;
 - static checks reject concrete adapter construction outside `composition.rs` and inward dependency
   violations.
 
 The implementation merge gate remains `./scripts/e2e.sh`.
 
-## MVP Completion Criteria
+## Architecture Completion Criteria
 
-1. Users can create, move, edit, connect, save, and reopen all four node shells.
+1. Users can create, move, edit, connect, save, and reopen every registered exact capability.
 2. Rust rejects invalid types and cycles while incomplete drafts remain editable.
-3. Deterministic provider adapters complete `Text -> Image -> Video` and `Text -> Audio`.
-4. Generated Image, Video, and Audio outputs are durable Project Assets.
-5. All four preview types work after execution and after reopen.
-6. Progress, failure, and cancellation are visible through durable Run state and events.
-7. No DTO exposes provider state, credentials, managed paths, or persistence Rows.
-8. Public Rust types satisfy the glossary naming rules and concrete dependencies are constructor
+3. Users can query currently available compatible profiles and select a stable profile on each
+   model-powered node.
+4. Every provider port and media-operation port has a deterministic contract implementation.
+5. Generated and transformed media, including frame sequences, become durable Project Assets.
+6. Text, Image, Video, Audio, Image Sequence, and Video Storyboard previews work after execution and
+   reopen.
+7. Progress, failure, and cancellation are visible through durable Run state and events.
+8. No DTO exposes provider state, native model IDs, credentials, managed paths, or persistence Rows.
+9. Public Rust types satisfy the glossary naming rules and concrete dependencies are constructor
    injected only at the composition root.
 
-## Post-MVP
+## Deferred Product Areas
 
-Multiview, references, text generation, text-to-video, concat, timelines, dynamic ports, plugin
-nodes, batches, cross-run cache, remote task resume, provider fallback, cost accounting, advanced
-Asset management, collaboration, cloud sync, 3D, and scenes are outside this architecture revision.
+Dynamic ports, plugin-supplied capabilities, batch generation, timelines, cross-run cache, remote
+task resume, cross-profile fallback, cost accounting, advanced Asset management, collaboration,
+cloud sync, 3D, and scene generation require separate designs. Equivalent provider routing within
+one exact profile is core behavior.
