@@ -9,6 +9,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod asset;
 pub mod error;
 mod file_support;
 pub mod model;
