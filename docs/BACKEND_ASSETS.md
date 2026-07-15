@@ -172,6 +172,23 @@ pub enum AssetNodeOutputProduction {
 output through Asset-owned integration value types. `DesktopNodeCapabilityAssetBridgeAdapterImpl`
 translates the Workflow values explicitly, so `crates/assets` does not depend on `crates/engine`.
 
+The Asset-owned integration shapes are exact. `AssetOriginWorkflowId`,
+`AssetOriginWorkflowRunId`, `AssetOriginWorkflowNodeId`, and
+`AssetOriginWorkflowNodeExecutionId` are distinct RFC 9562 UUIDv4 values.
+`AssetOriginWorkflowRevision` is a non-zero `u64`. `AssetWorkflowNodeOrigin` contains those four
+identities, the revision, and one `AssetOriginNodeCapabilityContractRef`. The capability ref uses
+the D0.3 capability ID grammar and non-zero-major `{ u16 major, u16 minor }` version without owning
+capability semantics. `AssetOriginNodeOutputKey` uses the D0.3 1..=64-byte
+`[a-z][a-z0-9_]*` key grammar. `AssetNodeOutputKey` contains Run ID, node-execution ID, output key,
+and unrestricted `u32` ordinal; its Run and node-execution IDs must equal those in the producer.
+
+`AssetOriginGenerationProfileRef` mechanically stores a Generation Profile ID using the exact
+3..=128-byte dot-separated grammar from `BACKEND_PROVIDERS.md` and a non-zero `u32` version. It
+does not own catalog, lifecycle, compatibility, availability, provider, or model semantics.
+`AssetOriginSourceAssetId` mechanically wraps one Asset-owned `AssetId`. Derived source lists are
+non-empty, preserve supplied order, and do not infer, sort, or deduplicate sources. Imported and
+node-output origin construction rejects every inconsistent shape as `InvalidOrigin`.
+
 Provenance never copies prompt text, provider/native model, provider task, route, progress, cost, or
 path. Imported origin never retains the user's absolute source path.
 
