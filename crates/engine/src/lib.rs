@@ -13,6 +13,7 @@ pub mod error;
 pub mod executor;
 pub mod graph;
 pub mod node;
+pub mod node_capability;
 pub mod port;
 pub mod registry;
 mod validation;
