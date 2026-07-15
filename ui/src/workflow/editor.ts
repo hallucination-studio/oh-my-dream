@@ -41,7 +41,7 @@ export function fromWorkflow(
   const edges = workflow.nodes.flatMap((target) =>
     Object.entries(target.inputs).flatMap(([targetHandle, binding]) =>
       outputRefsOf(binding).map(([source, sourceHandle], order) => ({
-        id: edgeId(source, sourceHandle, target.id, targetHandle),
+        id: workflowEdgeId(source, sourceHandle, target.id, targetHandle),
         source,
         sourceHandle,
         target: target.id,
@@ -131,7 +131,7 @@ function sourceColor(
   return typeColor(portType);
 }
 
-function edgeId(
+export function workflowEdgeId(
   source: string,
   sourceHandle: string,
   target: string,
