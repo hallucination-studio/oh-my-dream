@@ -244,8 +244,17 @@ collection are not MVP use cases.
 
 ## Import Flow
 
-`AssetImportCommand` contains trusted Project scope and a Tauri-owned file handle. It never accepts a
-reusable path from Workflow JSON.
+`AssetImportCommand` contains the trusted Project ID, expected `AssetMediaKind`, display name, final
+original file name, and one `AssetImportSourceLease` created from a Tauri-owned already-open file
+handle. It never accepts a reusable path, caller MIME, digest, content ID, media facts, or identity.
+The source lease deadline is the deadline for staging, inspection, the Pending commit, and the first
+inline finalization attempt.
+
+`import_asset` returns the committed `AssetAggregate` directly. A successful inline finalization
+returns it as Available. A transient post-commit finalization error is handled and logged by the use
+case and returns the still-Pending aggregate, because its durable effect remains replayable. A
+confirmed absence of both exact staged and managed bytes returns the durably Missing aggregate.
+Errors before the Pending commit return `AssetApplicationError` and no Asset.
 
 ```text
 open bounded source stream
@@ -260,6 +269,37 @@ open bounded source stream
 Validation or initial database failure leaves no aggregate and removes staging when possible. A
 failure after the Pending commit remains recoverable and is never reported as Available. Import may
 return Pending; the post-commit worker or startup reconciliation retries the same exact effect.
+
+Import observes one `AssetCreatedAt`, then generates Asset, import, and finalization identities
+exactly once before staging. It stages, reopens the exact staged reference for inspection, constructs
+the descriptor/origin/Pending aggregate/finalization/effect, and calls
+`commit_imported_pending_asset`. If staging succeeds but inspection, value construction, or the
+Pending transaction fails, it attempts one idempotent staged-content removal. Cleanup failure is
+logged where handled and never replaces the primary error. There is no identity retry, source
+rewind, second staging attempt, or filename-derived behavior.
+
+## Finalization
+
+`AssetFinalizeContentCommand` contains one committed `AssetFinalizeContentEffect` and the caller's
+process-monotonic deadline. `finalize_asset_content` returns the current durable `AssetAggregate`
+directly.
+
+`AssetFinalizeContentUseCase::finalize_asset_content` performs exactly this idempotent decision:
+
+1. Find the finalization and its Asset. An absent finalization returns `NotFound`; an absent or
+   identity-inconsistent owning Asset returns `FinalizationFailed`.
+2. If the Asset is Available with the exact descriptor, return it without store mutation. If it is
+   Missing with the exact descriptor, return it. A different descriptor, finalization, or state
+   returns `FinalizationFailed`.
+3. For the matching Pending Asset, open the staged source. When present, publish it under the exact
+   descriptor, commit Available, attempt one idempotent staged removal, and return Available.
+4. When staging is absent, verify exact managed bytes. A match commits Available and returns it.
+   Otherwise commit Missing with `FinalizationSourceMissing` and return Missing.
+
+Store/publish/transaction/cancellation/deadline errors leave the already-committed Pending state and
+propagate their frozen category. Staged cleanup failure after an Available commit is logged and does
+not change the successful result; stale-staging reconciliation owns later cleanup. This use case
+does not claim or complete the Desktop outbox effect, retry, sleep, or schedule work.
 
 ## Node-Produced Media Flow
 
@@ -365,6 +405,27 @@ adapter-private staging orders by creation time then private reference. Each can
 most once in that call. Unreferenced staging is stale after 24 hours. Effect delivery is at-least-once;
 `AssetContentFinalizationId` is its business and idempotency identity. Attempts are bounded by the
 caller deadline, not by an Asset retry counter or new terminal state.
+
+`AssetReconcileContentCommand` contains the caller deadline, optional matching cursors for unfinished
+finalizations, Available verification, and stale staging, plus an optional `AssetPageLimit` that
+defaults to `50`. The same effective limit applies independently to all three pages.
+`AssetReconcileContentResult` contains only the three optional next cursors returned by those pages;
+it contains no totals, retry state, failure list, or scheduling hint.
+
+One call observes the clock once, derives the stale cutoff by saturating `now - 24 hours` at epoch
+zero, and processes classes in this exact order:
+
+1. call `finalize_asset_content` once for each unfinished finalization page item;
+2. verify each Available Asset's exact descriptor and commit `ManagedContentMissing` when absent;
+3. for each stale staged item, query its exact reference and remove it only when unreferenced.
+
+Each class preserves its interface page order. The deadline is checked before each candidate. A
+confirmed missing object is a successful state transition and processing continues. Cancellation,
+deadline, repository, store, or transaction failure stops the call immediately with its frozen
+error; already-committed earlier work remains valid and an error result exposes no advanced cursor.
+Replaying the same input is safe through finalization, transition, verification, and removal
+idempotency. Reconciliation does not claim outbox effects, run candidates concurrently, retry a
+candidate, sleep, or invent a recovery state.
 
 Recovery compares content ID, digest, and length. It never searches by filename, crosses Project
 scope, substitutes similar bytes, or changes an output key.
