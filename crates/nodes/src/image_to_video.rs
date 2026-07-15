@@ -8,8 +8,8 @@ use crate::{GenerationContext, ImageToVideoGenerator, ImageToVideoRequest, Share
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext,
-    NodeRunError, NodeRunResult, OutputPort, PortType, Value, ValueMap,
+    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -144,7 +144,7 @@ impl Node for ImageToVideoNode {
 
     fn run(
         &self,
-        inputs: &ValueMap,
+        inputs: &NodeInputs,
         context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         let image = image_input(inputs, "image").map_err(boxed)?;

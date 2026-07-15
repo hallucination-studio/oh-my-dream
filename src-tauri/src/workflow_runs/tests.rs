@@ -4,7 +4,7 @@ use super::{
 };
 use engine::{
     EngineError, InputPort, Node, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
-    OutputPort, PortType, RunOutputs, Value, ValueMap, Workflow, WorkflowNode,
+    OutputPort, PortType, RunOutputs, Value, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::sync::{Arc, Barrier, mpsc};
@@ -305,7 +305,7 @@ impl Node for ImmediateNode {
 
     fn run(
         &self,
-        _inputs: &ValueMap,
+        _inputs: &engine::NodeInputs,
         _context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         Ok(NodeRunResult::new(BTreeMap::from([(

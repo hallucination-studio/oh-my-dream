@@ -6,7 +6,7 @@ use crate::graph::{InputBinding, Workflow};
 use crate::node::{NodeRunContext, NodeRunResult, is_cancelled_node_run};
 use crate::registry::NodeRegistry;
 use crate::validation::{ExecutionPlan, PlanNode, build_plan, validate_node_outputs};
-use crate::value::{Value, ValueMap};
+use crate::value::{InputValue, NodeInputs, ValueMap};
 use std::collections::{BTreeMap, BTreeSet};
 use tracing::{debug, info};
 
@@ -157,7 +157,7 @@ fn run_plan_node(
     node: &PlanNode,
     project_id: &str,
     workflow_snapshot: &serde_json::Value,
-    inputs: &ValueMap,
+    inputs: &NodeInputs,
     cancellation: &dyn CancellationSignal,
     observer: &mut dyn FnMut(&NodeProgressEvent),
 ) -> Result<NodeRunResult> {
@@ -242,11 +242,11 @@ fn first_unemitted_node_id(plan: &ExecutionPlan, emitted: &BTreeSet<usize>) -> S
         .unwrap_or_default()
 }
 
-fn resolve_inputs(node: &PlanNode, outputs: &RunOutputs) -> Result<ValueMap> {
-    let mut inputs = ValueMap::new();
+fn resolve_inputs(node: &PlanNode, outputs: &RunOutputs) -> Result<NodeInputs> {
+    let mut inputs = NodeInputs::new();
     for port in node.node.inputs() {
         if let Some(default) = &port.default {
-            inputs.insert(port.name.clone(), default.clone());
+            inputs.insert(port.name.clone(), InputValue::Single(default.clone()));
         }
     }
 
@@ -271,63 +271,14 @@ fn resolve_inputs(node: &PlanNode, outputs: &RunOutputs) -> Result<ValueMap> {
         }
         let value = match binding {
             InputBinding::Single { .. } => {
-                values.pop().ok_or_else(|| EngineError::InvalidWorkflow {
+                InputValue::Single(values.pop().ok_or_else(|| EngineError::InvalidWorkflow {
                     message: format!("input `{input_name}` has an empty binding"),
-                })?
+                })?)
             }
-            InputBinding::OrderedMany { .. } => combine_ordered_values(&values, input_name)?,
+            InputBinding::OrderedMany { .. } => InputValue::OrderedMany(values),
         };
         inputs.insert(input_name.clone(), value);
     }
 
     Ok(inputs)
-}
-
-fn combine_ordered_values(values: &[Value], input_name: &str) -> Result<Value> {
-    let Some(first) = values.first() else {
-        return Err(EngineError::InvalidWorkflow {
-            message: format!("input `{input_name}` has an empty ordered binding"),
-        });
-    };
-    if values.iter().any(|value| value.port_type() != first.port_type()) {
-        return Err(EngineError::InvalidWorkflow {
-            message: format!("input `{input_name}` has mixed ordered value types"),
-        });
-    }
-    let joined = values.iter().map(value_text).collect::<Vec<_>>().join("|");
-    Ok(match first {
-        Value::String(_) => Value::String(joined),
-        Value::Image(_) => Value::Image(joined),
-        Value::Video(_) => Value::Video(joined),
-        Value::Audio(_) => Value::Audio(joined),
-        Value::Model(_) => Value::Model(joined),
-        Value::Int(_) => Value::Int(values.iter().filter_map(value_int).sum()),
-        Value::Float(_) => Value::Float(values.iter().filter_map(value_float).sum()),
-    })
-}
-
-fn value_text(value: &Value) -> String {
-    match value {
-        Value::String(value)
-        | Value::Image(value)
-        | Value::Video(value)
-        | Value::Audio(value)
-        | Value::Model(value) => value.clone(),
-        Value::Int(value) => value.to_string(),
-        Value::Float(value) => value.to_string(),
-    }
-}
-
-fn value_int(value: &Value) -> Option<i64> {
-    match value {
-        Value::Int(value) => Some(*value),
-        _ => None,
-    }
-}
-
-fn value_float(value: &Value) -> Option<f64> {
-    match value {
-        Value::Float(value) => Some(*value),
-        _ => None,
-    }
 }

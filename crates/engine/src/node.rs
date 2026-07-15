@@ -9,7 +9,7 @@
 use crate::error::EngineError;
 use crate::executor::{CancellationSignal, NodeExecutionState, NodeProgressEvent};
 use crate::port::{PortCardinality, PortType};
-use crate::value::{Value, ValueMap};
+use crate::value::{NodeInputs, Value, ValueMap};
 
 /// Declaration of a single input port on a node.
 #[derive(Debug, Clone)]
@@ -58,7 +58,7 @@ pub trait Node: Send + Sync {
     /// observe cancellation before starting irreversible side effects.
     fn run(
         &self,
-        inputs: &ValueMap,
+        inputs: &NodeInputs,
         context: &mut NodeRunContext<'_>,
     ) -> std::result::Result<NodeRunResult, NodeRunError>;
 

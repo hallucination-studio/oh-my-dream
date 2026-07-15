@@ -35,7 +35,7 @@ pub use node::{
 };
 pub use port::{PortCardinality, PortType};
 pub use registry::{NodeFactory, NodeParams, NodeRegistry};
-pub use value::{Value, ValueMap};
+pub use value::{InputValue, NodeInputs, Value, ValueMap};
 pub use workflow_patch::{
     MAX_WORKFLOW_PATCH_BYTES, MAX_WORKFLOW_PATCH_OPERATIONS, NodeRef, WorkflowDiagnostic,
     WorkflowPatch, WorkflowPatchError, WorkflowPatchOperation, WorkflowPatchResult,

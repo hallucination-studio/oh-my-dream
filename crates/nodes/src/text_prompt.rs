@@ -3,8 +3,8 @@ use crate::params::{canonicalize_mode, reject_unknown_params, string_param};
 use crate::ports::output;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext,
-    NodeRunError, NodeRunResult, OutputPort, PortType, Value, ValueMap,
+    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
 use tracing::info;
@@ -84,7 +84,7 @@ impl Node for TextPromptNode {
 
     fn run(
         &self,
-        _inputs: &ValueMap,
+        _inputs: &NodeInputs,
         _context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         info!(type_id = TYPE_ID, "text prompt node produced text");

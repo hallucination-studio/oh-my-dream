@@ -2,7 +2,7 @@
 
 use crate::node::NodeRunResult;
 use crate::registry::NodeParams;
-use crate::value::{Value, ValueMap};
+use crate::value::{InputValue, NodeInputs, Value};
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
@@ -60,13 +60,13 @@ pub(crate) fn cache_fingerprint(
     project_id: &str,
     type_id: &str,
     params: &NodeParams,
-    inputs: &ValueMap,
+    inputs: &NodeInputs,
 ) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     project_id.hash(&mut hasher);
     type_id.hash(&mut hasher);
     hash_params(params, &mut hasher);
-    hash_value_map(inputs, &mut hasher);
+    hash_node_inputs(inputs, &mut hasher);
     hasher.finish()
 }
 
@@ -116,10 +116,22 @@ fn hash_json_number(value: &serde_json::Number, state: &mut impl Hasher) {
     }
 }
 
-fn hash_value_map(values: &ValueMap, state: &mut impl Hasher) {
+fn hash_node_inputs(values: &NodeInputs, state: &mut impl Hasher) {
     for (key, value) in values {
         key.hash(state);
-        hash_value(value, state);
+        match value {
+            InputValue::Single(value) => {
+                0_u8.hash(state);
+                hash_value(value, state);
+            }
+            InputValue::OrderedMany(values) => {
+                1_u8.hash(state);
+                values.len().hash(state);
+                for value in values {
+                    hash_value(value, state);
+                }
+            }
+        }
     }
 }
 
@@ -144,4 +156,64 @@ fn hash_value(value: &Value, state: &mut impl Hasher) {
 fn hash_tagged_string(tag: u8, value: &str, state: &mut impl Hasher) {
     tag.hash(state);
     value.hash(state);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fingerprint(inputs: NodeInputs) -> u64 {
+        cache_fingerprint("project", "Recording", &NodeParams::new(), &inputs)
+    }
+
+    #[test]
+    fn distinguishes_scalar_and_ordered_cardinality() {
+        let scalar = NodeInputs::from([(
+            "clips".to_owned(),
+            InputValue::Single(Value::Video("a".to_owned())),
+        )]);
+        let ordered = NodeInputs::from([(
+            "clips".to_owned(),
+            InputValue::OrderedMany(vec![Value::Video("a".to_owned())]),
+        )]);
+        assert_ne!(fingerprint(scalar), fingerprint(ordered));
+    }
+
+    #[test]
+    fn distinguishes_order_from_delimiter_content() {
+        let separated = NodeInputs::from([(
+            "clips".to_owned(),
+            InputValue::OrderedMany(vec![
+                Value::Video("a".to_owned()),
+                Value::Video("b|c".to_owned()),
+            ]),
+        )]);
+        let joined = NodeInputs::from([(
+            "clips".to_owned(),
+            InputValue::OrderedMany(vec![
+                Value::Video("a|b".to_owned()),
+                Value::Video("c".to_owned()),
+            ]),
+        )]);
+        assert_ne!(fingerprint(separated), fingerprint(joined));
+    }
+
+    #[test]
+    fn distinguishes_reversed_ordered_values() {
+        let forward = NodeInputs::from([(
+            "clips".to_owned(),
+            InputValue::OrderedMany(vec![
+                Value::Video("a".to_owned()),
+                Value::Video("b".to_owned()),
+            ]),
+        )]);
+        let reverse = NodeInputs::from([(
+            "clips".to_owned(),
+            InputValue::OrderedMany(vec![
+                Value::Video("b".to_owned()),
+                Value::Video("a".to_owned()),
+            ]),
+        )]);
+        assert_ne!(fingerprint(forward), fingerprint(reverse));
+    }
 }

@@ -1,5 +1,5 @@
 use crate::error::NodesError;
-use engine::{NodeParams, Value, ValueMap};
+use engine::{InputValue, NodeInputs, NodeParams, Value};
 use serde::de::DeserializeOwned;
 
 pub(crate) fn string_param(
@@ -49,18 +49,20 @@ pub(crate) fn reject_unknown_params(
     Err(invalid_param(name, "unknown parameter".to_owned()))
 }
 
-pub(crate) fn text_input<'a>(inputs: &'a ValueMap, name: &str) -> Result<&'a str, NodesError> {
+pub(crate) fn text_input<'a>(inputs: &'a NodeInputs, name: &str) -> Result<&'a str, NodesError> {
     match inputs.get(name) {
-        Some(Value::String(value)) => Ok(value),
-        Some(_) => wrong_input(name, "string"),
+        Some(InputValue::Single(Value::String(value))) => Ok(value),
+        Some(InputValue::Single(_)) => wrong_input(name, "string"),
+        Some(InputValue::OrderedMany(_)) => wrong_cardinality(name, "single"),
         None => Err(NodesError::MissingInput { name: name.to_owned() }),
     }
 }
 
-pub(crate) fn image_input<'a>(inputs: &'a ValueMap, name: &str) -> Result<&'a str, NodesError> {
+pub(crate) fn image_input<'a>(inputs: &'a NodeInputs, name: &str) -> Result<&'a str, NodesError> {
     match inputs.get(name) {
-        Some(Value::Image(value)) => Ok(value),
-        Some(_) => wrong_input(name, "image"),
+        Some(InputValue::Single(Value::Image(value))) => Ok(value),
+        Some(InputValue::Single(_)) => wrong_input(name, "image"),
+        Some(InputValue::OrderedMany(_)) => wrong_cardinality(name, "single"),
         None => Err(NodesError::MissingInput { name: name.to_owned() }),
     }
 }
@@ -78,4 +80,41 @@ fn invalid_param(name: &str, reason: String) -> NodesError {
 
 fn wrong_input<T>(name: &str, expected: &'static str) -> Result<T, NodesError> {
     Err(NodesError::WrongInputType { name: name.to_owned(), expected })
+}
+
+fn wrong_cardinality<T>(name: &str, expected: &'static str) -> Result<T, NodesError> {
+    Err(NodesError::WrongInputCardinality { name: name.to_owned(), expected })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scalar_input_errors_distinguish_missing_cardinality_and_value_type() {
+        assert!(matches!(
+            text_input(&NodeInputs::new(), "prompt"),
+            Err(NodesError::MissingInput { .. })
+        ));
+        assert!(matches!(
+            text_input(
+                &NodeInputs::from([(
+                    "prompt".to_owned(),
+                    InputValue::OrderedMany(vec![Value::String("hello".to_owned())]),
+                )]),
+                "prompt",
+            ),
+            Err(NodesError::WrongInputCardinality { .. })
+        ));
+        assert!(matches!(
+            text_input(
+                &NodeInputs::from([(
+                    "prompt".to_owned(),
+                    InputValue::Single(Value::Image("asset".to_owned())),
+                )]),
+                "prompt",
+            ),
+            Err(NodesError::WrongInputType { .. })
+        ));
+    }
 }

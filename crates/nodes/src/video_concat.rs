@@ -3,8 +3,8 @@ use crate::params::canonicalize_mode;
 use crate::ports::{output, required_many_input};
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, Node, NodeParams, NodeRunContext, NodeRunError,
-    NodeRunResult, OutputPort, PortCardinality, PortType, Value, ValueMap,
+    CapabilityRegistration, CapabilitySelector, InputValue, Node, NodeInputs, NodeParams,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
 };
 use std::collections::BTreeMap;
 
@@ -86,18 +86,49 @@ impl Node for VideoConcatNode {
 
     fn run(
         &self,
-        inputs: &ValueMap,
+        inputs: &NodeInputs,
         _context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
-        let Some(Value::Video(reference)) = inputs.get("clips") else {
+        let Some(InputValue::OrderedMany(clips)) = inputs.get("clips") else {
             return Err(boxed(crate::error::NodesError::WrongInputType {
                 name: "clips".to_owned(),
                 expected: "video",
             }));
         };
+        let references = clips
+            .iter()
+            .map(|clip| match clip {
+                Value::Video(reference) => Ok(reference.as_str()),
+                _ => Err(boxed(crate::error::NodesError::WrongInputType {
+                    name: "clips".to_owned(),
+                    expected: "video",
+                })),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(NodeRunResult::new(BTreeMap::from([(
             "video".to_owned(),
-            Value::Video(format!("concat://{reference}")),
+            Value::Video(concat_reference(&references)),
         )])))
+    }
+}
+
+fn concat_reference(references: &[&str]) -> String {
+    let mut encoded = String::from("concat://");
+    for reference in references {
+        encoded.push_str(&reference.len().to_string());
+        encoded.push(':');
+        encoded.push_str(reference);
+    }
+    encoded
+}
+
+#[cfg(test)]
+mod tests {
+    use super::concat_reference;
+
+    #[test]
+    fn placeholder_reference_preserves_order_and_boundaries() {
+        assert_ne!(concat_reference(&["a", "b|c"]), concat_reference(&["a|b", "c"]));
+        assert_ne!(concat_reference(&["a", "b"]), concat_reference(&["b", "a"]));
     }
 }

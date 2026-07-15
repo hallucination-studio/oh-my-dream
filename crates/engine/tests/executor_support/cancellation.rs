@@ -1,6 +1,6 @@
 use engine::{
-    CancellationSignal, InputPort, Node, NodeParams, NodeRegistry, NodeRunContext, NodeRunError,
-    NodeRunResult, OutputPort, PortType, Value, ValueMap, Workflow, WorkflowNode,
+    CancellationSignal, InputPort, Node, NodeInputs, NodeParams, NodeRegistry, NodeRunContext,
+    NodeRunError, NodeRunResult, OutputPort, PortType, Value, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -91,7 +91,7 @@ impl Node for CommitThenCancelNode {
 
     fn run(
         &self,
-        _inputs: &ValueMap,
+        _inputs: &NodeInputs,
         _context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         self.runs.fetch_add(1, Ordering::SeqCst);
@@ -122,7 +122,7 @@ impl Node for FailThenCancelNode {
 
     fn run(
         &self,
-        _inputs: &ValueMap,
+        _inputs: &NodeInputs,
         _context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         self.cancellation.cancel();

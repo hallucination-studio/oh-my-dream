@@ -42,7 +42,17 @@ impl Value {
     }
 }
 
-/// Named runtime values, used for both a node's inputs and its outputs.
-///
-/// Ordered so that hashing for the result cache is deterministic.
+/// One runtime input with explicit cardinality.
+#[derive(Debug, Clone, PartialEq)]
+pub enum InputValue {
+    /// Exactly one value.
+    Single(Value),
+    /// An ordered collection whose order is semantically significant.
+    OrderedMany(Vec<Value>),
+}
+
+/// Named runtime inputs, ordered for deterministic cache hashing.
+pub type NodeInputs = BTreeMap<String, InputValue>;
+
+/// Named scalar outputs, ordered for deterministic cache hashing.
 pub type ValueMap = BTreeMap<String, Value>;

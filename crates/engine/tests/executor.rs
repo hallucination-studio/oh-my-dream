@@ -6,7 +6,8 @@ use engine::{
 };
 use executor_support::{
     FailingNode, RunCounters, TestCancellation, commit_then_cancel_registry, event_summary,
-    fail_then_cancel_registry, linear_workflow, registry, single_node_workflow,
+    fail_then_cancel_registry, linear_workflow, ordered_video_workflow, registry,
+    single_node_workflow,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -44,6 +45,27 @@ fn reuses_cached_node_outputs_on_second_run() {
     assert_eq!(counters.text_prompt.load(Ordering::SeqCst), 1);
     assert_eq!(counters.upper_case.load(Ordering::SeqCst), 1);
     assert_eq!(counters.collect.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn reordered_many_input_reruns_only_the_affected_downstream_node() {
+    let counters = RunCounters::default();
+    let registry = registry(counters.clone());
+    let mut cache = ResultCache::new();
+    let executor = Executor::new(&registry);
+
+    executor
+        .execute(&ordered_video_workflow(false), &mut cache)
+        .expect("first order should execute");
+    executor
+        .execute(&ordered_video_workflow(false), &mut cache)
+        .expect("unchanged order should use cache");
+    executor
+        .execute(&ordered_video_workflow(true), &mut cache)
+        .expect("reversed order should execute");
+
+    assert_eq!(counters.video_source.load(Ordering::SeqCst), 2);
+    assert_eq!(counters.video_concat.load(Ordering::SeqCst), 2);
 }
 
 #[test]

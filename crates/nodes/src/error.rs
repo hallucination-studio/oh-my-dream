@@ -16,6 +16,10 @@ pub enum NodesError {
     #[error("input `{name}` expected {expected}")]
     WrongInputType { name: String, expected: &'static str },
 
+    /// A runtime input had an unexpected cardinality.
+    #[error("input `{name}` expected {expected} cardinality")]
+    WrongInputCardinality { name: String, expected: &'static str },
+
     /// A media generation capability failed.
     #[error("{operation} failed: {source}")]
     Generation {

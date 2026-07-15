@@ -1,6 +1,6 @@
 use engine::{
-    EngineError, Executor, InputBinding, InputPort, Node, NodeExecutionState, NodeParams,
-    NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef,
+    EngineError, Executor, InputBinding, InputPort, Node, NodeExecutionState, NodeInputs,
+    NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef,
     PortCardinality, PortType, ResultCache, Value, ValueMap, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
@@ -287,7 +287,7 @@ impl Node for TestNode {
 
     fn run(
         &self,
-        _inputs: &ValueMap,
+        _inputs: &NodeInputs,
         _context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         self.runs.fetch_add(1, Ordering::SeqCst);

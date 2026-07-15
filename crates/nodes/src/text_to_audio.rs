@@ -8,8 +8,8 @@ use crate::{GenerationContext, SharedAssetStore, TextToAudioGenerator, TextToAud
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext,
-    NodeRunError, NodeRunResult, OutputPort, PortType, Value, ValueMap,
+    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -117,7 +117,7 @@ impl Node for TextToAudioNode {
 
     fn run(
         &self,
-        inputs: &ValueMap,
+        inputs: &NodeInputs,
         context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;

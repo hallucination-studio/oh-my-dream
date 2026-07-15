@@ -2,7 +2,7 @@ use assets::AssetStore;
 use engine::{
     CancellationSignal, EngineError, Executor, InputBinding, InputPort, Node, NodeParams,
     NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType,
-    ResultCache, Value, ValueMap, Workflow, WorkflowNode,
+    ResultCache, Value, Workflow, WorkflowNode,
 };
 use nodes::{
     GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
@@ -271,7 +271,7 @@ impl Node for LocalImageNode {
 
     fn run(
         &self,
-        _inputs: &ValueMap,
+        _inputs: &engine::NodeInputs,
         _context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         Ok(NodeRunResult::new(BTreeMap::from([(
