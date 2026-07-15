@@ -317,10 +317,17 @@ before returning the source. The reader applies exactly this precedence:
 6. return the typed reference, facts, MIME, descriptor length/digest, and source lease.
 
 `NotFound`, `NotVisible`, `ContentPending`, and `ContentMissing` translate to `Unavailable`;
-`MediaKindMismatch` translates to `KindMismatch`; an exact-reference descriptor digest difference
+`MediaKindMismatch` translates to
+`KindMismatch { expected: WorkflowDataType, observed: WorkflowDataType }`; an exact-reference descriptor digest difference
 translates to `DigestMismatch`. All other already-frozen Asset, media, and deadline translations are
 unchanged. These are selection semantics inside the existing reader interface; they do not add an
 Asset repository interface, metadata query, readiness cache, stream rehash, or fallback lookup.
+
+For a reader, `expected` is the selection/reference kind and `observed` is the resolved Asset kind;
+the Asset-owned distinct kinds translate mechanically to distinct non-Text `WorkflowDataType`
+values and are copied unchanged into `ManagedAssetKindMismatch` readiness detail. For a writer,
+`expected` is the request payload kind and `observed` is the returned Asset/reference kind; execution
+preserves that direction in `NodeCapabilityMediaFailure`. No layer reverses or re-derives them.
 
 `NodeCapabilityMediaMimeType` is exactly `ImagePng`, `ImageJpeg`, `ImageWebp`, `VideoMp4`,
 `VideoWebm`, `AudioMpeg`, `AudioWav`, or `AudioOgg`. Generated MVP payloads restrict those values to
@@ -512,7 +519,8 @@ The error values are closed and field-exact:
   contains expected and observed `WorkflowDataType` values;
 - `NodeCapabilityProviderFailure` contains its provider category, retryable flag, and optional safe
   retry instant; the category-specific retry rules remain owned by `BACKEND_PROVIDERS.md`;
-- `NodeCapabilityMediaFailure` contains exactly one of `Unavailable`, `KindMismatch`, `InvalidMedia`,
+- `NodeCapabilityMediaFailure` contains exactly one of `Unavailable`,
+  `KindMismatch { expected: WorkflowDataType, observed: WorkflowDataType }`, `InvalidMedia`,
   `SizeLimitExceeded`, `DigestMismatch`, `OutputConflict`, `StorageFailed`, `InspectionFailed`,
   or `FinalizationFailed`, plus no adapter text;
 - `NodeCapabilityExecutionError` contains contract ref, node execution ID, stage, one

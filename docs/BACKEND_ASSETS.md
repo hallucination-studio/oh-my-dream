@@ -407,7 +407,8 @@ validated limit remain mandatory repository filters, and repository errors propa
 `AssetResolveContentUseCase::resolve_asset_content` checks the caller deadline, loads by Asset ID,
 then verifies Project visibility, exact kind, and content state in that order. Absence returns
 `NotFound`; a different Project returns `NotVisible`; a different kind returns
-`MediaKindMismatch`; Pending returns `ContentPending`; Missing returns `ContentMissing`. For
+`MediaKindMismatch { expected: AssetMediaKind, observed: AssetMediaKind }`; Pending returns
+`ContentPending`; Missing returns `ContentMissing`. For
 Available, it calls `open_managed_asset_content` once with the exact descriptor and deadline.
 `None` returns `ContentMissing`; an open failure propagates unchanged. Success returns an
 `AssetResolvedContent` containing that exact `AssetContentDescriptor` and
@@ -700,15 +701,17 @@ private paths, process output, rows, and handles never cross an Asset interface.
 `AssetDomainError` categories are exactly `InvalidIdentity`, `InvalidDisplayName`,
 `InvalidOriginalFileName`, `InvalidDescriptor`, `InvalidMediaFacts`, `InvalidOrigin`,
 `InvalidTransition`, and `FinalizationIdentityMismatch`. `AssetApplicationError` adds exactly
-`NotFound`, `NotVisible`, `MediaKindMismatch`, `ContentPending`, `ContentMissing`, `InvalidMedia`,
+`NotFound`, `NotVisible`,
+`MediaKindMismatch { expected: AssetMediaKind, observed: AssetMediaKind }`, `ContentPending`, `ContentMissing`, `InvalidMedia`,
 `MediaSizeLimitExceeded`, `ContentDigestMismatch`, `NodeOutputConflict`, `ManagedStorageFailed`,
 `IdentityConflict`, `InspectionFailed`, `FinalizationFailed`, `PreviewLeaseInvalid`,
 `PreviewLeaseExpired`, `PreviewRangeInvalid`, `Cancelled`, and `DeadlineExceeded`. Errors and their
 adjacent command or query results use only safe typed identities, never paths, tokens, process
 output, or raw content.
 
-The MVP `AssetApplicationError` variants carry no payload. Query and command values already retain
-the safe typed identities needed by their caller, while adapters record private diagnostics only at
+Only `MediaKindMismatch` carries the two distinct safe kinds; every other MVP
+`AssetApplicationError` variant carries no payload. Query and command values already retain the
+other safe typed identities needed by their caller, while adapters record private diagnostics only at
 the boundary where the failure is handled. Implementations must not add a catch-all source error,
 message string, retry hint, provider detail, path, token, process output, or raw bytes to this public
 error. Domain-value construction failures remain `AssetDomainError` and are not duplicated as an
