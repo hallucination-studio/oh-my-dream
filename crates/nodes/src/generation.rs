@@ -17,6 +17,23 @@ pub struct TextToImageRequest {
     pub seed: Option<u64>,
 }
 
+/// An image generation request using ordered image references.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceImageGenerationRequest {
+    /// Opaque model identifier selected by the workflow.
+    pub model: String,
+    /// Ordered local image paths resolved from the asset store.
+    pub images: Vec<String>,
+    /// Positive generation prompt.
+    pub prompt: String,
+    /// Optional negative prompt.
+    pub negative_prompt: Option<String>,
+    /// Optional number of generation steps.
+    pub steps: Option<u32>,
+    /// Optional reproducibility seed.
+    pub seed: Option<u64>,
+}
+
 /// An image-to-video generation request.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageToVideoRequest {
@@ -26,6 +43,25 @@ pub struct ImageToVideoRequest {
     pub image: String,
     /// Optional requested clip duration in seconds.
     pub duration_seconds: Option<f32>,
+    /// Optional requested frame rate.
+    pub fps: Option<u32>,
+}
+
+/// A video generation request using ordered image references.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReferenceVideoGenerationRequest {
+    /// Opaque model identifier selected by the workflow.
+    pub model: String,
+    /// Ordered local image paths resolved from the asset store.
+    pub images: Vec<String>,
+    /// Positive generation prompt.
+    pub prompt: String,
+    /// Optional requested clip duration in seconds.
+    pub duration_seconds: Option<f32>,
+    /// Optional requested display aspect ratio.
+    pub aspect_ratio: Option<String>,
+    /// Optional requested output resolution.
+    pub resolution: Option<String>,
     /// Optional requested frame rate.
     pub fps: Option<u32>,
 }
@@ -216,12 +252,32 @@ pub trait TextToImageGenerator: Send + Sync {
     ) -> Result<GeneratedOutput, GenerationError>;
 }
 
+/// Generates image media from ordered local image references and text.
+pub trait ReferenceImageGenerator: Send + Sync {
+    /// Generates an image under the current run controls.
+    fn generate(
+        &self,
+        request: ReferenceImageGenerationRequest,
+        context: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError>;
+}
+
 /// Generates video media from a local image.
 pub trait ImageToVideoGenerator: Send + Sync {
     /// Generates a video under the current run controls.
     fn generate(
         &self,
         request: ImageToVideoRequest,
+        context: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError>;
+}
+
+/// Generates video media from ordered local image references and text.
+pub trait ReferenceVideoGenerator: Send + Sync {
+    /// Generates a video under the current run controls.
+    fn generate(
+        &self,
+        request: ReferenceVideoGenerationRequest,
         context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError>;
 }

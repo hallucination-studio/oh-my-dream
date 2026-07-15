@@ -3,7 +3,10 @@
 use async_trait::async_trait;
 
 use crate::error::Result;
-use crate::request::{ImageToVideoRequest, TextToAudioRequest, TextToImageRequest};
+use crate::request::{
+    ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest,
+    TextToAudioRequest, TextToImageRequest,
+};
 use crate::task::{TaskHandle, TaskStatus};
 
 /// A generation provider.
@@ -23,8 +26,20 @@ pub trait InferenceBackend: Send + Sync {
     /// Submits a text-to-image task.
     async fn text_to_image(&self, request: TextToImageRequest) -> Result<TaskHandle>;
 
+    /// Submits an ordered-reference image generation task.
+    async fn reference_image_generation(
+        &self,
+        request: ReferenceImageGenerationRequest,
+    ) -> Result<TaskHandle>;
+
     /// Submits an image-to-video task.
     async fn image_to_video(&self, request: ImageToVideoRequest) -> Result<TaskHandle>;
+
+    /// Submits an ordered-reference video generation task.
+    async fn reference_video_generation(
+        &self,
+        request: ReferenceVideoGenerationRequest,
+    ) -> Result<TaskHandle>;
 
     /// Submits a text-to-audio task.
     async fn text_to_audio(&self, request: TextToAudioRequest) -> Result<TaskHandle>;

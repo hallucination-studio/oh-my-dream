@@ -1,12 +1,14 @@
 use super::{
-    MockGenerationAdapter, MockMedia, to_backend_image_to_video, to_backend_text_to_audio,
-    to_backend_text_to_image, translate_success,
+    MockGenerationAdapter, MockMedia, to_backend_image_to_video,
+    to_backend_reference_image_generation, to_backend_reference_video_generation,
+    to_backend_text_to_audio, to_backend_text_to_image, translate_success,
 };
 use backends::{InferenceBackend, MockBackend, TaskHandle, TaskStatus};
 use nodes::{
     GeneratedArtifact, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, MediaFormat, MediaKind, TextToAudioGenerator, TextToAudioRequest,
-    TextToImageGenerator, TextToImageRequest,
+    ImageToVideoRequest, MediaFormat, MediaKind, ReferenceImageGenerationRequest,
+    ReferenceImageGenerator, ReferenceVideoGenerationRequest, ReferenceVideoGenerator,
+    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 use std::cell::Cell;
 use std::sync::Arc;
@@ -48,6 +50,43 @@ fn translates_nodes_owned_requests_field_for_field() {
 }
 
 #[test]
+fn translates_ordered_reference_requests_field_for_field() {
+    let images = vec!["/tmp/second.png".to_owned(), "/tmp/first.png".to_owned()];
+    let image = to_backend_reference_image_generation(ReferenceImageGenerationRequest {
+        model: "reference-image-model".to_owned(),
+        images: images.clone(),
+        prompt: "combine them".to_owned(),
+        negative_prompt: Some("blur".to_owned()),
+        steps: Some(17),
+        seed: Some(23),
+    });
+    assert_eq!(image.images, images);
+    assert_eq!(image.model, "reference-image-model");
+    assert_eq!(image.prompt, "combine them");
+    assert_eq!(image.negative_prompt.as_deref(), Some("blur"));
+    assert_eq!(image.steps, Some(17));
+    assert_eq!(image.seed, Some(23));
+
+    let images = vec!["/tmp/third.png".to_owned(), "/tmp/first.png".to_owned()];
+    let video = to_backend_reference_video_generation(ReferenceVideoGenerationRequest {
+        model: "reference-video-model".to_owned(),
+        images: images.clone(),
+        prompt: "animate them".to_owned(),
+        duration_seconds: Some(3.5),
+        aspect_ratio: Some("16:9".to_owned()),
+        resolution: Some("720p".to_owned()),
+        fps: Some(24),
+    });
+    assert_eq!(video.images, images);
+    assert_eq!(video.model, "reference-video-model");
+    assert_eq!(video.prompt, "animate them");
+    assert_eq!(video.duration_seconds, Some(3.5));
+    assert_eq!(video.aspect_ratio.as_deref(), Some("16:9"));
+    assert_eq!(video.resolution.as_deref(), Some("720p"));
+    assert_eq!(video.fps, Some(24));
+}
+
+#[test]
 fn text_to_image_translates_mock_success_and_progress() {
     let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
     let mut context = TestGenerationContext::default();
@@ -72,6 +111,30 @@ fn text_to_image_translates_mock_success_and_progress() {
 }
 
 #[test]
+fn reference_image_generation_returns_inline_png() {
+    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
+    let mut context = TestGenerationContext::default();
+
+    let output = ReferenceImageGenerator::generate(
+        &adapter,
+        ReferenceImageGenerationRequest {
+            model: "mock-reference-image".to_owned(),
+            images: vec!["/tmp/second.png".to_owned(), "/tmp/first.png".to_owned()],
+            prompt: "combine them".to_owned(),
+            negative_prompt: None,
+            steps: Some(4),
+            seed: Some(7),
+        },
+        &mut context,
+    )
+    .expect("mock reference image generation");
+
+    let media = expect_inline(output.artifact, MediaKind::Image, MediaFormat::Png);
+    assert_eq!(output.cost, Some(400));
+    assert!(media.bytes().starts_with(b"\x89PNG\r\n\x1a\n"));
+}
+
+#[test]
 fn image_to_video_translates_mock_success_to_inline_video() {
     let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
     let mut context = TestGenerationContext::default();
@@ -90,6 +153,31 @@ fn image_to_video_translates_mock_success_to_inline_video() {
 
     let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::OpaqueVideo);
     assert_eq!(output.cost, Some(900));
+    assert!(media.bytes().starts_with(b"OH_MY_DREAM_MOCK_VIDEO_V1\n"));
+}
+
+#[test]
+fn reference_video_generation_returns_inline_video() {
+    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
+    let mut context = TestGenerationContext::default();
+
+    let output = ReferenceVideoGenerator::generate(
+        &adapter,
+        ReferenceVideoGenerationRequest {
+            model: "mock-reference-video".to_owned(),
+            images: vec!["/tmp/second.png".to_owned(), "/tmp/first.png".to_owned()],
+            prompt: "animate them".to_owned(),
+            duration_seconds: Some(2.0),
+            aspect_ratio: Some("16:9".to_owned()),
+            resolution: Some("720p".to_owned()),
+            fps: Some(12),
+        },
+        &mut context,
+    )
+    .expect("mock reference video generation");
+
+    let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::OpaqueVideo);
+    assert_eq!(output.cost, Some(1_200));
     assert!(media.bytes().starts_with(b"OH_MY_DREAM_MOCK_VIDEO_V1\n"));
 }
 

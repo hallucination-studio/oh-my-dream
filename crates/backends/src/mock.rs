@@ -7,7 +7,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::{debug, info};
 
 use crate::error::{BackendError, Result};
-use crate::request::{ImageToVideoRequest, TextToAudioRequest, TextToImageRequest};
+use crate::request::{
+    ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest,
+    TextToAudioRequest, TextToImageRequest,
+};
 use crate::task::{TaskHandle, TaskProgress, TaskStatus};
 use crate::traits::InferenceBackend;
 
@@ -82,8 +85,22 @@ impl InferenceBackend for MockBackend {
         self.submit(TaskKind::TextToImage)
     }
 
+    async fn reference_image_generation(
+        &self,
+        _request: ReferenceImageGenerationRequest,
+    ) -> Result<TaskHandle> {
+        self.submit(TaskKind::ReferenceImageGeneration)
+    }
+
     async fn image_to_video(&self, _request: ImageToVideoRequest) -> Result<TaskHandle> {
         self.submit(TaskKind::ImageToVideo)
+    }
+
+    async fn reference_video_generation(
+        &self,
+        _request: ReferenceVideoGenerationRequest,
+    ) -> Result<TaskHandle> {
+        self.submit(TaskKind::ReferenceVideoGeneration)
     }
 
     async fn text_to_audio(&self, _request: TextToAudioRequest) -> Result<TaskHandle> {
@@ -133,7 +150,9 @@ struct MockTask {
 #[derive(Clone, Copy)]
 enum TaskKind {
     TextToImage,
+    ReferenceImageGeneration,
     ImageToVideo,
+    ReferenceVideoGeneration,
     TextToAudio,
 }
 
@@ -141,7 +160,9 @@ impl TaskKind {
     fn as_path(self) -> &'static str {
         match self {
             Self::TextToImage => "text-to-image",
+            Self::ReferenceImageGeneration => "reference-image-generation",
             Self::ImageToVideo => "image-to-video",
+            Self::ReferenceVideoGeneration => "reference-video-generation",
             Self::TextToAudio => "text-to-audio",
         }
     }
@@ -186,7 +207,9 @@ impl TaskKind {
     fn cost_micro_usd(self) -> i64 {
         match self {
             Self::TextToImage => 250,
+            Self::ReferenceImageGeneration => 400,
             Self::ImageToVideo => 900,
+            Self::ReferenceVideoGeneration => 1_200,
             Self::TextToAudio => 125,
         }
     }

@@ -39,8 +39,9 @@ pub use contracts::{
 };
 pub use generation::{
     GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, InlineMedia, MediaFormat, MediaKind, TextToAudioGenerator,
-    TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+    ImageToVideoRequest, InlineMedia, MediaFormat, MediaKind, ReferenceImageGenerationRequest,
+    ReferenceImageGenerator, ReferenceVideoGenerationRequest, ReferenceVideoGenerator,
+    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 pub use migrations::{
     CapabilityMigrationError, CapabilityNodeResolution, CapabilityNodeStatus,

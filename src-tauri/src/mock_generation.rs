@@ -1,12 +1,15 @@
 use backends::{
-    ImageToVideoRequest as BackendImageToVideoRequest, InferenceBackend, MockBackend, TaskHandle,
+    ImageToVideoRequest as BackendImageToVideoRequest, InferenceBackend, MockBackend,
+    ReferenceImageGenerationRequest as BackendReferenceImageGenerationRequest,
+    ReferenceVideoGenerationRequest as BackendReferenceVideoGenerationRequest, TaskHandle,
     TaskStatus, TextToAudioRequest as BackendTextToAudioRequest,
     TextToImageRequest as BackendTextToImageRequest,
 };
 use nodes::{
     GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, InlineMedia, TextToAudioGenerator, TextToAudioRequest,
-    TextToImageGenerator, TextToImageRequest,
+    ImageToVideoRequest, InlineMedia, ReferenceImageGenerationRequest, ReferenceImageGenerator,
+    ReferenceVideoGenerationRequest, ReferenceVideoGenerator, TextToAudioGenerator,
+    TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -93,6 +96,20 @@ impl TextToImageGenerator for MockGenerationAdapter {
     }
 }
 
+impl ReferenceImageGenerator for MockGenerationAdapter {
+    fn generate(
+        &self,
+        request: ReferenceImageGenerationRequest,
+        context: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        context.ensure_active()?;
+        let request = to_backend_reference_image_generation(request);
+        let handle = pollster::block_on(self.backend.reference_image_generation(request))
+            .map_err(|source| operation_error("submit reference-image task", source))?;
+        self.wait_for_success(&handle, MockMedia::ReferenceImage, context)
+    }
+}
+
 impl ImageToVideoGenerator for MockGenerationAdapter {
     fn generate(
         &self,
@@ -104,6 +121,20 @@ impl ImageToVideoGenerator for MockGenerationAdapter {
         let handle = pollster::block_on(self.backend.image_to_video(request))
             .map_err(|source| operation_error("submit image-to-video task", source))?;
         self.wait_for_success(&handle, MockMedia::Video, context)
+    }
+}
+
+impl ReferenceVideoGenerator for MockGenerationAdapter {
+    fn generate(
+        &self,
+        request: ReferenceVideoGenerationRequest,
+        context: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        context.ensure_active()?;
+        let request = to_backend_reference_video_generation(request);
+        let handle = pollster::block_on(self.backend.reference_video_generation(request))
+            .map_err(|source| operation_error("submit reference-video task", source))?;
+        self.wait_for_success(&handle, MockMedia::ReferenceVideo, context)
     }
 }
 
@@ -140,6 +171,33 @@ fn to_backend_image_to_video(request: ImageToVideoRequest) -> BackendImageToVide
     }
 }
 
+fn to_backend_reference_image_generation(
+    request: ReferenceImageGenerationRequest,
+) -> BackendReferenceImageGenerationRequest {
+    BackendReferenceImageGenerationRequest {
+        model: request.model,
+        images: request.images,
+        prompt: request.prompt,
+        negative_prompt: request.negative_prompt,
+        steps: request.steps,
+        seed: request.seed,
+    }
+}
+
+fn to_backend_reference_video_generation(
+    request: ReferenceVideoGenerationRequest,
+) -> BackendReferenceVideoGenerationRequest {
+    BackendReferenceVideoGenerationRequest {
+        model: request.model,
+        images: request.images,
+        prompt: request.prompt,
+        duration_seconds: request.duration_seconds,
+        aspect_ratio: request.aspect_ratio,
+        resolution: request.resolution,
+        fps: request.fps,
+    }
+}
+
 fn to_backend_text_to_audio(request: TextToAudioRequest) -> BackendTextToAudioRequest {
     BackendTextToAudioRequest { model: request.model, prompt: request.prompt, seed: request.seed }
 }
@@ -147,7 +205,9 @@ fn to_backend_text_to_audio(request: TextToAudioRequest) -> BackendTextToAudioRe
 #[derive(Debug, Clone, Copy)]
 enum MockMedia {
     Image,
+    ReferenceImage,
     Video,
+    ReferenceVideo,
     Audio,
 }
 
@@ -155,15 +215,17 @@ impl MockMedia {
     fn operation(self) -> &'static str {
         match self {
             Self::Image => "text-to-image",
+            Self::ReferenceImage => "reference-image-generation",
             Self::Video => "image-to-video",
+            Self::ReferenceVideo => "reference-video-generation",
             Self::Audio => "text-to-audio",
         }
     }
 
     fn inline_media(self) -> InlineMedia {
         match self {
-            Self::Image => InlineMedia::png(MOCK_IMAGE_PNG.to_vec()),
-            Self::Video => InlineMedia::opaque_video(MOCK_VIDEO.to_vec()),
+            Self::Image | Self::ReferenceImage => InlineMedia::png(MOCK_IMAGE_PNG.to_vec()),
+            Self::Video | Self::ReferenceVideo => InlineMedia::opaque_video(MOCK_VIDEO.to_vec()),
             Self::Audio => InlineMedia::wav(silent_pcm_wave()),
         }
     }
