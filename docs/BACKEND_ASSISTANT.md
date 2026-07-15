@@ -88,6 +88,14 @@ Every mutation uses compare-and-swap revision. Rust validates transitions; the m
 item to discuss or update. Product code never consumes the plan as a queue, selects the next item,
 starts one model Runner per item, or treats plan completion as Workflow success.
 
+`AssistantProductionPlanId`, `AssistantSessionId`, `AssistantWorkflowChangeId`,
+`AssistantApprovalScopeId`, `AssistantModelInvocationId`, and `AssistantRepairActivationId` use the
+backend UUIDv4 contract. Plan revision starts at non-zero `u64` value `1`. Plan title, item goal,
+acceptance note, and blocked reason are bounded to 120, 2,000, 2,000, and 1,000 Unicode scalar
+values respectively; required text is trimmed and non-empty.
+`AssistantWorkflowMutationDigest` and `AssistantWorkflowFingerprint` are distinct 32-byte SHA-256
+newtypes over D0.2 canonical mutation bytes and resulting canonical graph bytes respectively.
+
 ## Workflow Change Aggregate
 
 ```rust
@@ -142,6 +150,7 @@ the MVP never silently rebases an approved change.
 | `AssistantWorkflowRunReaderInterface` | read committed Run state and ordered events for monitoring/repair |
 | `AssistantProductionPlanRepositoryInterface` | load and revision-CAS one plan aggregate |
 | `AssistantWorkflowChangeRepositoryInterface` | persist transitions and query one pending change per Session |
+| `AssistantRepairActivationRepositoryInterface` | record-or-get one factual activation per failed Run |
 | `AssistantClockInterface` | supply deterministic timestamps and expiry checks |
 
 `DesktopAssistantWorkflowBridgeAdapterImpl` implements the four Workflow-facing interfaces by invoking
@@ -162,6 +171,13 @@ operation contract chosen by the model.
 
 Only one active invocation and one pending approval may exist per `AssistantSessionId`. Different
 Projects may proceed independently.
+
+Assistant-internal DTO bounds are frozen before any model call: user text is 1..=16 KiB UTF-8;
+selected node and Asset IDs are unique lists of at most 32 each; a workspace snapshot is at most 1
+MiB; a candidate has 1..=128 mutations and at most 1 MiB canonical JSON; Reviewer prose and final
+model text are each at most 16 KiB. Boundary DTOs use tagged unions, reject unknown fields and
+duplicate keys, and translate through named `try_from_*_dto` functions. D0.6 alone owns Tauri DTO
+field names and encodings.
 
 ## Bounded Observation And Tools
 
@@ -258,6 +274,14 @@ failure, Rust creates one factual `AssistantRepairActivation` containing Project
 Workflow revision, failed node/error category, and safe reason. It starts at most one new bounded
 model turn in the same Session.
 
+`AssistantRepairActivationRepositoryInterface::record_or_get_repair_activation` is the sole
+persistence boundary for this fact. The unique key is `(project_id, failed_workflow_run_id)`; the
+stored value also contains activation ID, Session ID, exact failed Run facts, and creation time.
+`Created` alone authorizes `AssistantActivateRepairUseCase` to start the one process-scoped turn;
+`Existing` returns the original fact without another invocation. There is no repair queue, retry
+state, selected repair action, or method on `AssistantWorkflowChangeRepositoryInterface` for this
+behavior.
+
 The model decides whether and how to repair. Every repair is a new Assistant Workflow Change and
 must pass the same review, human approval, idempotent apply, and canonical Run path. Product code
 never chooses a repair step or mutates the Workflow automatically.
@@ -274,10 +298,34 @@ UTF-8/JSON depth and size bounds, invocation deadline, event/tool-call limits, a
 transitions. Unknown fields, duplicate keys, non-finite numbers, sequence gaps, oversized frames,
 partial frames, and incompatible continuation envelopes fail the invocation.
 
+Protocol version and Assistant contract epoch are both `1`. Every line is one UTF-8 JSON object
+`{ protocol_version, invocation_id, direction_sequence, kind, payload }`; sequence starts at `1`
+independently in each direction. Rust sends exactly `InvocationStart`, `ToolResult`,
+`ContinuationResume`, or `InvocationCancel`. Python sends exactly `InvocationAccepted`,
+`ModelOutputDelta`, `ToolCall`, `ReviewerVerdict`, `ContinuationEnvelopeReady`,
+`InvocationCompleted`, or `InvocationFailed`. Typed payloads are respectively: start kind plus exact
+trusted context/tool contracts/budgets; call ID/tool ID/typed result; envelope plus trusted resume
+result; cancel reason; Agent ID; bounded text delta; call ID/tool ID/typed arguments; change
+ID/digest/fetch receipt/verdict/prose; opaque envelope; bounded final text; or failure category and
+safe message. Start requires exactly one bounded user message or repair activation. Cancel reason is
+`Deadline` or `ProcessShutdown`. No payload accepts an arbitrary extension map.
+
+Frame size is at most 8 MiB, nesting depth 32, and one invocation permits at most 512 inbound
+events, 64 tool calls, 16 model turns, 16 MiB total bytes in each direction, and 10 minutes. Tool
+calls execute serially. Exhaustion fails once and never automatically continues.
+Legal order is Start or Resume, Accepted, then bounded Delta or one-at-a-time ToolCall/ToolResult
+pairs; ReviewerVerdict may follow its exact candidate fetch, EnvelopeReady may follow a paused
+approval turn, and exactly one Completed or Failed terminates. Cancel permits only Failed next.
+Duplicate call IDs, a second terminal, or any frame after terminal is a protocol violation.
+
 A continuation envelope records protocol version, Assistant contract epoch, SDK version, Agent
 identity, complete tool-version set, and opaque state. Resume rejects any mismatch. Old epochs are
 not migrated into new model/tool contracts; canonical Workflow, Asset, and provider-independent
 state remain unaffected.
+
+The envelope is at most 4 MiB and is consumed once by exact Project, Session, invocation, Agent
+identity, and tool-version set. Agent identities are `workflow_coauthor@1` and
+`workflow_change_reviewer@1`; the complete tool set is exactly the eleven IDs in this document.
 
 ## Configuration And Credentials
 
@@ -287,10 +335,24 @@ Non-secret `AssistantModelConfig` has exactly four fields: `schema_version`, `en
 provider-independent product choice. `DesktopCompositionRoot` maps it to the one shipped native
 SDK route; arbitrary endpoints, native model strings, and provider options are not MVP inputs.
 
+`AssistantModelProfileId` follows the Generation Profile lowercase dot-segment contract; its
+version is a non-zero `u32`, and its canonical ref is `<id>@<version>`.
+The catalog contains only `assistant.workflow_coauthor@1`, displayed as `Workflow Co-author`. It
+maps privately to the OpenAI Responses route using explicit native model `gpt-5.4`, HTTP/SSE,
+`parallel_tool_calls = false`, and SDK `max_turns = 16`; the Reviewer uses the same route and model
+through its distinct fixed Agent identity. SDK defaults, environment model names, Chat Completions,
+WebSocket transport, hosted tools, handoffs, and hosted multi-agent orchestration are not selected.
+The sidecar lock pins `openai-agents==0.18.1`; its exact version is recorded in every continuation
+envelope, and changing it requires a new reviewed Assistant contract epoch.
+
 Invocation, frame, model-turn, tool-call, output-size, snapshot-size, candidate-size, and approval-
 expiry bounds are validated `DesktopBackendConfig` values rather than model-editable settings.
 Temperature overrides, prompt suffixes, product-installed skills, and separate Reviewer model
 selection are deferred.
+
+The frozen defaults and maxima are identical: approval expires after 30 minutes; the remaining
+invocation/frame/turn/tool/output/snapshot/candidate bounds are the exact values above. Startup
+rejects a config that weakens or exceeds them; D0.6 owns their non-secret wire representation.
 
 `AssistantModelCredentialVaultInterface` uses the operating-system credential facility. Public DTOs
 expose only credential presence. Plaintext never enters JSON, SQLite, model messages, unrelated
@@ -311,6 +373,12 @@ exhaustion.
 Public errors are structured `AssistantApplicationError` values translated once to
 `DesktopErrorDto`. Stored secrets, paths, media bytes, provider bodies, prompt history, and opaque
 SDK state never enter UI events or ordinary logs.
+Its categories are exactly `NotFound`, `NotVisible`, `RevisionConflict`, `InvalidTransition`,
+`ConcurrentInvocation`, `PendingApprovalExists`, `StaleWorkflowRevision`, `ApprovalMismatch`,
+`ApprovalExpired`, `ReviewEvidenceInvalid`, `CandidateFingerprintMismatch`, `ContinuationIncompatible`,
+`ContinuationInterrupted`, `ModelUnavailable`, `ProtocolViolation`, `BudgetExceeded`,
+`DeadlineExceeded`, and `ExternalBoundaryFailed`. Only a boundary failure explicitly safe before any
+model request or canonical mutation is retryable.
 
 ## Verification
 

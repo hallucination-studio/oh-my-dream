@@ -216,6 +216,7 @@ mechanically encodes it in the same transaction as the owning state.
 | `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove managed bytes |
 | `AssistantProductionPlanRepositoryInterface` | load and revision-CAS one plan aggregate |
 | `AssistantWorkflowChangeRepositoryInterface` | transition changes and query one pending approval per Session |
+| `AssistantRepairActivationRepositoryInterface` | record-or-get one factual activation per failed Run |
 | `AssistantModelContinuationStoreInterface` | store/load/consume versioned opaque continuation state |
 | `DesktopPostCommitEffectOutboxInterface` | claim and finish one of the three closed effect kinds |
 | `GenerationProviderCredentialVaultInterface` | save/load/delete generation-provider secrets in OS storage |
