@@ -2,6 +2,7 @@
 
 #![deny(missing_docs)]
 
+mod deadline;
 mod error;
 mod finalization;
 mod finalize_content;
@@ -10,6 +11,7 @@ mod inspected_media;
 mod lease;
 mod orchestration;
 mod query;
+mod reconcile_content;
 mod staged_content;
 
 pub use error::*;
@@ -20,7 +22,10 @@ pub use inspected_media::*;
 pub use lease::*;
 pub use orchestration::*;
 pub use query::*;
+pub use reconcile_content::*;
 pub use staged_content::*;
+
+pub(crate) use deadline::*;
 
 #[cfg(test)]
 mod tests;

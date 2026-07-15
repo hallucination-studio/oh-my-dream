@@ -1,6 +1,5 @@
 //! Idempotent exact managed-content finalization use case.
 
-use std::future::Future;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -14,7 +13,7 @@ use crate::asset::interfaces::{
 use super::{
     AssetApplicationError, AssetCommitContentMissingCommand,
     AssetCommitFinalizedContentAvailableCommand, AssetContentFinalization,
-    AssetFinalizeContentCommand,
+    AssetFinalizeContentCommand, run_asset_operation_before_deadline,
 };
 
 /// Publishes or recovers one already-committed exact Asset finalization.
@@ -220,16 +219,4 @@ impl AssetFinalizeContentUseCase {
             );
         }
     }
-}
-
-pub(crate) async fn run_asset_operation_before_deadline<T, F>(
-    deadline: Instant,
-    operation: F,
-) -> Result<T, AssetApplicationError>
-where
-    F: Future<Output = Result<T, AssetApplicationError>>,
-{
-    tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), operation)
-        .await
-        .map_err(|_| AssetApplicationError::DeadlineExceeded)?
 }

@@ -18,7 +18,7 @@ use crate::asset::interfaces::{
 use super::{
     AssetApplicationError, AssetCommitPendingContentCommand, AssetContentFinalization,
     AssetFinalizeContentCommand, AssetFinalizeContentEffect, AssetFinalizeContentUseCase,
-    AssetImportCommand, AssetInspectedMedia, AssetStagedContent,
+    AssetImportCommand, AssetInspectedMedia, AssetStagedContent, reject_elapsed_asset_deadline,
     run_asset_operation_before_deadline,
 };
 
@@ -244,8 +244,4 @@ fn create_pending_imported_asset(
         request.created_at,
     )
     .map_err(|_| AssetApplicationError::InvalidMedia)
-}
-
-fn reject_elapsed_asset_deadline(deadline: Instant) -> Result<(), AssetApplicationError> {
-    if Instant::now() >= deadline { Err(AssetApplicationError::DeadlineExceeded) } else { Ok(()) }
 }
