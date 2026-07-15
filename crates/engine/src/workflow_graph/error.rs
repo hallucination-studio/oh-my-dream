@@ -1,11 +1,20 @@
-//! Closed Workflow graph construction failures.
+//! Closed Workflow graph and mutation domain failures.
 
 /// Invalid frozen Workflow graph value or entity shape.
 #[derive(Clone, Copy, Debug, thiserror::Error, PartialEq, Eq)]
-pub enum WorkflowGraphConstructionError {
+pub enum WorkflowGraphError {
     /// A mutation command contains zero or more than 128 actions.
     #[error("workflow mutation action limit is exceeded")]
     ActionLimitExceeded,
+    /// Requested base revision is not the aggregate's current revision.
+    #[error("workflow revision conflicts with the mutation base revision")]
+    RevisionConflict,
+    /// Current revision cannot advance by exactly one.
+    #[error("workflow revision overflowed")]
+    RevisionOverflow,
+    /// Updated timestamp cannot advance monotonically.
+    #[error("workflow timestamp overflowed")]
+    TimestampOverflow,
     /// Schema version is zero or not the hard-cut version.
     #[error("workflow schema version is unsupported")]
     SchemaVersionUnsupported,
@@ -39,6 +48,9 @@ pub enum WorkflowGraphConstructionError {
     /// A target input is not declared by its exact capability.
     #[error("workflow input was not found")]
     InputNotFound,
+    /// An addressed stable item does not exist in the target binding.
+    #[error("workflow input item was not found")]
+    InputItemNotFound,
     /// A target input already has a binding.
     #[error("workflow input is occupied")]
     InputOccupied,

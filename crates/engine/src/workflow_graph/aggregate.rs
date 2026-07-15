@@ -9,7 +9,7 @@ use crate::node_capability::{
 };
 
 use super::{
-    WorkflowCreatedAt, WorkflowGraphConstructionError, WorkflowId, WorkflowInputBinding,
+    WorkflowCreatedAt, WorkflowGraphError, WorkflowId, WorkflowInputBinding,
     WorkflowInputItemEntity, WorkflowInputTarget, WorkflowNodeEntity, WorkflowNodeId,
     WorkflowRevision, WorkflowSchemaVersion, WorkflowUpdatedAt,
 };
@@ -29,8 +29,8 @@ pub struct WorkflowAggregate {
     pub created_at: WorkflowCreatedAt,
     /// Latest successful mutation time.
     pub updated_at: WorkflowUpdatedAt,
-    nodes: BTreeMap<WorkflowNodeId, WorkflowNodeEntity>,
-    input_bindings: BTreeMap<WorkflowInputTarget, WorkflowInputBinding>,
+    pub(super) nodes: BTreeMap<WorkflowNodeId, WorkflowNodeEntity>,
+    pub(super) input_bindings: BTreeMap<WorkflowInputTarget, WorkflowInputBinding>,
 }
 
 /// Pure persisted shape used to reconstruct one Workflow aggregate.
@@ -58,9 +58,9 @@ impl WorkflowAggregate {
     pub fn try_restore(
         data: WorkflowAggregateRestoreData,
         capabilities: &WorkflowNodeCapabilityRegistry,
-    ) -> Result<Self, WorkflowGraphConstructionError> {
+    ) -> Result<Self, WorkflowGraphError> {
         if data.updated_at.as_utc_milliseconds() < data.created_at.as_utc_milliseconds() {
-            return Err(WorkflowGraphConstructionError::TimestampOutOfRange);
+            return Err(WorkflowGraphError::TimestampOutOfRange);
         }
         let nodes = collect_unique_nodes(data.nodes)?;
         let input_bindings = collect_unique_bindings(data.input_bindings)?;
@@ -120,11 +120,11 @@ impl WorkflowAggregate {
 
 fn collect_unique_nodes(
     nodes: Vec<WorkflowNodeEntity>,
-) -> Result<BTreeMap<WorkflowNodeId, WorkflowNodeEntity>, WorkflowGraphConstructionError> {
+) -> Result<BTreeMap<WorkflowNodeId, WorkflowNodeEntity>, WorkflowGraphError> {
     let mut result = BTreeMap::new();
     for node in nodes {
         if result.insert(node.id, node).is_some() {
-            return Err(WorkflowGraphConstructionError::DuplicateNode);
+            return Err(WorkflowGraphError::DuplicateNode);
         }
     }
     Ok(result)
@@ -132,11 +132,11 @@ fn collect_unique_nodes(
 
 fn collect_unique_bindings(
     bindings: Vec<(WorkflowInputTarget, WorkflowInputBinding)>,
-) -> Result<BTreeMap<WorkflowInputTarget, WorkflowInputBinding>, WorkflowGraphConstructionError> {
+) -> Result<BTreeMap<WorkflowInputTarget, WorkflowInputBinding>, WorkflowGraphError> {
     let mut result = BTreeMap::new();
     for (target, binding) in bindings {
         if result.insert(target, binding).is_some() {
-            return Err(WorkflowGraphConstructionError::InputOccupied);
+            return Err(WorkflowGraphError::InputOccupied);
         }
     }
     Ok(result)
@@ -145,15 +145,15 @@ fn collect_unique_bindings(
 fn resolve_contracts(
     nodes: &BTreeMap<WorkflowNodeId, WorkflowNodeEntity>,
     capabilities: &WorkflowNodeCapabilityRegistry,
-) -> Result<BTreeMap<WorkflowNodeId, NodeCapabilityContract>, WorkflowGraphConstructionError> {
+) -> Result<BTreeMap<WorkflowNodeId, NodeCapabilityContract>, WorkflowGraphError> {
     let mut contracts = BTreeMap::new();
     for node in nodes.values() {
         let implementation = capabilities
             .resolve_node_capability(&node.capability_contract)
-            .map_err(|_| WorkflowGraphConstructionError::ReferenceViolation)?;
+            .map_err(|_| WorkflowGraphError::ReferenceViolation)?;
         implementation
             .normalize_node_parameters(&node.parameter_set)
-            .map_err(|_| WorkflowGraphConstructionError::ReferenceViolation)?;
+            .map_err(|_| WorkflowGraphError::ReferenceViolation)?;
         contracts.insert(node.id, implementation.node_capability_contract().clone());
     }
     Ok(contracts)
@@ -163,24 +163,24 @@ fn validate_bindings(
     nodes: &BTreeMap<WorkflowNodeId, WorkflowNodeEntity>,
     bindings: &BTreeMap<WorkflowInputTarget, WorkflowInputBinding>,
     contracts: &BTreeMap<WorkflowNodeId, NodeCapabilityContract>,
-) -> Result<(), WorkflowGraphConstructionError> {
+) -> Result<(), WorkflowGraphError> {
     let mut item_ids = BTreeSet::new();
     for (target, binding) in bindings {
         let target_contract =
-            contracts.get(&target.node_id).ok_or(WorkflowGraphConstructionError::NodeNotFound)?;
+            contracts.get(&target.node_id).ok_or(WorkflowGraphError::NodeNotFound)?;
         let input = target_contract
             .inputs()
             .iter()
             .find(|input| input.key() == &target.input_key)
-            .ok_or(WorkflowGraphConstructionError::InputNotFound)?;
+            .ok_or(WorkflowGraphError::InputNotFound)?;
         validate_binding_shape(binding, input.binding())?;
         let mut endpoints = BTreeSet::new();
         for item in binding.items() {
             if !item_ids.insert(item.id) {
-                return Err(WorkflowGraphConstructionError::DuplicateInputItem);
+                return Err(WorkflowGraphError::DuplicateInputItem);
             }
             if !endpoints.insert((item.source_node_id, item.source_output_key.clone())) {
-                return Err(WorkflowGraphConstructionError::ReferenceViolation);
+                return Err(WorkflowGraphError::ReferenceViolation);
             }
             validate_item(nodes, contracts, target, item, input.binding())?;
         }
@@ -191,7 +191,7 @@ fn validate_bindings(
 fn validate_binding_shape(
     binding: &WorkflowInputBinding,
     contract: &NodeCapabilityInputBindingContract,
-) -> Result<(), WorkflowGraphConstructionError> {
+) -> Result<(), WorkflowGraphError> {
     match (binding, contract) {
         (
             WorkflowInputBinding::Single { .. },
@@ -207,14 +207,14 @@ fn validate_binding_shape(
             },
         ) => {
             let count = u32::try_from(items.as_slice().len())
-                .map_err(|_| WorkflowGraphConstructionError::CardinalityViolation)?;
+                .map_err(|_| WorkflowGraphError::CardinalityViolation)?;
             if count < *minimum_items || maximum_items.is_some_and(|maximum| count > maximum) {
-                Err(WorkflowGraphConstructionError::CardinalityViolation)
+                Err(WorkflowGraphError::CardinalityViolation)
             } else {
                 Ok(())
             }
         }
-        _ => Err(WorkflowGraphConstructionError::BindingShapeMismatch),
+        _ => Err(WorkflowGraphError::BindingShapeMismatch),
     }
 }
 
@@ -224,44 +224,40 @@ fn validate_item(
     target: &WorkflowInputTarget,
     item: &WorkflowInputItemEntity,
     input: &NodeCapabilityInputBindingContract,
-) -> Result<(), WorkflowGraphConstructionError> {
+) -> Result<(), WorkflowGraphError> {
     if item.source_node_id == target.node_id {
-        return Err(WorkflowGraphConstructionError::SelfEdge);
+        return Err(WorkflowGraphError::SelfEdge);
     }
     if !nodes.contains_key(&item.source_node_id) {
-        return Err(WorkflowGraphConstructionError::NodeNotFound);
+        return Err(WorkflowGraphError::NodeNotFound);
     }
     let source_contract =
-        contracts.get(&item.source_node_id).ok_or(WorkflowGraphConstructionError::NodeNotFound)?;
+        contracts.get(&item.source_node_id).ok_or(WorkflowGraphError::NodeNotFound)?;
     let output = source_contract
         .outputs()
         .iter()
         .find(|output| output.key() == &item.source_output_key)
-        .ok_or(WorkflowGraphConstructionError::OutputNotFound)?;
+        .ok_or(WorkflowGraphError::OutputNotFound)?;
     match input {
         NodeCapabilityInputBindingContract::OptionalSingleValue { data_type }
         | NodeCapabilityInputBindingContract::RequiredSingleValue { data_type } => {
             if output.data_type() == *data_type {
                 Ok(())
             } else {
-                Err(WorkflowGraphConstructionError::DataTypeMismatch)
+                Err(WorkflowGraphError::DataTypeMismatch)
             }
         }
         NodeCapabilityInputBindingContract::OrderedReferences {
             accepted_data_types_by_role,
             ..
         } => {
-            let role = item
-                .input_role_key
-                .as_ref()
-                .ok_or(WorkflowGraphConstructionError::RoleViolation)?;
-            let accepted = accepted_data_types_by_role
-                .get(role)
-                .ok_or(WorkflowGraphConstructionError::RoleViolation)?;
+            let role = item.input_role_key.as_ref().ok_or(WorkflowGraphError::RoleViolation)?;
+            let accepted =
+                accepted_data_types_by_role.get(role).ok_or(WorkflowGraphError::RoleViolation)?;
             if accepted.contains(output.data_type()) {
                 Ok(())
             } else {
-                Err(WorkflowGraphConstructionError::DataTypeMismatch)
+                Err(WorkflowGraphError::DataTypeMismatch)
             }
         }
     }
@@ -270,15 +266,13 @@ fn validate_item(
 fn reject_cycles(
     nodes: &BTreeMap<WorkflowNodeId, WorkflowNodeEntity>,
     bindings: &BTreeMap<WorkflowInputTarget, WorkflowInputBinding>,
-) -> Result<(), WorkflowGraphConstructionError> {
+) -> Result<(), WorkflowGraphError> {
     let mut indegree = nodes.keys().map(|id| (*id, 0_usize)).collect::<BTreeMap<_, _>>();
     let mut outgoing = BTreeMap::<WorkflowNodeId, BTreeSet<WorkflowNodeId>>::new();
     for (target, binding) in bindings {
         for item in binding.items() {
             if outgoing.entry(item.source_node_id).or_default().insert(target.node_id) {
-                *indegree
-                    .get_mut(&target.node_id)
-                    .ok_or(WorkflowGraphConstructionError::NodeNotFound)? += 1;
+                *indegree.get_mut(&target.node_id).ok_or(WorkflowGraphError::NodeNotFound)? += 1;
             }
         }
     }
@@ -291,8 +285,7 @@ fn reject_cycles(
         visited += 1;
         if let Some(targets) = outgoing.get(&source) {
             for target in targets {
-                let degree =
-                    indegree.get_mut(target).ok_or(WorkflowGraphConstructionError::NodeNotFound)?;
+                let degree = indegree.get_mut(target).ok_or(WorkflowGraphError::NodeNotFound)?;
                 *degree -= 1;
                 if *degree == 0 {
                     ready.push(*target);
@@ -300,5 +293,5 @@ fn reject_cycles(
             }
         }
     }
-    if visited == nodes.len() { Ok(()) } else { Err(WorkflowGraphConstructionError::Cycle) }
+    if visited == nodes.len() { Ok(()) } else { Err(WorkflowGraphError::Cycle) }
 }

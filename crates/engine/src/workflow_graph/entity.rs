@@ -5,7 +5,7 @@ use crate::node_capability::{
     NodeCapabilityOutputKey, NodeCapabilityParameterSet, WorkflowInputItemId,
 };
 
-use super::{WorkflowCanvasPosition, WorkflowGraphConstructionError, WorkflowNodeId};
+use super::{WorkflowCanvasPosition, WorkflowGraphError, WorkflowNodeId};
 
 /// One node in the editable Workflow graph.
 #[derive(Clone, Debug, PartialEq)]
@@ -48,14 +48,12 @@ pub struct WorkflowOrderedInputItems(Vec<WorkflowInputItemEntity>);
 
 impl WorkflowOrderedInputItems {
     /// Creates a non-empty role-bearing ordered sequence.
-    pub fn try_new(
-        items: Vec<WorkflowInputItemEntity>,
-    ) -> Result<Self, WorkflowGraphConstructionError> {
+    pub fn try_new(items: Vec<WorkflowInputItemEntity>) -> Result<Self, WorkflowGraphError> {
         if items.is_empty() {
-            return Err(WorkflowGraphConstructionError::CardinalityViolation);
+            return Err(WorkflowGraphError::CardinalityViolation);
         }
         if items.iter().any(|item| item.input_role_key.is_none()) {
-            return Err(WorkflowGraphConstructionError::BindingShapeMismatch);
+            return Err(WorkflowGraphError::BindingShapeMismatch);
         }
         Ok(Self(items))
     }
@@ -64,6 +62,10 @@ impl WorkflowOrderedInputItems {
     #[must_use]
     pub fn as_slice(&self) -> &[WorkflowInputItemEntity] {
         &self.0
+    }
+
+    pub(super) fn as_mut_slice(&mut self) -> &mut [WorkflowInputItemEntity] {
+        &mut self.0
     }
 }
 
@@ -84,11 +86,9 @@ pub enum WorkflowInputBinding {
 
 impl WorkflowInputBinding {
     /// Creates a single binding only for a role-free item.
-    pub fn try_single(
-        item: WorkflowInputItemEntity,
-    ) -> Result<Self, WorkflowGraphConstructionError> {
+    pub fn try_single(item: WorkflowInputItemEntity) -> Result<Self, WorkflowGraphError> {
         if item.input_role_key.is_some() {
-            return Err(WorkflowGraphConstructionError::BindingShapeMismatch);
+            return Err(WorkflowGraphError::BindingShapeMismatch);
         }
         Ok(Self::Single { item })
     }

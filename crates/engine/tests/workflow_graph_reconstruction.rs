@@ -14,7 +14,7 @@ use engine::{
     },
     workflow_graph::{
         WorkflowAggregate, WorkflowAggregateRestoreData, WorkflowCanvasPosition, WorkflowCreatedAt,
-        WorkflowGraphConstructionError, WorkflowId, WorkflowInputBinding, WorkflowInputItemEntity,
+        WorkflowGraphError, WorkflowId, WorkflowInputBinding, WorkflowInputItemEntity,
         WorkflowInputTarget, WorkflowNodeEntity, WorkflowNodeId, WorkflowRevision,
         WorkflowSchemaVersion, WorkflowUpdatedAt,
     },
@@ -64,7 +64,7 @@ fn reconstruction_rejects_duplicate_item_identity_and_type_mismatch() {
         ),
         &registry,
     );
-    assert_eq!(duplicate.unwrap_err(), WorkflowGraphConstructionError::DuplicateInputItem);
+    assert_eq!(duplicate.unwrap_err(), WorkflowGraphError::DuplicateInputItem);
 
     let text_source = node(4, "text.source");
     let mismatch = WorkflowAggregate::try_restore(
@@ -74,7 +74,7 @@ fn reconstruction_rejects_duplicate_item_identity_and_type_mismatch() {
         ),
         &registry,
     );
-    assert_eq!(mismatch.unwrap_err(), WorkflowGraphConstructionError::DataTypeMismatch);
+    assert_eq!(mismatch.unwrap_err(), WorkflowGraphError::DataTypeMismatch);
 }
 
 #[test]
@@ -89,7 +89,7 @@ fn reconstruction_rejects_cycles() {
         ),
         &registry,
     );
-    assert_eq!(result.unwrap_err(), WorkflowGraphConstructionError::Cycle);
+    assert_eq!(result.unwrap_err(), WorkflowGraphError::Cycle);
 }
 
 fn registry() -> WorkflowNodeCapabilityRegistry {

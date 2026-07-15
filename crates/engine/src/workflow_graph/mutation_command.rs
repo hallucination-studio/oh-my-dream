@@ -6,7 +6,7 @@ use crate::node_capability::{
 };
 
 use super::{
-    WorkflowCanvasPosition, WorkflowGraphConstructionError, WorkflowId, WorkflowInputItemEntity,
+    WorkflowCanvasPosition, WorkflowGraphError, WorkflowId, WorkflowInputItemEntity,
     WorkflowInputTarget, WorkflowMutationCommandHash, WorkflowMutationRequestId, WorkflowNodeId,
     WorkflowRevision,
 };
@@ -153,9 +153,9 @@ impl WorkflowApplyMutationCommand {
         workflow_id: WorkflowId,
         base_revision: WorkflowRevision,
         actions: Vec<WorkflowMutationAction>,
-    ) -> Result<Self, WorkflowGraphConstructionError> {
+    ) -> Result<Self, WorkflowGraphError> {
         if actions.is_empty() || actions.len() > 128 {
-            return Err(WorkflowGraphConstructionError::ActionLimitExceeded);
+            return Err(WorkflowGraphError::ActionLimitExceeded);
         }
         validate_action_item_roles(&actions)?;
         let command_hash =
@@ -192,18 +192,18 @@ impl WorkflowApplyMutationCommand {
 
 fn validate_action_item_roles(
     actions: &[WorkflowMutationAction],
-) -> Result<(), WorkflowGraphConstructionError> {
+) -> Result<(), WorkflowGraphError> {
     for action in actions {
         match action {
             WorkflowMutationAction::BindSingleInput(action)
                 if action.new_item.input_role_key.is_some() =>
             {
-                return Err(WorkflowGraphConstructionError::BindingShapeMismatch);
+                return Err(WorkflowGraphError::BindingShapeMismatch);
             }
             WorkflowMutationAction::InsertReferenceItem(action)
                 if action.new_item.input_role_key.is_none() =>
             {
-                return Err(WorkflowGraphConstructionError::BindingShapeMismatch);
+                return Err(WorkflowGraphError::BindingShapeMismatch);
             }
             _ => {}
         }

@@ -6,6 +6,7 @@ mod aggregate;
 mod entity;
 mod error;
 mod identity;
+mod mutation_apply;
 mod mutation_command;
 mod mutation_hash;
 mod value;

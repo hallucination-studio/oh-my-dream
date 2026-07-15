@@ -2,7 +2,7 @@
 
 use uuid::{Uuid, Variant, Version};
 
-use super::WorkflowGraphConstructionError;
+use super::WorkflowGraphError;
 
 macro_rules! workflow_graph_uuid {
     ($name:ident, $description:literal) => {
@@ -12,11 +12,11 @@ macro_rules! workflow_graph_uuid {
 
         impl $name {
             /// Restores the identity only from an RFC 9562 UUIDv4.
-            pub fn from_uuid(value: Uuid) -> Result<Self, WorkflowGraphConstructionError> {
+            pub fn from_uuid(value: Uuid) -> Result<Self, WorkflowGraphError> {
                 if value.get_version() != Some(Version::Random)
                     || value.get_variant() != Variant::RFC4122
                 {
-                    return Err(WorkflowGraphConstructionError::IdentityNotVersionFour);
+                    return Err(WorkflowGraphError::IdentityNotVersionFour);
                 }
                 Ok(Self(value))
             }
@@ -43,13 +43,20 @@ pub struct WorkflowRevision(u64);
 
 impl WorkflowRevision {
     /// Restores a non-zero revision.
-    pub const fn new(value: u64) -> Result<Self, WorkflowGraphConstructionError> {
-        if value == 0 { Err(WorkflowGraphConstructionError::RevisionZero) } else { Ok(Self(value)) }
+    pub const fn new(value: u64) -> Result<Self, WorkflowGraphError> {
+        if value == 0 { Err(WorkflowGraphError::RevisionZero) } else { Ok(Self(value)) }
     }
 
     /// Returns the stored revision number.
     #[must_use]
     pub const fn get(self) -> u64 {
         self.0
+    }
+
+    pub(super) const fn checked_next(self) -> Result<Self, WorkflowGraphError> {
+        match self.0.checked_add(1) {
+            Some(value) => Ok(Self(value)),
+            None => Err(WorkflowGraphError::RevisionOverflow),
+        }
     }
 }
