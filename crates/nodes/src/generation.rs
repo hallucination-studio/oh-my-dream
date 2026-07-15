@@ -107,6 +107,8 @@ pub enum MediaFormat {
     Wav,
     /// Opaque video bytes whose codec is not advertised as playable.
     OpaqueVideo,
+    /// WebM video bytes suitable for native browser playback.
+    WebM,
 }
 
 impl MediaFormat {
@@ -115,6 +117,7 @@ impl MediaFormat {
             Self::Png => ".png",
             Self::Wav => ".wav",
             Self::OpaqueVideo => ".video-data",
+            Self::WebM => ".webm",
         }
     }
 }
@@ -144,6 +147,12 @@ impl InlineMedia {
     #[must_use]
     pub fn opaque_video(bytes: Vec<u8>) -> Self {
         Self { kind: MediaKind::Video, format: MediaFormat::OpaqueVideo, bytes }
+    }
+
+    /// Creates inline WebM video media.
+    #[must_use]
+    pub fn webm(bytes: Vec<u8>) -> Self {
+        Self { kind: MediaKind::Video, format: MediaFormat::WebM, bytes }
     }
 
     /// Returns the media modality.
@@ -290,4 +299,18 @@ pub trait TextToAudioGenerator: Send + Sync {
         request: TextToAudioRequest,
         context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InlineMedia, MediaFormat, MediaKind};
+
+    #[test]
+    fn webm_media_has_video_kind_and_webm_suffix() {
+        let media = InlineMedia::webm(Vec::new());
+
+        assert_eq!(media.kind(), MediaKind::Video);
+        assert_eq!(media.format(), MediaFormat::WebM);
+        assert_eq!(media.format().file_suffix(), ".webm");
+    }
 }

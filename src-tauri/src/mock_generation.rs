@@ -15,6 +15,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, info, warn};
 
+mod video;
+
+use video::MOCK_VIDEO_WEBM;
+
 const MAX_POLLS: usize = 60;
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
 const MOCK_IMAGE_PNG: &[u8] = &[
@@ -22,7 +26,6 @@ const MOCK_IMAGE_PNG: &[u8] = &[
     0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 240, 31, 0,
     5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
 ];
-const MOCK_VIDEO: &[u8] = b"OH_MY_DREAM_MOCK_VIDEO_V1\n";
 
 pub(crate) struct MockGenerationAdapter {
     backend: Arc<MockBackend>,
@@ -225,7 +228,7 @@ impl MockMedia {
     fn inline_media(self) -> InlineMedia {
         match self {
             Self::Image | Self::ReferenceImage => InlineMedia::png(MOCK_IMAGE_PNG.to_vec()),
-            Self::Video | Self::ReferenceVideo => InlineMedia::opaque_video(MOCK_VIDEO.to_vec()),
+            Self::Video | Self::ReferenceVideo => InlineMedia::webm(MOCK_VIDEO_WEBM.to_vec()),
             Self::Audio => InlineMedia::wav(silent_pcm_wave()),
         }
     }

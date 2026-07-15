@@ -151,9 +151,9 @@ fn image_to_video_translates_mock_success_to_inline_video() {
     )
     .expect("mock video generation");
 
-    let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::OpaqueVideo);
+    let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::WebM);
     assert_eq!(output.cost, Some(900));
-    assert!(media.bytes().starts_with(b"OH_MY_DREAM_MOCK_VIDEO_V1\n"));
+    assert_playable_webm(media.bytes());
 }
 
 #[test]
@@ -176,9 +176,9 @@ fn reference_video_generation_returns_inline_video() {
     )
     .expect("mock reference video generation");
 
-    let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::OpaqueVideo);
+    let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::WebM);
     assert_eq!(output.cost, Some(1_200));
-    assert!(media.bytes().starts_with(b"OH_MY_DREAM_MOCK_VIDEO_V1\n"));
+    assert_playable_webm(media.bytes());
 }
 
 #[test]
@@ -320,6 +320,13 @@ fn expect_inline(
     assert_eq!(media.kind(), kind);
     assert_eq!(media.format(), format);
     media
+}
+
+fn assert_playable_webm(bytes: &[u8]) {
+    assert!(bytes.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]));
+    assert!(bytes.windows(4).any(|window| window == b"webm"));
+    assert!(bytes.windows(5).any(|window| window == b"V_VP8"));
+    assert!(bytes.windows(4).any(|window| window == b"\x1fC\xb6u"));
 }
 
 #[derive(Default)]
