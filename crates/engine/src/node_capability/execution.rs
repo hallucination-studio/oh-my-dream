@@ -23,6 +23,30 @@ pub struct NodeCapabilityReadinessRequest {
     pub project_id: ProjectId,
     /// Complete normalized parameters.
     pub normalized_parameters: NodeCapabilityNormalizedParameters,
+    /// Call-scoped monotonic deadline for external readiness reads.
+    pub deadline: NodeCapabilityReadinessDeadline,
+}
+
+/// Call-scoped monotonic deadline for external readiness reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NodeCapabilityReadinessDeadline(Instant);
+
+impl NodeCapabilityReadinessDeadline {
+    /// Wraps one absolute monotonic readiness deadline.
+    #[must_use]
+    pub const fn at(instant: Instant) -> Self {
+        Self(instant)
+    }
+    /// Reports whether the supplied observation reached the deadline.
+    #[must_use]
+    pub fn is_reached_at(self, now: Instant) -> bool {
+        now >= self.0
+    }
+    /// Returns the exact wrapped instant for boundary translation.
+    #[must_use]
+    pub const fn monotonic_instant(self) -> Instant {
+        self.0
+    }
 }
 
 /// Closed readiness category ordered by frozen table order.
@@ -137,6 +161,11 @@ impl NodeCapabilityExecutionDeadline {
     #[must_use]
     pub fn is_reached_at(self, now: Instant) -> bool {
         now >= self.0
+    }
+    /// Returns the exact wrapped instant for boundary translation.
+    #[must_use]
+    pub const fn monotonic_instant(self) -> Instant {
+        self.0
     }
 }
 

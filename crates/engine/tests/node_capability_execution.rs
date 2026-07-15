@@ -6,7 +6,7 @@ use engine::node_capability::{
     NodeCapabilityExecutionError, NodeCapabilityExecutionFailure, NodeCapabilityExecutionStage,
     NodeCapabilityExecutionTarget, NodeCapabilityOutputKey, NodeCapabilityProviderFailure,
     NodeCapabilityProviderFailureCategory, NodeCapabilityReadinessCategory,
-    NodeCapabilityReadinessIssue, NodeCapabilityReadinessTarget,
+    NodeCapabilityReadinessDeadline, NodeCapabilityReadinessIssue, NodeCapabilityReadinessTarget,
     WorkflowManagedAssetIdBoundaryValue, WorkflowNodeExecutionId,
 };
 use uuid::Uuid;
@@ -27,6 +27,15 @@ fn execution_deadline_uses_only_supplied_monotonic_observations() {
     let deadline = NodeCapabilityExecutionDeadline::at(now + Duration::from_secs(1));
     assert!(!deadline.is_reached_at(now));
     assert!(deadline.is_reached_at(now + Duration::from_secs(1)));
+    assert_eq!(deadline.monotonic_instant(), now + Duration::from_secs(1));
+}
+
+#[test]
+fn readiness_deadline_exposes_the_same_boundary_instant() {
+    let instant = Instant::now() + Duration::from_secs(2);
+    let deadline = NodeCapabilityReadinessDeadline::at(instant);
+    assert_eq!(deadline.monotonic_instant(), instant);
+    assert!(deadline.is_reached_at(instant));
 }
 
 #[test]

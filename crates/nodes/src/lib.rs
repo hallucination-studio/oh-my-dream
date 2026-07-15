@@ -19,6 +19,7 @@ mod generation_profile;
 mod image_to_video;
 mod media;
 mod migrations;
+mod node_capability_media;
 mod params;
 mod ports;
 mod reference_image_generation;
@@ -51,6 +52,7 @@ pub use migrations::{
     CapabilityMigrationError, CapabilityNodeResolution, CapabilityNodeStatus,
     DegradedCapabilityReason, frozen_legacy_examples, migrate_legacy_node, resolve_workflow_node,
 };
+pub use node_capability_media::*;
 
 /// Shared asset store used by node instances.
 ///
