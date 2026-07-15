@@ -15,6 +15,12 @@ pub enum WorkflowGraphError {
     /// Updated timestamp cannot advance monotonically.
     #[error("workflow timestamp overflowed")]
     TimestampOverflow,
+    /// One mutation request identity was reused with different command content.
+    #[error("workflow mutation request conflicts with its receipt")]
+    MutationIdempotencyConflict,
+    /// Persisted Workflow mutation receipt integrity validation failed.
+    #[error("workflow persistence integrity validation failed")]
+    PersistenceFailure,
     /// Schema version is zero or not the hard-cut version.
     #[error("workflow schema version is unsupported")]
     SchemaVersionUnsupported,
