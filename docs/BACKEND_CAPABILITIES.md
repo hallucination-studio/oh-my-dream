@@ -80,13 +80,15 @@ Engine stores those two cross-context variants as
 `NodeCapabilityGenerationProfileRefParameterValue` and
 `NodeCapabilityManagedAssetIdParameterValue`. They are mechanical boundary representations, not a
 second Generation Profile or Asset identity owner. The first contains the validated canonical
-profile ID bytes plus non-zero version; the second contains exact RFC 9562 UUIDv4 bytes. They expose
+profile ID bytes plus non-zero version; the second contains one
+`WorkflowManagedAssetIdBoundaryValue`. They expose
 only canonical bytes, equality, and ordering and cannot answer lifecycle, compatibility,
 availability, Project visibility, media kind, or Asset state.
 
 The Generation Profile module implements explicit conversion between `GenerationProfileRef` and
 `NodeCapabilityGenerationProfileRefParameterValue`. The Desktop node-to-Asset bridge converts
-between `NodeCapabilityManagedAssetIdParameterValue` and Asset-owned `AssetId` at its boundary.
+between `NodeCapabilityManagedAssetIdParameterValue` and Asset-owned `AssetId` at its boundary; the
+same bridge translates the typed Workflow managed-media references and their fingerprints.
 Engine performs only canonical shape validation; each semantic owner revalidates and interprets its
 domain value. No crate aliases, re-exports, or wraps these boundary values as its authoritative ID.
 

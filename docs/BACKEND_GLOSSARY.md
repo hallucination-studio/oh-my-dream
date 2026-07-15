@@ -207,6 +207,11 @@ as identity or behavior.
 | `WorkflowRunAggregate` | one execution of one frozen Workflow revision |
 | `WorkflowNodeExecutionEntity` | one planned node's state, progress, failure, and outputs |
 | `WorkflowRuntimeValue` | exact Text, Image, Video, or Audio runtime value in the MVP |
+| `WorkflowManagedAssetIdBoundaryValue` | engine UUID bytes explicitly translated to Asset-owned `AssetId` |
+| `WorkflowManagedContentFingerprint` | engine SHA-256 bytes explicitly translated to an Asset content digest |
+| `WorkflowManagedImageRef` | typed image Asset boundary identity plus content fingerprint |
+| `WorkflowManagedVideoRef` | typed video Asset boundary identity plus content fingerprint |
+| `WorkflowManagedAudioRef` | typed audio Asset boundary identity plus content fingerprint |
 | `WorkflowNodeOutputSet` | complete named output values from one node execution |
 | `WorkflowCreateRequestId` | stable idempotency identity for one Workflow creation request |
 | `WorkflowMutationRequestId` | stable idempotency identity for one mutation request |

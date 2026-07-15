@@ -222,22 +222,22 @@ pub enum WorkflowNodeInputValue {
 }
 ```
 
-`WorkflowNodeInputSet` and `WorkflowNodeOutputSet` are maps keyed by exact contract input/output keys. A
-capability returns every declared output or one structured failure.
+Input/output sets use exact contract keys; a capability returns every output or one structured failure.
 
-Managed media references contain Asset ID, exact media kind, and content fingerprint, never bytes,
-paths, provider URLs, or preview URLs. Generated media enters a runtime output only after Asset
-storage returns an Available reference.
+`WorkflowManagedAssetIdBoundaryValue` contains exact RFC 9562 UUIDv4 bytes; its content fingerprint
+counterpart contains exactly 32 SHA-256 bytes. Image, video, and audio reference types contain both
+and fix media kind. They expose canonical bytes, equality, and ordering, never Asset lifecycle, path,
+URL, content, Project visibility, or provider state. Outputs require an Available Asset.
 
-Structured `WorkflowTextValue` may contain literal parts and stable input-item references. Workflow
-owns cross-node referential integrity; the exact capability owns normalization and provider prompt
-mapping. Provider placeholder syntax is never persisted.
+Structured text has literals and stable references. Workflow owns integrity; the capability owns normalization/provider mapping. Provider syntax is not persisted.
 
 `WorkflowTextValue` is a non-empty ordered list of at most 1,024 `Literal` or `InputItemReference`
-parts with at most 65,536 total UTF-8 literal bytes. Adjacent literals are normalized into one;
-empty literals are removed. Managed media variants contain one D0.4-owned typed Available Asset
-reference and exact content fingerprint. Input/output maps reject duplicate keys and contain every
-declared required output; they never contain null, partial, URL, path, or untyped media values.
+parts with at most 65,536 total UTF-8 literal bytes. Normalization joins adjacent literals and removes
+empty ones. Input/output maps reject duplicate keys and never contain null, partial, or untyped media.
+
+These engine-owned values do not own Asset semantics. The Desktop bridge translates Asset ID/digest
+and revalidates Project, media kind, and Available state on every access. Engine never depends on
+Asset; shared contracts, generic media, legacy readers, and implicit conversion are prohibited.
 
 ## Run Aggregate And State
 
