@@ -24,7 +24,7 @@ async fn assistant_runtime_resumes_approval_in_fresh_process_and_executes_once()
     assert_eq!(waiting.pending().operation_id(), "proposal_execute");
     assert_eq!(waiting.pending().operation_version(), 3);
     assert_eq!(waiting.pending().arguments_json(), "{\n  \"proposal_id\": \"proposal-42\"\n}");
-    assert_eq!(waiting.state()["envelope_version"], 1);
+    assert_eq!(waiting.state()["envelope_version"], 2);
     assert!(waiting.state().get("state_json").is_some());
     assert_eq!(executions.load(Ordering::SeqCst), 0);
 

@@ -117,7 +117,7 @@ class CoauthorFlowTests(unittest.IsolatedAsyncioTestCase):
         )
         concat_input = patch["operations"][-1]
         self.assertEqual(
-            [source["alias"] for source in concat_input["binding"]["sources"]],
+            [source["node"]["alias"] for source in concat_input["binding"]["sources"]],
             ["video-1", "video-2", "video-3"],
         )
         self.assertEqual(

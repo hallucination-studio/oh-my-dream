@@ -67,7 +67,7 @@ def assert_paused_approval(
     test.assertEqual(
         state_object,
         {
-            "envelope_version": 1,
+            "envelope_version": 2,
             "sdk_version": "0.18.1",
             "agent_name": "workflow_assistant",
             "operation_versions": [{"id": "proposal_execute", "version": 3}],

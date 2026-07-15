@@ -84,7 +84,7 @@ def patch_arguments() -> str:
                     "input": "prompt",
                     "binding": {
                         "kind": "single",
-                        "source": {"kind": "alias", "alias": f"prompt-{index}"},
+                        "source": {"node": {"kind": "alias", "alias": f"prompt-{index}"}, "output": "text"},
                     },
                 },
                 {
@@ -93,7 +93,7 @@ def patch_arguments() -> str:
                     "input": "image",
                     "binding": {
                         "kind": "single",
-                        "source": {"kind": "alias", "alias": f"image-{index}"},
+                        "source": {"node": {"kind": "alias", "alias": f"image-{index}"}, "output": "image"},
                     },
                 },
             ]
@@ -114,9 +114,9 @@ def patch_arguments() -> str:
                 "binding": {
                     "kind": "ordered_many",
                     "sources": [
-                        {"kind": "alias", "alias": "video-1"},
-                        {"kind": "alias", "alias": "video-2"},
-                        {"kind": "alias", "alias": "video-3"},
+                        {"node": {"kind": "alias", "alias": "video-1"}, "output": "video"},
+                        {"node": {"kind": "alias", "alias": "video-2"}, "output": "video"},
+                        {"node": {"kind": "alias", "alias": "video-3"}, "output": "video"},
                     ],
                 },
             },
