@@ -24,4 +24,37 @@ pub enum WorkflowGraphConstructionError {
     /// An ordered binding has no items.
     #[error("workflow ordered reference binding must be non-empty")]
     CardinalityViolation,
+    /// Two restored nodes use the same Workflow-local identity.
+    #[error("workflow contains a duplicate node")]
+    DuplicateNode,
+    /// Two restored edge items use the same stable identity.
+    #[error("workflow contains a duplicate input item")]
+    DuplicateInputItem,
+    /// A node referenced by a binding does not exist.
+    #[error("workflow node was not found")]
+    NodeNotFound,
+    /// A target input is not declared by its exact capability.
+    #[error("workflow input was not found")]
+    InputNotFound,
+    /// A target input already has a binding.
+    #[error("workflow input is occupied")]
+    InputOccupied,
+    /// A source output is not declared by its exact capability.
+    #[error("workflow output was not found")]
+    OutputNotFound,
+    /// Source and target are the same node.
+    #[error("workflow self edge is forbidden")]
+    SelfEdge,
+    /// Source output and target input types are incompatible.
+    #[error("workflow input data type does not match")]
+    DataTypeMismatch,
+    /// An ordered item role is absent, undeclared, or incompatible.
+    #[error("workflow input role is invalid")]
+    RoleViolation,
+    /// The graph contains a directed cycle.
+    #[error("workflow graph contains a cycle")]
+    Cycle,
+    /// A capability contract or opaque parameter reference is invalid.
+    #[error("workflow contains an invalid capability reference")]
+    ReferenceViolation,
 }
