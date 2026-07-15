@@ -62,7 +62,7 @@ async fn assistant_strong_mvp_e2e_builds_fails_repairs_and_succeeds() {
         .workflow()
         .nodes
         .iter()
-        .find(|node| node.type_id == "TextToImage")
+        .find(|node| node.type_id == "Image" && node.params["mode"] == "text")
         .expect("image node")
         .id
         .clone();
