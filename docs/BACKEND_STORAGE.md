@@ -110,9 +110,12 @@ validated restore paths and reject corrupt or unsupported combinations.
 
 ## Logical Project Records
 
-`SqliteProjectRow` stores Project identity, normalized name, revision, and timestamps.
-`SqliteProjectMutationReceiptRow` stores request ID, canonical command hash, Project ID, committed
-revision, and result fingerprint. Project rows store no Workflow, Asset, or Assistant payload.
+`SqliteProjectRow` stores Project identity as the exact 16 UUID bytes, normalized name, revision,
+and timestamps as signed integers.
+`SqliteProjectMutationReceiptRow` stores request ID, canonical command hash, operation, the exact
+committed Project outcome fields, and result fingerprint. This snapshot is idempotency evidence, not
+Project history: it exists only so replay returns the original result after a later rename. Project
+rows store no Workflow, Asset, or Assistant payload.
 
 Project creation and rename atomically write the row and receipt. Names need not be unique; IDs are
 unique. Project deletion is not an MVP transition.

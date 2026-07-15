@@ -189,6 +189,10 @@ as identity or behavior.
 | --- | --- |
 | `ProjectAggregate` | one durable creative workspace identity, name, and revision |
 | `ProjectId` | authoritative scope shared with Workflow, Asset, and Assistant |
+| `ProjectMutationRequestId` | stable idempotency identity for one create or rename request |
+| `ProjectMutationReceipt` | exact committed Project outcome and integrity evidence for replay |
+| `ProjectListCursor` | Project-owned keyset position containing update time and Project identity |
+| `ProjectWorkflowSummary` | minimal translated Workflow identity, revision, and Ready/Blocked state |
 | `ProjectWorkspaceView` | opened Project plus optional translated current Workflow summary |
 
 ### Workflow
