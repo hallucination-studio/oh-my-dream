@@ -34,6 +34,7 @@ pub struct AssetImportFixtureFakeImpl {
     publish_fails: AtomicBool,
     finalization_hidden: AtomicBool,
     staged_open_count: AtomicUsize,
+    next_identity_seed: AtomicUsize,
     events: Mutex<Vec<&'static str>>,
 }
 
@@ -46,6 +47,7 @@ impl AssetImportFixtureFakeImpl {
             publish_fails: AtomicBool::new(false),
             finalization_hidden: AtomicBool::new(false),
             staged_open_count: AtomicUsize::new(0),
+            next_identity_seed: AtomicUsize::new(20),
             events: Mutex::new(Vec::new()),
         })
     }
@@ -61,6 +63,10 @@ impl AssetImportFixtureFakeImpl {
             self.clone(),
             finalizer,
         )
+    }
+
+    pub fn finalize_content_use_case(self: &Arc<Self>) -> AssetFinalizeContentUseCase {
+        AssetFinalizeContentUseCase::new(self.clone(), self.clone(), self.clone())
     }
 
     #[allow(dead_code)]
@@ -95,8 +101,8 @@ impl AssetImportFixtureFakeImpl {
         self.inspection_fails.store(true, Ordering::Relaxed);
     }
 
-    pub fn fail_publish(&self) {
-        self.publish_fails.store(true, Ordering::Relaxed);
+    pub fn configure_asset_content_publish_failure(&self, should_fail: bool) {
+        self.publish_fails.store(should_fail, Ordering::Relaxed);
     }
 
     pub fn hide_committed_finalization(&self) {
@@ -343,19 +349,26 @@ impl AssetClockInterface for AssetImportFixtureFakeImpl {
 impl AssetIdentityGeneratorInterface for AssetImportFixtureFakeImpl {
     fn generate_asset_id(&self) -> Result<AssetId, AssetApplicationError> {
         self.record("generate_asset_id");
-        Ok(asset_id())
+        AssetId::from_uuid(uuid(self.next_identity_seed.fetch_add(1, Ordering::Relaxed) as u8))
+            .map_err(|_| AssetApplicationError::IdentityConflict)
     }
 
     fn generate_asset_import_id(&self) -> Result<AssetImportId, AssetApplicationError> {
         self.record("generate_import_id");
-        AssetImportId::from_uuid(uuid(4)).map_err(|_| AssetApplicationError::IdentityConflict)
+        AssetImportId::from_uuid(
+            uuid(self.next_identity_seed.fetch_add(1, Ordering::Relaxed) as u8),
+        )
+        .map_err(|_| AssetApplicationError::IdentityConflict)
     }
 
     fn generate_asset_content_finalization_id(
         &self,
     ) -> Result<AssetContentFinalizationId, AssetApplicationError> {
         self.record("generate_finalization_id");
-        Ok(finalization_id())
+        AssetContentFinalizationId::from_uuid(uuid(
+            self.next_identity_seed.fetch_add(1, Ordering::Relaxed) as u8,
+        ))
+        .map_err(|_| AssetApplicationError::IdentityConflict)
     }
 
     fn generate_asset_preview_lease_id(
@@ -374,22 +387,12 @@ fn staged_ref() -> AssetStagedContentRef {
     AssetStagedContentRef::try_from_store_bytes(vec![1]).unwrap()
 }
 
-fn asset_id() -> AssetId {
-    AssetId::from_uuid(uuid(1)).unwrap()
-}
-
 fn project_id() -> ProjectId {
     ProjectId::from_uuid(uuid(2)).unwrap()
 }
-
-fn finalization_id() -> AssetContentFinalizationId {
-    AssetContentFinalizationId::from_uuid(uuid(3)).unwrap()
-}
-
 fn created_at() -> AssetCreatedAt {
     AssetCreatedAt::from_utc_milliseconds(10).unwrap()
 }
-
 fn uuid(seed: u8) -> Uuid {
     Uuid::from_bytes([seed, 0, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, seed])
 }

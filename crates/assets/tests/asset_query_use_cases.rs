@@ -123,7 +123,7 @@ async fn resolve_rejects_media_kind_before_opening_content() {
 #[tokio::test]
 async fn preview_rejects_pending_content_before_clock_and_identity_generation() {
     let fixture = AssetImportFixtureFakeImpl::new();
-    fixture.fail_publish();
+    fixture.configure_asset_content_publish_failure(true);
     let pending = fixture.import_use_case().import_asset(fixture.import_command()).await.unwrap();
     fixture.clear_events();
 

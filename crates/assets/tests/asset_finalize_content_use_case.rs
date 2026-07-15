@@ -1,30 +1,33 @@
 use std::io::Cursor;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use assets::asset::application::{
     AssetApplicationError, AssetAvailableContentRecoveryCursor, AssetAvailableContentRecoveryPage,
     AssetCommitContentMissingCommand, AssetCommitFinalizedContentAvailableCommand,
     AssetCommitPendingContentCommand, AssetCommitWorkflowNodeOutputPendingResult,
     AssetContentFinalization, AssetContentFinalizationRecoveryPage,
-    AssetFinalizationRecoveryCursor, AssetFinalizeContentCommand, AssetFinalizeContentEffect,
-    AssetFinalizeContentUseCase, AssetImportSourceLease, AssetListPage, AssetListQuery,
-    AssetManagedContentLease, AssetPageLimit, AssetStagedContent, AssetStagedContentRecoveryCursor,
-    AssetStagedContentRecoveryPage, AssetStagedContentRef,
+    AssetFinalizationRecoveryCursor, AssetFinalizeContentUseCase, AssetImportSourceLease,
+    AssetListPage, AssetListQuery, AssetManagedContentLease, AssetPageLimit, AssetStagedContent,
+    AssetStagedContentRecoveryCursor, AssetStagedContentRecoveryPage, AssetStagedContentRef,
 };
 use assets::asset::domain::{
-    AssetAggregate, AssetContentDescriptor, AssetContentDigest, AssetContentFinalizationId,
-    AssetCreatedAt, AssetDisplayName, AssetId, AssetImportId, AssetManagedContentId,
-    AssetManagedContentState, AssetMediaFacts, AssetMediaKind, AssetMediaMimeType,
-    AssetNodeOutputKey, AssetOrigin, AssetOriginalFileName,
+    AssetAggregate, AssetContentDescriptor, AssetContentFinalizationId, AssetCreatedAt, AssetId,
+    AssetManagedContentState, AssetMediaKind, AssetNodeOutputKey,
 };
 use assets::asset::interfaces::{
     AssetIngestTransactionInterface, AssetManagedContentStoreInterface, AssetRepositoryInterface,
 };
 use async_trait::async_trait;
-use projects::project::domain::ProjectId;
-use uuid::Uuid;
+
+#[path = "support/asset_finalize_fault_tests.rs"]
+mod asset_finalize_fault_tests;
+#[path = "support/asset_finalize_values.rs"]
+mod asset_finalize_values;
+
+use asset_finalize_values::{
+    command, content_finalization, digest, finalization_id, pending_asset, staged_ref,
+};
 
 #[tokio::test]
 async fn staged_finalization_publishes_commits_available_and_removes_staging() {
@@ -92,12 +95,22 @@ async fn publish_failure_propagates_without_committing_available() {
     ));
 }
 
-struct FinalizationFixtureFakeImpl {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FinalizationFailurePoint {
+    OpenStaged,
+    Publish,
+    CommitAvailable,
+    VerifyManaged,
+    CommitMissing,
+    RemoveStaging,
+}
+
+pub(crate) struct FinalizationFixtureFakeImpl {
     asset: Mutex<AssetAggregate>,
     finalization: Mutex<Option<AssetContentFinalization>>,
     staged_exists: bool,
     managed_exists: bool,
-    publish_fails: AtomicBool,
+    failure_point: Mutex<Option<FinalizationFailurePoint>>,
     events: Mutex<Vec<&'static str>>,
 }
 
@@ -108,7 +121,7 @@ impl FinalizationFixtureFakeImpl {
             finalization: Mutex::new(Some(content_finalization())),
             staged_exists,
             managed_exists,
-            publish_fails: AtomicBool::new(false),
+            failure_point: Mutex::new(None),
             events: Mutex::new(Vec::new()),
         })
     }
@@ -130,7 +143,22 @@ impl FinalizationFixtureFakeImpl {
     }
 
     fn fail_publish(&self) {
-        self.publish_fails.store(true, Ordering::Relaxed);
+        self.inject_finalization_failure_at(FinalizationFailurePoint::Publish);
+    }
+
+    pub(crate) fn inject_finalization_failure_at(&self, failure_point: FinalizationFailurePoint) {
+        *self.failure_point.lock().unwrap() = Some(failure_point);
+    }
+
+    pub(crate) fn pending_content_remains(&self) -> bool {
+        matches!(
+            self.asset.lock().unwrap().content_state(),
+            AssetManagedContentState::Pending { .. }
+        )
+    }
+
+    fn fails_at(&self, failure_point: FinalizationFailurePoint) -> bool {
+        *self.failure_point.lock().unwrap() == Some(failure_point)
     }
 
     fn record(&self, event: &'static str) {
@@ -221,6 +249,9 @@ impl AssetIngestTransactionInterface for FinalizationFixtureFakeImpl {
         command: AssetCommitFinalizedContentAvailableCommand,
     ) -> Result<(), AssetApplicationError> {
         self.record("commit_available");
+        if self.fails_at(FinalizationFailurePoint::CommitAvailable) {
+            return Err(AssetApplicationError::IdentityConflict);
+        }
         *self.asset.lock().unwrap() = command.asset().clone();
         Ok(())
     }
@@ -230,6 +261,9 @@ impl AssetIngestTransactionInterface for FinalizationFixtureFakeImpl {
         command: AssetCommitContentMissingCommand,
     ) -> Result<(), AssetApplicationError> {
         self.record("commit_missing");
+        if self.fails_at(FinalizationFailurePoint::CommitMissing) {
+            return Err(AssetApplicationError::IdentityConflict);
+        }
         *self.asset.lock().unwrap() = command.asset().clone();
         Ok(())
     }
@@ -261,6 +295,9 @@ impl AssetManagedContentStoreInterface for FinalizationFixtureFakeImpl {
         deadline: Instant,
     ) -> Result<Option<AssetImportSourceLease>, AssetApplicationError> {
         self.record("open_staged");
+        if self.fails_at(FinalizationFailurePoint::OpenStaged) {
+            return Err(AssetApplicationError::ManagedStorageFailed);
+        }
         Ok(self
             .staged_exists
             .then(|| AssetImportSourceLease::new(deadline, Box::pin(Cursor::new(vec![1; 10])))))
@@ -273,7 +310,7 @@ impl AssetManagedContentStoreInterface for FinalizationFixtureFakeImpl {
         _deadline: Instant,
     ) -> Result<(), AssetApplicationError> {
         self.record("publish");
-        if self.publish_fails.load(Ordering::Relaxed) {
+        if self.fails_at(FinalizationFailurePoint::Publish) {
             return Err(AssetApplicationError::ManagedStorageFailed);
         }
         Ok(())
@@ -300,6 +337,9 @@ impl AssetManagedContentStoreInterface for FinalizationFixtureFakeImpl {
         _deadline: Instant,
     ) -> Result<bool, AssetApplicationError> {
         self.record("verify_managed");
+        if self.fails_at(FinalizationFailurePoint::VerifyManaged) {
+            return Err(AssetApplicationError::ManagedStorageFailed);
+        }
         Ok(self.managed_exists)
     }
 
@@ -318,80 +358,9 @@ impl AssetManagedContentStoreInterface for FinalizationFixtureFakeImpl {
         _deadline: Instant,
     ) -> Result<(), AssetApplicationError> {
         self.record("remove");
+        if self.fails_at(FinalizationFailurePoint::RemoveStaging) {
+            return Err(AssetApplicationError::ManagedStorageFailed);
+        }
         Ok(())
     }
-}
-
-fn command() -> AssetFinalizeContentCommand {
-    AssetFinalizeContentCommand::new(
-        AssetFinalizeContentEffect::new(finalization_id()),
-        Instant::now() + Duration::from_secs(60),
-    )
-}
-
-fn pending_asset() -> AssetAggregate {
-    AssetAggregate::try_new_pending(
-        asset_id(),
-        project_id(),
-        AssetMediaKind::Image,
-        descriptor(),
-        finalization_id(),
-        AssetMediaFacts::try_image(32, 32).unwrap(),
-        AssetOrigin::imported(
-            AssetImportId::from_uuid(uuid(4)).unwrap(),
-            AssetOriginalFileName::try_new("image.png").unwrap(),
-        ),
-        AssetDisplayName::try_new("image").unwrap(),
-        created_at(),
-    )
-    .unwrap()
-}
-
-fn content_finalization() -> AssetContentFinalization {
-    AssetContentFinalization::new(
-        finalization_id(),
-        asset_id(),
-        descriptor(),
-        staged_ref(),
-        created_at(),
-    )
-}
-
-fn descriptor() -> AssetContentDescriptor {
-    AssetContentDescriptor::try_new(
-        AssetManagedContentId::from_digest(digest()),
-        digest(),
-        10,
-        AssetMediaMimeType::ImagePng,
-        AssetMediaKind::Image,
-    )
-    .unwrap()
-}
-
-fn digest() -> AssetContentDigest {
-    AssetContentDigest::from_bytes([3; 32])
-}
-
-fn staged_ref() -> AssetStagedContentRef {
-    AssetStagedContentRef::try_from_store_bytes(vec![1]).unwrap()
-}
-
-fn asset_id() -> AssetId {
-    AssetId::from_uuid(uuid(1)).unwrap()
-}
-
-fn project_id() -> ProjectId {
-    ProjectId::from_uuid(uuid(2)).unwrap()
-}
-
-fn finalization_id() -> AssetContentFinalizationId {
-    AssetContentFinalizationId::from_uuid(uuid(3)).unwrap()
-}
-
-fn created_at() -> AssetCreatedAt {
-    AssetCreatedAt::from_utc_milliseconds(10).unwrap()
-}
-
-fn uuid(seed: u8) -> Uuid {
-    Uuid::from_bytes([seed, 0, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, seed])
 }
