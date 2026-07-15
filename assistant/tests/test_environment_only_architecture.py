@@ -20,7 +20,13 @@ def test_product_has_one_initial_runner_entry_and_no_plan_scheduler() -> None:
     product_source = "\n".join(path.read_text() for path in sources)
 
     assert runner_entries == [Path("assistant/stdio_app.py")]
-    assert invoke_entries == [Path("src-tauri/src/assistant_commands.rs")]
+    assert invoke_entries == [
+        Path("src-tauri/src/assistant_commands.rs"),
+        Path("src-tauri/src/assistant_commands/repair.rs"),
+    ]
+    repair_activation = (root / "src-tauri/src/assistant_commands/repair.rs").read_text()
+    assert "run.activation" in repair_activation
+    assert "production_plan" not in repair_activation
     assert resume_entries == [Path("src-tauri/src/assistant_commands.rs")]
     assert "claim_next" not in product_source
     assert "activate_next" not in product_source
