@@ -79,12 +79,23 @@ An incomplete graph remains editable. Validation therefore has two levels.
 - every ordered-reference minimum is met;
 - every referenced Asset is visible, Available, and the exact kind;
 - one implementation is registered for every node in scope;
-- every selected Generation Profile is compatible and currently `Available`;
-- each exact capability reports no external readiness issue.
+- every selected Generation Profile is reported compatible and currently `Available` by its exact
+  capability;
+- each exact capability reports no other external readiness issue.
 
 `WorkflowReadinessPolicy` owns pure structural checks. Exact capabilities own parameter and external
-readiness semantics. The use case merges structured issues without copying either rule set. Run
-admission checks readiness again and never repairs the graph automatically.
+readiness semantics, including Generation Profile compatibility and availability. The use case
+mechanically projects capability-owned Generation Profile issues into the three Workflow Generation
+Profile categories below and preserves every other typed issue as
+`WorkflowCapabilityExternalReadinessIssue`; it does not query the catalog or availability reader a
+second time. Run admission checks readiness again and never repairs the graph automatically.
+
+Every Workflow external-readiness evaluation, including each invocation of
+`WorkflowCheckReadinessUseCase` and each Run-admission evaluation, captures one process-monotonic
+start instant and derives one deadline exactly five seconds later. It passes that same deadline
+unchanged to every `NodeCapabilityReadinessRequest` in the evaluation. A capability never
+truncates, extends, or replaces it; reaching it while later nodes are checked produces the
+capability's frozen indeterminate readiness issue.
 
 `WorkflowReadinessResult` is `Ready` or `Blocked { issues }`; blocked issues are non-empty and sorted
 by node ID, table-order category tag, then optional target key with absent first. There is no severity.
@@ -196,6 +207,12 @@ stores request ID, hash, and admitted Run ID. Matching replay loads that Run; mi
 The plan contains no UI position, provider/native model, route, credential, URL, path, preview,
 provider task, or mutable availability observation. The current Workflow may be edited after
 admission without changing the Run.
+
+Before invoking one exact capability, `WorkflowExecuteRunUseCase` copies the plan's Workflow ID,
+revision, node ID, and capability contract ref into `WorkflowNodeExecutionOrigin`. It separately
+constructs `WorkflowNodeExecutionContext` from the Project, Run, node-execution, deadline, and
+cancellation values. It does not ask a capability or Desktop bridge to reconstruct frozen producer
+coordinates.
 
 The MVP does not define a separate planned/dispatch hash or cross-Run cache key.
 `WorkflowNodeExecutionId` is sufficient for provider submission idempotency inside one durable Run.

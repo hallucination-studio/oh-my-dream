@@ -137,9 +137,13 @@ NodeCapabilityProducedMediaWriterInterface::write_node_output_media
   -> typed Workflow managed-media output
 ```
 
-The bridge translates Project, kind, provenance, Generation Profile ref, and source Asset IDs. It
-converts `NodeCapabilityProducedMediaOutputKey` into the Asset-owned `AssetNodeOutputKey` and
-exposes no Asset repository, row, path, or preview lease to node code.
+The bridge translates kind, provenance, Generation Profile ref, source Asset IDs, the complete
+`WorkflowNodeExecutionOrigin`, and the Project, Workflow Run, and node-execution coordinates from
+`WorkflowNodeExecutionContext`. It converts
+`NodeCapabilityProducedMediaOutputKey` into the Asset-owned `AssetNodeOutputKey` and constructs
+`AssetWorkflowNodeOrigin` only from those supplied typed coordinates. It performs no Workflow
+repository lookup or producer inference and exposes no Asset repository, row, path, or preview
+lease to node code.
 
 `DesktopWorkflowMediaPreviewAdapterImpl` separately implements `WorkflowMediaPreviewIssuerInterface` over
 `AssetIssuePreviewUseCase`. Asset application types never enter `crates/engine`.

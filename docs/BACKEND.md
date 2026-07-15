@@ -138,15 +138,15 @@ Rules:
 
 The composition root registers exactly these contracts:
 
-| Contract ref | Implementation | External dependency |
+| Contract ref | Implementation | Exact consumed dependencies |
 | --- | --- | --- |
 | `text.provide_literal@1.0` | `ProvideLiteralTextCapabilityImpl` | none |
-| `image.read_asset@1.0` | `ReadImageAssetCapabilityImpl` | managed-media reader |
-| `video.read_asset@1.0` | `ReadVideoAssetCapabilityImpl` | managed-media reader |
-| `audio.read_asset@1.0` | `ReadAudioAssetCapabilityImpl` | managed-media reader |
-| `image.generate_from_text@1.0` | `TextToImageCapabilityImpl` | `TextToImageProviderInterface` |
-| `video.generate_from_image@1.0` | `ImageToVideoCapabilityImpl` | `ImageToVideoProviderInterface` |
-| `audio.synthesize_speech_from_text@1.0` | `TextToSpeechCapabilityImpl` | `TextToSpeechProviderInterface` |
+| `image.read_asset@1.0` | `ReadImageAssetCapabilityImpl` | `NodeCapabilityManagedMediaReaderInterface` |
+| `video.read_asset@1.0` | `ReadVideoAssetCapabilityImpl` | `NodeCapabilityManagedMediaReaderInterface` |
+| `audio.read_asset@1.0` | `ReadAudioAssetCapabilityImpl` | `NodeCapabilityManagedMediaReaderInterface` |
+| `image.generate_from_text@1.0` | `TextToImageCapabilityImpl` | `GenerationProfileCatalog`, `GenerationProfileAvailabilityReaderInterface`, `TextToImageProviderInterface`, `NodeCapabilityProducedMediaWriterInterface` |
+| `video.generate_from_image@1.0` | `ImageToVideoCapabilityImpl` | `GenerationProfileCatalog`, `GenerationProfileAvailabilityReaderInterface`, `NodeCapabilityManagedMediaReaderInterface`, `ImageToVideoProviderInterface`, `NodeCapabilityProducedMediaWriterInterface` |
+| `audio.synthesize_speech_from_text@1.0` | `TextToSpeechCapabilityImpl` | `GenerationProfileCatalog`, `GenerationProfileAvailabilityReaderInterface`, `TextToSpeechProviderInterface`, `NodeCapabilityProducedMediaWriterInterface` |
 
 This supports the complete `Text -> Image -> Video` path and an independent `Text -> Speech` path,
 with imported Image, Video, and Audio inputs. Every registered model-powered capability has a

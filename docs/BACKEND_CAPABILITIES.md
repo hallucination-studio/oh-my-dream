@@ -156,8 +156,16 @@ pub struct WorkflowNodeExecutionContext {
     pub cancellation: NodeCapabilityExecutionCancellation,
 }
 
+pub struct WorkflowNodeExecutionOrigin {
+    pub workflow_id: WorkflowId,
+    pub workflow_revision: WorkflowRevision,
+    pub workflow_node_id: WorkflowNodeId,
+    pub capability_contract_ref: NodeCapabilityContractRef,
+}
+
 pub struct NodeCapabilityExecutionRequest {
     pub context: WorkflowNodeExecutionContext,
+    pub origin: WorkflowNodeExecutionOrigin,
     pub normalized_parameters: NodeCapabilityNormalizedParameters,
     pub inputs: WorkflowNodeInputSet,
 }
@@ -169,7 +177,8 @@ empty issue vector means ready; otherwise it contains 1..=64 unique issues sorte
 target kind, then target bytes. Every external-state issue identifies one parameter key and its typed
 Asset ID or Generation Profile ref. At most one issue is returned per parameter; when several observations could
 apply, the category table order wins. The capability ref comes from the resolved implementation and
-is not duplicated in either request.
+is not duplicated in the readiness request. The execution request carries it only inside the
+frozen producer origin and the capability validates that copy against its resolved implementation.
 
 `NodeCapabilityReadinessDeadline` is a call-scoped monotonic instant supplied by the Workflow
 readiness use case. It exposes `is_reached_at` and `monotonic_instant`, is never serialized or
@@ -181,6 +190,12 @@ persisted. `NodeCapabilityExecutionCancellation` is a cloneable, concurrent sign
 active and idempotently cancelled states. A capability checks cancellation and deadline before each
 external effect and after each await; cancellation wins when both are observed together. Neither
 state authorizes rollback, automatic retry, provider resubmission, or a new Run state.
+
+`WorkflowNodeExecutionOrigin` carries the frozen plan's Workflow ID, non-zero revision, Workflow
+node ID, and exact capability contract ref. It deliberately omits Project, Run, and node-execution
+identity because those already belong to `WorkflowNodeExecutionContext`. A capability requires its
+origin capability ref to equal its own contract ref before any external boundary. The value is not
+sent to a provider request and accompanies every produced-media write unchanged.
 
 `WorkflowNodeInputSet` is a map with at most 64 exact declared input keys. Each value has the exact
 single/ordered shape, stable item identity, role, and runtime type required by the contract; ordered
@@ -234,7 +249,9 @@ native aspect token, or provider seed is an MVP node parameter.
 ## Implementation Shape
 
 ```rust
-pub struct ImageToVideoCapabilityImpl<R, P, W> {
+pub struct ImageToVideoCapabilityImpl<R, A, P, W> {
+    generation_profile_catalog: Arc<GenerationProfileCatalog>,
+    generation_profile_availability_reader: A,
     managed_media_reader: R,
     image_to_video_provider: P,
     produced_media_writer: W,
@@ -245,14 +262,92 @@ pub struct ImageToVideoCapabilityImpl<R, P, W> {
 `ImageToVideoCapabilityImpl`:
 
 1. validates and normalizes its stable parameters;
-2. checks the selected `GenerationProfileRef` and input Asset readiness;
-3. converts Workflow values into `ImageToVideoProviderRequest`;
-4. calls `ImageToVideoProviderInterface::generate_video_from_image`;
-5. validates the `GeneratedVideoPayload`;
-6. stores it through `NodeCapabilityProducedMediaWriterInterface::write_node_output_media`;
+2. checks only the parameter-selected `GenerationProfileRef` during external readiness;
+3. resolves the exact input Image only during execution;
+4. converts Workflow values into `ImageToVideoProviderRequest`;
+5. calls `ImageToVideoProviderInterface::generate_video_from_image`;
+6. stores the already-validated `GeneratedVideoPayload` through
+   `NodeCapabilityProducedMediaWriterInterface::write_node_output_media`;
 7. returns one managed Video in a complete `WorkflowNodeOutputSet`.
 
 It never reads a provider name, route ID, path, URL, Asset repository, or concrete adapter.
+
+### Generation-Capability Readiness
+
+[`BACKEND.md`](BACKEND.md#active-node-capabilities) owns the complete dependency list for each exact
+implementation. Every listed dependency is an independent constructor argument; no generic
+generation context or service bundle groups them.
+
+Readiness first requires the complete normalized parameter shape and successful conversion of its
+`generation_profile_ref` boundary value. Either failure returns only
+`InvalidCapabilityInvocation`. For a converted `GenerationProfileRef`, it then:
+
+1. requires an Active catalog definition compatible with the capability contract;
+2. constructs one `GenerationProfileAvailabilityRequest` with the implementation's exact
+   capability ref, only that selected profile ref, and the readiness request's unchanged monotonic
+   deadline;
+3. performs exactly one availability read and requires exactly one matching observation.
+
+A missing, Retired, or incompatible catalog definition becomes
+`GenerationProfileIncompatible`. Availability state `Available` returns no issue, `Unavailable`
+becomes `GenerationProfileUnavailable`, and `Indeterminate` becomes
+`GenerationProfileAvailabilityIndeterminate`.
+`AvailabilityRequestInvalid`, `AvailabilityReadFailed`, `DeadlineExceeded`, or an observation set
+that would be `InvalidAvailabilityObservation` also becomes
+`GenerationProfileAvailabilityIndeterminate`. Every Generation Profile issue above targets
+`GenerationProfile { parameter_key: generation_profile_ref, generation_profile_ref }`, contains no
+provider detail or retry metadata, and blocks admission. Readiness never resolves runtime inputs,
+calls a provider, writes media, retries, caches, or substitutes a profile. It never truncates or
+replaces the caller's deadline.
+
+### Generation-Capability Execution
+
+Execution accepts only the exact normalized parameters and complete runtime input set declared by
+the resolved contract, plus an origin whose capability ref equals that contract ref. A malformed
+direct call or mismatched origin returns `InvalidCapabilityInvocation` at `ResolveInputs` with
+target `Capability` before an external boundary. It does not repeat catalog or availability reads;
+the selected profile enters the exact provider request unchanged. The complete
+`WorkflowNodeExecutionContext` from the
+execution request also enters that provider request unchanged; a capability never reconstructs or
+replaces its Project, Run, node execution, deadline, or cancellation values.
+
+The exact mappings are:
+
+| Implementation | Provider mapping | Write display name | Write provenance |
+| --- | --- | --- | --- |
+| `TextToImageCapabilityImpl` | `prompt`, selected profile, normalized `aspect_ratio` | `Generated Image` | `ProviderGenerated { profile_ref }` |
+| `ImageToVideoCapabilityImpl` | exact readable Image, optional `prompt`, selected profile, normalized `duration_seconds` | `Generated Video` | `ProviderDerived { source_media_refs: [input image ref], profile_ref }` |
+| `TextToSpeechCapabilityImpl` | `text`, selected profile | `Synthesized Speech` | `ProviderGenerated { profile_ref }` |
+
+Every write uses `NodeCapabilityProducedMediaOutputKey` with the request's Workflow Run ID, node
+execution ID, declared primary output key, and ordinal `0`. The write request carries both the
+execution request's unchanged `WorkflowNodeExecutionContext` and unchanged
+`WorkflowNodeExecutionOrigin`. The payload variant must be
+`GeneratedImage`, `GeneratedVideo`, or `SynthesizedSpeech` respectively. The writer result must be
+the matching Image, Video, or Audio reference and must preserve the payload fingerprint; any writer
+kind mismatch preserves `expected` then `observed` in `NodeCapabilityMediaFailure::KindMismatch`.
+No capability creates another output, display-name parameter, provider metadata, or Asset directly.
+
+Cancellation and deadline are checked before every external call and after every await;
+cancellation wins when both are observed. Image input resolution failures use stage `ResolveInputs`
+and target `Input(image)`. Provider failures use `CallProvider` and target `Capability`. Produced
+media writer boundary failures use `WriteManagedMedia` and the declared output target.
+Provider and media boundary categories are preserved exactly once; no failure triggers retry,
+provider resubmission, fallback, cleanup, or a second write.
+
+For the fixed C4 values, `InvalidDisplayName`, `InvalidOutputCoordinates`, or
+`InvalidProvenance` while constructing the write request becomes
+`NodeCapabilityExecutionFailure::InvalidCapabilityResult` at
+`ValidateProviderResult` with the declared output target. A returned reference of another media
+kind becomes `KindMismatch { expected, observed }`; a matching-kind reference with another
+fingerprint becomes `DigestMismatch`. Both are `WriteManagedMedia` failures with the declared
+output target. The capability retains the payload digest solely for this comparison. These mappings
+surface a broken boundary without panic and do not turn an implementation defect into
+`InvalidCapabilityInvocation`.
+
+After a valid invocation produces all declared runtime values, every capability constructs its
+complete `WorkflowNodeOutputSet` exactly once. C3 and C4 implementations use the output-assembly
+failure rule defined below.
 
 ## MVP External Interfaces
 
@@ -378,7 +473,8 @@ fields. `NodeCapabilityProducedMediaProvenance` is exactly `ProviderGenerated { 
 source references. There is no deterministic-derived variant in the active generated capabilities.
 
 `NodeCapabilityProducedMediaWriteRequest` contains `WorkflowNodeExecutionContext`, the exact output
-key, a validated 1..=80-scalar `NodeCapabilityProducedMediaDisplayName`, one provenance value, and exactly one
+key, the unchanged `WorkflowNodeExecutionOrigin`, a validated 1..=80-scalar
+`NodeCapabilityProducedMediaDisplayName`, one provenance value, and exactly one
 `GeneratedImagePayload`, `GeneratedVideoPayload`, or `SynthesizedSpeechPayload`. Output-key Run and
 node-execution coordinates must match the request's `WorkflowNodeExecutionContext`, which is also
 carried for deadline/cancellation. Construction rejects mismatch as
@@ -505,10 +601,10 @@ The closed parameter categories are `UnknownParameter`, `RequiredParameterMissin
 `ManagedAssetKindMismatch`, `ManagedAssetReadinessIndeterminate`,
 `GenerationProfileIncompatible`, `GenerationProfileUnavailable`, and
 `GenerationProfileAvailabilityIndeterminate`. Execution stages are `ResolveInputs`, `CallProvider`,
-`ValidateProviderResult`, and `WriteManagedMedia`; normalization has its own pre-admission result.
-`NodeCapabilityExecutionError` wraps one invalid-invocation, readiness, provider, media,
-cancellation, or deadline category with contract ref, node execution ID, stage, and a structured
-safe target.
+`ValidateProviderResult`, `WriteManagedMedia`, and `AssembleOutputs`; normalization has its own
+pre-admission result.
+`NodeCapabilityExecutionError` wraps one `NodeCapabilityExecutionFailure` with contract ref, node
+execution ID, stage, and a structured safe target.
 
 The error values are closed and field-exact:
 
@@ -529,12 +625,15 @@ The error values are closed and field-exact:
   `NodeCapabilityExecutionFailure`, and `NodeCapabilityExecutionTarget` (`Capability`, parameter key,
   input key, or output key). Its failure is exactly Readiness, Provider, Media, Cancelled, or
   DeadlineExceeded, plus `InvalidCapabilityInvocation` only when a direct execution request does not
-  satisfy the already-resolved capability's normalized-parameter/input contract.
+  satisfy the already-resolved capability's normalized-parameter/input contract or carries another
+  capability contract ref in its origin, and `InvalidCapabilityResult` only when capability-owned
+  fixed result construction or final output-set validation fails.
 
 Construction rejects an execution target inconsistent with its stage: ResolveInputs targets a
-parameter, input, or capability; CallProvider targets the capability; result validation/media write
-targets an output or capability. Readiness targets `Capability` only for invalid invocation and a
-declared parameter for every external-state issue. Cancellation/deadline use
+parameter, input, or capability; CallProvider targets the capability; result validation and media
+write target an output or capability; output assembly targets only an output. Readiness targets
+`Capability` only for invalid invocation and a declared parameter for every external-state issue.
+Cancellation/deadline use
 the operation target active when observed; no absent-key convention carries target meaning.
 
 `InvalidCapabilityInvocation` is non-retryable, has stage `ResolveInputs` and target `Capability`,
@@ -542,6 +641,11 @@ and carries no field, message, supplied value, or validation detail. It is never
 parameters before admission, provider responses, media failures, or internal adapter failures. Its
 only purpose is to let a capability reject a malformed direct trait invocation without panic,
 provider dispatch, media read/write, or misclassifying the failure as another business category.
+
+`InvalidCapabilityResult` is non-retryable and carries no internal error, message, or invalid
+value. Fixed write-request construction uses `ValidateProviderResult`; final output-set validation
+uses `AssembleOutputs`. Both target the declared output. It never represents provider rejection,
+media boundary failure, cancellation, deadline, or caller input.
 
 Asset-read readiness maps reader outcomes exactly once: `Unavailable` becomes
 `ManagedAssetUnavailable`; `KindMismatch { expected, observed }` becomes
