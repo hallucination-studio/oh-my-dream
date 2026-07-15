@@ -1,313 +1,367 @@
-# Backend MVP Desktop Application
+# Backend Desktop Application Architecture
 
-> Status: proposed MVP design
+> Status: frozen MVP design
 > Owner: `src-tauri`
-> Scope: Tauri boundary, task hosting, preview protocol, and composition root
+> Scope: Tauri admission, DTOs, cross-context bridges, post-commit effects, protocols, and composition
 
-Naming follows [`BACKEND_GLOSSARY.md`](BACKEND_GLOSSARY.md). Desktop is an application host and
-infrastructure boundary, not a semantic owner of Workflow or Asset rules.
+Desktop is an application host and infrastructure boundary. It owns no Workflow, Asset, Node
+Capability, Generation Profile, or Assistant business transition.
 
 ## Responsibility
 
-The Desktop host exposes Rust-authoritative behavior to React. It owns Tauri command admission,
-trusted Project context, DTO translation, process-owned Run tasks, event delivery, preview streaming,
-configuration loading, and concrete adapter construction.
+The Desktop host:
 
-Workflow and Asset application use cases live with their bounded contexts. Tauri commands invoke
-those use cases; they do not become a second application layer.
+- attaches trusted Project and process context to untrusted DTOs;
+- invokes one named application use case per command;
+- translates domain/application values to boundary DTOs;
+- consumes the three closed post-commit effect types;
+- bridges consumer-owned interfaces across bounded contexts;
+- emits only committed Run events;
+- serves short-lived Asset preview access;
+- loads configuration and credentials;
+- constructs every concrete adapter in one composition root.
 
-## Capability-Oriented Structure
+Tauri commands are thin entry points, not a second application layer.
+
+## Capability-Oriented Layout
 
 ```text
 src-tauri/src/
+  projects/
+    commands.rs       create, rename, get, list, and open
+    dto.rs
+    translation.rs
+    sqlite.rs         Project repository adapter
+    workflow_bridge.rs
   workflow/
-    commands.rs       Tauri entry points
-    dto.rs            request and response DTOs
+    commands.rs       source-first Tauri commands
+    dto.rs            Workflow request/response DTOs
     translation.rs    DTO/application conversion
     sqlite.rs         Workflow persistence adapters
-    task_host.rs       process-owned Run task hosting
-    events.rs          Tauri event adapter
+    events.rs          committed-event publisher adapter
   assets/
     commands.rs
     dto.rs
     translation.rs
     sqlite.rs
-    node_bridge.rs     node-owned media port adapter
-    preview.rs         local protocol adapter
+    node_bridge.rs     node-owned media interface adapter
+    preview.rs         local preview protocol adapter
   generation_profiles/
     commands.rs
     dto.rs
-    translation.rs
+    availability.rs
   generation_providers/
     configuration.rs
-    credentials.rs      encrypted SQLite provider credential adapter
+    credentials.rs     operating-system credential-vault adapters
+  assistant/
+    commands.rs
+    dto.rs
+    translation.rs
+    adapters/
   storage/
-    sqlite/           connection and migration mechanics
-    configuration/    non-secret config-file adapter
-  assistant/           existing boundary, unchanged
-  configuration.rs     validated Desktop MVP configuration
-  composition.rs       only concrete adapter construction point
-  lib.rs               command, event, and protocol registration
+    sqlite/
+    managed_content/
+    configuration/
+  configuration.rs
+  post_commit_effects.rs  closed effect outbox and one worker
+  composition.rs       only concrete construction point
+  lib.rs               command/event/protocol registration only
 ```
 
-The host is grouped by business capability, not global controller/service/repository/DTO folders.
+There are no global `controllers`, `services`, `repositories`, `models`, or `dto` directories.
 
-## Tauri Command Pattern
+## Command Admission Pattern
 
 ```text
-deserialize bounded *RequestDto
-  -> attach trusted Project context
-  -> translate to *Command or *Query
-  -> invoke one *UseCase
-  -> translate *Result, *View, or structured error to *Dto
+deserialize bounded <Module><Behavior>RequestDto
+  -> validate transport shape and limits
+  -> resolve ProjectId through ProjectGetUseCase when Project-scoped
+  -> attach trusted Project/session/file-handle context
+  -> translate to <Module><Behavior>Command or Query
+  -> invoke one <Module><Behavior>UseCase method
+  -> translate result or structured error once
 ```
 
-Commands never call SQLite, the filesystem, a provider route, or a capability implementation directly. They do
-not duplicate graph compatibility, parameter normalization, Asset visibility, or legal transitions.
+Commands never call SQLite, filesystem, provider route, capability implementation, or Python
+handler directly. They never duplicate graph compatibility, parameter normalization, Asset
+visibility, profile compatibility, review evidence, or legal transitions.
 
-## MVP Command Surface
+## Frozen Tauri Surface
 
-| Tauri command | Boundary input | Application target |
+| Command | Boundary input | Application target |
 | --- | --- | --- |
-| `create_workflow` | `CreateWorkflowRequestDto` | `CreateWorkflowUseCase` |
-| `get_workflow` | `GetWorkflowRequestDto` | `GetWorkflowUseCase` |
-| `apply_workflow_mutation` | `ApplyWorkflowMutationRequestDto` | `ApplyWorkflowMutationUseCase` |
-| `validate_workflow_readiness` | `ValidateWorkflowReadinessRequestDto` | `ValidateWorkflowReadinessUseCase` |
-| `list_node_capabilities` | `ListNodeCapabilitiesRequestDto` | `ListNodeCapabilitiesUseCase` |
-| `get_node_capability` | `GetNodeCapabilityRequestDto` | `GetNodeCapabilityUseCase` |
-| `list_node_capability_generation_profiles` | `ListNodeCapabilityGenerationProfilesRequestDto` | `ListNodeCapabilityGenerationProfilesUseCase` |
-| `start_workflow_run` | `StartWorkflowRunRequestDto` | `StartWorkflowRunUseCase` |
-| `start_workflow_node_run` | `StartWorkflowNodeRunRequestDto` | `StartWorkflowRunUseCase` |
-| `cancel_workflow_run` | `CancelWorkflowRunRequestDto` | `CancelWorkflowRunUseCase` |
-| `get_workflow_run` | `GetWorkflowRunRequestDto` | `GetWorkflowRunUseCase` |
-| `get_workflow_run_events` | `GetWorkflowRunEventsRequestDto` | `GetWorkflowRunEventsUseCase` |
-| `get_workflow_node_presentation` | `GetWorkflowNodePresentationRequestDto` | `GetWorkflowNodePresentationUseCase` |
-| `import_asset` | `ImportAssetRequestDto` | `ImportAssetUseCase` |
-| `get_asset` | `GetAssetRequestDto` | `GetAssetUseCase` |
-| `list_assets` | `ListAssetsRequestDto` | `ListAssetsUseCase` |
-| `issue_asset_preview` | `IssueAssetPreviewRequestDto` | `IssueAssetPreviewUseCase` |
+| `project_create` | `ProjectCreateRequestDto` | `ProjectCreateUseCase` |
+| `project_rename` | `ProjectRenameRequestDto` | `ProjectRenameUseCase` |
+| `project_get` | `ProjectGetRequestDto` | `ProjectGetUseCase` |
+| `project_list` | `ProjectListRequestDto` | `ProjectListUseCase` |
+| `project_open` | `ProjectOpenRequestDto` | `ProjectOpenUseCase` |
+| `workflow_create` | `WorkflowCreateRequestDto` | `WorkflowCreateUseCase` |
+| `workflow_get_current` | `WorkflowGetCurrentRequestDto` | `WorkflowGetCurrentUseCase` |
+| `workflow_apply_mutation` | `WorkflowApplyMutationRequestDto` | `WorkflowApplyMutationUseCase` |
+| `workflow_check_readiness` | `WorkflowCheckReadinessRequestDto` | `WorkflowCheckReadinessUseCase` |
+| `workflow_start_run` | `WorkflowStartRunRequestDto` | `WorkflowStartRunUseCase` |
+| `workflow_cancel_run` | `WorkflowCancelRunRequestDto` | `WorkflowCancelRunUseCase` |
+| `workflow_get_run` | `WorkflowGetRunRequestDto` | `WorkflowGetRunUseCase` |
+| `workflow_list_run_events` | `WorkflowListRunEventsRequestDto` | `WorkflowListRunEventsUseCase` |
+| `workflow_get_node_presentation` | `WorkflowGetNodePresentationRequestDto` | `WorkflowGetNodePresentationUseCase` |
+| `node_capability_list` | `NodeCapabilityListRequestDto` | `NodeCapabilityListUseCase` |
+| `generation_profile_list_for_capability` | `GenerationProfileListForCapabilityRequestDto` | `GenerationProfileListForCapabilityUseCase` |
+| `asset_import` | `AssetImportRequestDto` | `AssetImportUseCase` |
+| `asset_get` | `AssetGetRequestDto` | `AssetGetUseCase` |
+| `asset_list` | `AssetListRequestDto` | `AssetListUseCase` |
+| `asset_issue_preview` | `AssetIssuePreviewRequestDto` | `AssetIssuePreviewUseCase` |
+| `assistant_send_message` | `AssistantSendMessageRequestDto` | `AssistantSendMessageUseCase` |
+| `assistant_get_pending_workflow_change` | `AssistantGetPendingWorkflowChangeRequestDto` | `AssistantGetPendingWorkflowChangeUseCase` |
+| `assistant_decide_workflow_change` | `AssistantDecideWorkflowChangeRequestDto` | `AssistantDecideWorkflowChangeUseCase` |
 
-`start_workflow_run` maps to `WorkflowRunScope::WholeWorkflow`; `start_workflow_node_run` maps to
-`WorkflowRunScope::ThroughNode`. Both return a durable queued `WorkflowRunDto` before provider work
-finishes.
+`WorkflowStartRunRequestDto` contains one closed `WorkflowRunScopeDto` (`WholeWorkflow` or
+`ThroughNode`). There is no duplicate through-node command. It returns a durable queued
+`WorkflowRunDto` before external work begins.
+
+Mutating requests carry stable request IDs. DTO validation checks shape and transport bounds;
+domain owners validate meaning and repositories enforce idempotency receipts.
+
+## Project Boundary
+
+`ProjectId` comes from `crates/projects`. Project-scoped DTO references are untrusted until
+`ProjectGetUseCase` resolves them. The Desktop boundary then passes the resolved ID to exactly one
+target use case; there is no process-global active Project.
+
+`ProjectOpenUseCase` calls `ProjectWorkflowSummaryReaderInterface`, implemented by
+`DesktopProjectWorkflowBridgeAdapterImpl` over `WorkflowGetCurrentUseCase`. The bridge returns only a
+Project-owned summary. If none exists, `workflow_create` creates the Project's single current
+Workflow; Workflow persistence atomically rejects a second one.
 
 ## Workflow Editing Boundary
 
-`ApplyWorkflowMutationUseCase` receives `ApplyWorkflowMutationCommand`, loads one
-`WorkflowAggregate`, invokes its transition, and stores the new snapshot through revision
-compare-and-swap. A revision conflict never overwrites newer state.
+```text
+WorkflowApplyMutationRequestDto
+  -> WorkflowApplyMutationCommand + trusted Project scope
+  -> WorkflowApplyMutationUseCase::apply_workflow_mutation
+  -> WorkflowAggregate transition
+  -> WorkflowAggregateRepositoryInterface::commit_workflow_mutation
+  -> WorkflowDto + WorkflowReadinessIssueDto values
+```
 
-React submits a closed operation list rather than its complete editor state. The same use case is
-available to approved Assistant edits. Node canvas position persists, while selection, viewport,
-drag, menus, preview URLs, and playback remain client state.
+React submits a closed action list, never its entire editor store. The same canonical use case is
+used by `DesktopAssistantWorkflowBridgeAdapterImpl` after approval. Canvas position persists, while
+selection, viewport, dragging, menus, previews, and playback remain React state.
 
 ## Run Coordination
 
-`StartWorkflowRunUseCase` performs the admission transaction:
+`WorkflowStartRunUseCase` atomically persists the queued Run and one `WorkflowExecuteRunEffect`,
+then returns. `DesktopPostCommitEffectWorker` consumes that effect and calls
+`WorkflowExecuteRunUseCase`.
 
-```text
-load current WorkflowAggregate and verify the requested revision
-  -> validate readiness and build WorkflowExecutionPlanValue
-  -> commit queued WorkflowRunAggregate + node executions + first event
-  -> return StartWorkflowRunResult
-```
+The worker owns task handles, cancellation signals, effect delivery, and one configured concurrency
+limit. It owns no business state, generic queue, or status setter. Startup converts non-terminal
+Runs to `InterruptedByRestart` and abandons their unsafe Run effects.
 
-After commit, `DesktopWorkflowRunTaskHost` starts `ExecuteWorkflowRunUseCase` in a process-owned
-task. That use case advances `WorkflowRunAggregate` and `WorkflowNodeExecutionEntity` through domain
-methods, persists each transition/event, resolves the exact implementation through
-`WorkflowNodeCapabilityRegistry`, and calls `WorkflowNodeCapabilityPort::execute`.
+`WorkflowExecuteRunUseCase` resolves exact implementations from the injected
+`WorkflowNodeCapabilityRegistry`. Provider/filesystem calls occur outside SQLite transactions.
 
-Independent branches may execute concurrently within one configured limit. The frozen plan, not
-task timing, determines input/output association. No database transaction remains open during a
-provider call.
-
-`CancelWorkflowRunUseCase` records cancellation before the task host signals active tokens. Late
-outputs are rejected when cancellation wins. On startup, the task host converts every non-terminal
-MVP Run to a structured interrupted failure; queued work and remote provider tasks are not resumed.
+`WorkflowCancelRunUseCase` commits cancellation intent before the worker signals active tokens. A
+late node output is accepted only if the Run aggregate still permits its transition.
 
 ## Node-To-Asset Bridge
 
-`DesktopNodeAssetBridgeAdapter` implements both node-owned media ports:
+`DesktopNodeCapabilityAssetBridgeAdapterImpl` implements both node-consumer interfaces:
 
 ```text
-NodeCapabilityManagedMediaReaderPort
-  -> ResolveAssetContentUseCase
-  -> Workflow managed-media reference
+NodeCapabilityManagedMediaReaderInterface::read_managed_media
+  -> AssetResolveContentUseCase::resolve_asset_content
+  -> typed Workflow managed-media input
 
-NodeCapabilityProducedMediaWriterPort
-  -> RecordNodeProducedAssetUseCase
+NodeCapabilityProducedMediaWriterInterface::write_node_output_media
+  -> AssetRecordNodeOutputUseCase::record_asset_node_output
+  -> AssetFinalizeContentUseCase::finalize_asset_content after the effect commit
   -> Available AssetAggregate
-  -> Workflow managed-media reference
+  -> typed Workflow managed-media output
 ```
 
-The adapter translates Project identity and produced-media origin explicitly. It never gives node code an
-Asset repository, SQLite connection, path, or preview URL.
+The bridge translates Project, kind, provenance, Generation Profile ref, and source Asset IDs. It
+converts `NodeCapabilityProducedMediaOutputKey` into the Asset-owned `AssetNodeOutputKey` and
+exposes no Asset repository, row, path, or preview lease to node code.
 
-`DesktopWorkflowMediaPreviewAdapter` separately implements `WorkflowMediaPreviewIssuerPort` over
-`IssueAssetPreviewUseCase`. It translates `AssetPreviewLease` into a Workflow-owned opaque preview
-handle; no Asset application type enters `crates/engine`.
+`DesktopWorkflowMediaPreviewAdapterImpl` separately implements `WorkflowMediaPreviewIssuerInterface` over
+`AssetIssuePreviewUseCase`. Asset application types never enter `crates/engine`.
 
-## Durable State Before External Effects
+## Assistant Bridges
 
-The MVP has two required orderings:
+`DesktopAssistantWorkflowBridgeAdapterImpl` implements Assistant-owned read/evaluate/apply/Run interfaces by
+calling canonical Workflow use cases. `DesktopAssistantWorkspaceBridgeAdapterImpl` composes bounded
+Workflow, Asset, capability, profile, and Run projections through their public queries.
 
-1. `WorkflowRunAggregate` is durably Queued before provider dispatch.
-2. `AssetAggregate` and its managed-content finalization are durably Pending before content is
-   published.
+The Assistant sidecar adapter receives only Rust-generated tool schemas and trusted invocation
+context. Tool calls return to typed Rust handlers. Python never receives a repository, path, raw
+credential, canonical mutation command, or direct Run-start operation.
 
-SQLite and filesystem/network work are not presented as one transaction. Asset finalization is
-idempotent and bounded startup recovery processes Pending work. A node succeeds only after the Asset
-bridge returns an available managed reference.
-
-## Node Presentation
-
-`GetWorkflowNodePresentationUseCase` assembles `WorkflowNodePresentationView` from:
+After exact approval:
 
 ```text
-WorkflowNodeEntity + NodeCapabilityContract
-  + WorkflowReadinessIssueValue values
-  + latest WorkflowNodeExecutionEntity
-  + latest WorkflowNodeOutputSet
-  + optional WorkflowMediaPreviewValue
+AssistantDecideWorkflowChangeUseCase
+  -> AssistantWorkflowMutationApplierInterface
+  -> WorkflowApplyMutationUseCase
+  -> AssistantWorkflowRunStarterInterface
+  -> WorkflowStartRunUseCase
+  -> WorkflowExecuteRunEffect
+  -> DesktopPostCommitEffectWorker
 ```
 
-`WorkflowNodePresentationDto` has Text, Image, Video, and Audio variants. It is a projection, not a
-second domain node and never valid input to `apply_workflow_mutation`.
+This is the only Assistant execution path. Repair begins from committed Workflow Run facts and
+re-enters the same candidate/review/approval chain.
 
-## Preview Protocol
+## Durable State Before Effects
 
-`DesktopAssetPreviewProtocolAdapter` resolves `AssetPreviewLease` for each request, rechecks Project
-scope and expiry, and streams verified MIME. Video and audio support one valid byte Range. Managed
-paths never leave the adapter.
+The Desktop host enforces these orderings:
 
-React owns image zoom, video/audio controls, playback position, volume, and object URL lifetime.
+1. Workflow snapshot and mutation receipt before returning the mutation result.
+2. Queued Run, node executions, event, request receipt, and Run effect in one transaction.
+3. Node/Run transition and event before Tauri emission.
+4. Pending Asset, finalization, and Asset effect before managed-byte publication.
+5. Assistant approval decision and Assistant effect before canonical apply/resume.
+
+SQLite and filesystem/provider/sidecar work are never described as one transaction. Recovery uses
+idempotency receipts, Pending Asset finalization, durable Run events, and conservative interruption.
+
+The outbox is a closed boundary union, not a job framework:
+
+```rust
+pub enum DesktopPostCommitEffect {
+    Workflow(WorkflowExecuteRunEffect),
+    Asset(AssetFinalizeContentEffect),
+    Assistant(AssistantApplyWorkflowChangeEffect),
+}
+```
+
+Workflow Run effects are abandoned after restart if their Run was non-terminal. Asset effects are
+idempotently replayed by exact finalization ID. Assistant effects are replayed through mutation and
+Run request receipts. No arbitrary kind, payload, handler registration, or public task API exists.
+
+Asset import and node-output use cases claim their just-committed finalization immediately and call
+`AssetFinalizeContentUseCase`. The worker handles only an unfinished or recovered Asset effect.
+This keeps publication after commit without making an executing Run wait on its own worker slot.
+
+## Node Presentation And Preview
+
+`WorkflowGetNodePresentationUseCase` creates `WorkflowNodePresentationView` from the canonical node,
+contract, readiness, latest relevant execution/output, and optional preview.
+
+`WorkflowNodePresentationDto` has only the four MVP variants: Text, Image, Video, and Audio. It is a
+projection and is never valid input to `workflow_apply_mutation`.
+
+`DesktopAssetPreviewProtocolAdapterImpl` validates each `AssetPreviewLease`, signature, expiry, Project,
+current Asset state, and descriptor. Video and Audio support one bounded Range. Managed paths never
+leave the adapter. React owns rendering and playback state.
 
 ## Event Delivery
 
-`TauriWorkflowRunEventPublisherAdapter` implements `WorkflowRunEventPublisherPort`. It emits
-`WorkflowRunEventDto` only after the event record is committed.
+Committed `WorkflowRunEvent` rows are their own delivery outbox. The post-commit worker passes only
+undispatched rows to `TauriWorkflowRunEventPublisherAdapterImpl`, then records the delivery attempt.
 
 ```text
 workflow_run_id, sequence, workflow_node_id?, event_kind,
 progress?, structured_error?, occurred_at
 ```
 
-Sequence is monotonic per Workflow Run. React deduplicates and repairs a gap through
-`get_workflow_run_events(after_sequence, limit)`. Terminal state remains queryable through `get_workflow_run`.
-Progress may be coalesced; state transitions and terminal errors remain durable.
+Sequence is monotonic per Run. React deduplicates and repairs a gap through
+`workflow_list_run_events(after_sequence, limit)`. Progress may be coalesced at the projection
+boundary; state transitions and terminal errors remain durable and queryable.
 
 ## Composition Root
 
-`DesktopCompositionRoot` in `composition.rs` is the only place that names concrete adapters:
+`DesktopCompositionRoot` in `composition.rs` is the only code that names concrete adapters:
 
 ```text
-load and validate DesktopBackendConfig
-  -> open, verify, and migrate storage
-  -> construct SqliteEncryptedProviderCredentialRepositoryAdapter
-  -> load and decrypt configured provider credentials
-  -> construct SQLite Workflow and Asset repository adapters
-  -> construct filesystem content and media-inspection adapters
-  -> construct Asset use cases
-  -> construct DesktopNodeAssetBridgeAdapter and DesktopWorkflowMediaPreviewAdapter
-  -> construct the generation-profile catalog
-  -> construct deterministic or configured provider routes and routers
-  -> construct generation-profile availability and query adapters
-  -> construct exact WorkflowNodeCapabilityPort implementations and one registry
-  -> construct Workflow use cases and DesktopWorkflowRunTaskHost
-  -> register commands, event adapter, and preview protocol adapter
+validate DesktopBackendConfig
+  -> open/migrate SQLite and managed-content roots
+  -> connect generation-provider and Assistant OS credential vault adapters
+  -> construct Project, Workflow, Asset, and Assistant repositories
+  -> construct Project use cases and DesktopProjectWorkflowBridgeAdapterImpl
+  -> construct Asset storage/inspection use cases
+  -> construct node/Asset and Workflow-preview bridges
+  -> construct the frozen Generation Profile catalog
+  -> construct deterministic/configured provider routes and three exact routers
+  -> construct profile availability reader
+  -> construct exactly seven Node Capability implementations and one registry
+  -> construct Workflow use cases and DesktopPostCommitEffectWorker
+  -> construct Assistant aggregates/use cases, Workflow bridges, and model runner adapter
+  -> reconcile Pending Assets and interrupt non-terminal Runs
+  -> register commands, post-commit effects, sidecar transport, and preview protocol
 ```
 
-`DesktopApplicationHost` contains already-constructed use cases and task hosts required by Tauri
-commands. It is not a service locator: commands access typed fields and business code never receives
-`DesktopApplicationHost`. Tests construct the same dependency graph with deterministic adapters
-without starting Tauri.
+`DesktopApplicationHost` contains typed, already-constructed command dependencies. It is not a
+service locator and is never passed into business code. Tests build the same graph with deterministic
+adapters without starting Tauri.
 
-## Constructor Injection Rules
+## Configuration And Credentials
 
-- every `*UseCase` receives focused `*Port` dependencies in `new`;
-- every `*Adapter` receives validated configuration and lower-level boundary dependencies in `new`;
-- Project, request, deadline, cancellation, and Run identity are call-scoped inputs;
-- no mutable global, runtime adapter lookup, downcast, or concrete type appears in business code;
-- no optional port method represents unsupported behavior;
-- deterministic and production adapters run the same port contract suites.
+`DesktopBackendConfig` contains non-secret locations, bounds, concurrency, provider route entries,
+profile mappings, credential IDs, availability/polling limits, preview expiry, Assistant model
+selection, and protocol budgets. It does not contain API keys.
 
-## Configuration
+Configuration is validated once at startup. Missing provider credentials make only affected
+Generation Profiles unavailable. Missing Assistant credentials disable only Assistant commands.
 
-`DesktopBackendConfig` selects managed content location and limits, enabled provider accounts,
-regions, route policy, provider deadlines, polling and availability-probe bounds, global Run
-concurrency, and preview lease expiry. The composition root may register multiple equivalent
-routes for one exact generation profile; configuration does not select one global model per
-capability.
-
-Configuration is validated once at startup. Missing provider wiring makes only the affected
-generation profiles currently unavailable; it does not remove capability or profile definitions.
-`DesktopBackendConfig` connects each `ProviderAccountId` to a `ProviderCredentialId`; it contains no
-API key.
-`DesktopProviderCredentialRepositoryPort` reads and writes authenticated ciphertext in SQLite.
-Plaintext credentials exist only as short-lived `ProviderCredentialSecretValue` values and never
-enter DTOs or logs. Nodes persist an exact provider-independent `GenerationProfileRef` and cannot
-override endpoints, credentials, providers, native model IDs, or route priority.
+`GenerationProviderCredentialVaultInterface` and `AssistantModelCredentialVaultInterface` are separate
+consumer-owned interfaces even when one OS adapter implements both. Production secrets live in the
+operating-system credential store. Plaintext is call-scoped and never enters SQLite, config, DTOs,
+errors, or logs.
 
 ## Representation Boundaries
 
-Named translations keep layers separate:
+Named translators keep models separate:
 
 ```text
-ApplyWorkflowMutationRequestDto -> ApplyWorkflowMutationCommand
-WorkflowAggregate              -> WorkflowDto
-WorkflowRunAggregate           -> WorkflowRunDto
-WorkflowRunEvent               -> WorkflowRunEventDto
-NodeCapabilityContract         -> NodeCapabilityContractDto
-NodeCapabilityGenerationProfileView -> NodeCapabilityGenerationProfileDto
+WorkflowApplyMutationRequestDto -> WorkflowApplyMutationCommand
+ProjectAggregate                 -> ProjectDto
+ProjectWorkspaceView             -> ProjectWorkspaceDto
+WorkflowRunAggregate            -> WorkflowRunDto
+WorkflowRunEvent                -> WorkflowRunEventDto
+NodeCapabilityContract          -> NodeCapabilityContractDto
 GenerationProfileAvailabilityObservation -> GenerationProfileAvailabilityDto
-AssetAggregate                 -> AssetDto
-WorkflowNodePresentationView   -> WorkflowNodePresentationDto
-SqliteWorkflowAggregateRow               -> WorkflowAggregate
-SqliteWorkflowRunAggregateRow + children -> WorkflowRunAggregate
-SqliteAssetAggregateRow                  -> AssetAggregate
-SqliteProviderCredentialRow              -> ProviderCredentialSecretValue
+AssetAggregate                  -> AssetDto
+AssistantWorkflowChangeAggregate -> AssistantPendingWorkflowChangeDto
+
+SqliteWorkflowRow               -> WorkflowAggregate
+SqliteProjectRow                -> ProjectAggregate
+SqliteWorkflowRunRow + children -> WorkflowRunAggregate
+SqliteAssetRow                  -> AssetAggregate
+SqliteAssistantWorkflowChangeRow -> AssistantWorkflowChangeAggregate
 ```
 
-DTO validation checks shape and transport bounds. Domain owners enforce business semantics. A Row,
-provider DTO, path, storage key, credential, or provider task ID is never returned to React.
-
-Complete storage topology and lifecycle are defined in
-[`BACKEND_STORAGE.md`](BACKEND_STORAGE.md).
-
-## Assistant Boundary
-
-The existing Python Assistant remains a catalog consumer. It uses the Rust-authoritative capability
-catalog, Workflow mutation/review, and Run commands; it does not maintain an Assistant-specific
-operation or provider list.
+A persistence row, provider DTO, SDK state, credential, path, route ID, or provider task ID is never
+returned to React.
 
 ## Error Translation
 
-Tauri translates structured context errors once into `DesktopErrorDto`:
+Tauri translates a structured context error once into `DesktopErrorDto`:
 
 ```text
 { code, message, retryable, retry_after?, target?, details?, correlation_id? }
 ```
 
 Structured fields are contractual; `message` is safe presentation text. Unknown failures use an
-internal code and correlation ID. Logs include stable typed IDs where relevant and exclude secrets,
-provider bodies, signed URLs, and unnecessary paths.
+internal code and correlation ID. Logs include stable typed IDs and exclude secrets, model prompts,
+provider bodies, signed URLs, opaque SDK state, and unnecessary paths.
 
 ## Verification
 
-- command tests cover DTO bounds, trusted Project context, and error translation;
-- use-case tests use fake ports without Tauri;
-- transaction tests prove queued Run before dispatch and Pending Asset before finalization;
-- task-host tests cover scheduling, concurrency, cancellation, and interrupted startup;
-- event tests cover sequence, duplicate/gap recovery, progress, and terminal state;
+- command tests cover DTO bounds, trusted context, source-first routing, and error translation;
+- Project command/bridge tests cover create, rename, list, open, isolation, and one current Workflow;
+- use-case tests use fake interfaces without Tauri;
+- transaction tests prove every durable-before-effect ordering;
+- post-commit worker tests cover the three effect types, concurrency, cancellation, and restart policy;
+- bridge tests prove exact cross-context translation without copied semantics;
+- event tests cover sequence, emission failure, duplicate/gap repair, and terminal query;
 - preview tests cover Project isolation, expiry, MIME, Range, and path non-disclosure;
-- composition tests prove every registered contract has one complete capability implementation;
-- generation-profile query tests prove compatibility, live availability, pagination, expiry, and
-  provider detail redaction;
-- end-to-end tests exercise every capability family and preview every Workflow output type.
+- composition tests assert exactly seven active capabilities and three exact provider routers;
+- Assistant E2E proves proposal -> review -> approval -> canonical apply -> canonical Run -> repair;
+- contract fixtures prove Rust, Python, and TypeScript DTO/schema alignment.
 
 ## Post-MVP
 
-Separate layout revisions, durable backend undo, remote task resume, worker leases, user-defined
-provider accounts, explicit provider choice, advanced Asset management, multiview, caching, and
-batches are deferred. Per-node generation-profile selection is core behavior. 3D and scene use
-cases are not product scope.
+New roadmap capabilities, Project archive/delete/duplicate, remote task resume, server/background
+workers, provider choice, dynamic plugins, durable backend undo/history, cross-Run cache, advanced
+Asset lifecycle, multi-device Assistant coordination, cloud sync, 3D, and scenes remain outside the
+frozen Desktop surface.

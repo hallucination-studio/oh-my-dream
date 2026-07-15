@@ -1,355 +1,383 @@
-# Backend Architecture
+# Backend MVP Architecture
 
-> Status: proposed target architecture
-> Scope: Rust backend for provider-independent creative Workflows
+> Status: frozen MVP architecture
+> Owner: backend architecture as a whole
+> Scope: one local, provider-independent creative Workflow loop
 
 ## Purpose
 
-The backend supports one durable local creation loop across exact content operations:
+The backend has one closed business loop:
 
 ```text
-select an exact generation, transformation, analysis, or Asset-read capability
-  -> edit and connect a typed graph
-  -> save and reopen it
-  -> run the graph or one node with its dependencies
-  -> persist generated and derived media
-  -> preview scalar media, image sequences, and structured storyboards
+author or import inputs
+  -> create or open a Project
+  -> edit its one typed Workflow
+  -> select a stable Generation Profile on each model-powered node
+  -> persist a Run before external work
+  -> execute exact Node Capabilities
+  -> persist media as Assets
+  -> attach outputs to the Run
+  -> publish durable progress
+  -> reopen and preview the result
 ```
 
-The architecture applies DDD and explicit dependency injection at real business and external
-boundaries. Exact capability semantics remain independent from provider topology, storage, and UI.
+The MVP is intentionally smaller than the target capability roadmap. Only the capabilities and
+commands named in this document are registered. A roadmap name is not a runtime contract, public
+API, database record, or promise of provider support.
 
 ## Document Map
 
-| Document | Authority |
+| Document | Single authority |
 | --- | --- |
-| [`BACKEND_GLOSSARY.md`](BACKEND_GLOSSARY.md) | authoritative English terms, type naming, layers, and role suffixes |
-| [`BACKEND_WORKFLOW_GRAPH.md`](BACKEND_WORKFLOW_GRAPH.md) | Workflow aggregate, typed bindings, ordered references, and graph invariants |
-| [`BACKEND_WORKFLOW.md`](BACKEND_WORKFLOW.md) | readiness, editing use case, planning, Run lifecycle, execution, and preview association |
-| [`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md) | authoritative capability catalog, requests, results, errors, and consumer ports |
-| [`BACKEND_ASSETS.md`](BACKEND_ASSETS.md) | Asset aggregate, managed content, import, generated writes, resolution, and preview |
-| [`BACKEND_PROVIDERS.md`](BACKEND_PROVIDERS.md) | stable generation profiles, availability, routing, and provider adapters |
-| [`BACKEND_APPLICATION.md`](BACKEND_APPLICATION.md) | Tauri DTO boundary, task host, preview protocol, and composition root |
-| [`BACKEND_STORAGE.md`](BACKEND_STORAGE.md) | local metadata, managed media, and restart durability |
+| [`BACKEND_GLOSSARY.md`](BACKEND_GLOSSARY.md) | source-first names, behavior verbs, and role suffixes |
+| [`BACKEND_PROJECT.md`](BACKEND_PROJECT.md) | Project identity, metadata, listing, opening, and Workflow discovery |
+| [`BACKEND_WORKFLOW_GRAPH.md`](BACKEND_WORKFLOW_GRAPH.md) | editable graph, typed bindings, and graph invariants |
+| [`BACKEND_WORKFLOW.md`](BACKEND_WORKFLOW.md) | readiness, execution plan, Run lifecycle, and output association |
+| [`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md) | capability interface, implementation behavior, and operation contracts |
+| [`BACKEND_PROVIDERS.md`](BACKEND_PROVIDERS.md) | stable profiles, availability, routers, routes, and provider translation |
+| [`BACKEND_ASSETS.md`](BACKEND_ASSETS.md) | Asset identity, managed content, provenance, and preview permission |
+| [`BACKEND_ASSISTANT.md`](BACKEND_ASSISTANT.md) | Assistant plan, proposal, review, approval, canonical Run, and repair |
+| [`BACKEND_APPLICATION.md`](BACKEND_APPLICATION.md) | Tauri commands, DTO translation, post-commit effects, events, and composition |
+| [`BACKEND_STORAGE.md`](BACKEND_STORAGE.md) | metadata transactions, managed media, credentials, and restart recovery |
 
-The glossary owns names. Each detailed document owns its business semantics. This index owns only
-cross-context boundaries and dependency direction.
+This document owns cross-module rules and the MVP freeze. Detailed documents may refine their own
+semantics but must not widen this surface or redefine another module's state.
 
-## Product Capability Scope
-
-The target catalog covers:
-
-```text
-Foundation: literal Text and Image/Video/Audio Asset reads
-Image:      text, image, and multi-reference generation; crop
-Video:      text, image, multi-reference, first-frame, first-and-last-frame,
-            and mixed-media generation; upscale, frame extraction, concatenation,
-            and storyboard analysis
-Text:       text-only and mixed-media generation
-Audio:      independent speech synthesis and music generation
-```
-
-[`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md) owns the exact versioned contracts. UI shells
-and forms are projections of that catalog, not a second hard-coded capability list.
-
-## DDD Context Map
+## Context Map
 
 ```text
-Workflow bounded context
-  crates/engine     graph and Run domain, application use cases, consumer ports
-  crates/nodes      exact built-in capabilities plus generation-profile semantics
+Project bounded context (`crates/projects`)
+  identity, name, revision, list, open
        |
-       | NodeCapabilityProducedMediaWriterPort / NodeCapabilityManagedMediaReaderPort
+       | ProjectId scopes
        v
-Asset bounded context
-  crates/assets     Asset domain, application use cases, consumer ports, local adapters
+Workflow bounded context (`crates/engine`)
+  graph, revision, readiness, execution plan, Run, node execution, events
+       ^                           ^
+       | implements               | reads/writes through interfaces
+Node Capability support           |
+(`crates/nodes`)                   +------ Asset bounded context (`crates/assets`)
+  exact capabilities                     managed media, provenance, preview permission
+  Generation Profile catalog
+       ^
+       | exact provider interfaces
+Provider adapters (`crates/backends`)
+  profile routers -> vendor routes -> external APIs
 
-Infrastructure boundaries
-  crates/backends   profile routers and provider adapters -> node-owned provider ports
-  src-tauri         DTOs, SQLite adapters, bridges, task host, preview, composition
+Assistant bounded context (`crates/assistant`)
+  proposal -> review -> human decision -> Workflow mutation interface
+
+Desktop boundary (`src-tauri`)
+  commands, DTOs, bridges, one post-commit worker, preview protocol, composition
 ```
 
-The Workflow and Asset bounded contexts each own their invariants, transitions, commands, queries,
-results, and errors. NodeCapability is an executable sub-capability of Workflow. Provider and Desktop
-code translate external protocols and never become business authorities.
-
-## Dependency Direction
-
-```text
-React / unchanged Python Assistant
-                 |
-                 v
-       src-tauri boundary and composition
-          |            |             |
-          v            v             v
-    engine ports   Asset ports   provider adapters
-          ^            ^             |
-          |            |             v
-    node capability ---+------> node-owned provider ports
-```
-
-Compile-time dependencies point toward the consumer-owned abstraction:
-
-- `crates/engine` contains pure Workflow domain/application code and defines the execution ports it
-  consumes;
-- `crates/nodes` depends on the engine-owned `WorkflowNodeCapabilityPort`, implements one exact
-  capability type per operation, and owns the profile plus media/provider ports those types consume;
-- `crates/backends` depends inward on the generation-profile availability port and behavior-named
-  node-owned provider ports;
-- `crates/assets` owns media identity and content behavior without depending on Workflow or provider
-  code;
-- `src-tauri` implements persistence and cross-context bridge ports and selects concrete adapters;
-- React and Python use DTOs and duplicate no Rust business semantics.
-
-## Layer Rules
-
-Every business context is capability-first and layered internally:
-
-```text
-<business capability>/
-  domain/       aggregates, entities, values, policies, domain errors
-  application/  named use cases, commands, queries, results
-  ports/        focused consumer-owned traits
-  infrastructure/ concrete adapters owned by that crate, when any
-```
-
-The rules are:
-
-1. aggregates are the only authority for their invariants and state transitions;
-2. application use cases coordinate aggregates and ports for one user intention;
-3. repositories persist aggregates after domain validation and expose no arbitrary status setter;
-4. DTOs, persistence Rows, Views, and provider DTOs contain no domain decisions;
-5. cross-context translations are explicit and named;
-6. there are no repository-wide `services`, `repositories`, or `models` buckets.
+Project, Workflow, Asset, and Assistant are business contexts. Node Capability and Generation
+Profile support Workflow. Provider and Desktop modules are boundaries, not owners of creative
+business state.
 
 ## Semantic Owners
 
-| Concept | Authoritative owner | Primary types |
+| Business fact | Only owner | Authoritative type |
 | --- | --- | --- |
-| editable graph and revision | Workflow domain | `WorkflowAggregate`, `WorkflowNodeEntity`, `WorkflowInputBindingValue`, `WorkflowInputItemEntity` |
-| Run lifecycle and output association | Workflow domain | `WorkflowRunAggregate`, `WorkflowNodeExecutionEntity` |
-| shared capability contract invariants | Workflow domain in `engine` | `NodeCapabilityContract` |
-| exact parameter, input, result, and execution semantics | capability implementations in `nodes` | `TextToVideoCapability`, `NodeCapabilityParameterSet` |
-| stable generation profile identity and capability compatibility | generation-profile domain in `nodes` | `GenerationProfileDefinition`, `GenerationProfileRef` |
-| current generation profile availability | provider-availability adapter through a consumer-owned reader port | `GenerationProfileAvailabilityObservation` |
-| managed media identity and availability | Asset domain | `AssetAggregate`, `AssetManagedContentState` |
-| provider model-operation protocol | provider adapter private code | private provider `*Dto` and `*AdapterError` |
-| Tauri wire representation | Desktop boundary | `*RequestDto`, response `*Dto`, `DesktopErrorDto` |
-| UI presentation state | React | editor and playback state, never Rust domain state |
+| Project identity, name, revision, and existence | Project | `ProjectAggregate` |
+| editable nodes, bindings, position, and revision | Workflow | `WorkflowAggregate` |
+| draft validity and Run readiness | Workflow using capability contracts | `WorkflowReadinessPolicy` |
+| one frozen execution and output association | Workflow | `WorkflowRunAggregate` |
+| one node's progress, failure, and terminal output | Workflow Run | `WorkflowNodeExecutionEntity` |
+| exact operation parameters, inputs, outputs, and execution behavior | exact capability implementation | `TextToImageCapabilityImpl`, and peers |
+| stable user-selectable model identity and compatibility | Generation Profile catalog | `GenerationProfileDefinition` |
+| current profile availability and route health | provider availability adapter | `GenerationProfileAvailabilityObservation` |
+| provider-native model, request, task, and status | one concrete provider route | private provider types |
+| media identity, bytes availability, facts, and provenance | Asset | `AssetAggregate` |
+| Assistant working plan | Assistant | `AssistantProductionPlanAggregate` |
+| Assistant candidate, review result, and human decision | Assistant | `AssistantWorkflowChangeAggregate` |
+| persistence representation | storage adapter | private `*Row` types |
+| wire representation and preview URL | Desktop | `*Dto` and protocol adapters |
+| selection, viewport, playback, and object URLs | React | UI session state |
 
-Paths and URLs never identify Workflow values or Assets. Human-readable text, provider statuses,
-node labels, filenames, and CSS types never determine business state.
+No DTO, Row, View, provider response, or Assistant model message may decide a transition owned by
+one of these types.
 
-## Dependency Injection
+## Dependency Direction
 
-### Required Boundaries
+Business code depends on consumer-owned interfaces:
 
-A `*Port` trait is required for database, filesystem, provider, process event, clock, identity, media
-inspection, and cross-context calls. Pure graph algorithms and stable value transformations remain
-concrete.
+```text
+React / Python model adapter
+          |
+          v
+Desktop commands and composition
+   |               |                |                 |
+   v               v                v                 v
+Project interfaces   Workflow interfaces   Asset interfaces       Assistant interfaces
+                   ^                ^
+                   |                |
+Node capabilities ----> exact provider and media interfaces
+                         ^
+                         |
+                   provider adapters
+```
 
-Representative ports are:
+Rules:
 
-| Consumer | Port |
+1. `crates/projects` owns `ProjectId` and imports no other business context.
+2. `crates/engine` remains pure and imports only `ProjectId`, never UI, network, filesystem, SQL,
+   vendor, or Assistant code.
+3. `crates/nodes` implements `WorkflowNodeCapabilityInterface` and owns only the focused interfaces its exact
+   capabilities consume.
+4. `crates/backends` implements exact provider interfaces; native DTOs never cross inward.
+5. `crates/assets` imports only `ProjectId`, never Workflow or provider types. Desktop translates provenance and
+   managed-media references explicitly.
+6. Assistant consumes bounded Project, Workflow, capability, and workspace interfaces. It imports no repository
+   adapter and owns no alternative Workflow rules.
+7. Only `DesktopCompositionRoot` constructs or selects concrete adapters.
+
+## MVP Freeze
+
+### Active Node Capabilities
+
+The composition root registers exactly these contracts:
+
+| Contract ref | Implementation | External dependency |
+| --- | --- | --- |
+| `text.provide_literal@1.0` | `ProvideLiteralTextCapabilityImpl` | none |
+| `image.read_asset@1.0` | `ReadImageAssetCapabilityImpl` | managed-media reader |
+| `video.read_asset@1.0` | `ReadVideoAssetCapabilityImpl` | managed-media reader |
+| `audio.read_asset@1.0` | `ReadAudioAssetCapabilityImpl` | managed-media reader |
+| `image.generate_from_text@1.0` | `TextToImageCapabilityImpl` | `TextToImageProviderInterface` |
+| `video.generate_from_image@1.0` | `ImageToVideoCapabilityImpl` | `ImageToVideoProviderInterface` |
+| `audio.synthesize_speech_from_text@1.0` | `TextToSpeechCapabilityImpl` | `TextToSpeechProviderInterface` |
+
+This supports the complete `Text -> Image -> Video` path and an independent `Text -> Speech` path,
+with imported Image, Video, and Audio inputs. Every registered model-powered capability has a
+deterministic route and at least one configured production route before MVP release.
+
+### Module Surface
+
+| Module | Included in MVP | Explicitly deferred |
+| --- | --- | --- |
+| Project | create, rename, get, stable list, open with current Workflow summary | archive, delete, duplicate, templates, search, collaboration |
+| Workflow | create/get-current, atomic mutation, readiness, whole/through-node Run, cancel, Run/event query, node presentation | history, backend undo, retry-in-place, cache, batches, groups, subgraphs, conditions |
+| Node Capability | one interface and seven implementations above | registration of the roadmap operations |
+| Generation Profile | stable per-node selection, compatibility, availability query | user-selected vendor, arbitrary model IDs, provider options, cross-profile fallback |
+| Provider | exact routers/routes for three model operations, bounded polling, cancellation observation | durable remote task resume, failover after acceptance, billing, webhooks |
+| Asset | import, get/list, node-output write, resolve, preview, Pending reconciliation | delete, archive, tags, search, export, derivatives, garbage collection |
+| Assistant | durable non-executable plan, candidate, review, human decision, exact apply, canonical Run, reviewed repair | plan-as-queue scheduler, unreviewed apply/repair, parallel approvals, distributed Sessions |
+| Desktop | commands, DTOs, one post-commit worker, durable event repair, preview protocol, composition | generic job host, server mode, plugins, distributed workers |
+| Storage | SQLite metadata, managed files, staging, OS credential vault, config file | cloud sync, multi-writer coordination, full media encryption, backup/restore UI |
+
+Roadmap capability names remain in `BACKEND_CAPABILITIES.md` so their semantics and names are not
+invented ad hoc later. They enter the active registry only through a new reviewed MVP or release
+decision with implementation and contract tests.
+
+## Public Boundary Naming
+
+Exported names follow the grammar in `BACKEND_GLOSSARY.md`:
+
+```text
+<OwningModule><BehaviorOrBusinessObject><ArchitecturalRole>
+```
+
+Examples are `WorkflowStartRunUseCase`, `AssetRecordNodeOutputUseCase`,
+`AssistantDecideWorkflowChangeUseCase`, `ImageToVideoProviderInterface`, and
+`SqliteWorkflowRunRepositoryAdapterImpl`. Tauri command names are source-first, such as
+`workflow_start_run`, `asset_import`, and `assistant_decide_workflow_change`.
+
+Public methods state their action. Vague methods such as `execute`, `process`, `handle`, `update`, or
+`run` alone are prohibited. Examples are `apply_workflow_mutation`, `execute_node_capability`,
+`generate_video_from_image`, and `issue_asset_preview`.
+
+## Module Interaction Rules
+
+| Caller | Allowed interface | Callee/result | Prohibited shortcut |
+| --- | --- | --- | --- |
+| Desktop Project command | one Project use case | Project or workspace result | Workflow/Asset repository join |
+| Project open use case | `ProjectWorkflowSummaryReaderInterface` | optional current Workflow summary | imported Workflow aggregate/rules |
+| Desktop Workflow command | one Workflow use case | Workflow result/DTO translation | repository or capability call |
+| Workflow Run executor | `WorkflowNodeCapabilityInterface` | complete typed node output | provider or Asset repository call |
+| exact capability | exact provider/media interface | validated semantic payload | vendor client lookup |
+| exact capability | node-owned media reader/writer interfaces | managed input or available Asset ref | path, URL, or Asset repository |
+| Desktop node/Asset bridge | Asset use cases | translated managed-media value | copied Asset invariants |
+| Workflow presentation | `WorkflowMediaPreviewIssuerInterface` | opaque preview value | Asset lease or path import |
+| Assistant | Assistant-owned Workflow bridge interfaces | bounded snapshot/evaluation/apply result | direct Workflow repository mutation |
+| provider router | private exact route interface | normalized provider result | another capability or Asset creation |
+| Desktop post-commit worker | one of three committed effect types | bounded external follow-up | direct effect before commit |
+
+## End-To-End Interactions
+
+### Startup
+
+```text
+DesktopCompositionRoot
+  -> validate non-secret configuration
+  -> open and migrate SQLite
+  -> connect operating-system credential vault
+  -> construct Project, Asset, Workflow, and Assistant repositories/use cases
+  -> construct Project/Workflow and other cross-context bridges
+  -> construct profile catalog, exact provider routes, routers, and availability reader
+  -> construct seven capability implementations and WorkflowNodeCapabilityRegistry
+  -> reconcile bounded Pending Assets
+  -> mark non-terminal Workflow Runs InterruptedByRestart
+  -> recover safe Asset/Assistant effects and abandon unsafe Workflow Run effects
+  -> register commands, preview protocol, and one post-commit worker
+```
+
+A missing credential or unhealthy provider marks only affected profiles unavailable. It does not
+prevent graph editing, Asset access, deterministic tests, or Assistant-independent use.
+
+### Project Create And Open
+
+```text
+project_create / project_list / project_open
+  -> Project use case and ProjectRepositoryInterface
+  -> ProjectOpenUseCase reads current Workflow through ProjectWorkflowSummaryReaderInterface
+  -> existing Workflow summary, or workflow_create for the opened Project
+```
+
+Every Project-scoped command resolves the supplied `ProjectId` through Project before attaching it
+as trusted context. Project names and IDs never substitute for Workflow, Asset, or Assistant rules.
+
+### Human Or Assistant Edit
+
+```text
+WorkflowApplyMutationRequestDto
+  -> WorkflowApplyMutationUseCase
+  -> WorkflowAggregate validates the complete candidate
+  -> WorkflowAggregateRepositoryInterface commits revision + idempotency receipt
+  -> WorkflowDto plus current structured readiness issues
+```
+
+Assistant may maintain an `AssistantProductionPlanAggregate`, then creates and reviews an immutable
+`AssistantWorkflowChangeAggregate`. Human approval uses a stable `WorkflowMutationRequestId`
+derived from the change identity and calls the same use case. A stale base revision fails; MVP never
+silently rebases an approved change. After apply, an approval-derived `WorkflowRunRequestId` starts
+the same canonical Run path used by the UI.
+
+### Profile Discovery And Run Admission
+
+```text
+generation_profile_list_for_capability
+  -> immutable compatibility catalog + expiring availability observations
+  -> provider-independent selectable profiles
+
+workflow_start_run
+  -> reload exact Workflow revision
+  -> validate graph, Assets, capability registrations, profiles, and current availability
+  -> build immutable WorkflowExecutionPlan
+  -> atomically persist Queued Run + node executions + event + request receipt
+     + WorkflowExecuteRunEffect
+  -> return before provider work starts
+```
+
+`Unavailable` and `Indeterminate` profiles both block admission in the MVP. Execution checks again
+because availability can change after admission.
+
+### Node Execution And Media Publication
+
+```text
+DesktopPostCommitEffectWorker consumes WorkflowExecuteRunEffect
+  -> WorkflowExecuteRunUseCase coordinates ready nodes within the concurrency bound
+  -> WorkflowNodeCapabilityRegistry resolves the exact implementation
+  -> capability resolves inputs through NodeCapabilityManagedMediaReaderInterface
+  -> capability calls one exact provider or media interface
+  -> provider router resolves the profile's one configured route for WorkflowNodeExecutionId
+  -> provider route validates/downloads a bounded semantic payload
+  -> capability writes media through NodeCapabilityProducedMediaWriterInterface
+  -> AssetRecordNodeOutputUseCase commits Pending + AssetFinalizeContentEffect
+  -> AssetFinalizeContentUseCase publishes bytes after commit and commits Available
+  -> capability returns a complete WorkflowNodeOutputSet
+  -> WorkflowRunRepositoryInterface atomically stores output, state, and durable events
+  -> the same worker emits only committed, undispatched events
+```
+
+Text output skips Asset storage. A media node succeeds only after every required Asset is Available.
+`AssetNodeOutputKey` makes `(node execution, output key, ordinal)` idempotent; the same key with
+different bytes is a structured conflict.
+
+### Failure, Cancellation, And Restart
+
+| Situation | Closed outcome |
 | --- | --- |
-| Workflow use cases | `WorkflowAggregateRepositoryPort`, `WorkflowRunRepositoryPort` |
-| exact capability behavior | `WorkflowNodeCapabilityPort` |
-| Workflow preview projection | `WorkflowMediaPreviewIssuerPort` |
-| node Asset reads and produced-media writes | `NodeCapabilityManagedMediaReaderPort`, `NodeCapabilityProducedMediaWriterPort` |
-| exact model-powered capabilities | `TextToVideoProviderPort`, `TextToSpeechProviderPort`, and the complete capability-owned port set |
-| deterministic media transformations | `ImageCropPort`, `VideoFrameExtractionPort`, `VideoConcatenationPort` |
-| generation profile availability reads | `GenerationProfileAvailabilityReaderPort` |
-| Asset use cases | `AssetAggregateRepositoryPort`, `AssetIngestTransactionPort`, `AssetManagedContentStorePort`, `AssetMediaInspectorPort` |
-| already-persisted Run events | `WorkflowRunEventPublisherPort` |
+| provider or media operation fails | node becomes Failed, descendants become Blocked, independent branches finish, Run reaches terminal state |
+| Asset publication fails after Pending commit | node does not publish output; startup reconciliation completes or marks the Asset Missing |
+| cancellation wins before output commit | no new node output is attached; active work is signalled and remaining nodes become Cancelled/Blocked |
+| Asset becomes Available just before cancellation wins | the Asset remains durable with provenance, but the late node output is rejected |
+| event emission fails after commit | its safe outbox effect retries; Run remains authoritative and UI can query the gap |
+| process exits during provider work | startup marks the Run failed with `InterruptedByRestart`; remote work is not resumed |
+| duplicate mutation or Run request | matching request hash returns the prior receipt; mismatched reuse returns an idempotency conflict |
 
-### Constructor Injection
-
-Long-lived dependencies enter through constructors:
-
-```rust
-pub struct ImportAssetUseCase<R, T, S, M> {
-    asset_repository: R,
-    asset_ingest_transaction: T,
-    managed_content_store: S,
-    media_inspector: M,
-}
-```
-
-Generic bounds are the matching `*Port` traits. Project, request identity, deadline, cancellation,
-Workflow revision, and Run identity are call-scoped command or context values.
-
-Only `src-tauri/composition.rs` constructs concrete adapters. No business code may use a service
-locator, mutable global, concrete adapter parameter, runtime downcast, adapter-name branch, or
-optional unsupported operation.
-
-### Behavioral Equivalence
-
-Every implementation of a port preserves the same errors, idempotency, concurrency, transaction,
-ordering, pagination, cancellation, and retry semantics. Deterministic and production adapters run
-the same parameterized port contract tests.
-
-## Repository Shape
+### Preview And Reopen
 
 ```text
-crates/engine/src/workflow/
-  domain/
-  application/
-  ports/
-
-crates/nodes/src/
-  generation_profile/{domain,application,ports}/
-  text_to_video/{capability,parameters,provider_port}.rs
-  video_concatenation/{capability,parameters,media_port}.rs
-  <exact_capability>/
-
-crates/assets/src/asset/
-  domain/
-  application/
-  ports/
-  infrastructure/
-
-crates/backends/src/
-  provider_routing/
-  deterministic_provider/
-  <provider_name>/
-
-src-tauri/src/
-  workflow/
-  assets/
-  generation_profiles/
-  generation_providers/
-  assistant/       unchanged
-  configuration.rs
-  composition.rs
+workflow_get_node_presentation
+  -> latest relevant successful Workflow output
+  -> WorkflowMediaPreviewIssuerInterface
+  -> AssetIssuePreviewUseCase
+  -> short-lived Project-scoped preview lease
+  -> Desktop protocol URL
+  -> React renderer
 ```
 
-Module paths add navigation; public type names still carry context and role as defined in the
-glossary.
+The Workflow and Asset IDs survive restart. Preview leases, URLs, playback state, provider task IDs,
+and decrypted credentials do not.
 
-## State Ownership
+## Transaction And Side-Effect Order
 
-| State | Owner |
-| --- | --- |
-| nodes, edges, revision, canvas position | `WorkflowAggregate` |
-| Run/node execution state, progress, errors, outputs | `WorkflowRunAggregate` |
-| fixed ports and parameter meaning | exact `WorkflowNodeCapabilityPort` implementation |
-| selected provider-independent generation profile | `WorkflowNodeEntity` parameter set |
-| profile identity and capability compatibility | generation-profile catalog in `nodes` |
-| current profile availability and equivalent routes | composition-built provider routing adapters |
-| Asset identity, content state, media facts, origin | `AssetAggregate` |
-| provider task/protocol details | concrete provider adapter during active execution |
-| concrete dependency graph | `DesktopCompositionRoot` |
-| DTO and short-lived preview URL | Desktop boundary |
-| selection, viewport, drag, playback, object URLs | React session state |
+| Use case | Atomic durable write | Effect after commit | Recovery |
+| --- | --- | --- | --- |
+| Project create/rename | Project + revision + mutation receipt | return committed Project | retry by request ID |
+| Workflow mutation | snapshot + revision + mutation receipt | return the committed result | retry by request ID |
+| Run admission | Run + executions + event + request receipt + execute effect | execute the Run | interrupt Run; abandon unsafe effect |
+| Run transition | transition + outputs + durable events | emit undispatched events | replay/query event rows |
+| Asset node output | Pending + finalization + output key + finalize effect | publish managed bytes | safely replay exact finalization |
+| Asset availability | Available transition + completed finalization | allow node output commit | verify exact digest/length |
+| Assistant decision | transition + apply effect | idempotent apply, resume, and Run effects | safely replay stable request IDs |
 
-## Edit Flow
+No SQLite transaction remains open during filesystem, provider, sidecar, or Tauri work.
+The outbox admits only `WorkflowExecuteRunEffect`, `AssetFinalizeContentEffect`, and
+`AssistantApplyWorkflowChangeEffect`. Durable Workflow Run event rows are their own delivery
+outbox. Asset import and node-output use cases make the first exact finalization attempt after
+commit; the Desktop worker only retries an unfinished effect. There is no generic task payload or
+handler registry.
 
-```text
-ApplyWorkflowMutationRequestDto
-  -> ApplyWorkflowMutationCommand
-  -> ApplyWorkflowMutationUseCase
-  -> WorkflowAggregate validates complete candidate
-  -> SqliteWorkflowAggregateRepositoryAdapter compare-and-swap
-  -> WorkflowDto
-```
+## Composition And Representations
 
-React never saves its entire editor store. Provider fields, Run state, and preview state cannot enter
-the Workflow document.
+Only `src-tauri/composition.rs` knows concrete adapters. Constructor injection is mandatory for
+every database, filesystem, provider, clock, identity, credential, sidecar, event, and cross-context
+boundary. Stable pure algorithms remain concrete.
 
-## Run Flow
+[`BACKEND_APPLICATION.md`](BACKEND_APPLICATION.md#representation-boundaries) owns directional DTO
+and cross-context translators; [`BACKEND_STORAGE.md`](BACKEND_STORAGE.md#persistence-names) owns Row
+translation rules. Rows, DTOs, Views, paths, URLs, credentials, and provider-native identifiers
+never become domain objects or public Workflow parameters.
 
-```text
-StartWorkflowRunCommand
-  -> readiness + deterministic WorkflowExecutionPlanValue
-  -> persist Queued WorkflowRunAggregate and first event
-  -> DesktopWorkflowRunTaskHost starts ExecuteWorkflowRunUseCase
-  -> WorkflowNodeCapabilityRegistry resolves WorkflowNodeCapabilityPort
-  -> WorkflowNodeCapabilityPort::execute runs each ready node
-  -> persist aggregate transitions and events
-  -> WorkflowRunEventPublisherPort emits projections
-```
+## MVP Acceptance
 
-Provider work starts only after queued intent is durable. Independent branches may execute within a
-bounded concurrency limit. Each model-powered node keeps its selected exact
-`GenerationProfileRef`; the provider router fixes one equivalent route per dispatch before paid
-submission. This architecture defines no cross-run result cache.
+The architecture is closed only when:
 
-## Node-Produced Media Flow
+1. Projects can be created, renamed, listed, opened, and isolated across Workflow, Asset, and Assistant;
+2. the seven active capabilities can be edited, saved, reopened, run, and presented;
+3. each of the three model-powered capabilities supports per-node profile selection and current
+   availability without exposing provider/native model identity;
+4. one deterministic route and one configured production route pass each exact provider contract;
+5. imported and node-produced media use the same Asset availability and preview path;
+6. every Run, cancellation, failure, event gap, Pending Asset, and restart has the outcome defined
+   above;
+7. an Assistant-approved change reaches Workflow and execution only through the canonical mutation
+   and Run use cases, and repair repeats the same review/approval chain;
+8. fake and production implementations pass the same interface contract suites;
+9. Rust/TypeScript DTO fixtures remain mechanically aligned;
+10. architecture tests reject inward concrete dependencies, duplicate semantic owners, unregistered
+   MVP capabilities, and concrete construction outside the composition root;
+11. `./scripts/e2e.sh` passes.
 
-```text
-provider or media-operation adapter returns an exact result payload
-  -> NodeCapabilityProducedMediaWriterPort
-  -> RecordNodeProducedAssetUseCase
-  -> persist Pending AssetAggregate and managed-content finalization
-  -> finalize and validate managed content
-  -> transition AssetAggregate to Available
-  -> return Workflow managed-media reference
-```
+## Deferred Architecture
 
-A node succeeds only after its generated Asset is available. SQLite and external I/O are not treated
-as one transaction; Pending finalization is idempotent and recoverable.
+Text-to-video, image-to-image, reference-based generation, mixed-media generation, text generation,
+music, crop, upscale, frame extraction, concatenation, and storyboard analysis retain explicit
+roadmap names in the capability document. They are not MVP runtime behavior.
 
-## Preview Flow
-
-```text
-GetWorkflowNodePresentationUseCase
-  -> WorkflowMediaPreviewIssuerPort
-  -> DesktopWorkflowMediaPreviewAdapter
-  -> optional IssueAssetPreviewUseCase
-  -> AssetPreviewLease
-  -> WorkflowMediaPreviewValue
-  -> WorkflowNodePresentationView
-  -> WorkflowNodePresentationDto with short-lived Desktop URL
-  -> React text/image/video/audio renderer
-```
-
-Video and audio support verified MIME and Range. Preview URLs and playback state never round-trip
-into Workflow or Asset identity.
-
-## Errors, Events, And Logs
-
-Each context owns structured `*DomainError` and `*ApplicationError` types. Tauri translates once to
-`DesktopErrorDto` with code, safe message, retryability, target, bounded details, and optional
-correlation ID.
-
-Run events have a monotonic sequence per Workflow Run and are committed before emission. React can
-query missed events and terminal state. Logs contain stable typed IDs and omit secrets, provider
-bodies, signed URLs, generated content, and unnecessary local paths.
-
-## Verification Architecture
-
-- Workflow tests prove graph invariants, readiness, planning, transitions, and cancellation;
-- capability tests prove every registered parameter, input, result, error, port, and execution contract;
-- generation-profile tests prove stable node selection, exact compatibility, availability, and
-  provider-independent routing;
-- provider port suites run against deterministic and configured capability routers;
-- Asset tests prove import/generated flow, Project isolation, resolution, recovery, and preview;
-- Desktop tests prove transaction ordering, task hosting, DTO translation, and events;
-- contract tests keep Rust DTOs and TypeScript types aligned;
-- end-to-end tests exercise every capability family and preview every Workflow output type;
-- static checks reject concrete adapter construction outside `composition.rs` and inward dependency
-  violations.
-
-The implementation merge gate remains `./scripts/e2e.sh`.
-
-## Architecture Completion Criteria
-
-1. Users can create, move, edit, connect, save, and reopen every registered exact capability.
-2. Rust rejects invalid types and cycles while incomplete drafts remain editable.
-3. Users can query currently available compatible profiles and select a stable profile on each
-   model-powered node.
-4. Every provider port and media-operation port has a deterministic contract implementation.
-5. Generated and transformed media, including frame sequences, become durable Project Assets.
-6. Text, Image, Video, Audio, Image Sequence, and Video Storyboard previews work after execution and
-   reopen.
-7. Progress, failure, and cancellation are visible through durable Run state and events.
-8. No DTO exposes provider state, native model IDs, credentials, managed paths, or persistence Rows.
-9. Public Rust types satisfy the glossary naming rules and concrete dependencies are constructor
-   injected only at the composition root.
-
-## Deferred Product Areas
-
-Dynamic ports, plugin-supplied capabilities, batch generation, timelines, cross-run cache, remote
-task resume, cross-profile fallback, cost accounting, advanced Asset management, collaboration,
-cloud sync, 3D, and scene generation require separate designs. Equivalent provider routing within
-one exact profile is core behavior.
+Provider-task persistence, automatic generation retry, failover after acceptance, dynamic/plugin
+capabilities, cross-Run cache, Project lifecycle management, unreviewed Assistant apply/repair,
+Asset lifecycle management, server mode, cloud sync, collaboration, 3D, and scenes each require a
+separate decision that updates this freeze.

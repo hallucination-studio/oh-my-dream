@@ -1,472 +1,382 @@
-# Backend MVP Storage Architecture
+# Backend Storage Architecture
 
-> Status: proposed MVP design
-> Owner: infrastructure adapters composed by `src-tauri`
-> Scope: local durability for Workflow, Run, Asset, provider credentials, and configuration
+> Status: frozen MVP design
+> Owner: consumer-owned interfaces; concrete adapters composed by `src-tauri`
+> Scope: Project, Workflow, Run, Asset, Assistant, configuration, and credentials
 
-Naming follows [`BACKEND_GLOSSARY.md`](BACKEND_GLOSSARY.md). This document defines storage
-responsibilities and logical persistence records. It does not define physical table names or SQL
-DDL.
-
-## Purpose
-
-The product is a single-user desktop client. The MVP storage design preserves only the data needed
-to save and reopen a Workflow, execute it, inspect a Run, use a configured provider, and preview
-imported or generated Image, Video, and Audio Assets.
-
-The design uses:
-
-- SQLite for business metadata and encrypted provider credentials;
-- an application-managed directory for immutable media bytes;
-- a restricted staging directory for incomplete media writes;
-- a versioned file for non-secret startup configuration.
-
-It does not introduce a server, distributed coordination, background workers, application caches,
-or cross-device synchronization.
-
-## Storage Rules
-
-1. Domain aggregates own invariants and legal transitions. Storage persists approved state.
-2. Every durable fact has one authoritative location.
-3. Memory is command-scoped or task-scoped and never becomes a second source of business state.
-4. Provider and filesystem effects start only after required SQLite state is committed.
-5. SQLite and the filesystem are coordinated explicitly, not described as one transaction.
-6. Paths, URLs, provider payloads, plaintext credentials, and Rows never enter domain identity or
-   public DTOs.
-7. Startup recovery is bounded and does not resume provider work.
+Storage preserves only the state required to reopen a Workflow, inspect and recover a Run outcome,
+use managed media, resume an Assistant approval, and connect configured external services. It owns
+no business transition.
 
 ## Storage Topology
 
 ```text
 Desktop application data root
-  |
-  +-- SQLite metadata database
-  |     current Workflow, Runs, Assets, encrypted provider credentials
-  |
-  +-- managed media directory
+  +-- metadata.sqlite
+  |     Project, Workflow, Run, Asset, Assistant, and three closed post-commit effects
+  +-- managed-media/
   |     immutable validated Image, Video, and Audio bytes
-  |
-  +-- staging directory
+  +-- staging/
   |     incomplete Asset bytes awaiting finalization
-  |
-  +-- non-secret startup configuration document
+  +-- assistant-epochs/<contract-epoch>/
+  |     Python SDK Sessions and opaque model continuations
+  +-- backend-config.json
+        versioned non-secret startup configuration
 
-Process memory
-  one-command domain objects and active execution resources only
+Operating-system credential facility
+  generation-provider and Assistant model credentials
 ```
 
-A user-selected source file stays outside the application data root and is read only during
-`ImportAssetUseCase`. The MVP has no persisted Project aggregate; `ProjectId` is trusted Desktop
-scope recorded on each Project-owned Workflow, Run, and Asset.
+There is no server, distributed queue, generic job database, generation-task table, provider-task
+store, application cache, or cross-device synchronization in the MVP.
+
+## Storage Rules
+
+1. Aggregates and exact capabilities own semantics; adapters only encode approved state.
+2. Every durable fact has one authoritative location.
+3. SQLite transactions remain short and never include filesystem, provider, sidecar, credential-
+   vault, or Tauri work.
+4. Required state and idempotency evidence commit before external follow-up.
+5. SQLite and filesystem publication are coordinated explicitly, not called one transaction.
+6. Rows, paths, URLs, provider payloads, SDK bytes, and plaintext secrets never enter domain identity
+   or public DTOs.
+7. Startup recovery is bounded and does not resume paid provider work.
 
 ## State Placement
 
-### Persisted On Disk
+### Persisted
 
-| Data or state | Authoritative location |
+| State | Authoritative location |
 | --- | --- |
-| current `WorkflowAggregate` snapshot and revision | SQLite |
-| `WorkflowRunAggregate` and frozen execution plan | SQLite |
-| node execution state, outputs, and Run events | SQLite |
-| `AssetAggregate` metadata and content state | SQLite |
-| Asset managed-content finalization state | SQLite |
-| encrypted provider credentials | SQLite |
-| validated media bytes | managed media directory |
+| `ProjectAggregate` plus mutation request hashes and receipts | SQLite |
+| current `WorkflowAggregate` and revision | SQLite |
+| Workflow mutation request hashes and receipts | SQLite |
+| `WorkflowRunAggregate`, frozen plan, node executions, outputs, and event delivery state | SQLite |
+| Workflow Run request hashes and admission receipts | SQLite |
+| `AssetAggregate`, node-output keys, and content finalization | SQLite |
+| `AssistantProductionPlanAggregate` and items | SQLite |
+| `AssistantWorkflowChangeAggregate`, review, decision, and Run link | SQLite |
+| Assistant repair-activation deduplication | SQLite |
+| three closed post-commit effect kinds and delivery state | SQLite |
+| opaque Assistant continuation and SDK Session | contract-epoch storage owned by the model adapter |
+| validated media bytes | managed-media directory |
 | incomplete media bytes | staging directory |
-| non-secret Desktop and provider settings | configuration document |
+| non-secret locations, limits, route/profile entries, credential IDs | configuration document |
+| provider and Assistant API secrets | operating-system credential facility |
 
-SQLite is authoritative for metadata. The managed media directory is authoritative for the bytes of
-an Available Asset. Provider credentials are authoritative only after successful authenticated
-decryption from SQLite.
+`ProjectId` is defined by `crates/projects` and stored on every Project-owned Workflow, Run, Asset,
+Production Plan, and Assistant Workflow Change. Other contexts do not copy Project metadata.
 
-### Held Temporarily In Memory
+### Process-Scoped
 
-The MVP permits only runtime state that cannot usefully be persisted:
+- one hydrated aggregate during one application call;
+- active `DesktopPostCommitEffectWorker` handles and cancellation tokens;
+- one active Assistant invocation lock per Session;
+- provider transport, selected route, polling handle, and cancellation observation during one node;
+- decrypted credential values during one bounded use;
+- open source, staging, managed-content, sidecar, and preview handles;
+- one process-local signing secret for preview leases;
+- one bulk Generation Profile availability observation response.
 
-- a hydrated aggregate during one command;
-- an active `DesktopWorkflowRunTaskHost` task handle;
-- a cancellation signal after cancellation state is committed;
-- provider transport and polling state during one active call;
-- one decrypted `ProviderCredentialSecretValue` during provider adapter construction or use;
-- open source, staging, managed-content, and preview stream handles;
-- a process-local signing secret for short-lived preview access.
+No command assumes any process-scoped value survives restart.
 
-Every item is dropped after its command, call, stream, or process ends. No command assumes that a
-Workflow, Run, Asset, provider task, credential, or preview handle from an earlier command remains
-in memory.
+### Never Persisted
 
-### Never Stored
-
-The MVP does not persist:
-
-- React selection, hover, drag, menus, viewport, zoom, seek, volume, or playback state;
-- object URLs, preview URLs, preview tokens, or preview leases;
-- user source paths, managed absolute paths, staging paths, or filesystem handles in business data;
-- plaintext provider credentials;
-- provider request bodies, response bodies, signed URLs, or native task payloads;
-- provider-native task IDs after the active process exits;
-- capability definitions shipped with the application;
+- React selection, hover, drag, menu, viewport, zoom, seek, volume, or object URL;
+- preview URLs, preview tokens, preview leases, or signing keys;
+- user source paths or managed absolute paths in business records;
+- plaintext credentials in SQLite/config/session state;
+- provider request/response bodies, signed URLs, native model IDs, or remote task handles;
 - current provider availability observations;
-- raw generated media bytes inside SQLite;
-- a backend undo stack or historical Workflow snapshots.
+- generated media bytes inside SQLite;
+- a separate Generation Task, arbitrary background-job kind, or provider-task lifecycle;
+- a cross-Run result cache;
+- unbounded model stream events or raw Reviewer prose as review authority.
 
-The current Workflow snapshot is the saved document. Undo and redo remain editor-session behavior
-for the MVP.
+## Persistence Names
 
-## No-Cache Policy
-
-The MVP has no application-level cache:
-
-- no in-memory Workflow, Run, or Asset aggregate cache;
-- no cross-Run node-result cache;
-- no provider-response or provider-availability cache;
-- no duplicate-media cache separate from managed Assets;
-- no thumbnail, poster, waveform, or transcoded-preview cache.
-
-Queries read SQLite. Media previews stream managed Asset bytes. Starting another Run executes again.
-SQLite page caching and operating-system filesystem caching are implementation details, not another
-source of business state.
-
-## Persistence Naming Rule
-
-Private persistence types use:
+Private types follow:
 
 ```text
-<Technology><BusinessConcept><RepresentationRole>
+<Technology><OwningModule><BusinessObject><RepresentationRole>
 ```
 
-Examples:
+Examples are `SqliteWorkflowRunRow`, `SqliteWorkflowNodeExecutionRow`,
+`SqliteAssetContentFinalizationRow`, and `SqliteAssistantWorkflowChangeRow`. These are Rust types,
+not physical table names.
+
+Rows contain no transition methods. Named translators reconstruct authoritative types through their
+validated restore paths and reject corrupt or unsupported combinations.
+
+## Logical Project Records
+
+`SqliteProjectRow` stores Project identity, normalized name, revision, and timestamps.
+`SqliteProjectMutationReceiptRow` stores request ID, canonical command hash, Project ID, committed
+revision, and result fingerprint. Project rows store no Workflow, Asset, or Assistant payload.
+
+Project creation and rename atomically write the row and receipt. Names need not be unique; IDs are
+unique. Project deletion is not an MVP transition.
+
+## Logical Workflow Records
+
+`SqliteWorkflowRow` stores Project/Workflow identity, schema version, current revision, a bounded
+versioned graph payload, and timestamps.
+
+`SqliteWorkflowMutationReceiptRow` stores:
+
+- `WorkflowMutationRequestId` and canonical command hash;
+- Workflow ID, base revision, committed revision, and result fingerprint;
+- creation timestamp.
+
+The unique request ID makes mutation replay deterministic. Matching content returns the prior
+receipt; mismatched reuse is an idempotency conflict. A receipt is not Workflow history or undo.
+
+## Logical Run Records
+
+`SqliteWorkflowRunRow` stores Project, Workflow, Run, source revision, scope, the frozen
+`WorkflowExecutionPlan`, current `WorkflowRunState`, timestamps, and structured terminal failure.
+
+Child records are:
+
+- `SqliteWorkflowNodeExecutionRow`: node/execution identity, state, progress, timestamps, and
+  structured failure; capability and profile selection remain in the one frozen plan;
+- `SqliteWorkflowNodeExecutionOutputRow`: complete named Text or typed Asset output;
+- `SqliteWorkflowRunEventRow`: monotonic per-Run event plus Desktop delivery state;
+- `SqliteWorkflowRunRequestReceiptRow`: request ID, canonical admission hash, and admitted Run ID.
+
+The frozen plan and outputs make a Run self-contained after admission. Reopening a Run does not
+require a historical Workflow snapshot or provider task.
+
+## Logical Asset Records
+
+`SqliteAssetRow` stores Asset/Project identity, media kind, `AssetManagedContentState`,
+`AssetContentDescriptor`, `AssetMediaFacts`, `AssetOrigin`, display name, and creation time.
+
+`SqliteAssetContentFinalizationRow` stores only recovery facts: Asset/content/finalization identity,
+adapter-private staging reference, expected digest/length, state, and last structured failure.
+
+For node-produced Assets, `AssetNodeOutputKey` is unique. The record stores the verified digest so
+the Asset application can return an exact replay or reject different bytes. Only the filesystem
+adapter interprets staging references or derives a managed path.
+
+## Logical Assistant Records
+
+`SqliteAssistantProductionPlanRow` and `SqliteAssistantPlanItemRow` encode one plan aggregate and its
+revisioned items.
+
+`SqliteAssistantWorkflowChangeRow` plus private child representations encode:
+
+- Project/Session/change identity and base Workflow revision;
+- exact ordered mutations, aliases, digest, fingerprint, lineage, and expiry;
+- verified review receipt and Reviewer contract version;
+- approval scope, human decision, and change state;
+- `AssistantModelContinuationRef`, never opaque SDK bytes;
+- Workflow mutation receipt and optional Assistant-to-Run link after apply.
+
+`SqliteAssistantRepairActivationRow` deduplicates one factual repair activation per failed Run. It
+stores safe structured Run facts, not generated diagnosis or a chosen repair step.
+
+Opaque continuation bytes and SDK Session records stay under the active Assistant contract epoch.
+Their adapter validates envelope version, epoch, SDK version, Agent identity, tool-version set,
+Project/Session scope, and size before returning a typed continuation handle.
+
+## Closed Post-Commit Effect Record
+
+`SqliteDesktopPostCommitEffectRow` stores effect ID, one closed kind, owning business ID, delivery
+state, attempt count, and safe last failure. The only kinds are:
 
 ```text
-SqliteWorkflowRunAggregateRow
-SqliteWorkflowNodeExecutionOutputRow
-SqliteAssetManagedContentFinalizationRow
-SqliteEncryptedProviderCredentialRepositoryAdapter
+WorkflowExecuteRun { workflow_run_id }
+AssetFinalizeContent { finalization_id }
+AssistantApplyWorkflowChange { assistant_workflow_change_id }
 ```
 
-`Sqlite` identifies the technology, the middle words identify the exact owned concept, and `Row` or
-`Adapter` identifies the infrastructure role. These are Rust type names, not physical table names.
+There is no arbitrary payload, handler name, user-facing task API, priority, workflow graph, or
+plugin registration. Domain/application code creates the typed effect; the SQLite adapter
+mechanically encodes it in the same transaction as the owning state.
 
-## Logical Persistence Records
+## Consumer-Owned Interfaces
 
-### Workflow Records
-
-`SqliteWorkflowAggregateRow` stores the current aggregate snapshot:
-
-- Project and Workflow identity;
-- current `WorkflowRevision` and `WorkflowSchemaVersion`;
-- versioned Workflow persistence payload;
-- creation and update timestamps.
-
-`WorkflowAggregateRepositoryPort::save_if_revision` updates the snapshot only when the stored
-revision matches the command's base revision. The MVP does not retain historical snapshots or
-durable mutation receipts.
-
-### Workflow Run Records
-
-`SqliteWorkflowRunAggregateRow` stores:
-
-- Project, Workflow, Run, and source Workflow revision identity;
-- `WorkflowRunScope` and current `WorkflowRunState`;
-- the frozen `WorkflowExecutionPlanValue`;
-- request, start, update, and terminal timestamps;
-- structured terminal failure when present.
-
-`SqliteWorkflowNodeExecutionRow` stores one planned node execution:
-
-- Run, node, and node-execution identity;
-- exact `NodeCapabilityContractRef` and selected `GenerationProfileRef` when applicable;
-- current `WorkflowNodeExecutionState`, bounded progress, and timestamps;
-- structured terminal failure when present.
-
-`SqliteWorkflowNodeExecutionOutputRow` stores one successful named output:
-
-- Run, node execution, and output port identity;
-- exact `WorkflowDataType`;
-- bounded Text or a typed Asset reference for Image, Video, or Audio.
-
-`SqliteWorkflowRunEventRow` stores the monotonic per-Run event sequence used to repair missed Desktop
-event delivery.
-
-The frozen execution plan and outputs make a Run self-contained after admission. Reopening a Run
-does not require a historical Workflow snapshot.
-
-### Asset Records
-
-`SqliteAssetAggregateRow` stores:
-
-- Asset and Project identity;
-- `AssetMediaKind` and `AssetManagedContentState`;
-- `AssetManagedContentDescriptorValue`;
-- versioned origin and verified media facts;
-- display name and creation timestamp.
-
-`SqliteAssetManagedContentFinalizationRow` stores only what restart recovery needs:
-
-- Asset, managed-content, and `AssetManagedContentFinalizationId`;
-- an adapter-private staging reference;
-- expected digest and byte length;
-- Pending, Completed, or Failed state and the last structured failure.
-
-Only the filesystem adapter interprets the staging reference or derives a final managed path.
-
-### Provider Credential Record
-
-`SqliteProviderCredentialRow` stores:
-
-- `ProviderCredentialId` and owning `ProviderAccountId`;
-- authenticated-encryption version;
-- random nonce;
-- ciphertext;
-- creation and update timestamps.
-
-The Row never stores plaintext. The repository returns `ProviderCredentialSecretValue`, which is a
-short-lived application value and is never serialized into a DTO or log.
-
-## Representation Boundaries
-
-```text
-WorkflowAggregate
-  <-> SqliteWorkflowAggregateRow
-
-WorkflowRunAggregate
-  <-> SqliteWorkflowRunAggregateRow
-      + SqliteWorkflowNodeExecutionRow
-      + SqliteWorkflowNodeExecutionOutputRow
-      + SqliteWorkflowRunEventRow
-
-AssetAggregate
-  <-> SqliteAssetAggregateRow
-      + SqliteAssetManagedContentFinalizationRow
-
-ProviderCredentialSecretValue
-  <-> SqliteProviderCredentialRow
-```
-
-Named translators reconstruct aggregates and reject corrupt or unsupported data. A Row does not
-validate business rules, perform a domain transition, or become a DTO.
-
-Persistence encoding is explicit:
-
-- IDs use the canonical encoding of their owning newtype;
-- timestamps use one UTC representation inside typed wrappers;
-- enum variants use stable explicit codes, never Rust ordinal positions;
-- structured payloads include a schema version and bounded size;
-- every SQL value is bound as a parameter;
-- unknown required variants and unsupported payload versions fail explicitly.
-
-## Consumer-Owned Storage Ports
-
-There is no global `Store`, `Database`, generic repository, or ambient unit of work.
-
-| Port | Storage responsibility |
+| Consumer interface | Storage behavior |
 | --- | --- |
-| `WorkflowAggregateRepositoryPort` | load and revision-CAS the current Workflow snapshot |
-| `WorkflowRunRepositoryPort` | admit and transition Runs, outputs, and events atomically |
-| `AssetAggregateRepositoryPort` | load one Asset and query a stable bounded page |
-| `AssetIngestTransactionPort` | persist Pending Asset, finalization state, and availability transition |
-| `AssetManagedContentStorePort` | stage, finalize, open, verify, and remove managed bytes |
-| `DesktopBackendConfigReaderPort` | read validated non-secret startup configuration |
-| `DesktopProviderCredentialRepositoryPort` | save, load, and delete encrypted provider credentials |
+| `ProjectRepositoryInterface` | load/list Projects and atomically commit create/rename plus receipt |
+| `WorkflowAggregateRepositoryInterface` | load current Workflow; atomically CAS snapshot and mutation receipt |
+| `WorkflowRunRepositoryInterface` | idempotently admit and atomically transition Runs, outputs, and events |
+| `AssetRepositoryInterface` | load/query Assets and resolve node-output identity |
+| `AssetIngestTransactionInterface` | commit Pending/finalization and availability transitions |
+| `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove managed bytes |
+| `AssistantProductionPlanRepositoryInterface` | load and revision-CAS one plan aggregate |
+| `AssistantWorkflowChangeRepositoryInterface` | transition changes and query one pending approval per Session |
+| `AssistantModelContinuationStoreInterface` | store/load/consume versioned opaque continuation state |
+| `DesktopPostCommitEffectOutboxInterface` | claim and finish one of the three closed effect kinds |
+| `GenerationProviderCredentialVaultInterface` | save/load/delete generation-provider secrets in OS storage |
+| `AssistantModelCredentialVaultInterface` | save/load/delete Assistant model secrets in OS storage |
+| `DesktopBackendConfigReaderInterface` | read and validate non-secret startup configuration |
 
-Each Port is owned by the application capability that consumes it. SQLite, filesystem, and config-
-file adapters depend inward on these Ports. Concrete adapters are selected only in
-`src-tauri/composition.rs`.
+There is no global `Store`, `Database`, repository, unit of work, or credential interface. SQLite,
+filesystem, epoch-storage, OS-vault, and config adapters depend inward on their consumers.
 
 ## Required Atomic Writes
 
-### Workflow Save
-
-`WorkflowAggregateRepositoryPort::save_if_revision` performs one conditional update:
+### Project Create Or Rename
 
 ```text
-compare base revision with stored revision
-  -> write the next WorkflowAggregate snapshot
-  -> commit or return WorkflowRevisionConflict
+verify request identity and optional base revision
+  -> write Project creation or next name/revision
+  -> write mutation receipt
+  -> commit or return revision/idempotency conflict
 ```
 
-The aggregate validates the candidate before the repository call. A local Desktop command is not
-automatically retried. After an uncertain command result, the caller reloads the current snapshot.
-
-### Workflow Run Admission And Transition
-
-`WorkflowRunRepositoryPort` commits Run admission as one unit:
+### Workflow Mutation
 
 ```text
-write Queued WorkflowRunAggregate with frozen execution plan
+verify base revision and request identity
+  -> write next Workflow snapshot
+  -> write mutation receipt
+  -> commit or return revision/idempotency conflict
+```
+
+### Run Admission And Transition
+
+```text
+write Queued WorkflowRunAggregate + frozen plan
   -> write planned node executions
-  -> append the first Run event
+  -> append first event
+  -> write Run request receipt
+  -> write WorkflowExecuteRunEffect
   -> commit
-  -> start execution
+  -> post-commit worker executes the Run
 ```
 
-Later transactions persist only transitions approved by `WorkflowRunAggregate`. A transaction may
-update the Run root, update affected node executions, insert a complete output set, and append
-ordered events. Provider calls and Tauri emission occur after commit.
+Later transactions persist only aggregate-approved changes. One transition transaction may update
+the Run root, affected node executions, a complete output set, and ordered events. Provider calls
+occur while the already-committed Run effect is being consumed; no per-node effect records are
+created. Tauri emission consumes committed event rows after their transaction.
 
-### Asset Ingest
-
-`AssetIngestTransactionPort` uses two short SQLite transactions around filesystem publication:
+### Asset Publication
 
 ```text
-commit Pending AssetAggregate + managed-content finalization state
-  -> publish or verify exact managed bytes outside SQLite
-  -> commit Pending -> Available and mark finalization Completed
+commit Pending Asset + finalization + node-output identity + AssetFinalizeContentEffect
+  -> publish or verify exact bytes outside SQLite
+  -> commit Pending -> Available, finalization Completed, and effect Completed
 ```
 
-If publication cannot complete, the Asset remains Pending for bounded startup reconciliation. A
-generated media output is not attached to its Run until the Asset is Available.
+A generated output is not attached to a Run until Asset is Available.
 
-## Managed Media Flow
-
-Import and generated media use the same protocol:
+### Assistant Approval And Apply
 
 ```text
-stream into restricted staging
-  -> enforce size limit
-  -> calculate digest and sniff MIME
-  -> extract and validate media facts
-  -> flush and close staging content
-  -> commit Pending Asset and finalization state
-  -> atomically move or verify exact managed bytes
-  -> commit Available Asset state
-  -> remove obsolete staging entry
+commit Assistant change AwaitingApproval -> Applying + AssistantApplyWorkflowChangeEffect
+  -> call canonical Workflow mutation with stable request ID
+  -> commit Applied + Workflow mutation receipt reference
+  -> start canonical Run with stable Run request ID
+  -> commit optional Assistant-to-Run link
 ```
 
-The filesystem adapter derives the final location from `AssetManagedContentId`; callers cannot
-choose it. It rejects traversal, symlinks, unexpected file types, digest mismatch, length mismatch,
-and media-kind mismatch. Managed bytes are immutable after availability.
+These are intentionally separate short transactions consumed under one Assistant effect. An
+`Applying` change is recoverable because
+Workflow and Run request receipts make each follow-up idempotent. A permanent stale/fingerprint
+failure transitions the change to `ApplyFailed`; a transient storage failure leaves it recoverable.
+An ambiguous sidecar-continuation resume is marked interrupted rather than replayed; canonical
+Workflow apply and Run admission remain authoritative.
 
-| Failure point | Durable state | MVP response |
-| --- | --- | --- |
-| before Pending commit | no Asset | remove staging when possible |
-| after Pending commit | Pending and finalization state | retry at startup |
-| after publication, before Available commit | Pending; final bytes may exist | verify and mark Available |
-| Pending with no expected bytes | Pending cannot complete | mark Missing |
-| Available but bytes disappear | inconsistent Asset | detect and mark Missing |
+## Managed Media Publication
 
-Recovery compares content identity, digest, and length. It never searches by filename, scans another
-Project, or binds similar content.
+Import and node output share one protocol:
 
-## Provider Credential Encryption
+```text
+bounded stream -> restricted staging -> digest + MIME + media facts
+  -> Pending metadata commit -> atomic publish/verify -> Available metadata commit
+```
 
-`SqliteEncryptedProviderCredentialRepositoryAdapter` performs encryption directly. The MVP does not
-define a generic Cipher Port, key-provider service, operating-system vault adapter, or key-rotation
-workflow.
+The filesystem adapter derives final location from `AssetManagedContentId` and rejects traversal,
+symlinks, unexpected file types, digest/length/kind mismatch, oversized content, and unsafe
+permissions. Managed bytes are immutable after availability.
 
-The adapter uses:
+| Failure point | Durable outcome |
+| --- | --- |
+| before Pending commit | no Asset; remove staging when possible |
+| after Pending commit | Pending finalization is retried at startup |
+| after publication, before Available commit | verify exact bytes and complete transition |
+| expected bytes absent | mark Asset Missing |
+| Available bytes later absent | detect and mark Asset Missing |
 
-- a maintained authenticated-encryption library;
-- XChaCha20-Poly1305;
-- the code-embedded `PROVIDER_CREDENTIAL_ENCRYPTION_KEY_V1`;
-- a new cryptographically random nonce for every save;
-- `ProviderCredentialId` and `ProviderAccountId` as authenticated associated data.
+## Credentials
 
-Decryption failure returns `ProviderCredentialDecryptionFailed`; it never falls back to plaintext or
-an empty credential. Saving replaces the credential in one SQLite transaction. Deleting removes the
-credential record.
+Production credentials use the platform facility: macOS Keychain, Windows Credential Manager, or
+the supported Linux secret service. Non-secret configuration contains only typed credential IDs.
 
-This is deliberately basic local obfuscation. It prevents a casually opened database from exposing
-the API key, but an attacker who can inspect or modify the installed binary can recover the embedded
-key. The MVP does not claim protection from a fully compromised local machine.
+Vault adapters must use private access policy, return structured denied/not-found/unavailable
+errors, zeroize temporary secret buffers where supported, and never fall back to plaintext files,
+SQLite ciphertext with an embedded key, environment-variable persistence, or empty credentials.
 
-## Reads And Preview Access
+Tests use an in-memory fault-injecting adapter that passes the same save/load/delete and isolation
+contract. Environment variables may supply ephemeral development credentials but are never copied
+into durable configuration.
 
-Workflow and Asset queries read SQLite directly and return bounded results. Asset lists use the
-stable cursor contract from [`BACKEND_ASSETS.md`](BACKEND_ASSETS.md).
+## Reads And Preview
 
-`AssetManagedContentLease` owns an open read handle and exposes no path. Provider uploads and Desktop
-previews stream through that handle.
+Project, Workflow, Run, Asset, and Assistant queries read bounded SQLite projections. Stable cursor
+ordering is defined by the owning application contract.
 
-Preview access uses no database record or memory registry. The Desktop boundary issues a short-lived
-process-scoped signed token. Each protocol request validates signature, expiry, Project scope,
-current Asset state, and current content descriptor. Restart invalidates every preview token.
-
-Image previews stream verified original bytes. Video and Audio previews additionally support the
-bounded Range behavior from [`BACKEND_APPLICATION.md`](BACKEND_APPLICATION.md). Derived previews are
-not part of the MVP.
+`AssetManagedContentLease` owns an opaque read handle. Preview uses a short-lived process-signed
+token rather than a database row or memory registry. Every protocol request validates signature,
+expiry, Project, Asset state, and current descriptor. Restart invalidates all preview tokens.
 
 ## Startup And Restart
 
 ```text
-resolve private application-data locations
+resolve private application-data locations and validate non-secret DesktopBackendConfig
   -> open SQLite and apply known migrations
-  -> load non-secret DesktopBackendConfig
-  -> load and decrypt required provider credentials
-  -> reconcile a bounded batch of Pending Assets
-  -> mark every non-terminal Workflow Run as Failed(InterruptedByRestart)
-  -> construct use cases and accept Desktop commands
+  -> connect OS credential facilities
+  -> construct Project and other repositories, managed-content adapters, and application use cases
+  -> construct provider routes, Node Capabilities, Assistant adapter, and bridges
+  -> validate the active Assistant contract epoch
+  -> replay bounded Asset finalization effects
+  -> mark non-terminal Workflow Runs Failed(InterruptedByRestart) and abandon their effects
+  -> replay Assistant Applying effects through idempotency receipts
+  -> emit bounded undispatched Workflow Run events
+  -> start the post-commit worker and accept commands
 ```
 
-The MVP does not resume Queued Runs, Running nodes, provider polling, or paid provider tasks. The user
-starts a new Run explicitly. Pending Asset reconciliation is different: it only completes local
-publication already described by durable finalization state.
-
-Correctness does not depend on graceful shutdown. Startup applies the same conservative recovery
-after a crash or forced exit.
+MVP does not resume queued/running provider work. Pending Asset reconciliation is safe because it
+completes only already-identified local bytes. Assistant apply recovery is safe because it invokes
+canonical idempotent Workflow/Run admission, never a provider task directly.
 
 ## SQLite And Migration Policy
 
-One SQLite database belongs to one Desktop data root. The process owns its writable connection and
-keeps transactions short. Blocking SQLite and filesystem work runs outside async runtime core
-threads.
+One metadata database belongs to one Desktop data root and one writable process. Transactions are
+short; blocking SQL/filesystem work runs outside async runtime core threads. MVP requires foreign
+keys, parameterized statements, private permissions, bounded queries, a bounded busy timeout, and
+no application-managed pool or speculative WAL tuning.
 
-The MVP requires foreign-key enforcement, parameterized statements, private file permissions,
-bounded queries, a bounded busy timeout, and no transaction held during filesystem or provider I/O.
-It adds no application-managed connection pool or WAL-specific tuning.
+Startup creates the current schema, applies known forward migrations transactionally, refuses newer
+unsupported versions, and never deletes or silently recreates user data after integrity/migration
+failure. Assistant contract-epoch storage is a hard compatibility boundary and is never parsed by a
+new epoch.
 
-The database records one schema version. Startup creates the current schema, applies known forward
-migrations transactionally, refuses newer unsupported schemas, and never deletes or silently
-recreates user data after a migration or integrity failure.
+## Errors And Verification
 
-## Non-Secret Configuration
+Storage adapters return structured categories: unavailable, busy, permission denied, unsupported
+version, corruption, revision conflict, idempotency conflict, limit exceeded, content mismatch,
+credential denied, and credential unavailable. Errors include safe operation and typed identity,
+never paths, secrets, model prompts, provider bodies, signed URLs, or SDK bytes.
 
-`DesktopBackendConfig` contains startup locations, limits, provider bindings, `ProviderAccountId`
-values, and `ProviderCredentialId` references. It contains no API key.
-`DesktopBackendConfigReaderPort` loads and validates the versioned configuration document once at
-startup.
+Verification proves:
 
-Development and tests may override non-secret values through environment variables. Production
-provider credentials are loaded from `DesktopProviderCredentialRepositoryPort`.
+- Project create/rename receipt behavior, stable list ordering, and current-Workflow discovery;
+- Workflow revision CAS and mutation receipt replay/conflict;
+- Run admission receipt, transition/output/event atomicity, and event ordering;
+- Asset fault injection at every SQLite/filesystem boundary and node-output replay/conflict;
+- Assistant plan CAS, exact change reconstruction, Applying recovery, and Run-link idempotency;
+- restart interruption without provider-task resume;
+- OS-vault round trip, denial, isolation, deletion, and no durable plaintext;
+- bounded queries, Project isolation, preview expiry/Range, and path non-disclosure;
+- translators reject unknown versions, variants, corrupt combinations, and oversized payloads.
 
-## Storage Errors
+## Post-MVP
 
-Storage failures are translated into the consuming application context. Required categories include
-unavailable, busy, permission denied, unsupported version, corruption, revision conflict, limit
-exceeded, managed-content mismatch, and provider-credential decryption failure.
-
-Errors contain the operation and safe typed identity needed for diagnosis. They never contain
-plaintext credentials, provider bodies, signed URLs, generated text, local paths, or media bytes.
-
-## Verification
-
-- Workflow repository tests prove revision compare-and-swap;
-- Run repository tests prove admission, transition, complete-output, and ordered-event atomicity;
-- Asset fault-injection tests stop before and after each SQLite/filesystem boundary;
-- restart tests prove every non-terminal Run becomes interrupted and is not resumed;
-- reconciliation tests prove Pending Asset completion and exact-content Missing behavior;
-- credential tests prove authenticated round-trip, unique nonce, tamper rejection, deletion, and no
-  plaintext database value;
-- query and preview tests prove bounds, Project isolation, expiry, Range, and path non-disclosure;
-- persistence translation tests reject unknown versions, variants, and corrupt payloads.
-
-Domain invariants remain covered by Workflow and Asset tests rather than being duplicated in storage
-tests.
-
-## Features
-
-The following are future features, not MVP requirements:
-
-- durable Workflow history and backend undo/redo;
-- provider task persistence and Run resume;
-- result, provider-response, and media-derivative caching;
-- Asset deletion, retention, deduplication, and garbage collection;
-- backup, restore, export/import, and downgrade support;
-- full database or managed-media encryption;
-- replaceable credential key storage and key rotation;
-- measured SQLite connection-pool or WAL tuning;
-- multiple writable processes, cloud synchronization, and collaboration;
-- advanced Asset metadata and search.
-
-Each feature must define its authority, migration, failure, and recovery behavior before changing
-this MVP baseline.
+Project archive/delete/duplicate, Workflow history/undo, provider task persistence, cross-Run
+cache, Asset deletion/retention/GC, backup/restore, full database/media encryption, key rotation
+UI, connection-pool/WAL tuning, multiple writers, distributed Assistant leases, cloud sync, and
+collaboration require separate authority, migration, and recovery decisions.

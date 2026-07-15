@@ -1,59 +1,56 @@
-# Backend MVP Asset Architecture
+# Backend Asset Architecture
 
-> Status: proposed MVP design
+> Status: frozen MVP design
 > Owner: `crates/assets`
-> Scope: project-local Image, Video, and Audio required for execution and preview
+> Scope: Project-local Image, Video, and Audio used by Workflow execution and preview
 
-Naming follows [`BACKEND_GLOSSARY.md`](BACKEND_GLOSSARY.md). `AssetAggregate` is the aggregate root
-of the Asset bounded context.
+The Asset bounded context owns media identity, verified managed bytes, availability, technical
+facts, provenance, and preview permission. It owns no Workflow edge, node parameter, provider task,
+canvas state, or playback state.
+
+Assets import the authoritative `ProjectId` from `crates/projects`. The Desktop boundary resolves
+Project existence before an Asset use case; Asset then owns media visibility within that scope.
 
 ## MVP Goal
 
-The Asset context provides one durable media path:
-
 ```text
-user import or generated stream
-  -> validate managed content
-  -> create stable Asset identity
-  -> return Workflow managed-media reference
-  -> preview image, video, or audio
+user import or node-produced byte stream
+  -> validate and identify managed content
+  -> persist Pending Asset
+  -> publish immutable bytes
+  -> transition Asset to Available
+  -> return one stable managed-media reference
+  -> resolve for execution or issue a preview lease
 ```
 
-It owns Asset identity, Project visibility, media kind, content availability, verified technical
-facts, origin, and legal content-state transitions. It does not own Workflow edges, node parameters,
-provider tasks, canvas state, or playback state.
+Text is not an Asset. A path, storage key, digest, provider task, signed URL, preview URL, and SQLite
+row are never Asset identity.
 
-Text is not an Asset. Paths, storage keys, SQLite rows, object URLs, and preview URLs are boundary
-representations, never Asset identity.
-
-## DDD Layers
+## DDD Structure
 
 ```text
 crates/assets/src/asset/
   domain/          aggregate, content state, media facts, origin, errors
-  application/     import, generated write, get, list, resolve, preview, recovery
-  ports/           persistence, transaction, managed bytes, inspection, clock, IDs
-  infrastructure/  SQLite, managed filesystem, and media-probe adapters
+  application/     import, node output, get, list, resolve, preview, recovery
+  interfaces/   repository, ingest transaction, bytes, inspection, clock, IDs
+  infrastructure/  local adapters owned by this crate when appropriate
 ```
 
-`AssetAggregate` owns state transitions. Use cases coordinate the aggregate and ports. Infrastructure
-implements consumer-owned ports and is constructed only by the Desktop composition root.
+`AssetAggregate` approves transitions. Application use cases coordinate focused interfaces. Desktop
+constructs adapters and translates cross-context values.
 
 ## Asset Aggregate
-
-`AssetId` identifies one logical media item. `AssetManagedContentId` identifies one immutable
-managed byte object. Assets remain distinct even when their verified bytes match.
 
 ```rust
 pub struct AssetAggregate {
     pub id: AssetId,
     pub project_id: ProjectId,
     pub media_kind: AssetMediaKind,
-    pub managed_content_state: AssetManagedContentState,
-    pub origin: AssetOriginValue,
-    pub media_facts: AssetMediaFactsValue,
-    pub display_name: AssetDisplayNameValue,
-    pub created_at: AssetCreatedAtValue,
+    pub content_state: AssetManagedContentState,
+    pub media_facts: AssetMediaFacts,
+    pub origin: AssetOrigin,
+    pub display_name: AssetDisplayName,
+    pub created_at: AssetCreatedAt,
 }
 
 pub enum AssetMediaKind {
@@ -63,45 +60,46 @@ pub enum AssetMediaKind {
 }
 ```
 
-MVP Assets are Project-local. An operation in another Project cannot list, resolve, or preview them.
-Neither identity is a path, filename, URL, object URL, or provider task ID.
+`AssetId` identifies one logical media item. `AssetManagedContentId` identifies one immutable byte
+object. Two Assets remain distinct even when their verified bytes match. MVP Assets are visible only
+inside their owning Project.
 
 ## Managed Content State
 
 ```rust
-pub struct AssetManagedContentDescriptorValue {
-    pub id: AssetManagedContentId,
-    pub digest: AssetContentDigestValue,
+pub struct AssetContentDescriptor {
+    pub content_id: AssetManagedContentId,
+    pub digest: AssetContentDigest,
     pub byte_length: u64,
-    pub mime_type: AssetMediaMimeTypeValue,
+    pub mime_type: AssetMediaMimeType,
     pub media_kind: AssetMediaKind,
 }
 
 pub enum AssetManagedContentState {
     Pending {
-        descriptor: AssetManagedContentDescriptorValue,
-        finalization_id: AssetManagedContentFinalizationId,
+        descriptor: AssetContentDescriptor,
+        finalization_id: AssetContentFinalizationId,
     },
     Available {
-        descriptor: AssetManagedContentDescriptorValue,
+        descriptor: AssetContentDescriptor,
     },
     Missing {
-        expected: AssetManagedContentDescriptorValue,
+        expected: AssetContentDescriptor,
         reason: AssetContentMissingReason,
     },
 }
 ```
 
-`AssetManagedContentId` is derived from a versioned SHA-256 digest scheme. The filesystem adapter
-maps it to a private managed location. MIME is sniffed from bytes and checked against media kind;
-caller MIME and extension are hints only.
+`AssetManagedContentId` is derived from a versioned SHA-256 scheme. Only the filesystem adapter maps
+it to a private location. MIME is sniffed from bytes and verified against media kind; caller MIME
+and extension are hints only.
 
-The MVP never replaces bytes in place. Every import or generation creates a new `AssetAggregate`,
-so an earlier Run keeps the exact output it recorded.
+Bytes are never replaced in place. Importing or producing new content creates another Asset, so an
+earlier Run always references the exact bytes it recorded.
 
 ## Verified Media Facts
 
-`AssetMediaFactsValue` is a closed enum:
+`AssetMediaFacts` is a closed enum:
 
 ```text
 Image { width, height }
@@ -109,150 +107,162 @@ Video { width, height, duration_ms, has_audio }
 Audio { duration_ms, sample_rate_hz, channels }
 ```
 
-Facts are immutable observations extracted before availability. Invalid, unreadable, or unsupported
-media is rejected rather than stored with guessed metadata.
+Facts are immutable observations extracted before availability. Invalid, unreadable, oversized, or
+unsupported media is rejected rather than stored with guessed metadata.
 
-## Origin
+## Provenance
 
 ```rust
-pub enum AssetOriginValue {
+pub enum AssetOrigin {
     Imported {
-        asset_import_id: AssetImportId,
-        original_file_name: AssetOriginalFileNameValue,
+        import_id: AssetImportId,
+        original_file_name: AssetOriginalFileName,
     },
-    GeneratedByWorkflowNode {
-        workflow_id: AssetOriginWorkflowId,
-        workflow_revision: AssetOriginWorkflowRevision,
-        workflow_run_id: AssetOriginWorkflowRunId,
-        workflow_node_id: AssetOriginWorkflowNodeId,
-        node_capability_ref: AssetOriginNodeCapabilityRef,
+    WorkflowNodeOutput {
+        producer: AssetWorkflowNodeOrigin,
+        production: AssetNodeOutputProduction,
+        output_key: AssetNodeOutputKey,
+    },
+}
+
+pub enum AssetNodeOutputProduction {
+    ProviderGenerated {
         generation_profile_ref: AssetOriginGenerationProfileRef,
-        node_output_port: AssetOriginNodeOutputPortKey,
     },
-    DerivedByWorkflowNode {
-        workflow_id: AssetOriginWorkflowId,
-        workflow_revision: AssetOriginWorkflowRevision,
-        workflow_run_id: AssetOriginWorkflowRunId,
-        workflow_node_id: AssetOriginWorkflowNodeId,
-        node_capability_ref: AssetOriginNodeCapabilityRef,
+    DeterministicDerived {
         source_asset_ids: NonEmptyVec<AssetOriginSourceAssetId>,
-        node_output_port: AssetOriginNodeOutputPortKey,
     },
-    ModelDerivedByWorkflowNode {
-        workflow_id: AssetOriginWorkflowId,
-        workflow_revision: AssetOriginWorkflowRevision,
-        workflow_run_id: AssetOriginWorkflowRunId,
-        workflow_node_id: AssetOriginWorkflowNodeId,
-        node_capability_ref: AssetOriginNodeCapabilityRef,
+    ProviderDerived {
         source_asset_ids: NonEmptyVec<AssetOriginSourceAssetId>,
         generation_profile_ref: AssetOriginGenerationProfileRef,
-        node_output_port: AssetOriginNodeOutputPortKey,
     },
 }
 ```
 
-Asset-owned origin wrappers prevent a dependency on Workflow persistence types. The Desktop bridge
-performs explicit translation. Imported origin does not retain an absolute source path. Generated
-origin records the provider-independent profile; deterministic derived origin records exact source
-Asset identities; model-derived origin records both. None duplicates prompts, provider/native model
-state, progress, or cost.
+`AssetWorkflowNodeOrigin` records Workflow, revision, Run, node, node execution, capability, and
+output through Asset-owned integration value types. `DesktopNodeCapabilityAssetBridgeAdapterImpl`
+translates the Workflow values explicitly, so `crates/assets` does not depend on `crates/engine`.
+
+Provenance never copies prompt text, provider/native model, provider task, route, progress, cost, or
+path. Imported origin never retains the user's absolute source path.
+
+## Node-Output Idempotency
+
+```rust
+pub struct AssetNodeOutputKey {
+    pub workflow_run_id: AssetOriginWorkflowRunId,
+    pub node_execution_id: AssetOriginWorkflowNodeExecutionId,
+    pub output_key: AssetOriginNodeOutputKey,
+    pub ordinal: u32,
+}
+```
+
+The key identifies one durable media output slot. `AssetRecordNodeOutputUseCase` returns the existing
+Asset when the key and content digest match. The same key with different bytes returns
+`AssetNodeOutputConflict`; it never silently rebinds the slot.
+
+This closes the failure window where content becomes Available but the Workflow output commit is
+uncertain. A late Asset may remain durable after cancellation, but Workflow rejects its late output
+association and never reports the cancelled node as succeeded.
 
 ## Aggregate Invariants
 
-- identity, Project, media kind, origin, and content descriptor are immutable;
-- descriptor digest, length, MIME, kind, and verified bytes agree;
-- only `Pending -> Available`, `Pending -> Missing`, or `Available -> Missing` is legal in the MVP;
+- identity, Project, media kind, descriptor, facts, and origin are immutable;
+- descriptor digest, length, MIME, media kind, and verified bytes agree;
+- legal MVP transitions are `Pending -> Available`, `Pending -> Missing`, and
+  `Available -> Missing`;
 - `Missing -> Available` requires the exact expected digest and length;
-- only the owning Project may list, resolve, or preview an Asset;
-- paths and preview URLs never enter the aggregate;
-- finalization transitions are idempotent by `AssetManagedContentFinalizationId`.
+- finalization is idempotent by `AssetContentFinalizationId`;
+- node-output identity is idempotent by `AssetNodeOutputKey`;
+- only the owning Project may get, list, resolve, or preview an Asset;
+- paths and preview URLs never enter the aggregate.
 
-Repositories persist transitions already approved by `AssetAggregate`; they expose no arbitrary
-state setter.
+Repositories persist transitions approved by `AssetAggregate`; they expose no generic status
+setter.
 
-## MVP Use Cases
+## Frozen MVP Use Cases
 
-| Use case | Responsibility |
+| Use case and method | Responsibility |
 | --- | --- |
-| `ImportAssetUseCase` | validate a user-selected file and create an Asset |
-| `RecordNodeProducedAssetUseCase` | validate one generated-or-derived node stream and create an Asset |
-| `GetAssetUseCase` | return one visible Asset |
-| `ListAssetsUseCase` | return one bounded Project page |
-| `ResolveAssetContentUseCase` | return opaque managed-byte access for execution |
-| `IssueAssetPreviewUseCase` | grant short-lived preview access |
-| `ReconcileAssetContentUseCase` | finish bounded Pending work after interruption |
+| `AssetImportUseCase::import_asset` | validate a trusted user file handle and create an Asset |
+| `AssetRecordNodeOutputUseCase::record_asset_node_output` | validate one node-produced stream and create/reuse its exact output Asset |
+| `AssetFinalizeContentUseCase::finalize_asset_content` | consume one committed finalization effect and publish exact managed bytes |
+| `AssetGetUseCase::get_asset` | return one Project-visible Asset |
+| `AssetListUseCase::list_assets` | return one stable bounded Project page |
+| `AssetResolveContentUseCase::resolve_asset_content` | return opaque managed-byte access for execution |
+| `AssetIssuePreviewUseCase::issue_asset_preview` | grant short-lived preview permission |
+| `AssetReconcileContentUseCase::reconcile_asset_content` | finish a bounded batch of interrupted local publication |
 
-Archive, delete, purge, tagging, collections, content-retention policy, remote import, and export are
-not MVP use cases.
+Delete, archive, purge, tags, collections, search, export, remote import, derivatives, and garbage
+collection are not MVP use cases.
 
 ## Import Flow
 
-`ImportAssetCommand` contains trusted Project scope plus a Tauri-owned file handle. It never accepts
-a reusable path from Workflow JSON.
+`AssetImportCommand` contains trusted Project scope and a Tauri-owned file handle. It never accepts a
+reusable path from Workflow JSON.
 
 ```text
-open bounded file stream
+open bounded source stream
   -> write restricted staging content
   -> calculate digest and sniff MIME
-  -> extract and validate AssetMediaFactsValue
-  -> commit Pending AssetAggregate + managed-content finalization
-  -> finalize managed bytes after commit
-  -> transition AssetAggregate to Available
-  -> return ImportAssetResult
+  -> extract and validate AssetMediaFacts
+  -> atomically commit Pending Asset + finalization + AssetFinalizeContentEffect
+  -> after commit, AssetImportUseCase calls AssetFinalizeContentUseCase
+  -> publish exact managed bytes and transition Asset to Available
 ```
 
-Validation failure creates no aggregate and removes staging. Database failure removes staging. A
-failure after the Pending commit remains recoverable and is never reported as available.
-
-The local Desktop MVP does not persist import replay receipts. An interrupted import is reconciled
-only after its Pending Asset and managed-content finalization have committed.
+Validation or initial database failure leaves no aggregate and removes staging when possible. A
+failure after the Pending commit remains recoverable and is never reported as Available. Import may
+return Pending; the post-commit worker or startup reconciliation retries the same exact effect.
 
 ## Node-Produced Media Flow
 
 ```text
-node capability executor
-  -> NodeCapabilityProducedMediaWriterPort
-  -> RecordNodeProducedAssetUseCase
-  -> Pending/finalization/Available flow
-  -> Workflow managed-media reference
+exact capability
+  -> NodeCapabilityProducedMediaWriterInterface::write_node_output_media
+  -> DesktopNodeCapabilityAssetBridgeAdapterImpl
+  -> AssetRecordNodeOutputUseCase::record_asset_node_output
+  -> Pending + AssetFinalizeContentEffect
+  -> AssetFinalizeContentUseCase::finalize_asset_content after commit
+  -> Available
+  -> typed Workflow managed-media reference
 ```
 
-A node cannot succeed until every produced Asset needed by its result is available. Provider bytes
-and URLs never enter Workflow state. Storage failure publishes no node output.
+The bridge translates Project scope, media kind, node provenance, source Asset IDs, profile ref,
+and `NodeCapabilityProducedMediaOutputKey` into Asset-owned values including
+`AssetNodeOutputKey`. It never gives node code an Asset repository, SQLite connection, path, or
+preview URL.
 
-## Resolve Use Case
+A capability publishes its `WorkflowNodeOutputSet` only after every required output Asset is
+Available. If one output fails, already-created Assets retain provenance but no partial Workflow
+output set is committed. The node-output writer waits within the node deadline for its exact
+finalization. The first finalization attempt happens inline after the outbox commit, so a Run never
+waits for the worker executing that same Run. Failure leaves the effect available for the worker or
+startup reconciliation; no code publishes bytes before the effect is durable.
 
-```text
-ResolveAssetContentQuery {
-  project_id,
-  asset_id,
-  expected_asset_media_kind
-} -> ResolveAssetContentResult {
-  lease: AssetManagedContentLease,
-  descriptor: AssetManagedContentDescriptorValue
+## Resolve And List
+
+```rust
+pub struct AssetResolveContentQuery {
+    pub project_id: ProjectId,
+    pub asset_id: AssetId,
+    pub expected_media_kind: AssetMediaKind,
 }
 ```
 
-Resolution checks Project ownership, exact media kind, `Available` state, and current content
-existence. `AssetManagedContentLease` is bounded and opaque, never a path. A node adapter can stream
-it to a provider; Desktop preview code can stream it to React.
+Resolution verifies Project visibility, exact kind, `Available` state, and current content
+existence. It returns `AssetManagedContentLease` plus `AssetContentDescriptor`. The lease is bounded
+and opaque; provider upload and Desktop preview can stream it but cannot discover a path.
 
-Pending, Missing, wrong-kind, and wrong-Project cases return distinct structured errors.
+`AssetListQuery` accepts Project, optional media kind, opaque cursor, and limit `1..=100`. Ordering
+is always `(created_at DESC, asset_id DESC)`, and the cursor contains both values.
 
-## List Use Case
+Pending, Missing, wrong-kind, wrong-Project, and absent content are distinct structured outcomes.
 
-```text
-ListAssetsQuery { project_id, media_kind?, after?, limit }
-ListAssetsResult { assets, next_cursor }
-```
+## Preview
 
-Ordering is `(created_at DESC, asset_id DESC)`. The opaque cursor contains both values, and `limit`
-is bounded from 1 to 100. This supports the MVP picker without loading the full library.
-
-## Preview Use Case
-
-`IssueAssetPreviewUseCase` creates `AssetPreviewLease`, a short-lived Project-scoped permission. The
-Desktop protocol translates the lease into a `desktop-asset://` URL:
+`AssetIssuePreviewUseCase` creates a short-lived `AssetPreviewLease`. The Desktop protocol adapter
+translates it into a process-scoped `desktop-asset://` URL:
 
 ```text
 Image -> verified image MIME
@@ -260,61 +270,56 @@ Video -> MIME, Content-Length, ETag, and one valid byte Range
 Audio -> MIME, Content-Length, ETag, and one valid byte Range
 ```
 
-Every protocol request rechecks Project scope and expiry. It supports bounded `GET` and `HEAD`, sets
-`nosniff`, and never discloses a managed path. React owns zoom, seek, volume, playback, and object URL
-lifetime.
+Every request rechecks token signature, expiry, Project, current Asset state, and content
+descriptor. It supports bounded `GET` and `HEAD`, sets `nosniff`, and exposes no managed path. React
+owns zoom, seek, playback, volume, and object-URL lifetime.
 
 ## Recovery
 
-`ReconcileAssetContentUseCase` performs bounded startup recovery:
+`AssetReconcileContentUseCase` and the post-commit worker process a configured maximum number of
+Pending `AssetFinalizeContentEffect` values at startup:
 
-- retry idempotent finalization while expected staging content exists;
-- mark an Available aggregate Missing when its exact managed content is absent;
-- remove stale unreferenced staging content after a configured retention window.
+- publish or verify the exact expected managed bytes when staging exists;
+- mark Pending content Missing when neither exact staging nor managed bytes can complete it;
+- mark Available content Missing when its exact managed bytes are absent;
+- remove stale unreferenced staging entries after a configured retention window.
 
-Recovery never searches by basename, crosses Project scope, or rewrites an Asset binding.
+Recovery compares content ID, digest, and length. It never searches by filename, crosses Project
+scope, substitutes similar bytes, or changes an output key.
 
-## Consumer-Owned Ports
+## Consumer-Owned Interfaces
 
-| Port | Required behavior |
+| Interface | Explicit behavior |
 | --- | --- |
-| `AssetAggregateRepositoryPort` | load aggregates and perform stable cursor queries |
-| `AssetIngestTransactionPort` | atomically persist Pending, finalization, and approved transitions |
-| `AssetManagedContentStorePort` | stage, finalize, lease, inspect existence, clean staging |
-| `AssetMediaInspectorPort` | sniff MIME and extract verified media facts |
-| `AssetClockPort` | provide deterministic timestamps |
-| `AssetIdentityGeneratorPort` | create Asset, import, and managed-content finalization identities |
+| `AssetRepositoryInterface` | load Assets, resolve an output key, and perform stable bounded queries |
+| `AssetIngestTransactionInterface` | atomically commit Pending/finalization and approved availability transitions |
+| `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove managed bytes |
+| `AssetMediaInspectorInterface` | sniff MIME and extract verified media facts |
+| `AssetClockInterface` | provide deterministic Asset timestamps |
+| `AssetIdentityGeneratorInterface` | create Asset, import, and finalization identities |
 
-Each use case receives only its required ports through its constructor. `crates/nodes` separately
-owns `NodeCapabilityManagedMediaReaderPort` and `NodeCapabilityProducedMediaWriterPort`; Desktop
-implements those ports by calling Asset use cases.
+Fake and production implementations run the same ordering, idempotency, Project-isolation,
+transaction, and failure contract suites.
 
-Concrete implementations are named by technology and role, for example
-`SqliteAssetAggregateRepositoryAdapter`, `FileSystemAssetManagedContentStoreAdapter`, and
-`FfprobeAssetMediaInspectorAdapter`.
+## Errors And Verification
 
-Logical metadata records, managed-content publication, and crash recovery are defined in
-[`BACKEND_STORAGE.md`](BACKEND_STORAGE.md).
+`AssetDomainError` covers invariants and transitions. `AssetApplicationError` adds not found, not
+visible, kind mismatch, Pending, Missing, invalid media, size limit, digest mismatch, output-key
+conflict, managed-storage failure, and finalization failure. Errors contain safe typed identities,
+never paths or raw content.
 
-## Errors
+Verification covers:
 
-`AssetDomainError` covers invariant and transition failures. `AssetApplicationError` adds not found,
-not visible, kind mismatch, Pending, Missing, invalid media, import limit, digest mismatch, managed
-storage failure, and finalization failure. Errors include safe typed IDs and structured details,
-never paths or raw untrusted content.
-
-## Verification
-
-- aggregate tests cover Project scope, kind, origin, and legal transitions;
-- import and generated-media tests cover validation, Pending finalization, and storage failure;
-- port contract suites run against fake and production adapters;
-- fault-injection tests stop at each write boundary and prove recovery;
-- query tests prove cursor ordering, bounds, and Project isolation;
-- preview tests prove MIME, ETag, Range, expiry, and path non-disclosure;
-- bridge tests prove exact kind, provenance, and no output before availability.
+- aggregate transitions, Project visibility, immutable facts, and provenance;
+- import and node-output success plus every failure boundary;
+- output-key same-content replay and different-content conflict;
+- behavioral equivalence across fake, SQLite, and filesystem implementations;
+- effect consumption, startup reconciliation, and exact-content Missing behavior;
+- list ordering/bounds and preview MIME, Range, expiry, and path non-disclosure;
+- Desktop bridge translation and no Workflow output before availability.
 
 ## Post-MVP
 
-Global Assets, archive/delete/purge, tags, search, preview derivatives, remote import, packages,
-garbage collection, and cloud sync require separate product requirements. Multiview, 3D, and scene
-Assets are not product scope.
+Archive/delete/purge, tags, search, export, remote import, thumbnails, posters, waveforms, content
+retention, deduplication, garbage collection, cloud sync, multiview, 3D, and scene Assets require
+separate product and migration decisions.

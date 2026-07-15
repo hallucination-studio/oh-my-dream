@@ -2,17 +2,22 @@
 
 ## Project Structure & Module Organization
 
-`oh-my-dream` is a Rust workspace for a local desktop AI creation client. Keep workflow logic in `crates/engine`; it must remain pure logic and must not depend on UI, network, filesystem, or specific vendors. Workspace modules follow `docs/DESIGN.md`: `crates/nodes`, `crates/backends`, `crates/assets`, `src-tauri/`, and `ui/`. The root `Cargo.toml` owns workspace metadata and shared dependency versions. Do not commit `target/`, `data/`, local config, or generated runtime artifacts.
+`oh-my-dream` is a Rust workspace for a local desktop AI creation client. Keep Project identity and metadata in `crates/projects`, Workflow logic in `crates/engine`, and Assistant business logic in `crates/assistant`. These crates remain pure and must not depend on UI, network, filesystem, or specific vendors. Workspace modules follow [`docs/DESIGN.md`](docs/DESIGN.md): `crates/projects`, `crates/engine`, `crates/nodes`, `crates/backends`, `crates/assets`, `crates/assistant`, `src-tauri/`, and `ui/`. The root `Cargo.toml` owns workspace metadata and shared dependency versions. Do not commit `target/`, `data/`, local config, or generated runtime artifacts.
+
+The frozen backend architecture starts at [`docs/BACKEND.md`](docs/BACKEND.md). Its document map identifies the single authority for Project, Workflow, Node Capability, Generation Profile/Provider, Asset, Assistant, Desktop, and Storage semantics. All exported backend names follow [`docs/BACKEND_GLOSSARY.md`](docs/BACKEND_GLOSSARY.md). Do not redefine those contracts in README files, implementation notes, DTO docs, or new ADRs.
 
 ## Architecture and Dependency Rules
 
 > **Core principle:** Business code depends on stable abstractions, and concrete adapters depend inward on interfaces owned by the business code that consumes them. Each business concept has one authoritative source of semantics; every other form is only a boundary representation.
 
 In this section, an interface means a Rust trait or an equivalent explicit protocol in another repository language.
+Every exported substitution interface ends in `Interface`; every concrete type implementing one
+ends in `Impl`. Use the more specific endings `CapabilityImpl`, `AdapterImpl`, `RouterImpl`, or
+`RouteImpl` when they reveal the implementation's role. Boundary traits live in `interfaces/`.
 
 1. **Organize code by business capability.** Group modules by the business reason they change, not by horizontal technical roles such as `controller`, `service`, or `store`. Technology-specific adapters and entry points belong at system boundaries.
 
-2. **Give each concept one semantic owner.** Status predicates, legal state transitions, invariants, and business validation must be implemented exactly once by the authoritative domain type or domain service. Persistence rows, API DTOs, and view models may represent the same data but must not reimplement those rules. Boundary-shape validation is allowed, but it must not become a second source of business semantics.
+2. **Give each concept one semantic owner.** Status predicates, legal state transitions, invariants, and business validation must be implemented exactly once by the authoritative aggregate, entity, value, capability implementation, or named policy. Persistence rows, API DTOs, and view models may represent the same data but must not reimplement those rules. Boundary-shape validation is allowed, but it must not become a second source of business semantics.
 
 3. **Define a trait for every real substitution boundary.** A trait is required when multiple implementations already exist, multiple implementations are explicitly planned, the dependency crosses an external boundary such as a database, third-party API, filesystem, process, or clock, or tests require a fake or fault-injection implementation. A vague possibility of replacement is not enough.
 
@@ -21,18 +26,18 @@ In this section, an interface means a Rust trait or an equivalent explicit proto
 5. **Domain and application code depend on boundary traits, not concrete adapters.** For every dependency that meets the substitution criteria above, use generic trait bounds or trait objects as appropriate:
 
    ```rust
-   pub struct ManagedRunService<R: ManagedRunRepository> {
-       repository: R,
+   pub struct WorkflowStartRunUseCase<R: WorkflowRunRepositoryInterface> {
+       workflow_run_repository: R,
    }
    ```
 
-   Do not name `PostgresManagedRunStore` or any other concrete adapter in a domain or application constructor, field, or function signature.
+   Do not name `SqliteWorkflowRunRepositoryAdapterImpl` or any other concrete adapter in a domain or application constructor, field, or function signature.
 
 6. **Select concrete adapters only in the composition root.** Concrete types and their trait implementations live in adapter modules, but their construction, selection, and wiring belong only in an application entry point or a dedicated composition or dependency-injection module. Business code must not downcast concrete types, inspect implementation names, or branch on adapter-specific configuration or capability flags.
 
 7. **Make all implementations behaviorally equivalent.** Matching method signatures is insufficient. Every implementation of a trait must preserve the same return values, error types, idempotency, concurrency semantics, transaction boundaries, ordering, and pagination rules. Run the same parameterized contract test suite against every implementation.
 
-8. **Keep traits small and capability-scoped.** Prefer focused traits such as `ManagedRunRepository`, `DispatchRepository`, and `InstallationRepository`. Do not grow a global `Store`, `Database`, or `Repository` trait with unrelated methods.
+8. **Keep traits small and capability-scoped.** Prefer focused traits such as `WorkflowRunRepositoryInterface`, `AssetManagedContentStoreInterface`, and `TextToImageProviderInterface`. Do not grow a global `Store`, `Database`, or `Repository` trait with unrelated methods.
 
 9. **Do not disguise unsupported behavior as an optional trait method.** An implementation must not satisfy a trait with `todo!()`, `unimplemented!()`, a panic, an `Unsupported` error, or a probe such as `supports_leases`. If some implementations cannot provide an operation, split that capability into a separate, semantically complete trait.
 
@@ -47,9 +52,9 @@ In this section, an interface means a Rust trait or an equivalent explicit proto
 
     Convert between them at boundaries through explicit, named translators such as `AssetDto::from_domain` or `TryFrom<AssetRow> for Asset`. Never pass or serialize a persistence row directly into an API response or UI model.
 
-11. **Centralize state transitions.** All state changes go through the owning aggregate or a dedicated transition service. Repositories persist transitions that have already been validated; they must not expose arbitrary status setters to callers.
+11. **Centralize state transitions.** All state changes go through the owning aggregate or its named domain policy. Repositories persist transitions that have already been validated; they must not expose arbitrary status setters to callers.
 
-12. **Use structured types instead of magic strings.** Represent business concepts with enums, structs, newtypes, or tagged unions such as `BlockReason`, `GateOutcome`, and `RuntimeWait`. Never infer business state from string prefixes, human-readable error text, or implicit combinations of fields. Strings may carry ordinary domain text, but they must not stand in for structured business concepts.
+12. **Use structured types instead of magic strings.** Represent business concepts with enums, structs, newtypes, or tagged unions such as `WorkflowRunState`, `NodeCapabilityReadinessIssue`, and `AssetManagedContentState`. Never infer business state from string prefixes, human-readable error text, or implicit combinations of fields. Strings may carry ordinary domain text, but they must not stand in for structured business concepts.
 
 13. **Persist state inside the transaction and perform side effects after it.** When a use case couples durable state with external effects, atomically persist the aggregate state, revision, domain events, outbox entries, and idempotency record. Execute provider calls, notifications, reports, and other external effects after commit by consuming the outbox.
 
@@ -77,19 +82,19 @@ Put focused unit tests beside the code with `#[cfg(test)]`; use crate-level `tes
 
 The suite is layered — know which layer a change touches so you update the right one:
 
-- **Rust unit/integration** (`crates/*/tests/`, `src-tauri/tests/`): engine executor, mock backend, asset store, node pipeline.
-- **Backend E2E** (`src-tauri/tests/e2e.rs`): the whole `run_workflow` path — cache reuse, failure propagation, type-mismatch rejection, asset snapshot read-back.
+- **Rust unit/integration** (`crates/*/tests/`, `src-tauri/tests/`): Workflow execution, deterministic provider routes, Asset adapters, and Node Capability pipelines.
+- **Backend E2E** (`src-tauri/tests/e2e.rs`): the whole Workflow Run path — idempotent admission, failure propagation, cancellation, restart interruption, typed input rejection, and Asset read-back.
 - **Cross-language contract** (`src-tauri/tests/contract.rs` writes fixtures to `ui/src/__fixtures__/`; `ui/src/api/contract.test.ts` validates them): guards the frontend TS types against the backend DTO shapes so they cannot drift.
 - **Frontend** (Vitest + jsdom, `ui/**/*.test.ts(x)`): serialization, wiring validation, mock API, API selection, and the App run flow.
 
 **When you MUST update tests (do this in the same change, never defer):**
 
-- **Change a Tauri command signature or a DTO** (`RunWorkflowResultDto`, `AssetDto`, or the nested run-output shape) → regenerate the fixtures via `contract.rs` and update `contract.test.ts` and the affected frontend types. A DTO change with stale fixtures is a broken contract.
-- **Add or change a node type, port, or the `Workflow` JSON schema** → update the authoritative engine/nodes tests plus frontend serialization and contract-conformance tests. Frontend UX preflight must consume or be mechanically derived from the engine-owned contract; it must not independently reimplement port compatibility or workflow business rules.
+- **Change a Tauri command signature or a DTO** (`WorkflowRunDto`, `AssetDto`, or the nested node-output shape) → regenerate the fixtures via `contract.rs` and update `contract.test.ts` and the affected frontend types. A DTO change with stale fixtures is a broken contract.
+- **Add or change a Node Capability contract, interface, or the `Workflow` JSON schema** → update the authoritative engine/nodes tests plus frontend serialization and contract-conformance tests. Frontend UX preflight must consume or be mechanically derived from the engine-owned contract; it must not independently reimplement contract compatibility or Workflow business rules.
 - **Add a new Tauri command** → add a backend test exercising it and, if the frontend calls it, a `WorkflowApi` test.
-- **Change error/cancellation/cache behavior** → extend the backend E2E cases that assert propagation, cancellation, and cache reuse.
+- **Change error/cancellation/restart/idempotency behavior** → extend the backend E2E cases that assert those outcomes and post-commit effect recovery.
 - **Fix a bug** → add a regression test that fails before the fix and passes after.
-- **Swap the mock backend for a real provider** → keep the mock-backed tests green (they are the deterministic contract) and add provider tests behind their own gate.
+- **Add or change a production provider route** → keep deterministic route contract tests green and add vendor-route tests behind their own gate.
 
 Every such change must leave `./scripts/e2e.sh` green.
 
@@ -99,7 +104,7 @@ All repository content must be English: code, comments, docs, commit messages, i
 
 ## Error Handling & Logging
 
-Library crates define concrete errors with `thiserror`; the application boundary may use `anyhow`. Do not use `unwrap()`, `expect()`, or `panic!()` in library code outside tests. Never ignore a `Result` or swallow errors; preserve operation context when propagating. Use structured `tracing` logs for meaningful lifecycle events, node execution, cloud calls, polling, cache hits, asset writes, and failures. Log where an error is handled, not at every propagation layer. Never log secrets.
+Library crates define concrete errors with `thiserror`; the application boundary may use `anyhow`. Do not use `unwrap()`, `expect()`, or `panic!()` in library code outside tests. Never ignore a `Result` or swallow errors; preserve operation context when propagating. Use structured `tracing` logs for meaningful lifecycle events, node execution, profile routing, cloud calls, polling, Asset writes, post-commit effects, and failures. Log where an error is handled, not at every propagation layer. Never log secrets.
 
 ## Commit & Pull Request Guidelines
 

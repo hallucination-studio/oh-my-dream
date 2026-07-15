@@ -1,349 +1,342 @@
 # Backend Workflow Architecture
 
-> Status: proposed backend design
+> Status: frozen MVP design
 > Owner: `crates/engine`
-> Scope: graph editing, typed input binding, execution, and preview association
+> Scope: graph editing, readiness, execution, durable Run state, and output association
 
-Naming follows [`BACKEND_GLOSSARY.md`](BACKEND_GLOSSARY.md). `WorkflowAggregate` and
-`WorkflowRunAggregate` are the aggregate roots in this bounded context.
+`WorkflowAggregate` and `WorkflowRunAggregate` are the two aggregate roots in the Workflow bounded
+context. There is no third Generation Task aggregate.
+
+Each Workflow carries the authoritative `ProjectId` from `crates/projects`. The MVP allows exactly
+one current Workflow per Project. Project owns workspace identity; Workflow owns this uniqueness
+rule and never stores Project metadata.
 
 ## MVP Goal
 
-The first backend version supports one complete local creative flow:
+The frozen capability registry supports:
 
 ```text
 Text -> Image -> Video
   |
-  +------------> Audio
+  +------------> Speech
+
+Imported Image / Video / Audio -> matching Asset-read nodes
 ```
 
-Users can create and edit exact Text, Image, Video, Audio, Image Sequence, and Video Storyboard
-capabilities, connect compatible ports, run the whole Workflow or one node with its dependencies,
-observe progress and errors, save and reopen the graph, and preview the latest successful output.
+Users can edit, save, reopen, validate, run, cancel, observe, and preview this graph. The Workflow
+context is the sole authority for graph revision, typed bindings, readiness, execution planning,
+Run state, node state, and output association. It performs no UI, network, filesystem, database,
+provider, or Assistant work.
 
-The Workflow bounded context is the sole authority for graph identity, revision, nodes, input
-bindings, validity, execution planning, Run state, and output association. Domain code performs no
-UI, network, filesystem, database, or provider work.
-
-## Deliberate Boundary
-
-The Workflow model includes ordered reference inputs, mixed-media items, per-item reference roles,
-and stable prompt-to-item references. This design does not add a node capability, provider
-operation, UI interaction, or cross-run cache. Multiview, concat, timelines, dynamic ports, groups,
-subgraphs, conditional flow, collaboration, 3D, and scenes remain outside this scope.
-
-DVStudio contributes only the useful patterns of stable node identity, typed ports, first-class
-edges, and media previews. Its combined UI/runtime/persistence node object, URL inference, and
-provider task fields are not copied.
-
-## DDD Layers
+## DDD Structure
 
 ```text
 crates/engine/src/workflow/
-  domain/       Workflow and Run aggregates, entities, values, policies, errors
-  application/  edit, readiness, start, cancel, query, and presentation use cases
-  ports/        repositories, node capability interface, clock, IDs, events
+  domain/       graph and Run aggregates, entities, values, policies, errors
+  application/  source-first use cases, commands, queries, results
+  interfaces/   repositories, capability execution, clock, IDs, events, preview
 ```
 
-Aggregates own invariants and transitions. Application use cases load aggregates, invoke domain
-behavior, and persist through focused ports. Infrastructure and node capability implementations
-depend inward on those consumer-owned ports.
+Aggregates approve transitions. Use cases coordinate aggregates and consumer-owned interfaces.
+Repositories persist already-approved state and expose no arbitrary state setter.
 
-## Visible Node Shells
+## Graph Authority
 
-React derives presentation shells from the primary output type. The authoritative operation list is
-the catalog in [`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md); representative projections are:
+[`BACKEND_WORKFLOW_GRAPH.md`](BACKEND_WORKFLOW_GRAPH.md) owns `WorkflowAggregate`, nodes, typed
+single inputs, ordered reference inputs, stable input-item identities, roles, structured prompt
+references, persistence ordering, and graph invariants.
 
-| `WorkflowNodeShellKindDto` | Capability contracts |
-| --- | --- |
-| `Text` | literal and text-generation capabilities |
-| `Image` | Asset read, image generation, and crop capabilities |
-| `Video` | Asset read, video generation, upscale, and concatenation capabilities |
-| `Audio` | Asset read, speech synthesis, and music generation capabilities |
-| `ImageSequence` | video frame extraction |
-| `VideoStoryboard` | video storyboard analysis |
+Ordered references remain a frozen graph primitive because the approved roadmap already requires
+reference-image and mixed-media operations. They do not activate any roadmap capability, provider
+interface, UI form, or output data type in the MVP.
 
-There is no domain `NodeKind`. `WorkflowNodeShellKindDto` is derived from the primary output's
-`WorkflowDataType` and controls presentation only. Each persisted node selects one exact
-`NodeCapabilityContractRef`.
+React derives `WorkflowNodeShellKindDto` from the primary output type. The MVP has only `Text`,
+`Image`, `Video`, and `Audio` shells. Shell kind is presentation state and is never persisted as a
+domain node kind.
 
-## Graph Contract
+## Project Association
 
-[`BACKEND_WORKFLOW_GRAPH.md`](BACKEND_WORKFLOW_GRAPH.md) is the authoritative definition of
-`WorkflowAggregate`, typed single and ordered input bindings, stable input-item identity,
-capability-owned role keys, persistence ordering, and graph invariants. This document consumes that
-model for readiness, editing, execution planning, Run lifecycle, and previews without redefining it.
+`WorkflowCreateUseCase::create_workflow` accepts a Project-resolved `ProjectId` and an idempotent
+request ID. `WorkflowAggregateRepositoryInterface` atomically creates the first Workflow for that
+Project or returns `WorkflowAlreadyExistsForProject`; concurrent requests cannot create two.
+
+`WorkflowGetCurrentUseCase::get_current_workflow` loads by `ProjectId`. It is used by
+`workflow_get_current` and by `DesktopProjectWorkflowBridgeAdapterImpl` when opening a Project. Neither
+Project nor Desktop reads Workflow rows directly.
 
 ## Draft Validity And Run Readiness
 
-An incomplete node remains editable, so the domain exposes two checks.
+An incomplete graph remains editable. Validation therefore has two levels.
 
-Draft validity always enforces:
+`WorkflowAggregate` always enforces draft validity:
 
 - unique typed node and input-item IDs;
-- known capability contract versions;
+- known active capability contract versions;
 - valid values for parameters that are present;
-- existing nodes and named ports;
-- binding shape, item identity, role, and concrete type compatibility;
-- ordered-reference maximum constraints;
+- existing nodes and named inputs/outputs;
+- correct binding shape, role, cardinality, and concrete type;
 - valid structured prompt references;
 - no self-edge or cycle.
 
-Run readiness additionally requires:
+`WorkflowCheckReadinessUseCase` adds execution readiness:
 
-- every required parameter and input;
-- every ordered-reference minimum constraint;
-- every referenced Asset visible in the current Project and available;
-- one capability implementation registered for every node in the requested scope.
+- every required parameter and input is present;
+- every ordered-reference minimum is met;
+- every referenced Asset is visible, Available, and the exact kind;
+- one implementation is registered for every node in scope;
+- every selected Generation Profile is compatible and currently `Available`;
+- each exact capability reports no external readiness issue.
 
-`WorkflowReadinessPolicy` returns all structured issues by node, parameter, or input. It never
-repairs the graph, and `StartWorkflowRunUseCase` checks it again before persistence.
+`WorkflowReadinessPolicy` owns pure structural checks. Exact capabilities own parameter and external
+readiness semantics. The use case merges structured issues without copying either rule set. Run
+admission checks readiness again and never repairs the graph automatically.
 
-## Editing Use Case
+## Mutation Use Case
 
-All semantic and position edits enter one compare-and-swap use case:
+All semantic and canvas-position edits enter one idempotent compare-and-swap boundary:
 
-```text
-ApplyWorkflowMutationCommand {
-  workflow_id,
-  base_revision,
-  operations: Vec<WorkflowMutationAction>
+```rust
+pub struct WorkflowApplyMutationCommand {
+    pub mutation_request_id: WorkflowMutationRequestId,
+    pub workflow_id: WorkflowId,
+    pub base_revision: WorkflowRevision,
+    pub actions: NonEmptyVec<WorkflowMutationAction>,
 }
 ```
 
-`WorkflowMutationAction` is a closed union:
+`WorkflowMutationAction` is a closed union whose payload types remain source-first:
 
 ```text
-AddWorkflowNode
-RemoveWorkflowNode
-ReplaceWorkflowNodeParameters
-SelectWorkflowNodeCapability
-MoveWorkflowNode
-BindWorkflowSingleInput
-InsertWorkflowReferenceItem
-MoveWorkflowReferenceItem
-RemoveWorkflowInputItem
-SetWorkflowInputItemRole
+WorkflowAddNodeAction
+WorkflowRemoveNodeAction
+WorkflowReplaceNodeParametersAction
+WorkflowSelectNodeCapabilityAction
+WorkflowMoveNodeAction
+WorkflowBindSingleInputAction
+WorkflowInsertReferenceItemAction
+WorkflowMoveReferenceItemAction
+WorkflowRemoveInputItemAction
+WorkflowSetInputItemRoleAction
 ```
 
-`MoveWorkflowReferenceItem` identifies the item by `WorkflowInputItemId` and supplies its new
-index. It preserves the item ID, source, and role. Inserting, moving, removing, and changing a role
-are semantic edits: each increments `WorkflowRevision`; position-only canvas movement remains
-non-executable presentation state.
+`WorkflowApplyMutationUseCase::apply_workflow_mutation`:
 
-Selecting another capability never silently drops input items. The same command must explicitly
-remove bindings invalid under the new exact contract. `WorkflowAggregate` validates the complete
-candidate; `ApplyWorkflowMutationUseCase` persists all or none.
+1. loads the current aggregate;
+2. verifies the requested base revision;
+3. applies all actions to one candidate;
+4. validates the complete candidate;
+5. commits the next snapshot and `WorkflowMutationReceipt` atomically;
+6. returns the persisted Workflow and current structured readiness issues.
 
-The caller assigns opaque final node and input-item IDs. `base_revision` prevents lost updates.
-The local Desktop MVP does not persist mutation replay receipts. After an uncertain command result,
-the caller reloads the current Workflow snapshot before issuing another mutation.
+Reusing a request ID with the same canonical command hash returns its receipt. Reusing it with a
+different hash returns `WorkflowMutationIdempotencyConflict`. This makes human and
+Assistant-approved edits safe after an uncertain response.
 
-## Run Scope And Plan
+Changing capability never silently drops incompatible inputs. The same atomic mutation must remove
+or replace them. Moving a reference item preserves its stable ID, source, and role. Moving a node on
+the canvas increments the document revision but never changes execution semantics.
+
+## Run Scope And Admission
 
 ```rust
 pub enum WorkflowRunScope {
     WholeWorkflow,
     ThroughNode(WorkflowNodeId),
 }
+
+pub struct WorkflowStartRunCommand {
+    pub run_request_id: WorkflowRunRequestId,
+    pub workflow_id: WorkflowId,
+    pub workflow_revision: WorkflowRevision,
+    pub scope: WorkflowRunScope,
+}
 ```
 
-`WholeWorkflow` includes every node. `ThroughNode` includes the selected node and all transitive
-ancestors, which supports the Run action on one node without running unrelated branches.
+`WholeWorkflow` contains every node. `ThroughNode` contains the selected node and all transitive
+ancestors; it never executes unrelated branches.
 
-Starting a Run freezes one exact Workflow revision. The domain checks readiness, topologically sorts
-the selected subgraph, and binds named inputs before any provider call. The immutable
-`WorkflowExecutionPlanValue` contains only node IDs, capability refs, normalized parameters, input
-items with roles in their persisted order, and dependency order.
+`WorkflowStartRunUseCase::start_workflow_run`:
+
+```text
+load the exact current revision
+  -> check structural and external readiness
+  -> topologically order the selected subgraph
+  -> normalize parameters and freeze ordered input bindings
+  -> create WorkflowRunAggregate and WorkflowNodeExecutionEntity values
+  -> atomically persist Queued Run + node executions + first event + request receipt
+     + WorkflowExecuteRunEffect
+  -> return the durable queued Run
+```
+
+Provider work starts only after commit. Reusing a Run request ID with the same canonical hash
+returns the admitted Run; different content is an idempotency conflict.
+
+## Frozen Execution Plan
+
+`WorkflowExecutionPlan` contains only what a Run needs after admission:
+
+- source Workflow ID and exact revision;
+- Run scope and deterministic dependency order;
+- node ID and `WorkflowNodeExecutionId`;
+- exact `NodeCapabilityContractRef`;
+- `NodeCapabilityNormalizedParameters`;
+- named single/ordered bindings with stable item IDs and roles;
+- exact source node/output references.
+
+The plan contains no UI position, provider/native model, route, credential, URL, path, preview,
+provider task, or mutable availability observation. The current Workflow may be edited after
+admission without changing the Run.
+
+The MVP does not define a separate planned/dispatch hash or cross-Run cache key.
+`WorkflowNodeExecutionId` is sufficient for provider submission idempotency inside one durable Run.
 
 ## Runtime Values
 
 ```rust
-pub struct WorkflowTextValue {
-    pub parts: Vec<WorkflowTextPartValue>,
-}
-
-pub enum WorkflowTextPartValue {
-    Literal(WorkflowBoundedTextValue),
-    InputItemReference(WorkflowInputItemId),
-}
-
 pub enum WorkflowRuntimeValue {
     Text(WorkflowTextValue),
-    Image(WorkflowManagedImageRefValue),
-    Video(WorkflowManagedVideoRefValue),
-    Audio(WorkflowManagedAudioRefValue),
-    ImageSequence(WorkflowImageSequenceValue),
-    VideoStoryboard(WorkflowVideoStoryboardValue),
+    Image(WorkflowManagedImageRef),
+    Video(WorkflowManagedVideoRef),
+    Audio(WorkflowManagedAudioRef),
 }
 
-pub struct WorkflowRuntimeInputItemValue {
+pub struct WorkflowRuntimeInputItem {
     pub input_item_id: WorkflowInputItemId,
     pub input_role_key: Option<NodeCapabilityInputRoleKey>,
     pub value: WorkflowRuntimeValue,
 }
 
 pub enum WorkflowNodeInputValue {
-    Single(WorkflowRuntimeInputItemValue),
-    OrderedReferences(NonEmptyVec<WorkflowRuntimeInputItemValue>),
+    Single(WorkflowRuntimeInputItem),
+    OrderedReferences(NonEmptyVec<WorkflowRuntimeInputItem>),
 }
-
-pub type WorkflowNodeInputSet =
-    BTreeMap<NodeCapabilityInputPortKey, WorkflowNodeInputValue>;
-pub type WorkflowNodeOutputSet =
-    BTreeMap<NodeCapabilityOutputPortKey, WorkflowRuntimeValue>;
 ```
 
-Text is an immutable structured sequence with bounded total literal text and bounded part count.
-Managed media references contain Asset identity and a content fingerprint, never bytes, paths,
-provider URLs, or preview URLs. A capability implementation returns every declared output or one
-structured failure.
-Generated media becomes a runtime value only after Asset storage succeeds.
+`WorkflowNodeInputSet` and `WorkflowNodeOutputSet` are maps keyed by exact contract input/output keys. A
+capability returns every declared output or one structured failure.
 
-Binding never erases structure. Executors receive the input item's stable ID, explicit role,
-concrete runtime variant, and vector position. They do not reconstruct any of these from filenames,
-MIME strings, prompt contents, or provider DTOs.
+Managed media references contain Asset ID, exact media kind, and content fingerprint, never bytes,
+paths, provider URLs, or preview URLs. Generated media enters a runtime output only after Asset
+storage returns an Available reference.
 
-## Stable Prompt References
+Structured `WorkflowTextValue` may contain literal parts and stable input-item references. Workflow
+owns cross-node referential integrity; the exact capability owns normalization and provider prompt
+mapping. Provider placeholder syntax is never persisted.
 
-A prompt that mentions reference material uses `WorkflowTextValue` rather than a string containing a
-magic token. Plain text contains only `Literal` parts. A material mention contains the stable input
-item ID; its display label is a projection and is not persisted as identity. For a node to be
-Run-ready, every `InputItemReference` consumed by that node must resolve to a reference item bound
-to that same node. This prevents prompt text from creating hidden graph dependencies. Removing a
-referenced item requires removing or replacing its prompt parts in the same atomic mutation, while
-reordering the item requires no prompt change.
+## Run Aggregate And State
 
-The exact Text-producing capability owns text normalization and returns referenced item IDs inside
-`NormalizedNodeCapabilityParameters`. Workflow traces each Text output to its consuming node and
-owns cross-node referential integrity. Execution preparation rechecks the resolved value
-before dispatch. This design admits only references that are statically inspectable from the frozen
-Workflow revision; dynamically generated prompt references are outside scope.
-
-The exact prompt-consuming capability owns provider request mapping. Provider-specific placeholder
-syntax is produced at the provider boundary and never persisted.
-
-## Execution Identity
-
-Every planned node has a versioned `WorkflowPlannedNodeIdentityValue` derived from a canonical
-encoding of:
-
-- the exact capability contract reference and normalized parameters;
-- input keys and their `Single` or `OrderedReferences` discriminator;
-- each ordered item's stable ID, explicit role, and exact source output reference;
-- structured prompt parts and their referenced input item IDs.
-
-Map keys use canonical key order, while `OrderedReferences` items are encoded in vector order. The
-encoding is length-delimited and includes variant tags, so it cannot collide through string
-concatenation. Consequently, changing item order, source, role, or prompt-to-item association
-changes planned identity. Moving a node on the canvas does not.
-
-Immediately before dispatch, after upstream values resolve, the application derives
-`WorkflowNodeDispatchIdentityValue` from the planned identity plus each input item's concrete
-runtime variant and content identity. For media, content identity is the managed Asset content
-fingerprint; URLs and paths are excluded. Because planned identity is an input, reordering always
-changes dispatch identity even when two items resolve to identical bytes.
-
-`WorkflowRunId` and `WorkflowNodeExecutionId` identify execution records. Planned identity
-identifies the frozen structural work; dispatch identity identifies one fully bound operation for
-provider idempotency. Neither is permission to introduce cross-run caching.
-
-## Run Aggregate
-
-`WorkflowRunAggregate` represents one execution of one frozen revision.
-`WorkflowNodeExecutionEntity` owns one node's state, progress, structured failure, and output set.
-Neither is embedded in `WorkflowAggregate`.
+`WorkflowRunAggregate` owns one execution of one frozen plan. Its
+`WorkflowNodeExecutionEntity` children own node progress, structured failure, and output set.
 
 ```text
 WorkflowRunState:
-  Queued -> Running -> Succeeded | Failed | Cancelled
+  Queued -> Running | Cancelled | Failed(InterruptedByRestart)
+  Running -> Succeeded | Failed | Cancelled
 
 WorkflowNodeExecutionState:
   Pending -> Running -> Succeeded | Failed | Cancelled | Blocked
 ```
 
-A failure blocks descendants but does not stop independent branches. Cancellation records intent,
-stops new dispatch, signals active capability executions, and rejects late outputs. Retry creates a new
-`WorkflowRunAggregate`; terminal Runs are immutable.
+Rules:
 
-`WorkflowRunEvent` records a monotonic sequence per Run and is persisted before Desktop emission.
-Clients deduplicate by `workflow_run_id + sequence`.
+- only domain methods perform transitions;
+- a node becomes `Succeeded` only with its complete output set;
+- one failed node blocks descendants but independent branches may finish;
+- cancellation and its durable event are persisted before signalling active execution tokens;
+- cancellation stops new dispatch and rejects late output commits;
+- terminal states are immutable;
+- retry creates a new Run rather than reopening a terminal Run.
 
-## Preview Association
+`WorkflowRunEvent` has a monotonic sequence per Run and is committed before Desktop emission. The
+durable event record is also its delivery outbox: Desktop publishes undispatched records, clients
+deduplicate by `(workflow_run_id, sequence)`, and queries repair gaps.
 
-Preview is a read projection, not aggregate state:
+## Run Execution
 
-| Shell | Preview source |
+Run admission creates one post-commit intent:
+
+```text
+WorkflowExecuteRunEffect { workflow_run_id }
+```
+
+`DesktopPostCommitEffectWorker` consumes it and calls
+`WorkflowExecuteRunUseCase::execute_workflow_run`. That one coordinator selects ready nodes from the
+frozen plan, enforces bounded concurrency, commits transitions/events, resolves exact capability
+implementations, and calls them outside database transactions. It owns no provider or Asset rules.
+
+The effect remains associated with the Run until it is terminal. It is not replayed after process
+restart because a paid provider submission may have been accepted before the crash. Startup marks
+the Run `Failed(InterruptedByRestart)`, abandons the effect, and leaves durable events available for
+delivery/query. The user creates a new Run to retry.
+
+## Output And Preview Association
+
+Workflow output state stores bounded Text or typed managed Asset references. It never stores
+provider bytes, URLs, tasks, native IDs, or an Asset row.
+
+`WorkflowGetNodePresentationUseCase` joins:
+
+```text
+WorkflowNodeEntity
+  + NodeCapabilityContract
+  + current Workflow readiness issues
+  + latest relevant WorkflowNodeExecutionEntity
+  + latest complete WorkflowNodeOutputSet
+  + optional WorkflowMediaPreview
+  -> WorkflowNodePresentationView
+```
+
+Text is presented inline. Image, Video, and Audio use `WorkflowMediaPreviewIssuerInterface`, implemented
+by a Desktop bridge to `AssetIssuePreviewUseCase`. A short-lived preview URL may enter the final DTO
+but can never be supplied as Workflow input.
+
+Each output records its producing revision. Editing the node or an ancestor marks the prior preview
+stale rather than rebinding it to the new graph.
+
+## Consumer-Owned Interfaces
+
+| Interface | Explicit behavior |
 | --- | --- |
-| Text | literal text or latest successful text output |
-| Image | short-lived Asset image preview |
-| Video | short-lived Asset stream with MIME and Range support |
-| Audio | short-lived Asset stream with MIME and Range support |
-| ImageSequence | ordered timestamped Image previews |
-| VideoStoryboard | ordered scene timeline and bounded analysis text |
+| `WorkflowAggregateRepositoryInterface` | `load_workflow`, atomically `commit_workflow_mutation` with revision and receipt |
+| `WorkflowRunRepositoryInterface` | atomically admit/transition Runs, outputs, events, request receipts, and `WorkflowExecuteRunEffect` |
+| `WorkflowNodeCapabilityInterface` | contract, normalization, external readiness, and exact execution |
+| `WorkflowMediaPreviewIssuerInterface` | `issue_workflow_media_preview` |
+| `WorkflowClockInterface` | `current_workflow_time` |
+| `WorkflowIdentityGeneratorInterface` | create Workflow, node, Run, execution, and request identities |
+| `WorkflowRunEventPublisherInterface` | `publish_committed_workflow_run_event` |
 
-`GetWorkflowNodePresentationUseCase` joins the node contract, readiness issues, latest relevant node
-execution, and `WorkflowMediaPreviewValue` into `WorkflowNodePresentationView`. It obtains media
-preview access through `WorkflowMediaPreviewIssuerPort`; Workflow code never imports an Asset lease.
-Tauri translates the View to `WorkflowNodePresentationDto`, which may contain a short-lived URL that
-is never accepted as Workflow input.
+Use cases receive focused interfaces through constructors. The concrete capability registry is injected
+as an immutable collection. Only `DesktopCompositionRoot` selects concrete adapters.
 
-Each output records the producing Workflow revision. When the current node or an ancestor changes,
-the projection marks the previous preview stale.
+## Errors
 
-## No Cross-Run Cache
+`WorkflowDomainError` owns invariant and transition failures. `WorkflowApplicationError` adds
+repository, capability, preview, and orchestration failures. Stable categories include revision
+conflict, idempotency conflict, unknown/unregistered capability, invalid parameter, missing
+node/input/output, type mismatch, occupied input, invalid cardinality/role/reference, cycle, already exists
+for Project, not ready,
+unavailable Asset/Profile, upstream failure, cancellation, interrupted restart, and execution
+failure.
 
-One Run naturally reuses a dependency output when it fans out. This architecture defines no
-cross-run result cache; starting another Run intentionally produces another result.
-
-## Application Ports And Injection
-
-| Port | Required capability |
-| --- | --- |
-| `WorkflowAggregateRepositoryPort` | load and revision-CAS the current Workflow snapshot |
-| `WorkflowRunRepositoryPort` | atomically admit and transition Runs, outputs, and events |
-| `WorkflowNodeCapabilityPort` | expose one exact contract, normalize parameters, check readiness, and execute |
-| `WorkflowMediaPreviewIssuerPort` | translate a managed-media reference into scoped preview access |
-| `WorkflowClockPort` | provide deterministic timestamps |
-| `WorkflowIdentityGeneratorPort` | create production or deterministic IDs |
-| `WorkflowRunEventPublisherPort` | publish already-persisted Run events |
-
-Use cases receive ports through constructors. `StartWorkflowRunUseCase` receives the Workflow
-repositories, one concrete `WorkflowNodeCapabilityRegistry`, clock, and event publisher. Tests build
-that registry from fake or real `WorkflowNodeCapabilityPort` implementations.
-Concrete adapters are selected only in `src-tauri/composition.rs`. Pure graph algorithms remain
-synchronous concrete domain code.
-
-Logical records, transaction boundaries, and restart behavior are defined in
-[`BACKEND_STORAGE.md`](BACKEND_STORAGE.md).
-
-## Structured Errors
-
-`WorkflowDomainError` covers graph invariants and transitions. `WorkflowApplicationError` adds port
-and orchestration failures. Stable categories include revision conflict, unknown
-capability, invalid parameters, missing node/port, type mismatch, occupied input, invalid
-cardinality, duplicate input item, invalid reference role, role/type mismatch, invalid prompt
-reference, cycle, not ready, unavailable Asset, unavailable capability implementation, upstream failure,
-cancellation, and execution failure.
-
-Errors contain safe typed IDs and structured details. Behavior is never inferred from message text.
+Errors contain safe typed IDs and structured details. Message text never controls behavior.
 
 ## Verification
 
-- graph and persistence contract suites are owned by `BACKEND_WORKFLOW_GRAPH.md`;
-- readiness tests prove incomplete drafts remain editable and cannot run;
-- prompt tests prove item references survive reorder and reject missing or foreign-node items;
-- plan tests prove whole-graph and through-node dependency order and preserve input-item order;
-- execution identity tests prove reorder, role changes, source changes, concrete type changes,
-  content changes, and prompt-reference changes alter the correct planned or dispatch identity while
-  canvas movement does not;
-- Run aggregate tests cover transitions, independent branches, failure, and cancellation;
-- port contract tests cover repository concurrency and transition atomicity;
-- preview tests cover all six output projections and stale-output labeling;
-- boundary contract tests prove React consumes Rust-owned ports and errors.
+- graph tests prove draft invariants, typed/ordered bindings, stable item identity, and cycles;
+- Project-association tests prove one current Workflow per Project and idempotent concurrent create;
+- mutation tests prove atomic action sets, revision CAS, request idempotency, and capability changes;
+- readiness tests prove structural/external ownership and admission recheck;
+- plan tests prove whole/through-node scope, dependency order, normalized parameters, and persisted
+  reference order;
+- Run tests cover every legal/illegal transition, branches, failure, cancellation, late output,
+  event sequence, and terminal immutability;
+- repository contract tests prove admission/transition/output/event atomicity and idempotency;
+- execution tests prove effect claiming, bounded concurrency, event delivery/query, effect abandonment, and interrupted startup;
+- presentation tests cover Text/Image/Video/Audio, stale output, and preview isolation.
 
 ## Post-MVP
 
-Durable backend undo, cross-run cache, restart-resumable provider tasks, dynamic capabilities,
-batch generation, 3D, and scene generation require separate designs. The built-in generation,
-transformation, and analysis catalog is defined in `BACKEND_CAPABILITIES.md`.
+Registering roadmap capabilities may add Image Sequence and Video Storyboard runtime values.
+Multiple Workflows per Project, history, backend undo, retry-in-place, provider-task resume,
+cross-Run cache, dynamic inputs/outputs, plugins, batches, groups, conditions, subgraphs, 3D, and scenes
+require separate decisions.

@@ -1,83 +1,86 @@
 # Backend Generation Profiles And Providers
 
-> Status: proposed target architecture
-> Owner: profile semantics in `crates/nodes`; provider routes in `crates/backends`; wiring in `src-tauri`
-> Scope: model selection, availability, routing, and provider translation
+> Status: frozen MVP provider architecture
+> Owner: profile semantics in `crates/nodes`; routes in `crates/backends`; wiring in `src-tauri`
+> Scope: provider-independent model selection, availability, routing, and translation
 
-Users select a stable generation profile. Provider accounts, native models, and routing remain
-replaceable infrastructure.
+Users select a stable Generation Profile. Provider accounts, native models, endpoints, and routing
+remain replaceable infrastructure.
 
 ## Decision
 
-1. Every model-powered capability persists one provider-independent `GenerationProfileRef`.
-2. The profile catalog owns identity, lifecycle, and compatibility with exact
-   `NodeCapabilityContractRef` values.
-3. Each capability owns one focused provider port such as `TextToVideoProviderPort`.
-4. One capability-specific router implements that public port and selects a configured route.
-5. One concrete route owns profile mapping, native model ID, request translation, provider calls,
-   polling, download, and response validation.
-6. The composition root constructs routers and routes. Business code never selects a provider.
+1. Every model-powered node persists one provider-independent `GenerationProfileRef`.
+2. `GenerationProfileDefinition` owns identity, lifecycle, and exact capability compatibility.
+3. Each active exact capability owns one focused provider interface.
+4. One capability-specific router implements that interface and resolves the profile to its single
+   configured route.
+5. One concrete vendor route owns native model mapping, request translation, submission, polling,
+   download, response validation, and provider error translation.
+6. Only `DesktopCompositionRoot` constructs routes and routers.
 
-This is the complete provider stack:
+The complete runtime stack is intentionally short:
 
 ```text
-TextToVideoCapability
-  -> TextToVideoProviderPort
-  -> TextToVideoProviderRouterAdapter
-  -> FalTextToVideoProviderRoute
+ImageToVideoCapabilityImpl
+  -> ImageToVideoProviderInterface
+  -> ImageToVideoProviderRouterImpl
+  -> FalImageToVideoProviderRouteImpl
   -> provider API
 ```
 
-There is no separate binding object, binding registry, binding executor, or provider-wide feature
-interface. The router's route map is enough.
+There is no provider-wide feature interface, binding object, binding registry, generation task,
+provider executor, or node-level provider/model field.
 
-## Naming
+## Source-And-Behavior Names
 
-| Role | Pattern | Example |
+| Role | Required pattern | Example |
 | --- | --- | --- |
-| public semantic interface | `<Input>To<Output>ProviderPort` | `TextToVideoProviderPort` |
-| semantic request | `<Input>To<Output>ProviderRequest` | `TextToVideoProviderRequest` |
-| profile router | `<Input>To<Output>ProviderRouterAdapter` | `TextToVideoProviderRouterAdapter` |
-| private route interface | `<Input>To<Output>ProviderRoutePort` | `TextToVideoProviderRoutePort` |
-| concrete provider route | `<Vendor><Input>To<Output>ProviderRoute` | `FalTextToVideoProviderRoute` |
-| deterministic route | `Deterministic<Input>To<Output>ProviderRoute` | `DeterministicTextToVideoProviderRoute` |
+| public semantic interface | `<Input>To<Output>ProviderInterface` | `ImageToVideoProviderInterface` |
+| semantic request | `<Input>To<Output>ProviderRequest` | `ImageToVideoProviderRequest` |
+| profile router | `<Input>To<Output>ProviderRouterImpl` | `ImageToVideoProviderRouterImpl` |
+| private route interface | `<Input>To<Output>ProviderRouteInterface` | `ImageToVideoProviderRouteInterface` |
+| concrete vendor route | `<Vendor><Input>To<Output>ProviderRouteImpl` | `FalImageToVideoProviderRouteImpl` |
+| deterministic route | `Deterministic<Input>To<Output>ProviderRouteImpl` | `DeterministicImageToVideoProviderRouteImpl` |
 
-The public method states the action, for example `generate_video_from_text`. Type names identify the
-input, output, and role without repeating `GenerationFrom`, `Binding`, and `Executor`.
+Methods state the complete behavior: `generate_image_from_text`, `generate_video_from_image`, and
+`synthesize_speech_from_text`. Standalone `Provider`, `Client`, `Model`, `Route`, `Binding`,
+`Executor`, `Task`, and `Registry` names are prohibited.
 
-Avoid standalone `Provider`, `Route`, `Model`, `Client`, `Executor`, or `Registry` names. Operation
-names remain explicit, including `FirstAndLastFramesToVideoProviderPort`,
-`TextToSpeechProviderPort`, and `VideoStoryboardProviderPort`.
+Provider-shared infrastructure uses the `GenerationProvider` prefix, such as
+`GenerationProviderAccountId`, `GenerationProviderRouteId`, and
+`GenerationProviderCredentialVaultInterface`. It cannot be confused with Assistant model configuration.
 
 ## Dependency Direction
 
 ```text
 crates/engine
-  WorkflowNodeCapabilityPort and NodeCapabilityContractRef
+  WorkflowNodeCapabilityInterface and WorkflowNodeExecutionId
              ^
 crates/nodes
-  exact capability implementations, profile catalog, provider ports
+  exact capabilities, Generation Profile catalog, exact provider interfaces
              ^
 crates/backends
-  provider routers, routes, private DTOs, availability probes
+  provider routers, vendor routes, private protocol DTOs
              ^
 src-tauri
-  configuration, credentials, construction, and registration
+  non-secret configuration, credential-vault adapters, construction
 ```
+
+Recommended adapter layout:
 
 ```text
 crates/backends/src/
   provider_routing/<operation>_router.rs
   deterministic_provider/<operation>_route.rs
-  <provider_name>/
+  <vendor>/
     shared/{authentication,http,polling,download,error_translation}.rs
     <operation>/{route,request_dto,response_dto}.rs
 ```
 
-Business code depends only on consumer-owned interfaces. Provider DTOs and native identifiers remain
-private to their route.
+Vendor DTOs, status values, native model IDs, signed URLs, and remote task handles remain private to
+their concrete route.
 
-## Stable Profile
+## Stable Generation Profile
 
 ```rust
 pub struct GenerationProfileRef {
@@ -86,7 +89,8 @@ pub struct GenerationProfileRef {
 }
 
 pub struct GenerationProfileDefinition {
-    pub generation_profile_ref: GenerationProfileRef,
+    pub profile_ref: GenerationProfileRef,
+    pub display_name: GenerationProfileDisplayName,
     pub lifecycle_state: GenerationProfileLifecycleState,
     pub compatible_capabilities: BTreeSet<NodeCapabilityContractRef>,
 }
@@ -94,25 +98,27 @@ pub struct GenerationProfileDefinition {
 
 A profile is an immutable product promise, not an alias for today's native model.
 
-- Compatibility names exact capability versions.
-- A compatible route must honor the complete capability contract.
-- Different observable semantics require a new profile or capability version.
-- Equivalent routes may differ in provider, region, latency, or price, but not behavior.
-- Retired profiles remain as tombstones for saved Workflows.
-- Display names are never parsed for identity or behavior.
+- compatibility names exact capability versions;
+- a route must satisfy the complete capability contract;
+- a changed observable semantic requires a new profile or capability version;
+- every route bound to the profile must preserve the same observable behavior;
+- retired profiles remain as tombstones for saved Workflows;
+- display names and native model strings are never parsed as identity.
 
-Every model-powered capability declares a required `generation_profile_ref` parameter. A node stores
-no provider name, native model, account, endpoint, route, availability snapshot, or provider task.
-Editing validates profile identity and compatibility; Run readiness checks current availability.
+Every active model-powered capability requires `generation_profile_ref` in its normalized parameter
+contract. A Workflow node stores no provider, native model, account, endpoint, credential, route,
+availability snapshot, or provider task.
 
-## Availability
+## Compatibility And Availability
+
+Compatibility is immutable catalog data. Availability is an expiring operational observation:
 
 ```rust
 pub enum GenerationProfileAvailabilityState {
     Available,
     Unavailable {
         reason: GenerationProfileUnavailableReason,
-        retry_after: Option<GenerationProfileRetryAfterValue>,
+        retry_after: Option<GenerationProfileRetryAfter>,
     },
     Indeterminate {
         reason: GenerationProfileAvailabilityIndeterminateReason,
@@ -120,154 +126,152 @@ pub enum GenerationProfileAvailabilityState {
 }
 ```
 
-Unavailable reasons include `NoConfiguredProviderRoute`, `AuthenticationRequired`, `PolicyBlocked`,
-`QuotaUnavailable`, `RateLimited`, `ProviderUnavailable`, and `ProviderModelUnavailable`. A timeout
-or offline probe is `Indeterminate`, not a false claim that the profile is unavailable.
+Unavailable reasons include `NoConfiguredRoute`, `AuthenticationRequired`, `PolicyBlocked`,
+`QuotaUnavailable`, `RateLimited`, `ProviderUnavailable`, and `NativeModelUnavailable`. Probe
+timeout, offline state, and an untrustworthy response are `Indeterminate` rather than a false claim.
 
-`GenerationProfileAvailabilityReaderPort` is owned by the profile application layer.
-`GenerationProfileAvailabilityReaderAdapter` aggregates bounded, expiring observations from the
-configured capability routers. One bulk read accepts an exact capability ref and a bounded profile
-set; callers never probe once per profile.
+`GenerationProfileAvailabilityReaderInterface` is consumer-owned by the profile application module.
+`ProviderRouterGenerationProfileAvailabilityReaderAdapterImpl` performs one bounded bulk
+observation for one exact capability and profile set. It reads the same three router
+implementations' profile-to-route maps and never maintains another mapping. It does not probe once
+per UI row or persist availability.
 
-`ListNodeCapabilityGenerationProfilesUseCase` joins catalog definitions with current observations.
-It returns stable profile metadata, compatibility, lifecycle, and availability, but never provider,
-model, endpoint, credential, or route details.
+`GenerationProfileListForCapabilityUseCase` joins definitions with current observations and returns
+only provider-independent metadata. In the MVP, both `Unavailable` and `Indeterminate` prevent Run
+admission. The router checks again at execution because availability can change after admission.
+No route may silently substitute a different profile.
 
-Availability is advisory and expires. Execution rechecks it. A race returns
-`GenerationProfileUnavailable`; the router never substitutes another profile.
+## Frozen MVP Provider Interfaces
 
-## Public Provider Ports
+[`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md#mvp-external-interfaces) is the only authority
+for public interface signatures, requests, and results. Provider infrastructure implements exactly its
+three MVP interfaces: `TextToImageProviderInterface`, `ImageToVideoProviderInterface`, and
+`TextToSpeechProviderInterface`.
 
-The authoritative port list and method signatures live in
-[`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md#exact-external-interfaces). Representative ports
-are:
+Their requests carry `GenerationProfileRef` and `WorkflowNodeExecutionId`; the execution ID becomes
+the native submission idempotency key where supported. Roadmap interface names are reserved by the
+capability document but do not exist in the MVP runtime.
 
-```text
-TextToImageProviderPort
-ReferenceImagesToImageProviderPort
-TextToVideoProviderPort
-FirstAndLastFramesToVideoProviderPort
-MixedMediaToVideoProviderPort
-MultimodalToTextProviderPort
-TextToSpeechProviderPort
-TextToMusicProviderPort
-VideoStoryboardProviderPort
-```
+## Router And Private Route
 
-Each exact request contains semantic inputs, typed parameters, `GenerationProfileRef`, and
-`WorkflowNodeDispatchId`. Each port returns its exact result or `NodeCapabilityProviderFailure`.
-There is no broad execute method, `supports_*` probe, provider DTO, or options map.
-
-## Router And Route Interfaces
-
-The public router resolves the profile and delegates to one private route:
+The public router resolves one stable profile and delegates to one private exact route:
 
 ```rust
-pub struct TextToVideoProviderRouterAdapter {
+pub struct ImageToVideoProviderRouterImpl {
     routes_by_profile:
-        BTreeMap<GenerationProfileRef, Vec<Arc<dyn TextToVideoProviderRoutePort>>>,
-    routing_policy: ProviderRoutingPolicy,
+        BTreeMap<GenerationProfileRef, Arc<dyn ImageToVideoProviderRouteInterface>>,
 }
 
-trait TextToVideoProviderRoutePort: Send + Sync {
-    fn route_id(&self) -> ProviderRouteId;
-    fn availability(&self) -> ProviderRouteAvailability;
-
-    async fn generate_video_from_text(
+#[async_trait]
+trait ImageToVideoProviderRouteInterface: Send + Sync {
+    fn generation_provider_route_id(&self) -> GenerationProviderRouteId;
+    async fn observe_provider_route_availability(
         &self,
-        request: RoutedTextToVideoRequest,
+    ) -> GenerationProviderRouteAvailability;
+
+    async fn generate_video_from_image(
+        &self,
+        request: ImageToVideoProviderRouteRequest,
     ) -> Result<GeneratedVideoPayload, NodeCapabilityProviderFailure>;
 }
 ```
 
-The router removes `generation_profile_ref` only after selecting a matching route. The private routed
-request retains every other semantic field. A concrete route cannot branch on another profile and
-cannot return `Unsupported`.
+The router removes `GenerationProfileRef` only after resolving its exact configured route. The
+routed request retains every other semantic field. One route maps exactly one profile semantic
+contract and cannot branch on another profile or return `Unsupported`.
 
 ```rust
-struct FalTextToVideoProviderRoute {
-    provider_route_id: ProviderRouteId,
-    provider_model_id: FalTextToVideoModelId,
-    request_translation_revision: FalTextToVideoTranslationRevision,
-    account: FalProviderAccount,
+struct FalImageToVideoProviderRouteImpl {
+    route_id: GenerationProviderRouteId,
+    native_model_id: FalImageToVideoModelId,
+    account: FalGenerationProviderAccount,
     transport: FalHttpTransport,
 }
 ```
 
-Router construction rejects unknown or incompatible profiles, duplicate route IDs, ambiguous
-priority, incomplete configuration, and routes without conformance evidence. Absence is represented
-by `NoConfiguredProviderRoute`, not a route that fails at runtime.
+Router construction rejects unknown or incompatible profiles, duplicate profile mappings,
+duplicate route IDs, and incomplete credentials. A missing mapping is represented by
+`NoConfiguredRoute`, not a placeholder implementation. Contract conformance is proved in tests,
+not represented as runtime configuration.
 
-Routing may consider configured priority, region, policy, and health. The selected
-`ProviderRouteId` is fixed for one `WorkflowNodeDispatchId` before paid submission. The router may
-switch equivalent routes only before provider acceptance; it never switches after an accepted or
-ambiguous submission.
+## Dispatch Rules
+
+```text
+saved GenerationProfileRef
+  -> compatibility and availability
+  -> durable Workflow Run and WorkflowNodeExecutionId
+  -> router resolves the one configured route
+  -> route translates, submits, polls, and validates
+  -> capability stores media through the Asset boundary
+  -> Workflow commits node output and state
+```
+
+The selected `GenerationProviderRouteId` is fixed inside one active node execution before paid
+submission. The MVP never switches routes during that execution. An ambiguous submission fails
+with a structured category unless the same route and vendor idempotency key can safely recover it.
+Multi-route selection and automatic failover are post-MVP concerns.
+
+MVP provider polling and remote handles are process-local. No remote task ID enters Workflow,
+Asset, Assistant, SQLite, DTOs, or ordinary logs. On process restart, the owning Run becomes
+`InterruptedByRestart`; the user starts a new Run.
+
+Cancellation is supplied through `WorkflowNodeExecutionContext`. A route stops local polling and
+requests remote cancellation when its exact vendor operation supports it. Lack of remote
+cancellation never becomes an optional public interface method; the public observable result is still a
+cancelled local execution, while external work or charges may continue.
 
 ## Route Responsibilities
 
 Each concrete route:
 
-- maps every semantic field to a private provider DTO;
-- uses its typed native model ID instead of parsing profile or display names;
-- sends explicit values when native defaults could change observable behavior;
-- validates every third-party response and returned model identity;
-- submits, polls, downloads when needed, and observes bounds and cancellation;
-- maps provider statuses once into `NodeCapabilityProviderFailure`;
-- keeps route and translation revisions only in restricted infrastructure audit records.
+- maps every semantic field to one private vendor DTO;
+- uses a typed native model ID rather than parsing profile/display names;
+- sends explicit values when native defaults could change promised behavior;
+- validates response shape, reported model, media kind, size, MIME, and checksums;
+- bounds submission, polling, redirects, downloads, deadlines, and response sizes;
+- maps provider status exactly once into `NodeCapabilityProviderFailure`;
+- keeps credentials, raw bodies, signed URLs, remote handles, and route details private.
 
-Remote URLs are validated and downloaded inside the route. No path or URL crosses a public port.
-The route never creates an Asset; the capability implementation stores validated media through the
-Asset boundary.
+Remote media is downloaded and validated inside the route. The route returns a semantic payload but
+never creates an Asset; the capability owns the call to the Asset-write boundary.
 
-## Dispatch And Failure Rules
+## Credentials And Configuration
 
-```text
-saved GenerationProfileRef
-  -> capability compatibility and availability
-  -> durable Workflow Run and node dispatch
-  -> router fixes one route
-  -> route translates and performs provider work
-  -> capability validates and stores the result
-  -> node execution completes
-```
+Non-secret configuration declares enabled accounts, profile-to-route entries, route endpoints,
+timeouts, and polling bounds. It contains only `GenerationProviderCredentialId` references.
 
-No database transaction remains open during provider work. Retry creates a new dispatch while
-retaining the selected profile. If submission is ambiguous and the provider has no idempotency
-lookup, execution fails instead of blindly resubmitting paid work.
+`GenerationProviderCredentialVaultInterface` is owned by the Desktop provider-configuration consumer.
+Production adapters use the operating-system credential facility. Plaintext exists only in one
+short-lived `GenerationProviderCredentialSecret` and never enters SQLite, config files, DTOs,
+domain objects, errors, or logs. There is no plaintext or embedded-key fallback.
 
-Profile errors are `GenerationProfileNotFound`, `GenerationProfileIncompatibleWithNodeCapability`,
-`GenerationProfileUnavailable`, and `GenerationProfileAvailabilityIndeterminate`. Provider failures
-use the structured categories defined by the capability contract. Raw provider text never controls
-Workflow state.
+Only `DesktopCompositionRoot` loads credentials and constructs routes. A missing or inaccessible
+credential makes affected profiles unavailable without preventing application startup.
 
-Credentials, response bodies, signed URLs, native model IDs, provider tasks, and route details never
-enter public errors or ordinary logs. Endpoints, redirects, requests, responses, polling, downloads,
-and artifacts are bounded and validated as untrusted input.
+## Failure Semantics
 
-## Configuration And Composition
+Profile failures are `GenerationProfileNotFound`, `GenerationProfileIncompatible`,
+`GenerationProfileUnavailable`, and `GenerationProfileAvailabilityIndeterminate`.
 
-Only `src-tauri/composition.rs` constructs provider routers and routes. Configuration enables
-accounts, regions, routes, and routing policy; it does not select one global model per capability.
-Credentials are provided as short-lived `ProviderCredentialSecretValue` values and never stored in
-business objects.
+`NodeCapabilityProviderFailure` uses closed categories for invalid semantic request, authentication,
+permission, content policy, rate limit, provider unavailable, timeout, provider rejection, invalid
+response, download rejection, and ambiguous submission. It carries safe retryability and optional
+retry time. Provider strings never determine Workflow state.
 
-Deterministic routes use the same profile catalog, router, availability, request, result, and failure
-contracts as production routes.
+No database transaction remains open during any provider call. A capability translates one
+provider failure into `NodeCapabilityExecutionError`; Workflow then owns the node/Run transition.
 
 ## Verification
 
-- profile tests cover immutable identity, lifecycle, and exact compatibility;
-- router tests reject invalid route maps and prove fixed dispatch selection;
-- public port suites run against deterministic and configured routers;
-- every concrete route passes its exact capability conformance suite;
-- translation and fault tests cover every semantic field, polling, cancellation, idempotency,
-  malformed responses, bounded downloads, and availability races;
-- architecture tests reject provider-native node fields, broad provider interfaces, removed binding
-  layers, and construction outside composition.
-
-## Consequences
-
-The design keeps one public interface per semantic operation but reduces provider infrastructure to
-two runtime roles: router and route. Adding a provider means adding concrete routes for the exact
-operations it supports. Adding a model makes it selectable only after a stable profile,
-compatibility declaration, configured route, and conformance evidence exist.
+- profile tests cover immutable identity, tombstones, and exact compatibility;
+- availability tests cover bulk bounds, expiry, unavailable/indeterminate distinction, and detail
+  redaction;
+- router tests reject invalid route maps and prove one fixed route per profile and node execution;
+- every router passes its exact public-interface suite;
+- deterministic and vendor routes pass the same private route contract suite;
+- each vendor route passes translation, idempotency, polling, cancellation, malformed-response,
+  bounded-download, and ambiguous-submission tests;
+- credential tests prove OS-vault round trip, denial handling, no persisted plaintext, and missing-
+  credential availability behavior;
+- architecture tests reject node provider/model fields, broad provider interfaces, roadmap runtime
+  interfaces, removed binding/task layers, and construction outside composition.

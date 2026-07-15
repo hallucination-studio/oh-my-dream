@@ -1,6 +1,6 @@
 # Backend Workflow Graph Architecture
 
-> Status: proposed target architecture
+> Status: frozen MVP graph architecture
 > Owner: Workflow domain in `crates/engine`
 > Scope: Workflow aggregate, typed input bindings, ordered references, and graph invariants
 
@@ -10,6 +10,8 @@ lifecycle, and preview association.
 
 ## Workflow Aggregate
 
+`ProjectId` is imported from `crates/projects`; Workflow never defines a second Project identity.
+
 ```rust
 pub struct WorkflowAggregate {
     pub schema_version: WorkflowSchemaVersion,
@@ -18,22 +20,22 @@ pub struct WorkflowAggregate {
     pub revision: WorkflowRevision,
     pub nodes: BTreeMap<WorkflowNodeId, WorkflowNodeEntity>,
     pub input_bindings:
-        BTreeMap<WorkflowInputTargetValue, WorkflowInputBindingValue>,
+        BTreeMap<WorkflowInputTarget, WorkflowInputBinding>,
 }
 
 pub struct WorkflowNodeEntity {
     pub id: WorkflowNodeId,
     pub capability_contract: NodeCapabilityContractRef,
     pub parameter_set: NodeCapabilityParameterSet,
-    pub canvas_position: WorkflowCanvasPositionValue,
+    pub canvas_position: WorkflowCanvasPosition,
 }
 
-pub struct WorkflowInputTargetValue {
+pub struct WorkflowInputTarget {
     pub node_id: WorkflowNodeId,
-    pub input_key: NodeCapabilityInputPortKey,
+    pub input_key: NodeCapabilityInputKey,
 }
 
-pub enum WorkflowInputBindingValue {
+pub enum WorkflowInputBinding {
     Single { item: WorkflowInputItemEntity },
     OrderedReferences { items: NonEmptyVec<WorkflowInputItemEntity> },
 }
@@ -41,26 +43,26 @@ pub enum WorkflowInputBindingValue {
 pub struct WorkflowInputItemEntity {
     pub id: WorkflowInputItemId,
     pub source_node_id: WorkflowNodeId,
-    pub source_output_key: NodeCapabilityOutputPortKey,
+    pub source_output_key: NodeCapabilityOutputKey,
     pub input_role_key: Option<NodeCapabilityInputRoleKey>,
 }
 ```
 
 An input item is the first-class directed graph edge. Its target is the
-`WorkflowInputTargetValue` that owns the binding, so the target is not duplicated on every item.
+`WorkflowInputTarget` that owns the binding, so the target is not duplicated on every item.
 The non-empty sequence in `OrderedReferences.items` is the authoritative order; an absent binding
 represents zero items. There is no separately maintained ordinal, rank, or ordering index.
 
 `WorkflowInputItemId` is stable for the item's lifetime. Reordering changes only its vector
 position, so a structured prompt continues to reference the same item.
 
-The selected capability normalizes `NodeCapabilityParameterSet`; graph code treats its business
-fields as opaque structured data. The catalog mechanically exposes referenced
+The selected `WorkflowNodeCapabilityInterface` implementation normalizes `NodeCapabilityParameterSet`;
+graph code treats its business fields as opaque structured data. The implementation mechanically exposes referenced
 `WorkflowInputItemId` values so Workflow can enforce referential integrity without duplicating
 prompt semantics. Canvas position is persisted for reopen but excluded from readiness and
 execution.
 
-Nodes never persist port definitions, resolved runtime values, outputs, progress, errors, provider
+Nodes never persist input/output definitions, resolved runtime values, outputs, progress, errors, provider
 tasks, URLs, paths, previews, or playback state. UI interaction state remains in React.
 
 ## Persistence And Restore
@@ -74,7 +76,8 @@ The role-bearing input shape belongs to an explicit `WorkflowSchemaVersion`. A r
 interprets an anonymous source list as this model. Restore reconstructs the aggregate and applies
 the same draft-validity rules before execution.
 
-Starting or retrying a Run copies frozen binding sequences into the execution plan. Later graph
+Starting a Run copies frozen binding sequences into the execution plan. A retry creates another Run
+with another frozen plan. Later graph
 edits, presentation sorting, provider translation, and asynchronous source resolution cannot
 reorder them.
 
@@ -86,20 +89,18 @@ pub enum WorkflowDataType {
     Image,
     Video,
     Audio,
-    ImageSequence,
-    VideoStoryboard,
 }
 
 pub struct WorkflowAcceptedDataTypeSet(BTreeSet<WorkflowDataType>);
 
-pub struct NodeCapabilityInputPortContract {
-    pub key: NodeCapabilityInputPortKey,
+pub struct NodeCapabilityInputContract {
+    pub key: NodeCapabilityInputKey,
     pub binding: NodeCapabilityInputBindingContract,
 }
 
 pub enum NodeCapabilityInputBindingContract {
-    OptionalValue { data_type: WorkflowDataType },
-    RequiredValue { data_type: WorkflowDataType },
+    OptionalSingleValue { data_type: WorkflowDataType },
+    RequiredSingleValue { data_type: WorkflowDataType },
     OrderedReferences {
         minimum_items: u32,
         maximum_items: Option<u32>,
@@ -109,7 +110,8 @@ pub enum NodeCapabilityInputBindingContract {
 }
 ```
 
-`OptionalValue` and `RequiredValue` accept one exact `WorkflowDataType`. `OrderedReferences`
+`OptionalSingleValue` and `RequiredSingleValue` accept one exact `WorkflowDataType`.
+`OrderedReferences`
 requires a declared role key on every item and a non-empty concrete accepted-type set for every
 role. Mixed media is therefore a sequence of individually tagged Image, Video, or Audio values,
 not a `Media` wildcard.
@@ -121,15 +123,19 @@ business cardinality.
 `NodeCapabilityInputRoleKey` meaning is owned by the exact capability module. Examples include
 `subject`, `style`, `composition`, `scene`, `motion`, and `audio_guidance`. Workflow stores and
 validates declared keys mechanically but never interprets them. Semantic positions use separately
-named single ports such as `first_frame` and `last_frame`, not inferred list roles.
+named single inputs such as `first_frame` and `last_frame`, not inferred list roles.
 
-Outputs publish one exact `WorkflowDataType`. Accepting multiple concrete input types never permits
+MVP outputs publish one exact Text, Image, Video, or Audio `WorkflowDataType`. Accepting multiple concrete input types never permits
 an ambiguous output. The catalog rejects empty role maps, empty accepted-type sets, `Text` inside a
 reference-media set, and inverted cardinality bounds as contract-definition errors.
 
+`ImageSequence` and `VideoStoryboard` are reserved roadmap output concepts. They enter
+`WorkflowDataType` only with the frame-extraction or storyboard capability change and a compatible
+Workflow schema version; the frozen MVP does not serialize placeholder variants.
+
 ## Input Binding Invariants
 
-- every binding names one existing target node and one declared input port;
+- every binding names one existing target node and one declared input;
 - `Single` is valid only for an optional or required single-value contract;
 - `OrderedReferences` uses its declared contract and vector order is semantic;
 - every input item ID is Workflow-unique and names one exact source output;
@@ -148,7 +154,7 @@ as identity.
 
 - aggregate tests cover single and ordered bindings, stable IDs, reorder, fan-out, removal, and
   cycles;
-- contract tests cover all data types, capability-owned roles, cardinality, and type rejection;
+- contract tests cover the four MVP data types, capability-owned roles, cardinality, and type rejection;
 - persistence tests round-trip at least nine mixed-media items without changing IDs or order;
 - prompt-reference tests prove item identity survives reorder;
 - architecture tests reject a second graph model in nodes, DTOs, persistence, or React.

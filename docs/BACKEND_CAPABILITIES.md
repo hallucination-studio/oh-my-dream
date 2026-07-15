@@ -1,221 +1,195 @@
 # Backend Node Capability Architecture
 
-> Status: proposed target architecture
-> Owner: capability interface in `crates/engine`; exact implementations in `crates/nodes`
-> Scope: built-in Text, Image, Video, Audio, media-processing, and analysis operations
+> Status: frozen MVP interface and named roadmap
+> Owner: interface in `crates/engine`; exact implementations in `crates/nodes`
+> Scope: semantic operations executable by Workflow nodes
 
-A node capability is one versioned business operation. It is not a UI shell, provider feature,
-native model, or generic job.
+A Node Capability is one versioned business operation. It is not a UI shell, provider feature,
+native model, or generic task.
 
 ## Decision
 
-1. Workflow owns one consumer-facing `WorkflowNodeCapabilityPort` interface.
-2. Every exact operation has one named implementation such as `TextToVideoCapability`.
-3. One concrete `WorkflowNodeCapabilityRegistry` stores the implementations by immutable
-   `NodeCapabilityContractRef`. It replaces separate catalog and executor abstractions.
-4. Each implementation owns its contract, parameter rules, readiness, request mapping, result
-   validation, and execution behavior.
-5. An implementation depends only on the focused external ports it actually consumes.
-6. Model-powered implementations persist a provider-independent `GenerationProfileRef`.
+1. Workflow owns one consumer-facing `WorkflowNodeCapabilityInterface`.
+2. Every exact operation has one behavior-revealing implementation such as
+   `ImageToVideoCapabilityImpl`.
+3. One immutable `WorkflowNodeCapabilityRegistry` holds active implementations by exact
+   `NodeCapabilityContractRef`.
+4. Each implementation owns its contract, parameter normalization, external readiness, typed
+   request mapping, result validation, and execution behavior.
+5. Each implementation receives only the focused external interfaces it consumes.
+6. Model-powered implementations require a provider-independent `GenerationProfileRef`.
 
-All capability implementations satisfy the same complete interface. There are no optional methods,
-`Unsupported` results, provider feature probes, or untyped parameter maps.
+There is no separate catalog/executor pair, generic options map, optional capability method, or
+`Unsupported` implementation.
 
-## Capability Interface
-
-The interface is owned by its Workflow consumer in `crates/engine`:
+## Consumer-Owned Interface
 
 ```rust
 #[async_trait]
-pub trait WorkflowNodeCapabilityPort: Send + Sync {
+pub trait WorkflowNodeCapabilityInterface: Send + Sync {
     fn node_capability_contract(&self) -> &NodeCapabilityContract;
 
-    fn normalize_parameters(
+    fn normalize_node_parameters(
         &self,
         parameters: &NodeCapabilityParameterSet,
-    ) -> Result<NormalizedNodeCapabilityParameters, NodeCapabilityParameterError>;
+    ) -> Result<NodeCapabilityNormalizedParameters, NodeCapabilityParameterError>;
 
-    async fn check_readiness(
+    async fn check_node_external_readiness(
         &self,
-        request: CheckNodeCapabilityReadinessRequest,
+        request: NodeCapabilityReadinessRequest,
     ) -> Vec<NodeCapabilityReadinessIssue>;
 
-    async fn execute(
+    async fn execute_node_capability(
         &self,
-        request: ExecuteNodeCapabilityRequest,
+        request: NodeCapabilityExecutionRequest,
     ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError>;
 }
 ```
 
-These four behaviors are cohesive: Workflow needs all of them for editing, validation, planning,
-and execution. `NormalizedNodeCapabilityParameters` contains the normalized parameter set and its
-mechanically projected input-item references. Exact typed parameters and provider requests remain
-private to the implementation.
+The names make all four behaviors explicit. Workflow uses the contract for structural graph checks,
+normalization for an immutable execution plan, external readiness for Assets and Generation
+Profiles, and execution only after durable Run admission.
 
-`WorkflowNodeCapabilityRegistry` is a stable internal collection, not another trait. It rejects
-duplicate refs, exposes immutable contract iteration, resolves one exact implementation, and
-delegates behavior without reimplementing it. The composition root registers implementations once;
-forms, readiness, and execution therefore cannot drift between separate registries.
+`NodeCapabilityNormalizedParameters` contains normalized parameters plus mechanically extracted
+stable input-item references. Exact typed parameters and provider requests remain private to the
+implementation.
 
-## Capability Implementations
-
-```text
-crates/engine/src/workflow/node_capability.rs
-  WorkflowNodeCapabilityPort, WorkflowNodeCapabilityRegistry, shared contract values
-
-crates/nodes/src/
-  text_to_video/{capability,parameters,provider_port}.rs
-  first_and_last_frames_to_video/{capability,parameters,provider_port}.rs
-  video_concatenation/{capability,parameters,media_port}.rs
-  ...one business-capability directory per exact implementation
-```
-
-```rust
-pub struct TextToVideoCapability<P, W> {
-    text_to_video_provider: P,
-    produced_media_writer: W,
-    contract: NodeCapabilityContract,
-}
-```
-
-`TextToVideoCapability` implements `WorkflowNodeCapabilityPort`. It converts generic Workflow
-values into a private `TextToVideoParameters` and `TextToVideoProviderRequest`, calls
-`TextToVideoProviderPort`, validates `GeneratedVideoPayload`, stores the result through
-`NodeCapabilityProducedMediaWriterPort`, and returns a managed Video output.
-
-The same pattern applies to every exact operation. Implementations do not inspect provider names,
-look up concrete adapters, access Asset repositories, or branch on unsupported operations.
+`WorkflowNodeCapabilityRegistry` is a concrete immutable collection, not another trait. It rejects
+duplicate refs, lists the same contracts used at execution, resolves one exact implementation, and
+never reimplements capability rules.
 
 ## Versioned Contract
 
 ```rust
 pub struct NodeCapabilityContract {
-    pub node_capability_contract_ref: NodeCapabilityContractRef,
+    pub contract_ref: NodeCapabilityContractRef,
     pub parameters: Vec<NodeCapabilityParameterContract>,
-    pub inputs: Vec<NodeCapabilityInputPortContract>,
-    pub outputs: Vec<NodeCapabilityOutputPortContract>,
+    pub inputs: Vec<NodeCapabilityInputContract>,
+    pub outputs: Vec<NodeCapabilityOutputContract>,
     pub execution_kind: NodeCapabilityExecutionKind,
 }
 ```
 
-An exact version is immutable. Changing parameter meaning, input cardinality, role semantics,
-output type, or result guarantees requires a new version. `execution_kind` describes business
-behavior: `PureValue`, `ManagedAssetRead`, `ContentGeneration`, `MediaTransformation`, or
-`ContentAnalysis`; it does not describe local versus remote deployment.
+Changing parameter meaning, input cardinality, role meaning, output type, or result guarantee
+requires a new contract version. The exact implementation is the semantic owner; Workflow, DTOs,
+forms, and provider routes only consume or translate the contract.
 
-The implementation is the single semantic owner. DTOs, forms, provider routes, and Workflow graph
-code only consume its contract or translate boundary values.
+`NodeCapabilityExecutionKind` is a closed business classification:
+`PureValue`, `ManagedAssetRead`, `ContentGeneration`, `MediaTransformation`, or `ContentAnalysis`.
+It never means local versus remote.
 
-## Built-In Implementations
+## Frozen MVP Implementations
 
-| Contract ref | Implementation | External port |
-| --- | --- | --- |
-| `text.provide_literal@1.0` | `ProvideLiteralTextCapability` | none |
-| `image.read_asset@1.0` | `ReadImageAssetCapability` | `NodeCapabilityManagedMediaReaderPort` |
-| `video.read_asset@1.0` | `ReadVideoAssetCapability` | `NodeCapabilityManagedMediaReaderPort` |
-| `audio.read_asset@1.0` | `ReadAudioAssetCapability` | `NodeCapabilityManagedMediaReaderPort` |
-| `image.generate_from_text@1.0` | `TextToImageCapability` | `TextToImageProviderPort` |
-| `image.generate_from_image@1.0` | `ImageToImageCapability` | `ImageToImageProviderPort` |
-| `image.generate_from_reference_images@1.0` | `ReferenceImagesToImageCapability` | `ReferenceImagesToImageProviderPort` |
-| `image.crop@1.0` | `CropImageCapability` | `ImageCropPort` |
-| `video.generate_from_text@1.0` | `TextToVideoCapability` | `TextToVideoProviderPort` |
-| `video.generate_from_image@1.0` | `ImageToVideoCapability` | `ImageToVideoProviderPort` |
-| `video.generate_from_reference_images@1.0` | `ReferenceImagesToVideoCapability` | `ReferenceImagesToVideoProviderPort` |
-| `video.generate_from_first_frame@1.0` | `FirstFrameToVideoCapability` | `FirstFrameToVideoProviderPort` |
-| `video.generate_from_first_and_last_frames@1.0` | `FirstAndLastFramesToVideoCapability` | `FirstAndLastFramesToVideoProviderPort` |
-| `video.generate_from_mixed_media@1.0` | `MixedMediaToVideoCapability` | `MixedMediaToVideoProviderPort` |
-| `video.upscale@1.0` | `UpscaleVideoCapability` | `VideoUpscaleProviderPort` |
-| `video.extract_frames@1.0` | `ExtractVideoFramesCapability` | `VideoFrameExtractionPort` |
-| `video.concatenate@1.0` | `ConcatenateVideosCapability` | `VideoConcatenationPort` |
-| `video.analyze_storyboard@1.0` | `AnalyzeVideoStoryboardCapability` | `VideoStoryboardProviderPort` |
-| `text.generate_from_text@1.0` | `TextToTextCapability` | `TextToTextProviderPort` |
-| `text.generate_from_mixed_media@1.0` | `MultimodalToTextCapability` | `MultimodalToTextProviderPort` |
-| `audio.synthesize_speech_from_text@1.0` | `TextToSpeechCapability` | `TextToSpeechProviderPort` |
-| `audio.generate_music_from_text@1.0` | `TextToMusicCapability` | `TextToMusicProviderPort` |
+[`BACKEND.md`](BACKEND.md#active-node-capabilities) is the single authority for the seven active
+contract refs, implementation names, and external dependencies. `WorkflowNodeCapabilityRegistry`
+contains exactly that set; this document does not maintain a second copy.
 
-The contract IDs remain explicit and stable. Rust names use familiar input-to-output terminology;
-verbs are reserved for methods. `TextToAudioCapability` is prohibited because speech and music
-have different parameters, results, profiles, and failure semantics.
+The active runtime data types are `Text`, `Image`, `Video`, and `Audio`. The UI derives those four
+shells from each contract's primary output; shell kind is never persisted as domain identity.
 
-## Exact External Interfaces
+## Implementation Shape
 
-Each model-powered port has one behavior-revealing method and exact request/result types:
-
-| Port | Method | Request | Result |
-| --- | --- | --- | --- |
-| `TextToImageProviderPort` | `generate_image_from_text` | `TextToImageProviderRequest` | `GeneratedImagePayload` |
-| `ImageToImageProviderPort` | `generate_image_from_image` | `ImageToImageProviderRequest` | `GeneratedImagePayload` |
-| `ReferenceImagesToImageProviderPort` | `generate_image_from_references` | `ReferenceImagesToImageProviderRequest` | `GeneratedImagePayload` |
-| `TextToVideoProviderPort` | `generate_video_from_text` | `TextToVideoProviderRequest` | `GeneratedVideoPayload` |
-| `ImageToVideoProviderPort` | `generate_video_from_image` | `ImageToVideoProviderRequest` | `GeneratedVideoPayload` |
-| `ReferenceImagesToVideoProviderPort` | `generate_video_from_references` | `ReferenceImagesToVideoProviderRequest` | `GeneratedVideoPayload` |
-| `FirstFrameToVideoProviderPort` | `generate_video_from_first_frame` | `FirstFrameToVideoProviderRequest` | `GeneratedVideoPayload` |
-| `FirstAndLastFramesToVideoProviderPort` | `generate_video_from_frames` | `FirstAndLastFramesToVideoProviderRequest` | `GeneratedVideoPayload` |
-| `MixedMediaToVideoProviderPort` | `generate_video_from_media` | `MixedMediaToVideoProviderRequest` | `GeneratedVideoPayload` |
-| `VideoUpscaleProviderPort` | `upscale_video` | `VideoUpscaleProviderRequest` | `UpscaledVideoPayload` |
-| `TextToTextProviderPort` | `generate_text` | `TextToTextProviderRequest` | `GeneratedTextValue` |
-| `MultimodalToTextProviderPort` | `generate_text_from_media` | `MultimodalToTextProviderRequest` | `GeneratedTextValue` |
-| `TextToSpeechProviderPort` | `synthesize_speech` | `TextToSpeechProviderRequest` | `SynthesizedSpeechPayload` |
-| `TextToMusicProviderPort` | `generate_music` | `TextToMusicProviderRequest` | `GeneratedMusicPayload` |
-| `VideoStoryboardProviderPort` | `analyze_storyboard` | `VideoStoryboardProviderRequest` | `VideoStoryboardResult` |
-
-Media operations are separate interfaces because they do not select a generation profile:
-
-| Port | Method | Request | Result |
-| --- | --- | --- | --- |
-| `ImageCropPort` | `crop_image` | `ImageCropRequest` | `CroppedImagePayload` |
-| `VideoFrameExtractionPort` | `extract_frames` | `VideoFrameExtractionRequest` | `ExtractedVideoFramesPayload` |
-| `VideoConcatenationPort` | `concatenate_videos` | `VideoConcatenationRequest` | `ConcatenatedVideoPayload` |
-
-Requests preserve semantic input order, stable input-item IDs, explicit roles, typed parameters,
-`GenerationProfileRef` when applicable, and `WorkflowNodeDispatchId`. They contain no provider name,
-native model ID, credential, URL, path, provider task, wire DTO, or generic options map.
-
-## Structured Results
-
-Media result payloads contain one fixed media kind, declared facts, and a bounded asynchronous byte
-stream. Text and Storyboard results are validated semantic values. Frame extraction produces an
-ordered timestamped `WorkflowImageSequenceValue`; storyboard analysis produces a structured
-`WorkflowVideoStoryboardValue`, never provider JSON disguised as Text.
-
-`NodeCapabilityProducedMediaWriterPort` stores one payload or an ordered frame set. A capability
-publishes outputs only after every required Asset is available. Partial storage never becomes a
-partial Workflow result.
-
-## Errors
-
-Exact parameter and readiness errors occur before external calls. Provider ports return the shared
-`NodeCapabilityProviderFailure`; media ports return `NodeCapabilityMediaFailure`. Both carry a
-stable category, retryability, and optional safe retry time. Provider strings, native IDs, URLs,
-paths, credentials, and response bodies never cross the interface.
-
-Every implementation translates these failures once into `NodeCapabilityExecutionError`, which
-identifies the capability, execution stage, safe target, and structured cause. A provider route
-rejecting a semantically valid request is `ProviderRouteContractViolation`, not invalid user input.
-
-## Test Implementations
-
-Capability tests register real capability implementations with deterministic external routes or
-fault-injecting media adapters:
-
-```text
-TextToVideoCapability<DeterministicTextToVideoProviderRoute, TestProducedMediaWriter>
-TextToSpeechCapability<DeterministicTextToSpeechProviderRoute, TestProducedMediaWriter>
-AnalyzeVideoStoryboardCapability<DeterministicVideoStoryboardProviderRoute>
-ConcatenateVideosCapability<FaultInjectingVideoConcatenationAdapter>
+```rust
+pub struct ImageToVideoCapabilityImpl<R, P, W> {
+    managed_media_reader: R,
+    image_to_video_provider: P,
+    produced_media_writer: W,
+    contract: NodeCapabilityContract,
+}
 ```
 
-There is no configurable mega-mock. The same parameterized `WorkflowNodeCapabilityPort` contract
-suite runs against every registered implementation. Provider port suites separately run against
-deterministic and configured routers.
+`ImageToVideoCapabilityImpl`:
 
-## Verification
+1. validates and normalizes its stable parameters;
+2. checks the selected `GenerationProfileRef` and input Asset readiness;
+3. converts Workflow values into `ImageToVideoProviderRequest`;
+4. calls `ImageToVideoProviderInterface::generate_video_from_image`;
+5. validates the `GeneratedVideoPayload`;
+6. stores it through `NodeCapabilityProducedMediaWriterInterface::write_node_output_media`;
+7. returns one managed Video in a complete `WorkflowNodeOutputSet`.
 
-- registry tests reject duplicate refs and prove one implementation serves contract discovery,
-  normalization, readiness, and execution;
-- every capability interface implementation passes the shared lifecycle contract suite;
-- exact tests cover typed parameter preparation, input order and roles, request mapping, result
-  validation, provenance, and error translation;
-- provider and media port suites prove behavioral equivalence across all implementations;
-- architecture tests reject a second capability catalog, generic provider interface, optional
-  unsupported methods, generic options maps, and concrete adapter selection outside composition.
+It never reads a provider name, route ID, path, URL, Asset repository, or concrete adapter.
+
+## MVP External Interfaces
+
+| Interface | Behavior method | Request | Result |
+| --- | --- | --- | --- |
+| `NodeCapabilityManagedMediaReaderInterface` | `read_managed_media` | `NodeCapabilityManagedMediaReadRequest` | `NodeCapabilityReadableMediaInput` |
+| `NodeCapabilityProducedMediaWriterInterface` | `write_node_output_media` | `NodeCapabilityProducedMediaWriteRequest` | typed managed Workflow media ref |
+| `TextToImageProviderInterface` | `generate_image_from_text` | `TextToImageProviderRequest` | `GeneratedImagePayload` |
+| `ImageToVideoProviderInterface` | `generate_video_from_image` | `ImageToVideoProviderRequest` | `GeneratedVideoPayload` |
+| `TextToSpeechProviderInterface` | `synthesize_speech_from_text` | `TextToSpeechProviderRequest` | `SynthesizedSpeechPayload` |
+
+Every exact provider request contains semantic inputs, typed parameters, `GenerationProfileRef`,
+and `WorkflowNodeExecutionId`. It contains no provider name, native model ID, credential, endpoint,
+URL, path, provider task, wire DTO, or generic options map.
+
+The media-write request includes `NodeCapabilityProducedMediaOutputKey`, derived from Workflow Run,
+node execution, output key, and ordinal. The Desktop bridge translates it to the Asset-owned
+`AssetNodeOutputKey`. Repeating the same key and digest returns the same Asset; a different digest
+is a conflict.
+
+## Named Roadmap Contracts
+
+These operations have approved semantic names but are not part of the MVP registry. Their traits
+and implementations are introduced only when scheduled; this table prevents future provider-shaped
+or ambiguous names.
+
+| Planned contract ref | Reserved implementation name | Reserved external interface and method |
+| --- | --- | --- |
+| `image.generate_from_image@1.0` | `ImageToImageCapabilityImpl` | `ImageToImageProviderInterface::generate_image_from_image` |
+| `image.generate_from_reference_images@1.0` | `ReferenceImagesToImageCapabilityImpl` | `ReferenceImagesToImageProviderInterface::generate_image_from_reference_images` |
+| `image.crop@1.0` | `ImageCropCapabilityImpl` | `ImageCropInterface::crop_image` |
+| `video.generate_from_text@1.0` | `TextToVideoCapabilityImpl` | `TextToVideoProviderInterface::generate_video_from_text` |
+| `video.generate_from_reference_images@1.0` | `ReferenceImagesToVideoCapabilityImpl` | `ReferenceImagesToVideoProviderInterface::generate_video_from_reference_images` |
+| `video.generate_from_first_frame@1.0` | `FirstFrameToVideoCapabilityImpl` | `FirstFrameToVideoProviderInterface::generate_video_from_first_frame` |
+| `video.generate_from_first_and_last_frames@1.0` | `FirstAndLastFramesToVideoCapabilityImpl` | `FirstAndLastFramesToVideoProviderInterface::generate_video_from_first_and_last_frames` |
+| `video.generate_from_mixed_media@1.0` | `MixedMediaToVideoCapabilityImpl` | `MixedMediaToVideoProviderInterface::generate_video_from_mixed_media` |
+| `video.upscale@1.0` | `VideoUpscaleCapabilityImpl` | `VideoUpscaleProviderInterface::upscale_video` |
+| `video.extract_frames@1.0` | `VideoFrameExtractionCapabilityImpl` | `VideoFrameExtractionInterface::extract_video_frames` |
+| `video.concatenate@1.0` | `VideoConcatenationCapabilityImpl` | `VideoConcatenationInterface::concatenate_videos` |
+| `video.analyze_storyboard@1.0` | `VideoStoryboardAnalysisCapabilityImpl` | `VideoStoryboardAnalysisProviderInterface::analyze_storyboard_from_video` |
+| `text.generate_from_text@1.0` | `TextToTextGenerationCapabilityImpl` | `TextToTextGenerationProviderInterface::generate_text_from_text` |
+| `text.generate_from_mixed_media@1.0` | `MixedMediaToTextGenerationCapabilityImpl` | `MixedMediaToTextGenerationProviderInterface::generate_text_from_mixed_media` |
+| `audio.generate_music_from_text@1.0` | `TextToMusicCapabilityImpl` | `TextToMusicProviderInterface::generate_music_from_text` |
+
+The distinctions are contractual:
+
+- `ImageToVideo` uses an image as conditioning input but does not promise exact first-frame pixels;
+- `FirstFrameToVideo` guarantees the supplied image is the first frame;
+- `FirstAndLastFramesToVideo` guarantees both endpoint frames;
+- reference-image operations use ordered role-bearing subject/style/material references;
+- mixed-media operations accept typed Image and Video items with explicit roles;
+- speech and music remain separate operations, profiles, results, and failure semantics.
+
+Activating a roadmap operation requires its complete parameter, input-role, result, error, mock,
+provider/media interface, Asset provenance, UI contract, and E2E tests in the same change.
+
+## Results And Errors
+
+Provider media payloads contain one fixed media kind, declared facts, and a bounded asynchronous
+byte stream. Text and Storyboard results are validated semantic values, never provider JSON hidden
+inside a string.
+
+A capability returns all declared outputs or one structured error. Required media becomes a
+Workflow output only after every corresponding Asset is Available; partial Asset creation never
+becomes a partial `WorkflowNodeOutputSet`.
+
+`NodeCapabilityParameterError` and `NodeCapabilityReadinessIssue` occur before dispatch.
+`NodeCapabilityProviderFailure` and `NodeCapabilityMediaFailure` use closed categories,
+retryability, and optional safe retry time. `NodeCapabilityExecutionError` adds capability, stage,
+and safe target. Raw provider text, native IDs, URLs, paths, credentials, and response bodies never
+cross these errors.
+
+## Contract Tests
+
+- registry tests reject duplicate refs and assert the exact seven-contract MVP set;
+- every active implementation passes the shared `WorkflowNodeCapabilityInterface` behavior suite;
+- exact tests cover normalization, stable input order, request mapping, result validation,
+  provenance, idempotent media write, and error translation;
+- deterministic and production routers pass the same exact provider-interface suites;
+- fault-injection tests cover cancellation, timeout, malformed payload, Asset write failure, and
+  duplicate output-key conflict;
+- architecture tests reject a second catalog/executor, roadmap registration, broad provider
+  interface, optional unsupported method, generic options map, and concrete adapter selection
+  outside composition.
