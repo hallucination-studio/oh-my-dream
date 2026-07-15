@@ -376,16 +376,44 @@ startup reconciliation; no code publishes bytes before the effect is durable.
 ## Resolve And List
 
 ```rust
+pub struct AssetGetQuery {
+    pub project_id: ProjectId,
+    pub asset_id: AssetId,
+}
+
 pub struct AssetResolveContentQuery {
     pub project_id: ProjectId,
     pub asset_id: AssetId,
     pub expected_media_kind: AssetMediaKind,
+    pub deadline: Instant,
+}
+
+pub struct AssetIssuePreviewCommand {
+    pub project_id: ProjectId,
+    pub asset_id: AssetId,
 }
 ```
 
-Resolution verifies Project visibility, exact kind, `Available` state, and current content
-existence. It returns `AssetManagedContentLease` plus `AssetContentDescriptor`. The lease is bounded
-and opaque; provider upload and Desktop preview can stream it but cannot discover a path.
+These are illustrative field listings; the Rust values keep fields private and expose noun-specific
+constructors and accessors. `AssetGetUseCase::get_asset` loads by global Asset identity, returns
+`NotFound` for absence, `NotVisible` for a different Project, and otherwise returns the aggregate
+without changing or hiding its content state.
+
+`AssetListUseCase::list_assets` accepts the existing `AssetListQuery` and returns exactly the
+repository's `AssetListPage`. The use case adds no default limit, filtering, sorting, cursor
+translation, total, state suppression, or content verification. Project, optional kind, cursor, and
+validated limit remain mandatory repository filters, and repository errors propagate unchanged.
+
+`AssetResolveContentUseCase::resolve_asset_content` checks the caller deadline, loads by Asset ID,
+then verifies Project visibility, exact kind, and content state in that order. Absence returns
+`NotFound`; a different Project returns `NotVisible`; a different kind returns
+`MediaKindMismatch`; Pending returns `ContentPending`; Missing returns `ContentMissing`. For
+Available, it calls `open_managed_asset_content` once with the exact descriptor and deadline.
+`None` returns `ContentMissing`; an open failure propagates unchanged. Success returns an
+`AssetResolvedContent` containing that exact `AssetContentDescriptor` and
+`AssetManagedContentLease`. The lease is bounded and opaque; provider upload and Desktop preview
+can stream it but cannot discover a path. Resolution does not mark content Missing, issue a preview,
+retry, or repair storage.
 
 `AssetManagedContentLease` is call-scoped to one exact content ID and byte length, supports one
 forward asynchronous stream, and expires at its caller-supplied deadline. `AssetImportSourceLease`
@@ -421,6 +449,15 @@ Audio -> MIME, Content-Length, ETag, and one valid byte Range
 Every request rechecks token signature, expiry, Project, current Asset state, and content
 descriptor. It supports bounded `GET` and `HEAD`, sets `nosniff`, and exposes no managed path. React
 owns zoom, seek, playback, volume, and object-URL lifetime.
+
+`issue_asset_preview` loads by Asset ID, then verifies Project visibility and content state in that
+order. Absence returns `NotFound`, a different Project returns `NotVisible`, Pending returns
+`ContentPending`, and Missing returns `ContentMissing`. Only for Available content does it observe
+the Asset clock once, generate one preview lease ID, and construct the lease from the exact current
+content ID. Clock, identity, and lease-construction errors propagate unchanged. Issuance does not
+open bytes, sign a token, choose a URL, accept a caller expiry, retry identity generation, or perform
+protocol Range handling. The protocol request performs its documented fresh Asset and content
+checks before access.
 
 `AssetPreviewLease` contains an `AssetPreviewLeaseId`, Project ID, Asset ID, exact content ID,
 issued-at, and expiry. Its lifetime is exactly five minutes; the signed protocol token is
@@ -509,6 +546,12 @@ accept rows, paths, provider values, Desktop effect envelopes, or generic byte p
   reference, and the aggregate's `AssetCreatedAt`. It contains no retry count, path, effect state, or
   failure text.
 - `AssetFinalizeContentEffect` contains only the finalization ID.
+- `AssetGetQuery` contains Project ID and Asset ID. `AssetResolveContentQuery` contains Project ID,
+  Asset ID, expected media kind, and the caller's process-monotonic deadline.
+- `AssetResolvedContent` contains exactly one descriptor and one managed-content lease; it is not
+  cloneable or serializable and exposes no path or preview token.
+- `AssetIssuePreviewCommand` contains only Project ID and Asset ID. Preview lifetime and identity are
+  application-owned and cannot be supplied by a caller.
 - `AssetListCursor` contains `(created_at, asset_id)`. `AssetListQuery` contains Project ID, optional
   media kind, optional cursor, and `AssetPageLimit`. `AssetPageLimit` is one shared validated
   `1..=100` value. `AssetListPage` contains ordered Assets and an optional cursor for the next
