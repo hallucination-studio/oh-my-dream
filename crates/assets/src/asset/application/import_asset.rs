@@ -64,7 +64,7 @@ impl AssetImportUseCase {
         let source = command.into_source_lease();
         let staged_content = run_asset_operation_before_deadline(
             deadline,
-            self.managed_content_store.stage_asset_content(
+            self.managed_content_store.stage_imported_asset_content(
                 source,
                 request.expected_media_kind,
                 request.created_at,

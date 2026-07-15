@@ -203,13 +203,22 @@ impl AssetIngestTransactionInterface for AssetImportFixtureFakeImpl {
 
 #[async_trait]
 impl AssetManagedContentStoreInterface for AssetImportFixtureFakeImpl {
-    async fn stage_asset_content(
+    async fn stage_imported_asset_content(
         &self,
         _source: AssetImportSourceLease,
         _expected_media_kind: AssetMediaKind,
         created_at: AssetCreatedAt,
     ) -> Result<AssetStagedContent, AssetApplicationError> {
         self.record("stage");
+        AssetStagedContent::try_new(staged_ref(), digest(), 10, created_at)
+    }
+
+    async fn stage_node_output_asset_content(
+        &self,
+        _source: assets::asset::application::AssetNodeOutputSourceLease,
+        _expected_media_kind: AssetMediaKind,
+        created_at: AssetCreatedAt,
+    ) -> Result<AssetStagedContent, AssetApplicationError> {
         AssetStagedContent::try_new(staged_ref(), digest(), 10, created_at)
     }
 

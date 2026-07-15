@@ -10,8 +10,9 @@ use crate::asset::application::{
     AssetCommitPendingContentCommand, AssetCommitWorkflowNodeOutputPendingResult,
     AssetContentFinalization, AssetContentFinalizationRecoveryPage,
     AssetFinalizationRecoveryCursor, AssetImportSourceLease, AssetInspectedMedia, AssetListPage,
-    AssetListQuery, AssetManagedContentLease, AssetPageLimit, AssetStagedContent,
-    AssetStagedContentRecoveryCursor, AssetStagedContentRecoveryPage, AssetStagedContentRef,
+    AssetListQuery, AssetManagedContentLease, AssetNodeOutputSourceLease, AssetPageLimit,
+    AssetStagedContent, AssetStagedContentRecoveryCursor, AssetStagedContentRecoveryPage,
+    AssetStagedContentRef,
 };
 use crate::asset::domain::{
     AssetAggregate, AssetContentDescriptor, AssetContentFinalizationId, AssetCreatedAt, AssetId,
@@ -98,9 +99,17 @@ pub trait AssetIngestTransactionInterface: Send + Sync {
 #[async_trait]
 pub trait AssetManagedContentStoreInterface: Send + Sync {
     /// Stages one source once while calculating its exact digest and length.
-    async fn stage_asset_content(
+    async fn stage_imported_asset_content(
         &self,
         source: AssetImportSourceLease,
+        expected_media_kind: AssetMediaKind,
+        created_at: AssetCreatedAt,
+    ) -> Result<AssetStagedContent, AssetApplicationError>;
+
+    /// Stages one node-produced source once while calculating its exact digest and length.
+    async fn stage_node_output_asset_content(
+        &self,
+        source: AssetNodeOutputSourceLease,
         expected_media_kind: AssetMediaKind,
         created_at: AssetCreatedAt,
     ) -> Result<AssetStagedContent, AssetApplicationError>;

@@ -227,9 +227,18 @@ impl AssetIngestTransactionInterface for AssetReconcileFixtureFakeImpl {
 
 #[async_trait]
 impl AssetManagedContentStoreInterface for AssetReconcileFixtureFakeImpl {
-    async fn stage_asset_content(
+    async fn stage_imported_asset_content(
         &self,
         _source: AssetImportSourceLease,
+        _expected_media_kind: AssetMediaKind,
+        created_at: AssetCreatedAt,
+    ) -> Result<AssetStagedContent, AssetApplicationError> {
+        AssetStagedContent::try_new(staged_ref(8), digest(8), 10, created_at)
+    }
+
+    async fn stage_node_output_asset_content(
+        &self,
+        _source: assets::asset::application::AssetNodeOutputSourceLease,
         _expected_media_kind: AssetMediaKind,
         created_at: AssetCreatedAt,
     ) -> Result<AssetStagedContent, AssetApplicationError> {
