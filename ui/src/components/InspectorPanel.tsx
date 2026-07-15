@@ -11,6 +11,7 @@ export interface SelectedNode {
   type: string;
   params: Record<string, unknown>;
   capability?: NodeTypeSpec;
+  assetPresentation?: { title: string; available: boolean };
 }
 
 export function InspectorPanel({
@@ -18,11 +19,13 @@ export function InspectorPanel({
   modeOptions = [],
   onModeChange = () => undefined,
   onParamChange,
+  onOpenAssets = () => undefined,
 }: {
   node: SelectedNode | null;
   modeOptions?: NodeTypeSpec[];
   onModeChange?: (mode: string) => void;
   onParamChange: (nodeId: string, name: string, value: unknown) => void;
+  onOpenAssets?: () => void;
 }) {
   if (!node) {
     return (
@@ -43,6 +46,7 @@ export function InspectorPanel({
   const spec = node.capability;
   const accent = spec ? nodeAccent(spec.outputs, spec.inputs) : "var(--ink-3)";
   const produces = spec && spec.outputs.some((o) => ["image", "video", "audio"].includes(o.type));
+  const isAsset = spec?.contextualCreationRoute === "asset_library";
 
   return (
     <aside className="insp">
@@ -51,7 +55,19 @@ export function InspectorPanel({
         <b>{spec?.label ?? node.type}</b>
       </div>
 
-      {spec?.selector && (
+      {isAsset ? (
+        <div className="insp__asset">
+          <span className="insp__label">Asset</span>
+          <b>
+            {node.assetPresentation?.available === false
+              ? "Asset unavailable"
+              : node.assetPresentation?.title ?? `Untitled ${spec?.selector?.type_id.toLowerCase() ?? "asset"}`}
+          </b>
+          <button className="insp__asset-action" onClick={onOpenAssets}>
+            Open in Assets
+          </button>
+        </div>
+      ) : spec?.selector ? (
         <label className="insp__field">
           <span className="insp__label">Mode</span>
           <select
@@ -67,7 +83,7 @@ export function InspectorPanel({
             ))}
           </select>
         </label>
-      )}
+      ) : null}
 
       {spec && spec.status.availability !== "available" && (
         <div className="insp__note" role="status">
@@ -75,7 +91,7 @@ export function InspectorPanel({
         </div>
       )}
 
-      {spec && spec.params.length > 0 ? (
+      {!isAsset && spec && spec.params.length > 0 ? (
         <>
           <p className="insp__grp">Parameters</p>
           <div className="insp__fields">
@@ -92,11 +108,11 @@ export function InspectorPanel({
             ))}
           </div>
         </>
-      ) : (
+      ) : !isAsset ? (
         <p className="insp__note-plain">This node has no parameters.</p>
-      )}
+      ) : null}
 
-      {produces && (
+      {produces && !isAsset && (
         <div className="insp__note">
           Generated media saves to the Library automatically, tagged with this project and prompt.
         </div>

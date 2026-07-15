@@ -109,6 +109,11 @@ export function paletteCreation(summary: CapabilitySummary): {
   return { canAdd: summary.status.availability === "available" && route === null, route };
 }
 
+/** Contextual capabilities are reached from their trusted route, not the generic palette. */
+export function isPaletteVisible(summary: CapabilitySummary): boolean {
+  return summary.contextual_creation === null;
+}
+
 /** Resolves a node's persisted exact ref from the cache snapshot. */
 export function findNodeType(
   type: string,

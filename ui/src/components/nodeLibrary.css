@@ -57,6 +57,24 @@
   overflow-y: auto;
   padding: 8px;
 }
+
+.nlib__route {
+  width: calc(100% - 24px);
+  margin: 8px 12px;
+  padding: 10px 12px;
+  text-align: left;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.nlib__route span,
+.nlib__route small {
+  display: block;
+}
+.nlib__route small {
+  margin-top: 3px;
+  color: var(--ink-2);
+}
 .nlib__cat {
   margin-bottom: 1px;
 }

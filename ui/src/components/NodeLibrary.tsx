@@ -6,7 +6,7 @@ import type {
   CapabilitySummary,
 } from "../api/types.ts";
 import type { NodeTypeSpec } from "../nodes/catalog.ts";
-import { paletteCreation } from "../nodes/catalog.ts";
+import { isPaletteVisible, paletteCreation } from "../nodes/catalog.ts";
 import { nodeAccent } from "../nodes/typeColor.ts";
 import "./nodeLibrary.css";
 
@@ -15,14 +15,16 @@ interface NodeLibraryProps {
   loadedSpecs: readonly NodeTypeSpec[];
   onSearch: (request: CapabilitySearchRequest) => Promise<CapabilitySearchPage>;
   onAdd: (reference: CapabilityRef) => void;
+  onOpenAssets: () => void;
 }
 
 /** Paged presentation/status palette; exact contracts load only on addition. */
-export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd }: NodeLibraryProps) {
+export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd, onOpenAssets }: NodeLibraryProps) {
   const [query, setQuery] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const offersAssetRoute = query.toLowerCase().includes("asset");
 
   useEffect(() => {
     let active = true;
@@ -41,7 +43,7 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd }: NodeLib
 
   const groups = useMemo(() => {
     const grouped: { category: string; nodes: CapabilitySummary[] }[] = [];
-    for (const summary of summaries) {
+    for (const summary of summaries.filter(isPaletteVisible)) {
       let group = grouped.find((candidate) => candidate.category === summary.presentation.category);
       if (!group) {
         group = { category: summary.presentation.category, nodes: [] };
@@ -80,6 +82,16 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd }: NodeLib
       </div>
 
       <div className="nlib__tree">
+        {offersAssetRoute && (
+          <button
+            className="nlib__route"
+            aria-label="Use an existing asset"
+            onClick={onOpenAssets}
+          >
+            <span>Use an existing asset</span>
+            <small>Open Assets →</small>
+          </button>
+        )}
         {groups.map((group) => {
           const isCollapsed = collapsed[group.category] && !query;
           return (
@@ -124,7 +136,9 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd }: NodeLib
             </div>
           );
         })}
-        {groups.length === 0 && <p className="nlib__empty">No nodes match "{query}".</p>}
+        {groups.length === 0 && !offersAssetRoute && (
+          <p className="nlib__empty">No nodes match "{query}".</p>
+        )}
         {nextCursor && (
           <button className="nlib__load-more" disabled={loading} onClick={loadMore}>
             {loading ? "Loading..." : "Load more"}

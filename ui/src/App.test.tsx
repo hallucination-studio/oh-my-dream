@@ -69,6 +69,21 @@ describe("App", () => {
     expect(runState()).toContain("Done");
   });
 
+  it("routes asset searches to the Assets panel without exposing contextual capability IDs", async () => {
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Text Prompt" })).toBeTruthy();
+    expect(screen.queryByText(/AudioAssetSource|ImageAssetSource|VideoAssetSource/)).toBeNull();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Search nodes" }), {
+      target: { value: "audio asset" },
+    });
+    expect(screen.queryByText(/No nodes match/)).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Use an existing asset" }));
+
+    expect(await screen.findByRole("textbox", { name: "Search assets" })).toBeTruthy();
+  });
+
   it("hydrates the initial project and replaces the graph when switching projects", async () => {
     const alpha = workspace("alpha", "Alpha", "alpha prompt");
     const beta = workspace("beta", "Beta", "beta prompt");

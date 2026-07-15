@@ -43,6 +43,31 @@ describe("WorkflowFlowNode", () => {
     expect(screen.getByRole("status").textContent).toContain("migrate or remove this node");
     expect(document.querySelectorAll(".wf-port")).toHaveLength(0);
   });
+
+  it("presents a contextual source as the selected Asset instead of its internal capability", () => {
+    const entry = catalog.capabilities.find(
+      (candidate) => candidate.contract.reference.id === "AudioAssetSource",
+    );
+    if (!entry) throw new Error("missing AudioAssetSource fixture");
+
+    renderNode({
+      type: "AudioAssetSource",
+      contractVersion: "1.0",
+      capability: nodeSpecFromBundle({
+        selector: entry.selector,
+        reference: entry.contract.reference,
+        contract: entry.contract,
+        presentation: entry.presentation,
+        status: entry.status,
+      }),
+      params: { mode: "asset", asset_id: "asset-audio-1" },
+      assetPresentation: { title: "Evening rain", available: true },
+    });
+
+    expect(screen.getByText("Audio Asset")).toBeTruthy();
+    expect(screen.getByText("Evening rain")).toBeTruthy();
+    expect(screen.queryByText(/AudioAssetSource/)).toBeNull();
+  });
 });
 
 function renderNode(data: Omit<FlowNodeData, "onParamChange">): void {

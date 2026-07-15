@@ -23,6 +23,7 @@ export interface FlowNodeData {
   capability?: NodeTypeSpec;
   params: Record<string, unknown>;
   runtime?: NodeRuntime;
+  assetPresentation?: { title: string; available: boolean };
   onParamChange: (name: string, value: unknown) => void;
   [key: string]: unknown;
 }
@@ -41,6 +42,7 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
   const accent = nodeAccent(spec.outputs, spec.inputs);
   const rt = nodeData.runtime;
   const state = rt?.state ?? "idle";
+  const isAsset = spec.contextualCreationRoute === "asset_library";
 
   return (
     <div
@@ -50,11 +52,19 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
       <div className="wf-node__bar" />
       <div className="wf-node__title">
         <span>
-          {spec.selector?.type_id ?? spec.label}
-          {spec.selector && <small> · {spec.selector.mode}</small>}
+          {isAsset ? spec.label : (spec.selector?.type_id ?? spec.label)}
+          {spec.selector && !isAsset && <small> · {spec.selector.mode}</small>}
         </span>
         <StatePill state={state} />
       </div>
+
+      {isAsset && (
+        <div className="wf-node__asset" title={nodeData.assetPresentation?.title}>
+          {nodeData.assetPresentation?.available === false
+            ? "Asset unavailable"
+            : nodeData.assetPresentation?.title ?? `Untitled ${spec.selector?.type_id.toLowerCase() ?? "asset"}`}
+        </div>
+      )}
 
       {spec.status.availability !== "available" && (
         <div className="wf-node__recovery" role="status">
@@ -70,7 +80,7 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
 
       {rt?.preview && <Preview preview={rt.preview} />}
 
-      {spec.params.length > 0 && (
+      {spec.params.length > 0 && !isAsset && (
         <div className="wf-node__body">
           {spec.params.map((param) => (
             <Fragment key={param.name} label={param.label}>

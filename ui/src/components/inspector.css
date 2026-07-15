@@ -49,6 +49,22 @@
   border-radius: 2px;
 }
 
+.insp__asset {
+  display: grid;
+  gap: 8px;
+}
+.insp__asset-action {
+  width: fit-content;
+  padding: 7px 10px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-sm);
+  background: var(--surface-sunk);
+}
+.insp__asset-action:hover,
+.insp__asset-action:focus-visible {
+  border-color: var(--accent);
+}
+
 .insp__grp {
   font-size: 10px;
   text-transform: uppercase;

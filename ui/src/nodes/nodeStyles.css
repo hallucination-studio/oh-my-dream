@@ -49,6 +49,15 @@
   border-bottom: 1px solid var(--hair);
 }
 
+.wf-node__asset {
+  overflow: hidden;
+  padding: 0 12px 10px;
+  color: var(--ink-2);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .wf-node__recovery {
   padding: 7px 11px 7px 14px;
   color: #8a5a00;

@@ -19,6 +19,7 @@ pub(crate) fn registrations(
         registration(
             "ImageAssetSource",
             "Image",
+            "Image Asset",
             PortType::Image,
             AssetMediaKind::Image,
             Arc::clone(&resolver),
@@ -26,17 +27,26 @@ pub(crate) fn registrations(
         registration(
             "VideoAssetSource",
             "Video",
+            "Video Asset",
             PortType::Video,
             AssetMediaKind::Video,
             Arc::clone(&resolver),
         ),
-        registration("AudioAssetSource", "Audio", PortType::Audio, AssetMediaKind::Audio, resolver),
+        registration(
+            "AudioAssetSource",
+            "Audio",
+            "Audio Asset",
+            PortType::Audio,
+            AssetMediaKind::Audio,
+            resolver,
+        ),
     ]
 }
 
 fn registration(
     type_id: &'static str,
     selector_type: &'static str,
+    label: &'static str,
     port_type: PortType,
     kind: AssetMediaKind,
     resolver: Arc<dyn AssetReferenceResolver>,
@@ -60,7 +70,7 @@ fn registration(
     CapabilityRegistration::new(
         contract,
         CapabilityPresentation::new(
-            type_id,
+            label,
             "Reuse a managed local Asset.",
             "assets",
             vec!["asset".to_owned(), selector_type.to_lowercase()],

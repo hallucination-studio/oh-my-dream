@@ -46,7 +46,7 @@
         ]
       },
       "presentation": {
-        "label": "AudioAssetSource",
+        "label": "Audio Asset",
         "description": "Reuse a managed local Asset.",
         "category": "assets",
         "search_terms": [
@@ -107,7 +107,7 @@
         ]
       },
       "presentation": {
-        "label": "ImageAssetSource",
+        "label": "Image Asset",
         "description": "Reuse a managed local Asset.",
         "category": "assets",
         "search_terms": [
@@ -458,7 +458,7 @@
         ]
       },
       "presentation": {
-        "label": "VideoAssetSource",
+        "label": "Video Asset",
         "description": "Reuse a managed local Asset.",
         "category": "assets",
         "search_terms": [

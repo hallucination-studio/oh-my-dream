@@ -174,7 +174,7 @@ export function App() {
       candidate.selector.type_id.toLowerCase() === asset.kind && candidate.selector.mode === "asset"
     );
     if (!summary) {
-      setStatus({ state: "failed", reason: `No ${asset.kind} Asset Source capability is available` });
+      setStatus({ state: "failed", reason: `This ${asset.kind} asset cannot be added right now` });
       return;
     }
     addNode(summary.reference, position, { mode: "asset", asset_id: asset.id });
@@ -188,13 +188,17 @@ export function App() {
       if (data.capability?.selector?.mode !== "asset") return node;
       const assetId = typeof data.params.asset_id === "string" ? data.params.asset_id : "";
       const asset = assetIndex.get(assetId);
+      const kind = data.capability.selector?.type_id.toLowerCase() ?? "asset";
       return {
         ...node,
         data: {
           ...data,
+          assetPresentation: asset
+            ? { title: asset.prompt?.trim() || `Untitled ${asset.kind}`, available: true }
+            : { title: `Untitled ${kind}`, available: false },
           runtime: asset
             ? { ...data.runtime, state: data.runtime?.state ?? "idle", preview: { kind: asset.kind, url: asset.fileUrl } }
-            : { ...data.runtime, state: data.runtime?.state ?? "idle", preview: { kind: data.capability.selector?.type_id.toLowerCase() as "image" | "video" | "audio", url: null } },
+            : { ...data.runtime, state: data.runtime?.state ?? "idle", preview: { kind: kind as "image" | "video" | "audio", url: null } },
         },
       };
     }));
@@ -262,7 +266,13 @@ export function App() {
       return null;
     }
     const data = node.data as FlowNodeData;
-    return { id: node.id, type: data.type, params: data.params, capability: data.capability };
+    return {
+      id: node.id,
+      type: data.type,
+      params: data.params,
+      capability: data.capability,
+      assetPresentation: data.assetPresentation,
+    };
   }, [nodes, selectedId]);
   const [modeOptions, setModeOptions] = useState<ReturnType<typeof nodeSpecFromBundle>[]>([]);
   useEffect(() => {
@@ -361,6 +371,7 @@ export function App() {
             loadedSpecs={nodeSpecsFromSnapshot(capabilitySnapshot)}
             onSearch={searchCapabilities}
             onAdd={(reference) => addNode(reference)}
+            onOpenAssets={() => setTab("assets")}
           />
         ) : (
           <AssetLibrary
@@ -405,6 +416,11 @@ export function App() {
               modeOptions={modeOptions}
               onModeChange={changeMode}
               onParamChange={setParam}
+              onOpenAssets={() => {
+                const assetId = selected?.params.asset_id;
+                if (typeof assetId === "string") setSelectedAssetId(assetId);
+                setTab("assets");
+              }}
             />
           </>
         {assistantEnabled && assistantOpen && (
