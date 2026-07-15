@@ -145,6 +145,7 @@ remain unique identity. Registry order is independent and always ascending by co
 pub struct NodeCapabilityReadinessRequest {
     pub project_id: ProjectId,
     pub normalized_parameters: NodeCapabilityNormalizedParameters,
+    pub deadline: NodeCapabilityReadinessDeadline,
 }
 
 pub struct WorkflowNodeExecutionContext {
@@ -169,6 +170,11 @@ target kind, then target bytes. Every issue identifies one parameter key and its
 Generation Profile ref. At most one issue is returned per parameter; when several observations could
 apply, the category table order wins. The capability ref comes from the resolved implementation and
 is not duplicated in either request.
+
+`NodeCapabilityReadinessDeadline` is a call-scoped monotonic instant supplied by the Workflow
+readiness use case. It exposes `is_reached_at` and `monotonic_instant`, is never serialized or
+persisted, and does not include cancellation. Readiness implementations pass that exact instant to
+every availability or managed-media boundary and never create or extend their own timeout.
 
 `NodeCapabilityExecutionDeadline` is one call-scoped monotonic instant. It is never serialized or
 persisted. `NodeCapabilityExecutionCancellation` is a cloneable, concurrent signal with initially
@@ -263,10 +269,143 @@ and `WorkflowNodeExecutionContext`; that context contains `WorkflowNodeExecution
 cancellation. It contains no provider name, native model ID, credential, endpoint, URL, path,
 provider task, wire DTO, or generic options map.
 
+The five C2 interfaces and their boundary values are exact. All fields are private with
+noun-specific accessors and fallible constructors where invariants exist:
+
+### Managed-Media Read Boundary
+
+`NodeCapabilityManagedMediaReference` is the closed union `Image(WorkflowManagedImageRef)`,
+`Video(WorkflowManagedVideoRef)`, or `Audio(WorkflowManagedAudioRef)`. Its variant is the expected
+kind; there is no second kind field or untyped Asset ID.
+
+`NodeCapabilityManagedMediaReadRequest` contains Project ID, one typed managed-media reference, and
+one exact process-monotonic `Instant`. Readiness passes
+`NodeCapabilityReadinessDeadline::monotonic_instant`; execution passes
+`NodeCapabilityExecutionDeadline::monotonic_instant`.
+`NodeCapabilityManagedMediaReaderInterface::read_managed_media`
+returns `Result<NodeCapabilityReadableMediaInput, NodeCapabilityMediaBoundaryError>`. The result is the
+matching closed Image/Video/Audio variant containing the same managed reference, exact MIME, byte
+length, declared media facts, and one `NodeCapabilityMediaSourceLease`. A mismatched result is
+`KindMismatch`; absent/Pending/Missing content is `Unavailable`; Asset storage and validation errors
+map only to the existing exact `NodeCapabilityMediaFailure` categories.
+
+`NodeCapabilityMediaMimeType` is exactly `ImagePng`, `ImageJpeg`, `ImageWebp`, `VideoMp4`,
+`VideoWebm`, `AudioMpeg`, `AudioWav`, or `AudioOgg`. Generated MVP payloads restrict those values to
+PNG, MP4, and MPEG respectively. `NodeCapabilityDeclaredMediaFacts` has the same closed Image/Video/Audio fields
+and numeric bounds as Asset facts, but is a nodes-owned boundary observation translated by the
+Desktop bridge; it is not an Asset-domain alias or a second inspector.
+
+```text
+Image { width, height }
+Video { width, height, duration_ms, has_audio }
+Audio { duration_ms, sample_rate_hz, channels }
+```
+
+`NodeCapabilityMediaContentDigest` is exactly 32 SHA-256 bytes. Each
+`NodeCapabilityReadableImageInput`, `NodeCapabilityReadableVideoInput`, and
+`NodeCapabilityReadableAudioInput` contains its matching managed reference, MIME, facts, and source
+lease. `NodeCapabilityReadableMediaInput` is the closed union of those three typed values; callers
+never downcast an untyped media object.
+
+`NodeCapabilityMediaSourceLease` owns one `Pin<Box<dyn AsyncRead + Send>>`, exact byte length, exact
+SHA-256 digest, and the same process-monotonic deadline. It is non-cloneable, non-serializable,
+consumed once, rejects handoff at/after deadline as `DeadlineExceeded`, and exposes no path, URL,
+seek, reopen, buffer, retry, or provider handle. Its constructor rejects only zero length; the typed
+readable-input and payload constructors own kind-specific length, MIME, facts, and fingerprint
+agreement before a value crosses an interface.
+
+`NodeCapabilityMediaValueError` is the exact construction/lease error union `InvalidMimeForKind`,
+`InvalidMediaFacts`, `InvalidByteLength`, `ContentFingerprintMismatch`, `InvalidDisplayName`,
+`InvalidOutputCoordinates`, `InvalidProvenance`, and `DeadlineExceeded`. It contains no message,
+Asset error, provider error, path, or adapter detail. Boundary implementations translate it once
+into the already-frozen `NodeCapabilityMediaFailure` or `NodeCapabilityProviderFailure`; public
+interface methods return only those interface-owned failure types.
+
+`NodeCapabilityMediaBoundaryError` is exactly `Media(NodeCapabilityMediaFailure)`, `Cancelled`, or
+`DeadlineExceeded`. Both media interfaces return this type. Capabilities map its three variants
+mechanically to the existing matching `NodeCapabilityExecutionFailure` variants; cancellation and
+deadline are never disguised as storage or finalization failures. A readiness read has no
+cancellation signal and therefore never originates `Cancelled`; an execution caller still checks
+its cancellation immediately before and after that read. The writer receives the execution context
+and may return either call-scoped category.
+
+### Produced-Media Write Boundary
+
+`NodeCapabilityProducedMediaOutputKey` contains Workflow Run ID, node execution ID, declared
+`NodeCapabilityOutputKey`, and zero-based `u32` ordinal. Its constructor is infallible from typed
+fields. `NodeCapabilityProducedMediaProvenance` is exactly `ProviderGenerated { profile_ref }` or
+`ProviderDerived { source_media_refs, profile_ref }`; the latter requires `1..=64` ordered typed
+source references. There is no deterministic-derived variant in the active generated capabilities.
+
+`NodeCapabilityProducedMediaWriteRequest` contains `WorkflowNodeExecutionContext`, the exact output
+key, a validated 1..=80-scalar `NodeCapabilityProducedMediaDisplayName`, one provenance value, and exactly one
+`GeneratedImagePayload`, `GeneratedVideoPayload`, or `SynthesizedSpeechPayload`. Output-key Run and
+node-execution coordinates must match the request's `WorkflowNodeExecutionContext`, which is also
+carried for deadline/cancellation. Construction rejects mismatch as
+`NodeCapabilityMediaValueError::InvalidOutputCoordinates` before the writer is called.
+Empty/oversized provider-derived sources return `InvalidProvenance`.
+The display name is trimmed, contains no control scalar, and contains 1..=80 Unicode scalars.
+
+`NodeCapabilityProducedMediaWriterInterface::write_node_output_media` returns the matching typed
+`WorkflowManagedImageRef`, `WorkflowManagedVideoRef`, or `WorkflowManagedAudioRef` inside
+`NodeCapabilityProducedMediaReference`, or one `NodeCapabilityMediaBoundaryError`. It returns
+only an Available reference. It never returns an Asset type, Pending state, path, preview URL,
+provider value, partial output set, retry instruction, or second output.
+
+`NodeCapabilityProducedMediaPayload` is the closed union `GeneratedImage`, `GeneratedVideo`, or
+`SynthesizedSpeech` over the three named payload types. `NodeCapabilityProducedMediaReference` is
+the matching closed `Image`, `Video`, or `Audio` union over engine-owned managed references. Writer
+implementations reject a returned kind or fingerprint that differs from the consumed payload.
+
+### Provider Requests And Payloads
+
+`ImageAspectRatio` is the closed union `Square`, `LandscapeFourByThree`, `PortraitThreeByFour`,
+`LandscapeSixteenByNine`, and `PortraitNineBySixteen`. `ImageToVideoDurationSeconds` is exactly
+`Five` or `Ten`; neither type accepts a provider-native string or number.
+
+- `TextToImageProviderRequest` contains `GenerationProfileRef`, `WorkflowNodeExecutionContext`,
+  `WorkflowTextValue`, and `ImageAspectRatio`.
+- `ImageToVideoProviderRequest` contains `GenerationProfileRef`,
+  `WorkflowNodeExecutionContext`, one `NodeCapabilityReadableImageInput`, optional
+  `WorkflowTextValue`, and `ImageToVideoDurationSeconds`.
+- `TextToSpeechProviderRequest` contains `GenerationProfileRef`, `WorkflowNodeExecutionContext`, and
+  `WorkflowTextValue`.
+
+Each request constructor checks only its typed shape; profile compatibility/availability is owned by
+readiness and routers. The three provider methods return their named payload or
+`NodeCapabilityProviderFailure` unchanged.
+
+`GeneratedImagePayload`, `GeneratedVideoPayload`, and `SynthesizedSpeechPayload` are distinct
+non-convertible wrappers around one matching `NodeCapabilityMediaSourceLease` and matching declared
+facts. Their MIME and maximum byte lengths are exactly PNG/32 MiB, MP4/512 MiB, and MPEG/64 MiB.
+Construction rejects wrong MIME/facts and zero/oversized/unknown length as
+`NodeCapabilityMediaValueError`; every provider implementation maps that failure to a
+`NodeCapabilityProviderFailure` whose category is `InvalidResponse`. Every provider implementation
+must verify exact stream length and digest before returning; the shared contract suite proves the
+returned stream matches those facts. Payloads contain no second output, URL, provider
+task, native model, response DTO, or arbitrary metadata.
+
+`NodeCapabilityExecutionDeadline::monotonic_instant` returns its exact wrapped `Instant` solely for
+consumer-owned boundary translation. It does not extend, replace, serialize, or create a deadline.
+
 The media-write request includes `NodeCapabilityProducedMediaOutputKey`, derived from Workflow Run,
 node execution, output key, and ordinal. The Desktop bridge translates it to the Asset-owned
 `AssetNodeOutputKey`. Repeating the same key and digest returns the same Asset; a different digest
 is a conflict.
+
+### C2 Shared Fake Contracts
+
+Each of the five interfaces has one reusable parameterized contract suite run unchanged against its
+deterministic fake and later production adapter/router. Reader and writer suites cover exact typed
+kind, Project isolation input, fingerprint preservation, one-shot stream ownership, deadline,
+every media-error mapping, output-key replay/conflict, and Available-only
+write results. Each provider suite covers every semantic request field, fixed output MIME/kind/size,
+one-shot exact-length/digest bytes, provider failure propagation, execution-context preservation,
+and absence of provider-native fields. Fakes are named
+`NodeCapabilityManagedMediaReaderFakeImpl`, `NodeCapabilityProducedMediaWriterFakeImpl`,
+`TextToImageProviderFakeImpl`, `ImageToVideoProviderFakeImpl`, and
+`TextToSpeechProviderFakeImpl`; they have no unsupported branch or behavior not present in the
+interface.
 
 ## Named Roadmap Contracts
 
