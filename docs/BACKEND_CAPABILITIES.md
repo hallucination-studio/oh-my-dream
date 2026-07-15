@@ -505,8 +505,9 @@ The closed parameter categories are `UnknownParameter`, `RequiredParameterMissin
 `ManagedAssetKindMismatch`, `GenerationProfileIncompatible`, `GenerationProfileUnavailable`, and
 `GenerationProfileAvailabilityIndeterminate`. Execution stages are `ResolveInputs`, `CallProvider`,
 `ValidateProviderResult`, and `WriteManagedMedia`; normalization has its own pre-admission result.
-`NodeCapabilityExecutionError` wraps one readiness, provider, media, cancellation, or deadline
-category with contract ref, node execution ID, stage, and a structured safe target.
+`NodeCapabilityExecutionError` wraps one invalid-invocation, readiness, provider, media,
+cancellation, or deadline category with contract ref, node execution ID, stage, and a structured
+safe target.
 
 The error values are closed and field-exact:
 
@@ -526,12 +527,19 @@ The error values are closed and field-exact:
 - `NodeCapabilityExecutionError` contains contract ref, node execution ID, stage, one
   `NodeCapabilityExecutionFailure`, and `NodeCapabilityExecutionTarget` (`Capability`, parameter key,
   input key, or output key). Its failure is exactly Readiness, Provider, Media, Cancelled, or
-  DeadlineExceeded.
+  DeadlineExceeded, plus `InvalidCapabilityInvocation` only when a direct execution request does not
+  satisfy the already-resolved capability's normalized-parameter/input contract.
 
 Construction rejects an execution target inconsistent with its stage: ResolveInputs targets a
 parameter, input, or capability; CallProvider targets the capability; result validation/media write
 targets an output or capability. Readiness targets only a declared parameter. Cancellation/deadline use
 the operation target active when observed; no absent-key convention carries target meaning.
+
+`InvalidCapabilityInvocation` is non-retryable, has stage `ResolveInputs` and target `Capability`,
+and carries no field, message, supplied value, or validation detail. It is never used for invalid raw
+parameters before admission, provider responses, media failures, or internal adapter failures. Its
+only purpose is to let a capability reject a malformed direct trait invocation without panic,
+provider dispatch, media read/write, or misclassifying the failure as another business category.
 
 An optional retry instant is present only when retryable and later than error creation. Cancellation,
 invalid requests/results, policy rejection, kind mismatch, digest mismatch, and output conflict are
