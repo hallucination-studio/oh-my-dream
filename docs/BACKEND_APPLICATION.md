@@ -23,52 +23,10 @@ The Desktop host:
 
 Tauri commands are thin entry points, not a second application layer.
 
-## Capability-Oriented Layout
-
-```text
-src-tauri/src/
-  projects/
-    commands.rs       create, rename, get, list, and open
-    dto.rs
-    translation.rs
-    sqlite.rs         Project repository adapter
-    workflow_bridge.rs
-  workflow/
-    commands.rs       source-first Tauri commands
-    dto.rs            Workflow request/response DTOs
-    translation.rs    DTO/application conversion
-    sqlite.rs         Workflow persistence adapters
-    events.rs          committed-event publisher adapter
-  assets/
-    commands.rs
-    dto.rs
-    translation.rs
-    sqlite.rs
-    node_bridge.rs     node-owned media interface adapter
-    preview.rs         local preview protocol adapter
-  generation_profiles/
-    commands.rs
-    dto.rs
-    availability.rs
-  generation_providers/
-    configuration.rs
-    credentials.rs     operating-system credential-vault adapters
-  assistant/
-    commands.rs
-    dto.rs
-    translation.rs
-    adapters/
-  storage/
-    sqlite/
-    managed_content/
-    configuration/
-  configuration.rs
-  post_commit_effects.rs  closed effect outbox and one worker
-  composition.rs       only concrete construction point
-  lib.rs               command/event/protocol registration only
-```
-
-There are no global `controllers`, `services`, `repositories`, `models`, or `dto` directories.
+Code remains capability-oriented under `src-tauri`; commands, DTOs, translators, and adapters stay
+inside their owning Project, Workflow, Asset, Generation Profile, provider, or Assistant module.
+Composition, configuration, and the closed effect worker are the only shared Desktop modules. There
+are no global `controllers`, `services`, `repositories`, `models`, or `dto` directories.
 
 ## Command Admission Pattern
 
@@ -234,6 +192,18 @@ pub enum DesktopPostCommitEffect {
 }
 ```
 
+`DesktopPostCommitEffectId` and `DesktopApplicationInstanceId` are UUIDv4 values.
+`DesktopPostCommitEffectState` is
+exactly `Ready`, `Claimed { instance_id, claimed_at }`, `Completed { completed_at }`, or
+`Abandoned { abandoned_at, reason }`. `claim_next_post_commit_effect` orders Ready effects by
+creation time then effect ID, atomically claims one, and increments a non-zero `u32` attempt count.
+Completion and abandonment require the claiming instance. Startup resets claimed Asset and
+Assistant effects to Ready, but abandons a claimed Workflow effect after marking its Run
+`InterruptedByRestart`. Abandon reason is exactly `WorkflowInterruptedByRestart` or
+`OwningStateAlreadyTerminal`. A transient consumer/storage failure releases Ready and the worker
+waits one second before another claim. There is no lease, priority, configurable retry policy,
+poison state, or fourth effect kind.
+
 Workflow Run effects are abandoned after restart if their Run was non-terminal. Asset effects are
 idempotently replayed by exact finalization ID. Assistant effects are replayed through mutation and
 Run request receipts. No arbitrary kind, payload, handler registration, or public task API exists.
@@ -268,6 +238,15 @@ Sequence is monotonic per Run. React deduplicates and repairs a gap through
 `workflow_list_run_events(after_sequence, limit)`. Progress may be coalesced at the projection
 boundary; state transitions and terminal errors remain durable and queryable.
 
+The Tauri event name is `workflow-run-event-v1`; its payload is the exact committed
+`WorkflowRunEventDto`. Assistant model presentation uses process-scoped
+`assistant-presentation-event-v1` with variants `TextDelta`, `ToolActivity`,
+`WorkflowChangeReady`, `InvocationCompleted`, and `InvocationFailed`. Each carries invocation ID and
+non-zero contiguous sequence; tool activity adds exact tool ID and `Started | Completed | Failed`,
+change-ready adds change ID, and failure adds `DesktopErrorDto`. It never exposes a sidecar frame,
+prompt, tool arguments/result, Reviewer prose, SDK state, or credential. Assistant events are not
+durable authority; after a gap or restart React reloads pending change and canonical Run facts.
+
 ## Composition Root
 
 `DesktopCompositionRoot` in `composition.rs` is the only code that names concrete adapters:
@@ -296,19 +275,53 @@ adapters without starting Tauri.
 
 ## Configuration And Credentials
 
-`DesktopBackendConfig` contains non-secret locations, bounds, concurrency, provider route entries,
-profile mappings, credential IDs, availability/polling limits, preview expiry, Assistant model
-selection, and protocol budgets. It does not contain API keys.
+`backend-config.json` has schema version `1` and is read only by
+`JsonFileDesktopBackendConfigReaderAdapterImpl`. `DesktopBackendConfig` contains exactly
+`sqlite_busy_timeout_ms`, `post_commit_effect_concurrency`, `workflow_run_concurrency`,
+`workflow_node_concurrency`, `asset_reconciliation_policy`, `asset_preview_policy`,
+`generation_provider_routes`, `assistant_model`, and `assistant_protocol_budgets`. Defaults for the
+first four are 5,000, `4`, `1`, and `2`; concurrency is `1..=8`. The remaining nested values use
+their owner-document exact fields, defaults, and maxima and cannot weaken or exceed them. Locations
+are derived from the OS application-data root and are not config fields.
 
-Configuration is validated once at startup. Missing provider credentials make only affected
-Generation Profiles unavailable. Missing Assistant credentials disable only Assistant commands.
+Each `generation_provider_routes` item has exactly `profile_ref`, `route_id`, `account_id`,
+`endpoint`, `native_model_id`, `credential_id`, `operation_deadline_ms`, `poll_min_delay_ms`,
+`poll_max_delay_ms`, and sorted unique `download_host_allowlist`; values must equal the matching
+D0.3 profile/route contract. `assistant_protocol_budgets` has exactly
+`invocation_deadline_ms`, `frame_max_bytes`, `json_max_depth`, `event_max_count`,
+`tool_call_max_count`, `model_turn_max_count`, `direction_max_bytes`, `text_output_max_bytes`,
+`snapshot_max_bytes`, `candidate_max_bytes`, `continuation_max_bytes`, and `approval_expiry_ms`, with
+D0.5 exact values.
+
+The file is UTF-8 JSON, at most 256 KiB, rejects duplicate/unknown fields, symlinks, group/other
+writable POSIX permissions, non-private Windows ACLs, wrong schema, Assistant native model
+overrides, plaintext credentials, and paths.
+An absent file yields the exact defaults with no provider routes and Assistant disabled; it is not
+written implicitly. Its Assistant default is schema `1`, enabled `false`,
+`assistant.workflow_coauthor@1`, and credential ID `assistant.openai.default`. Configuration is
+validated once at startup. Missing provider credentials make only affected Generation Profiles
+unavailable; a missing Assistant
+credential disables only Assistant commands.
 
 `GenerationProviderCredentialVaultInterface` and `AssistantModelCredentialVaultInterface` are separate
 consumer-owned interfaces even when one OS adapter implements both. Production secrets live in the
 operating-system credential store. Plaintext is call-scoped and never enters SQLite, config, DTOs,
 errors, or logs.
 
+Credential IDs follow lowercase dot-segment identity rules and are at most 128 bytes. Production
+adapters are the distinct generation/Assistant pairs prefixed `MacOsKeychain`,
+`WindowsCredentialManager`, or `LinuxSecretService`. Their service scopes are
+`oh-my-dream/generation-provider` and `oh-my-dream/assistant-model`; account is the credential ID.
+They implement only save, load, and delete, and never enumerate or fall back to a file.
+
 ## Representation Boundaries
+
+All Desktop JSON uses `snake_case` fields and enum values. Tagged unions use required `kind`; every
+declared field is present and optional values are explicit `null`. UUIDs use lowercase hyphenated
+text, hashes use lowercase hex, `u64`/`i64` identities, revisions, sequences, and timestamps use
+canonical decimal strings, and opaque cursors use unpadded base64url. Requests reject unknown or
+duplicate fields, non-canonical encodings, non-finite numbers, and payloads over 2 MiB. Asset import
+transfers only its trusted Tauri file handle, never media bytes or a path in JSON.
 
 Named translators keep models separate:
 
@@ -338,12 +351,26 @@ returned to React.
 Tauri translates a structured context error once into `DesktopErrorDto`:
 
 ```text
-{ code, message, retryable, retry_after?, target?, details?, correlation_id? }
+{ code, message, retryable, retry_after_epoch_ms, target, correlation_id }
 ```
 
-Structured fields are contractual; `message` is safe presentation text. Unknown failures use an
-internal code and correlation ID. Logs include stable typed IDs and exclude secrets, model prompts,
-provider bodies, signed URLs, opaque SDK state, and unnecessary paths.
+Every field is present; the last three may be null. `code` is a source-prefixed lowercase dot key.
+`target` is one tagged Project, Workflow, Run, Node, Asset, Assistant Change, Generation Profile,
+parameter, input, or output identity—never a map. Unknown failures use `desktop.internal` and a new
+correlation UUID. `message` is safe presentation text and never drives logic. Logs exclude secrets,
+model prompts, provider bodies, signed URLs, opaque SDK state, and unnecessary paths.
+
+## Frozen Visual Baseline
+
+Frontend activation preserves the current 1440×900 `No project` shell: top bar, icon rail, left
+library, central canvas, right inspector, spacing, typography, colors, and component CSS classes.
+The D0.6 repository-owned CSS manifest SHA-256 is
+`f85b381fcb393ac96ac1ba1d0c5195b3f3b103253c14b35c93043840cf6a2d19`. Functional content may
+change only through a V task, but changing this visual system requires new documented approval. The
+hash covers sorted lines `<file SHA-256><two spaces><relative CSS path>`. Visual-equivalent CSS fixes
+may change it with before/after browser evidence. Checks use this viewport plus 1024×768, keyboard
+navigation, and zero console errors or warnings. The observed pre-cut React Flow container warning
+belongs to V3 and is not fixed here.
 
 ## Verification
 

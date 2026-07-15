@@ -365,6 +365,14 @@ unsupported versions, and never deletes or silently recreates user data after in
 failure. Assistant contract-epoch storage is a hard compatibility boundary and is never parsed by a
 new epoch.
 
+The hard-cut Desktop storage epoch is `1`: SQLite `application_id` is `0x4f4d4431` and
+`user_version` starts at `1`. An absent database is created at that pair; an existing non-empty
+database with a missing/different application ID is `UnsupportedLegacyStorageEpoch` and remains
+untouched with adjacent files. Within epoch `1`, only explicitly shipped sequential forward
+migrations run, each in one transaction; gaps, downgrades, partial migrations, and unknown newer
+versions fail closed. The abandoned architecture has no reader, importer, compatibility table, or
+destructive reset path.
+
 ## Errors And Verification
 
 Storage adapters return structured categories: unavailable, busy, permission denied, unsupported
