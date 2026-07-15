@@ -102,6 +102,12 @@ canonical ref is `<id>@<version>`. `GenerationProfileDisplayName` is trimmed, co
 Unicode scalar values, and contains no control character. Lifecycle is the closed union `Active |
 Retired`.
 
+All fields are private with noun-specific accessors. `GenerationProfileDefinition::try_new`
+requires a non-empty compatible-capability set and otherwise returns `InvalidDefinition`; it does
+not validate registration or availability. Identity and compatibility are immutable after
+construction. `find_generation_profile` returns `ProfileNotFound` rather than an optional or
+fallback definition when the exact ref is absent.
+
 The frozen MVP catalog contains exactly these definitions:
 
 | Profile ref | Display name | Compatible capability |
@@ -126,6 +132,21 @@ A profile is an immutable product promise, not an alias for today's native model
 Every active model-powered capability requires `generation_profile_ref` in its normalized parameter
 contract. A Workflow node stores no provider, native model, account, endpoint, credential, route,
 availability snapshot, or provider task.
+
+`GenerationProfileCatalog` is one concrete immutable collection owned by `crates/nodes`. Its
+`frozen_mvp` constructor creates exactly the three definitions above and no caller-supplied
+definitions. `find_generation_profile` resolves Active and Retired definitions by exact ref so a
+saved Workflow can explain a tombstone. `list_active_generation_profiles_for_capability` returns
+only Active compatible definitions in ascending `GenerationProfileRef` order. A capability with no
+compatible profile returns an empty list. The catalog has no trait, mutation, configuration,
+provider route, native model, availability cache, default selection, fallback, or version
+negotiation.
+
+`GenerationProfileRef::try_from_node_capability_parameter_value` and
+`GenerationProfileRef::to_node_capability_parameter_value` are the only semantic-owner conversion
+methods for `NodeCapabilityGenerationProfileRefParameterValue`. Conversion validates the same ID
+grammar and non-zero version; it does not consult lifecycle, compatibility, availability, or a
+provider. Invalid identity bytes return `GenerationProfileError::InvalidProfileRef`.
 
 ## Compatibility And Availability
 
@@ -166,6 +187,39 @@ per UI row or persist availability.
 only provider-independent metadata. In the MVP, both `Unavailable` and `Indeterminate` prevent Run
 admission. The router checks again at execution because availability can change after admission.
 No route may silently substitute a different profile.
+
+The C1 values and application contracts are exact:
+
+- `GenerationProfileError` is the closed union `InvalidProfileRef`, `InvalidDisplayName`,
+  `InvalidDefinition`, `CapabilityNotFound`, `ProfileNotFound`, `ProfileIncompatible`,
+  `InvalidAvailabilityObservation`, `AvailabilityRequestInvalid`, `AvailabilityReadFailed`, and
+  `DeadlineExceeded`. It contains no provider text or generic validation message.
+- `GenerationProfileAvailabilityRequest` contains one exact capability ref, `1..=100` unique
+  compatible profile refs in ascending order, and one process-monotonic deadline later than the
+  construction instant and at most five seconds after it. Construction rejects an empty, duplicate,
+  unsorted, expired, or over-five-second request as `AvailabilityRequestInvalid`. Compatibility is already
+  guaranteed by the catalog-derived list and is not reimplemented by this request value.
+- `GenerationProfileAvailabilityReaderInterface::read_generation_profile_availability` returns a
+  vector in the same order with exactly one observation for every requested ref. Technical reader
+  failure is `AvailabilityReadFailed`; elapsed deadline is `DeadlineExceeded`. Missing, duplicate,
+  reordered, mismatched, or invalid observations are rejected by the use case as
+  `InvalidAvailabilityObservation`.
+- `NodeCapabilityListUseCase` contains only a shared `WorkflowNodeCapabilityRegistry` and
+  `list_node_capabilities` returns its exact ascending borrowed contracts as owned contract values.
+  It performs no profile join, filtering, projection, provider read, registration, or fallback.
+- `GenerationProfileListForCapabilityQuery` contains one exact `NodeCapabilityContractRef` and the
+  caller's process-monotonic deadline. `GenerationProfileListForCapabilityUseCase` first requires
+  that exact capability to be registered, returning `CapabilityNotFound` when it is not. It obtains the
+  catalog's ascending Active compatible definitions. When empty, it returns an empty result without
+  calling the availability reader. Otherwise it performs exactly one bulk read and returns
+  `GenerationProfileForCapabilityListItem { definition, availability }` values in profile-ref order.
+  A Retired compatible definition remains resolvable from the catalog but never appears in this
+  selectable list.
+
+`GenerationProfileForCapabilityListItem` contains only the complete provider-independent
+definition and its matching current observation. The list result has no selected/default flag,
+provider, native model, route, credential, price, pagination, refresh token, stale cache, or UI
+metadata. The use case does not persist observations or substitute a profile.
 
 ## Frozen MVP Provider Interfaces
 
