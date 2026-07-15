@@ -21,6 +21,7 @@ mod migrations;
 mod params;
 mod ports;
 mod reference_image_generation;
+mod reference_video_generation;
 mod registry;
 mod text_prompt;
 mod text_to_audio;
@@ -56,23 +57,35 @@ pub use migrations::{
 /// still allowing factories and nodes to hold cheap `Arc` clones.
 pub type SharedAssetStore = Arc<Mutex<AssetStore>>;
 
+/// Generation capability implementations selected by the composition root.
+pub struct GenerationAdapters {
+    text_to_image: Arc<dyn TextToImageGenerator>,
+    reference_image: Arc<dyn ReferenceImageGenerator>,
+    reference_video: Arc<dyn ReferenceVideoGenerator>,
+    image_to_video: Arc<dyn ImageToVideoGenerator>,
+    text_to_audio: Arc<dyn TextToAudioGenerator>,
+}
+
+impl GenerationAdapters {
+    /// Groups concrete generation adapters for registry construction.
+    #[must_use]
+    pub fn new(
+        text_to_image: Arc<dyn TextToImageGenerator>,
+        reference_image: Arc<dyn ReferenceImageGenerator>,
+        reference_video: Arc<dyn ReferenceVideoGenerator>,
+        image_to_video: Arc<dyn ImageToVideoGenerator>,
+        text_to_audio: Arc<dyn TextToAudioGenerator>,
+    ) -> Self {
+        Self { text_to_image, reference_image, reference_video, image_to_video, text_to_audio }
+    }
+}
+
 /// Registers all first-milestone node factories into `registry`.
 pub fn register_all(
     registry: &mut NodeRegistry,
-    text_to_image_generator: Arc<dyn TextToImageGenerator>,
-    reference_image_generator: Arc<dyn ReferenceImageGenerator>,
-    image_to_video_generator: Arc<dyn ImageToVideoGenerator>,
-    text_to_audio_generator: Arc<dyn TextToAudioGenerator>,
+    generators: GenerationAdapters,
     store: SharedAssetStore,
     asset_resolver: Arc<dyn AssetReferenceResolver>,
 ) -> Result<(), engine::CapabilityRegistryError> {
-    registry::register_all(
-        registry,
-        text_to_image_generator,
-        reference_image_generator,
-        image_to_video_generator,
-        text_to_audio_generator,
-        store,
-        asset_resolver,
-    )
+    registry::register_all(registry, generators, store, asset_resolver)
 }

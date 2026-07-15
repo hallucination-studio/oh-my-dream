@@ -3,8 +3,8 @@ use engine::{CapabilityEffect, CapabilityRef, NodeRegistry, PortCardinality};
 use nodes::{GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator};
 use nodes::{
     ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceImageGenerator,
-    SharedAssetStore, TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator,
-    TextToImageRequest,
+    ReferenceVideoGenerationRequest, ReferenceVideoGenerator, SharedAssetStore,
+    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
@@ -27,6 +27,7 @@ fn capability_projection_contains_exact_contract_and_presentation_pairs() {
             CapabilityRef::new("ImageAssetSource", "1.0"),
             CapabilityRef::new("ImageToVideo", "1.0"),
             CapabilityRef::new("ReferenceImageGeneration", "1.0"),
+            CapabilityRef::new("ReferenceVideoGeneration", "1.0"),
             CapabilityRef::new("TextPrompt", "1.0"),
             CapabilityRef::new("TextToAudio", "1.0"),
             CapabilityRef::new("TextToImage", "1.0"),
@@ -92,10 +93,13 @@ fn store() -> (TempDir, SharedAssetStore) {
 fn register(registry: &mut NodeRegistry, store: SharedAssetStore) {
     nodes::register_all(
         registry,
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
+        nodes::GenerationAdapters::new(
+            Arc::new(NoopGenerator),
+            Arc::new(NoopGenerator),
+            Arc::new(NoopGenerator),
+            Arc::new(NoopGenerator),
+            Arc::new(NoopGenerator),
+        ),
         store,
         Arc::new(support::MissingResolver),
     )
@@ -134,6 +138,19 @@ impl ReferenceImageGenerator for NoopGenerator {
     fn generate(
         &self,
         _request: ReferenceImageGenerationRequest,
+        _context: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        Err(GenerationError::OperationFailed {
+            operation: "test",
+            reason: "not executed".to_owned(),
+        })
+    }
+}
+
+impl ReferenceVideoGenerator for NoopGenerator {
+    fn generate(
+        &self,
+        _request: ReferenceVideoGenerationRequest,
         _context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {

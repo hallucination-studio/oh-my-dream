@@ -99,6 +99,7 @@ impl AppState {
         let adapter = Arc::new(MockGenerationAdapter::new(Arc::clone(&backend)));
         let image: Arc<dyn nodes::TextToImageGenerator> = adapter.clone();
         let reference_image: Arc<dyn nodes::ReferenceImageGenerator> = adapter.clone();
+        let reference_video: Arc<dyn nodes::ReferenceVideoGenerator> = adapter.clone();
         let video: Arc<dyn nodes::ImageToVideoGenerator> = adapter.clone();
         let audio: Arc<dyn nodes::TextToAudioGenerator> = adapter;
         let asset_resolver: Arc<dyn nodes::AssetReferenceResolver> = Arc::new(
@@ -106,10 +107,7 @@ impl AppState {
         );
         nodes::register_all(
             &mut registry,
-            image,
-            reference_image,
-            video,
-            audio,
+            nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
             Arc::clone(&store),
             asset_resolver,
         )

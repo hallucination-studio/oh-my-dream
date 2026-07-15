@@ -18,84 +18,68 @@ use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
 
 #[test]
-fn one_and_nine_references_execute_in_order_without_overwriting_sources() {
-    for count in [1, 9] {
-        execute_reference_workflow(count);
-    }
-}
-
-fn execute_reference_workflow(count: usize) {
+fn ordered_references_and_video_options_reach_the_generator() {
     let directory = TempDir::new().expect("temporary directory");
     let source_root = directory.path().join("sources");
     fs::create_dir(&source_root).expect("source directory");
-    let asset_ids = (0..count).map(|index| format!("asset-{index}")).collect::<Vec<_>>();
-    let expected_paths = create_sources(&source_root, &asset_ids);
+    let asset_ids = ["asset-second".to_owned(), "asset-first".to_owned()];
+    for asset_id in &asset_ids {
+        fs::write(source_root.join(format!("{asset_id}.png")), asset_id).expect("source image");
+    }
     let store = Arc::new(Mutex::new(
         AssetStore::open(directory.path().join("assets")).expect("asset store"),
     ));
     let project = store.lock().expect("store lock").create_project("Default").expect("project");
-    let resolver = Arc::new(RecordingResolver::new(source_root, project.id.clone()));
+    let resolver = Arc::new(Resolver::new(source_root, project.id.clone()));
     let generator = Arc::new(RecordingGenerator::default());
     let mut registry = NodeRegistry::new();
-    register_capabilities(
-        &mut registry,
-        Arc::clone(&generator),
-        Arc::clone(&store),
-        resolver.clone(),
-    );
+    register(&mut registry, Arc::clone(&generator), Arc::clone(&store), resolver.clone());
     register_source(&mut registry);
 
     Executor::new(&registry)
         .execute(&workflow(project.id.clone(), &asset_ids), &mut ResultCache::new())
-        .expect("reference image workflow");
+        .expect("reference video workflow");
 
     assert_eq!(resolver.asset_ids(), asset_ids);
     assert_eq!(
-        generator.requests(),
-        vec![ReferenceImageGenerationRequest {
-            model: "reference-model".to_owned(),
-            images: expected_paths.iter().map(|path| path.to_string_lossy().into_owned()).collect(),
-            prompt: "combine the references".to_owned(),
-            negative_prompt: Some("blur".to_owned()),
-            steps: Some(12),
-            seed: Some(7),
-        }]
+        generator.request(),
+        ReferenceVideoGenerationRequest {
+            model: "reference-video-model".to_owned(),
+            images: asset_ids
+                .iter()
+                .map(|asset_id| resolver
+                    .root
+                    .join(format!("{asset_id}.png"))
+                    .to_string_lossy()
+                    .into_owned())
+                .collect(),
+            prompt: "move through the scene".to_owned(),
+            duration_seconds: Some(3.5),
+            aspect_ratio: Some("16:9".to_owned()),
+            resolution: Some("720p".to_owned()),
+            fps: Some(24),
+        }
     );
-    for (index, path) in expected_paths.iter().enumerate() {
-        assert_eq!(fs::read(path).expect("source bytes"), vec![index as u8]);
-    }
     let assets = store.lock().expect("store lock").list(None).expect("asset list");
     assert_eq!(assets.len(), 1);
-    assert_eq!(assets[0].kind, AssetKind::Image);
+    assert_eq!(assets[0].kind, AssetKind::Video);
     assert_eq!(assets[0].project_id.as_deref(), Some(project.id.as_str()));
-    assert_eq!(assets[0].prompt.as_deref(), Some("combine the references"));
-    assert_eq!(assets[0].model.as_deref(), Some("reference-model"));
+    assert!(assets[0].file_path.ends_with(".webm"));
+    assert_eq!(assets[0].prompt.as_deref(), Some("move through the scene"));
 }
 
-fn create_sources(root: &std::path::Path, asset_ids: &[String]) -> Vec<PathBuf> {
-    asset_ids
-        .iter()
-        .enumerate()
-        .map(|(index, asset_id)| {
-            let path = root.join(format!("{asset_id}.png"));
-            fs::write(&path, [index as u8]).expect("source image");
-            path
-        })
-        .collect()
-}
-
-fn register_capabilities(
+fn register(
     registry: &mut NodeRegistry,
     generator: Arc<RecordingGenerator>,
     store: nodes::SharedAssetStore,
-    resolver: Arc<RecordingResolver>,
+    resolver: Arc<Resolver>,
 ) {
     nodes::register_all(
         registry,
         nodes::GenerationAdapters::new(
             Arc::new(NoopGenerator),
-            generator,
             Arc::new(NoopGenerator),
+            generator,
             Arc::new(NoopGenerator),
             Arc::new(NoopGenerator),
         ),
@@ -118,7 +102,7 @@ fn register_source(registry: &mut NodeRegistry) {
     );
 }
 
-fn workflow(project_id: String, asset_ids: &[String]) -> Workflow {
+fn workflow(project_id: String, asset_ids: &[String; 2]) -> Workflow {
     let mut nodes = asset_ids
         .iter()
         .enumerate()
@@ -128,25 +112,23 @@ fn workflow(project_id: String, asset_ids: &[String]) -> Workflow {
         id: "prompt".to_owned(),
         type_id: "TextPrompt".to_owned(),
         contract_version: "1.0".to_owned(),
-        params: params(serde_json::json!({"text": "combine the references"})),
+        params: params(serde_json::json!({"text": "move through the scene"})),
         inputs: BTreeMap::new(),
         position: None,
     });
     nodes.push(WorkflowNode {
-        id: "generated".to_owned(),
-        type_id: "ReferenceImageGeneration".to_owned(),
+        id: "video".to_owned(),
+        type_id: "ReferenceVideoGeneration".to_owned(),
         contract_version: "1.0".to_owned(),
         params: params(serde_json::json!({
-            "model": "reference-model",
-            "negative_prompt": "blur",
-            "steps": 12,
-            "seed": 7
+            "model": "reference-video-model", "duration": 3.5,
+            "aspect_ratio": "16:9", "resolution": "720p", "fps": 24
         })),
         inputs: BTreeMap::from([
             (
                 "images".to_owned(),
                 InputBinding::ordered_many(
-                    (0..asset_ids.len())
+                    (0..2)
                         .map(|index| OutputRef(format!("source-{index}"), "image".to_owned()))
                         .collect(),
                 ),
@@ -194,20 +176,13 @@ impl Node for TestImageSource {
     fn type_id(&self) -> &str {
         "TestImageSource"
     }
-
     fn inputs(&self) -> &[InputPort] {
         &[]
     }
-
     fn outputs(&self) -> &[OutputPort] {
         &self.outputs
     }
-
-    fn run(
-        &self,
-        _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
-    ) -> Result<NodeRunResult, NodeRunError> {
+    fn run(&self, _: &NodeInputs, _: &mut NodeRunContext) -> Result<NodeRunResult, NodeRunError> {
         Ok(NodeRunResult::new(BTreeMap::from([(
             "image".to_owned(),
             Value::Image(self.asset_id.clone()),
@@ -215,23 +190,22 @@ impl Node for TestImageSource {
     }
 }
 
-struct RecordingResolver {
+struct Resolver {
     root: PathBuf,
     project_id: String,
     asset_ids: Mutex<Vec<String>>,
 }
 
-impl RecordingResolver {
+impl Resolver {
     fn new(root: PathBuf, project_id: String) -> Self {
         Self { root, project_id, asset_ids: Mutex::new(Vec::new()) }
     }
-
     fn asset_ids(&self) -> Vec<String> {
         self.asset_ids.lock().expect("resolver lock").clone()
     }
 }
 
-impl AssetReferenceResolver for RecordingResolver {
+impl AssetReferenceResolver for Resolver {
     fn resolve(
         &self,
         request: AssetReferenceRequest<'_>,
@@ -256,43 +230,33 @@ impl AssetReferenceResolver for RecordingResolver {
 
 #[derive(Default)]
 struct RecordingGenerator {
-    requests: Mutex<Vec<ReferenceImageGenerationRequest>>,
+    request: Mutex<Option<ReferenceVideoGenerationRequest>>,
 }
 
 impl RecordingGenerator {
-    fn requests(&self) -> Vec<ReferenceImageGenerationRequest> {
-        self.requests.lock().expect("generator lock").clone()
+    fn request(&self) -> ReferenceVideoGenerationRequest {
+        self.request.lock().expect("generator lock").clone().expect("recorded request")
     }
 }
 
-impl ReferenceImageGenerator for RecordingGenerator {
+impl ReferenceVideoGenerator for RecordingGenerator {
     fn generate(
         &self,
-        request: ReferenceImageGenerationRequest,
-        _context: &mut dyn GenerationContext,
+        request: ReferenceVideoGenerationRequest,
+        _: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
-        self.requests
-            .lock()
-            .map_err(|_| GenerationError::OperationFailed {
-                operation: "record request",
-                reason: "request lock was poisoned".to_owned(),
-            })?
-            .push(request);
+        *self.request.lock().map_err(|_| GenerationError::OperationFailed {
+            operation: "record request",
+            reason: "request lock was poisoned".to_owned(),
+        })? = Some(request);
         Ok(GeneratedOutput {
-            artifact: GeneratedArtifact::InlineMedia(InlineMedia::png(MOCK_IMAGE_PNG.to_vec())),
-            cost: Some(400),
+            artifact: GeneratedArtifact::InlineMedia(InlineMedia::webm(b"webm".to_vec())),
+            cost: Some(1_200),
         })
     }
 }
 
 struct NoopGenerator;
-
-const MOCK_IMAGE_PNG: &[u8] = &[
-    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0,
-    0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 240, 31, 0,
-    5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
-];
-
 impl TextToImageGenerator for NoopGenerator {
     fn generate(
         &self,
@@ -302,7 +266,15 @@ impl TextToImageGenerator for NoopGenerator {
         unreachable!()
     }
 }
-
+impl ReferenceImageGenerator for NoopGenerator {
+    fn generate(
+        &self,
+        _: ReferenceImageGenerationRequest,
+        _: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        unreachable!()
+    }
+}
 impl ImageToVideoGenerator for NoopGenerator {
     fn generate(
         &self,
@@ -312,17 +284,6 @@ impl ImageToVideoGenerator for NoopGenerator {
         unreachable!()
     }
 }
-
-impl ReferenceVideoGenerator for NoopGenerator {
-    fn generate(
-        &self,
-        _: ReferenceVideoGenerationRequest,
-        _: &mut dyn GenerationContext,
-    ) -> Result<GeneratedOutput, GenerationError> {
-        unreachable!()
-    }
-}
-
 impl TextToAudioGenerator for NoopGenerator {
     fn generate(
         &self,

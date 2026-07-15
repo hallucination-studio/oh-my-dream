@@ -5,8 +5,8 @@ use engine::{
 use nodes::{
     GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
     ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceImageGenerator,
-    SharedAssetStore, TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator,
-    TextToImageRequest,
+    ReferenceVideoGenerationRequest, ReferenceVideoGenerator, SharedAssetStore,
+    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
@@ -29,6 +29,7 @@ fn capability_registration_exposes_exact_refs_and_contracts() {
             ("ImageAssetSource", "1.0"),
             ("ImageToVideo", "1.0"),
             ("ReferenceImageGeneration", "1.0"),
+            ("ReferenceVideoGeneration", "1.0"),
             ("TextPrompt", "1.0"),
             ("TextToAudio", "1.0"),
             ("TextToImage", "1.0"),
@@ -63,6 +64,16 @@ fn capability_registration_exposes_exact_refs_and_contracts() {
         engine::PortCardinality::Many { minimum: 1, maximum: Some(16) }
     );
     assert_eq!(reference_image.contract().inputs[1].name, "prompt");
+
+    let reference_video = registry
+        .capability(&CapabilityRef::new("ReferenceVideoGeneration", "1.0"))
+        .expect("ReferenceVideoGeneration contract should resolve");
+    assert_eq!(
+        reference_video.contract().inputs[0].cardinality,
+        engine::PortCardinality::Many { minimum: 1, maximum: Some(16) }
+    );
+    assert_eq!(reference_video.contract().inputs[1].name, "prompt");
+    assert_eq!(reference_video.contract().outputs[0].port_type, engine::PortType::Video);
 }
 
 #[test]
@@ -75,6 +86,7 @@ fn registrations_own_their_selector_mode_defaults_and_schema() {
         ("TextToImage", "Image", "text"),
         ("ImageToVideo", "Video", "image"),
         ("ReferenceImageGeneration", "Image", "references"),
+        ("ReferenceVideoGeneration", "Video", "references"),
         ("VideoConcat", "Video", "concat"),
         ("TextToAudio", "Audio", "text"),
     ];
@@ -139,6 +151,7 @@ fn current_discovery_and_direct_instantiation_use_selectors() {
             CapabilityRef::new("ImageAssetSource", "1.0"),
             CapabilityRef::new("ImageToVideo", "1.0"),
             CapabilityRef::new("ReferenceImageGeneration", "1.0"),
+            CapabilityRef::new("ReferenceVideoGeneration", "1.0"),
             CapabilityRef::new("TextPrompt", "1.0"),
             CapabilityRef::new("TextToAudio", "1.0"),
             CapabilityRef::new("TextToImage", "1.0"),
@@ -163,16 +176,9 @@ fn duplicate_capability_refs_are_rejected() {
     let mut registry = NodeRegistry::new();
     register(&mut registry, Arc::clone(&store));
 
-    let error = nodes::register_all(
-        &mut registry,
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        store,
-        Arc::new(support::MissingResolver),
-    )
-    .expect_err("duplicate capability refs must be rejected");
+    let error =
+        nodes::register_all(&mut registry, adapters(), store, Arc::new(support::MissingResolver))
+            .expect_err("duplicate capability refs must be rejected");
     assert!(matches!(error, CapabilityRegistryError::DuplicateReference { .. }));
 }
 
@@ -211,16 +217,18 @@ fn store() -> (TempDir, SharedAssetStore) {
 }
 
 fn register(registry: &mut NodeRegistry, store: SharedAssetStore) {
-    nodes::register_all(
-        registry,
+    nodes::register_all(registry, adapters(), store, Arc::new(support::MissingResolver))
+        .expect("capability registration");
+}
+
+fn adapters() -> nodes::GenerationAdapters {
+    nodes::GenerationAdapters::new(
         Arc::new(NoopGenerator),
         Arc::new(NoopGenerator),
         Arc::new(NoopGenerator),
         Arc::new(NoopGenerator),
-        store,
-        Arc::new(support::MissingResolver),
+        Arc::new(NoopGenerator),
     )
-    .expect("capability registration");
 }
 
 struct NoopGenerator;
@@ -255,6 +263,19 @@ impl ReferenceImageGenerator for NoopGenerator {
     fn generate(
         &self,
         _request: ReferenceImageGenerationRequest,
+        _context: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        Err(GenerationError::OperationFailed {
+            operation: "test",
+            reason: "not executed".to_owned(),
+        })
+    }
+}
+
+impl ReferenceVideoGenerator for NoopGenerator {
+    fn generate(
+        &self,
+        _request: ReferenceVideoGenerationRequest,
         _context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {

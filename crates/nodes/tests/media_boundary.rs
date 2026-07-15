@@ -8,8 +8,8 @@ use nodes::{
     AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver,
     GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
     ImageToVideoRequest, InlineMedia, ReferenceImageGenerationRequest, ReferenceImageGenerator,
-    ResolvedAssetReference, TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator,
-    TextToImageRequest,
+    ReferenceVideoGenerationRequest, ReferenceVideoGenerator, ResolvedAssetReference,
+    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -67,16 +67,14 @@ fn asset_prefixed_local_image_reaches_the_video_generator() {
     let recorder = Arc::new(RecordingVideoGenerator::default());
     let image: Arc<dyn TextToImageGenerator> = fixed.clone();
     let reference_image: Arc<dyn ReferenceImageGenerator> = fixed.clone();
+    let reference_video: Arc<dyn ReferenceVideoGenerator> = fixed.clone();
     let video: Arc<dyn ImageToVideoGenerator> = recorder.clone();
     let audio: Arc<dyn TextToAudioGenerator> = fixed;
     let mut registry = NodeRegistry::new();
     let resolver = Arc::new(FixedResolver { path: local.path().to_path_buf() });
     nodes::register_all(
         &mut registry,
-        image,
-        reference_image,
-        video,
-        audio,
+        nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
         Arc::clone(&store),
         resolver,
     )
@@ -114,15 +112,13 @@ fn cancellation_before_persistence_does_not_store_an_asset() {
     });
     let image: Arc<dyn TextToImageGenerator> = cancelling;
     let reference_image: Arc<dyn ReferenceImageGenerator> = fixed.clone();
+    let reference_video: Arc<dyn ReferenceVideoGenerator> = fixed.clone();
     let video: Arc<dyn ImageToVideoGenerator> = fixed.clone();
     let audio: Arc<dyn TextToAudioGenerator> = fixed;
     let mut registry = NodeRegistry::new();
     nodes::register_all(
         &mut registry,
-        image,
-        reference_image,
-        video,
-        audio,
+        nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
         Arc::clone(&store),
         Arc::new(support::MissingResolver),
     )
@@ -151,15 +147,13 @@ fn execute_text_to_image(
     let generators = Arc::new(FixedGenerators { image_output: output });
     let image: Arc<dyn TextToImageGenerator> = generators.clone();
     let reference_image: Arc<dyn ReferenceImageGenerator> = generators.clone();
+    let reference_video: Arc<dyn ReferenceVideoGenerator> = generators.clone();
     let video: Arc<dyn ImageToVideoGenerator> = generators.clone();
     let audio: Arc<dyn TextToAudioGenerator> = generators;
     let mut registry = NodeRegistry::new();
     nodes::register_all(
         &mut registry,
-        image,
-        reference_image,
-        video,
-        audio,
+        nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
         Arc::clone(&store),
         Arc::new(support::MissingResolver),
     )
@@ -368,6 +362,19 @@ impl ReferenceImageGenerator for FixedGenerators {
         _context: &mut dyn GenerationContext,
     ) -> Result<GeneratedOutput, GenerationError> {
         Ok(self.image_output.clone())
+    }
+}
+
+impl ReferenceVideoGenerator for FixedGenerators {
+    fn generate(
+        &self,
+        _request: ReferenceVideoGenerationRequest,
+        _context: &mut dyn GenerationContext,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        Ok(GeneratedOutput {
+            artifact: GeneratedArtifact::InlineMedia(InlineMedia::webm(Vec::new())),
+            cost: None,
+        })
     }
 }
 
