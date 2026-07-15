@@ -308,7 +308,8 @@ is cloneable, serializable, persisted, or convertible to a path.
 The two stream leases are application values. Each owns one
 `Pin<Box<dyn AsyncRead + Send>>` and a process-monotonic `Instant` deadline. Construction accepts an
 already-open stream and validates no bytes. `AssetManagedContentLease` additionally carries its
-exact `AssetContentId` and byte length; `AssetImportSourceLease` carries no file identity or path.
+exact `AssetManagedContentId` and byte length; `AssetImportSourceLease` carries no file identity or
+path.
 The only stream operation consumes the lease. It returns `DeadlineExceeded` when observed at or
 after the deadline and otherwise returns the owned stream. Reading after that handoff remains
 bounded by the same caller deadline at the consuming use case; the lease does not spawn work,
@@ -374,13 +375,159 @@ scope, substitutes similar bytes, or changes an output key.
 | --- | --- |
 | `AssetRepositoryInterface` | load Assets, resolve an output key, and perform stable bounded queries |
 | `AssetIngestTransactionInterface` | atomically commit Pending/finalization and approved availability transitions |
-| `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove managed bytes |
+| `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove stale staged bytes |
 | `AssetMediaInspectorInterface` | sniff MIME and extract verified media facts |
 | `AssetClockInterface` | provide deterministic Asset timestamps |
 | `AssetIdentityGeneratorInterface` | create Asset, import, finalization, and preview-lease identities |
 
 Fake and production implementations run the same ordering, idempotency, Project-isolation,
 transaction, and failure contract suites.
+
+### Interface-Owned Values
+
+The six interfaces use only Asset domain/application values and the values frozen here. They do not
+accept rows, paths, provider values, Desktop effect envelopes, or generic byte payloads.
+
+- `AssetStagedContentRef` is an opaque, equality-comparable `1..=512`-byte value originating from a
+  managed-content store implementation. Consumers may retain and return its bytes but cannot
+  interpret them. It is persisted only inside an Asset finalization record, has no text/path
+  conversion, and is never returned to Desktop or node callers.
+- `AssetStagedContent` contains one `AssetStagedContentRef`, exact digest, byte length, and the
+  eventual aggregate's `AssetCreatedAt`. Staging calculates digest and length while copying the
+  source once; it does not inspect media.
+- `AssetInspectedMedia` contains only verified MIME and `AssetMediaFacts`. Its kind must equal the
+  requested kind; descriptor construction remains application/domain behavior.
+- `AssetContentFinalization` contains finalization ID, Asset ID, exact descriptor, staged-content
+  reference, and the aggregate's `AssetCreatedAt`. It contains no retry count, path, effect state, or
+  failure text.
+- `AssetFinalizeContentEffect` contains only the finalization ID.
+- `AssetListCursor` contains `(created_at, asset_id)`. `AssetListQuery` contains Project ID, optional
+  media kind, optional cursor, and `AssetPageLimit`. `AssetPageLimit` is one shared validated
+  `1..=100` value. `AssetListPage` contains ordered Assets and an optional cursor for the next
+  non-empty page; it contains no total count.
+- `AssetFinalizationRecoveryCursor` contains `(created_at, finalization_id)` and
+  `AssetAvailableContentRecoveryCursor` contains `(created_at, asset_id)`. Staged-content recovery
+  uses `AssetStagedContentRecoveryCursor { created_at, staged_content_ref }`, with reference bytes
+  ordered lexicographically.
+- `AssetContentFinalizationRecoveryPage`, `AssetAvailableContentRecoveryPage`, and
+  `AssetStagedContentRecoveryPage` each contain only their named ordered items and an optional next
+  cursor of the matching kind.
+
+No cursor is accepted across cursor kinds. A page returns a next cursor only when another matching
+record exists. Reusing the same query and cursor against unchanged state returns the same ordered
+page.
+
+`AssetPageLimit::from_u16` returns `None` outside `1..=100`; `get` returns the accepted `u16`.
+`AssetStagedContentRef::try_from_store_bytes` returns `ManagedStorageFailed` for an empty or oversized
+value, and `as_store_bytes` exposes the opaque borrowed bytes only for persistence/store adapters.
+All cursor constructors are infallible from their already-validated typed fields. Finalization and
+command constructors reject inconsistent Asset, descriptor, staging, output-key, or finalization
+identities as `IdentityConflict`; their fields remain private and are exposed through noun-specific
+accessors.
+
+### `AssetRepositoryInterface`
+
+The repository is read-only from the consumer's perspective and exposes exactly these methods:
+
+| Method | Exact input | Result and invariant |
+| --- | --- | --- |
+| `find_asset_by_id` | `AssetId` | one Asset by global identity, or `None`; the use case owns Project visibility |
+| `find_asset_by_node_output_key` | `AssetNodeOutputKey` | one Asset bound to the exact output key, or `None` |
+| `list_project_assets` | `AssetListQuery` | one stable `AssetListPage`, ordered `(created_at DESC, asset_id DESC)` |
+| `find_asset_content_finalization` | `AssetContentFinalizationId` | one finalization by exact identity, or `None` |
+| `list_unfinished_asset_content_finalizations` | optional finalization cursor and validated limit | ascending recovery page by `(created_at, finalization_id)` |
+| `list_available_assets_for_content_verification` | optional Available cursor and validated limit | ascending recovery page by `(created_at, asset_id)` |
+| `is_asset_staged_content_referenced` | `AssetStagedContentRef` | whether any unfinished finalization owns the exact reference |
+
+Every method is asynchronous. Reads return `ManagedStorageFailed` only for repository I/O or decode
+failure. They never translate absence into an application error and never apply Project visibility,
+media-kind, content-state, replay, or transition rules.
+
+### `AssetIngestTransactionInterface`
+
+This interface owns exactly four atomic writes; it does not expose a generic transaction callback:
+
+| Method | Atomic behavior |
+| --- | --- |
+| `commit_imported_pending_asset` | insert one imported Pending aggregate, its finalization, and its Asset effect |
+| `commit_workflow_node_output_pending_asset` | insert one node-output key, Pending aggregate, finalization, and Asset effect, or return the Asset already bound to that key |
+| `commit_finalized_asset_content_available` | persist an already-approved exact aggregate transition and complete its finalization |
+| `commit_asset_content_missing` | persist an already-approved Missing transition and complete any supplied finalization |
+
+`AssetCommitPendingContentCommand` contains the complete Pending aggregate,
+`AssetContentFinalization`, and `AssetFinalizeContentEffect`; all three Asset, descriptor, and
+finalization identities must agree. Both Pending methods accept exactly this command. The
+node-output commit result is exactly `Committed` or `OutputKeyAlreadyBound { asset }`; the imported
+commit returns only success. The transaction implementation reports the existing binding but never
+decides same-content replay; `AssetRecordNodeOutputUseCase` remains the sole replay/conflict owner.
+
+`AssetCommitFinalizedContentAvailableCommand` contains the already-transitioned Available aggregate
+and exact finalization ID. `AssetCommitContentMissingCommand` contains the already-transitioned
+Missing aggregate and an optional finalization ID; the ID is required for a Pending-origin
+transition and absent for an Available-origin transition. These are the exact inputs of the two
+transition methods.
+
+Pending commits write the closed Asset effect into the Desktop outbox as part of the same storage
+transaction, but this interface never claims, releases, completes, or abandons that effect. Those
+operations remain owned exclusively by `DesktopPostCommitEffectOutboxInterface`.
+
+Availability commit requires the current stored state to be the exact matching Pending state and the
+same finalization to remain unfinished. Repeating the same completed finalization is success only
+when the stored Asset is already Available with the exact descriptor. Missing commit accepts only a
+domain-approved `Pending -> Missing` or `Available -> Missing` aggregate. Any identity collision,
+stale/different state, or different completed finalization returns `IdentityConflict`; no partial
+row, finalization, output-key binding, or effect write is visible.
+
+### `AssetManagedContentStoreInterface`
+
+This interface exposes exactly these asynchronous byte-store operations:
+
+| Method | Exact input | Behavior |
+| --- | --- | --- |
+| `stage_asset_content` | import-source lease, expected `AssetMediaKind`, and `AssetCreatedAt` | consume the source once and return digest/length/reference facts |
+| `open_staged_asset_content` | staged reference and caller deadline | return a one-shot import-source lease, or `None` |
+| `publish_staged_asset_content` | staged reference, exact descriptor, and caller deadline | verify digest and length while idempotently publishing under the descriptor content ID |
+| `open_managed_asset_content` | exact descriptor and caller deadline | return an exact managed-content lease, or `None` |
+| `verify_managed_asset_content` | exact descriptor and caller deadline | return whether exact managed bytes match descriptor digest and length |
+| `list_stale_asset_staged_content` | exclusive `AssetCreatedAt` cutoff, optional staging cursor, and validated limit | return one ascending bounded page by `(created_at, staged_content_ref)` |
+| `remove_asset_staged_content` | exact staged reference and caller deadline | idempotently remove one exact staged object |
+
+`stage_asset_content` rejects an empty stream as `InvalidMedia` and an oversized stream as
+`MediaSizeLimitExceeded`; it applies the documented maximum for the supplied expected kind. Source
+read or staging write failures map to `ManagedStorageFailed`, and lease expiry maps to
+`DeadlineExceeded`. Publishing existing equal bytes is success; existing different bytes return
+`ContentDigestMismatch`. An absent staging source returns `ContentMissing`. No method returns a path,
+seeks or reopens a supplied source lease, inspects MIME, creates an Asset, or removes managed content.
+
+The stale-staging page contains only `AssetStagedContent` facts and a next cursor. The reconcile use
+case checks `is_asset_staged_content_referenced` before each removal; the store never guesses database
+reachability.
+
+### `AssetMediaInspectorInterface`
+
+`inspect_asset_media` is its only method. Its exact input is one staged-content stream lease plus the
+expected media kind. It consumes the stream and returns `AssetInspectedMedia`. It sniffs MIME and
+extracts the frozen facts in one bounded inspection; it ignores caller file extension and MIME hints.
+Unsupported bytes, animated images, multiple video programs, unknown duration, container/MIME
+mismatch, or fact-bound failure returns `InvalidMedia`. Process/decoder/read failure returns
+`InspectionFailed`; cancellation and deadline retain their same-named errors. It never stages,
+publishes, transcodes, repairs, or creates a descriptor or Asset.
+
+### Clock And Identity Interfaces
+
+`AssetClockInterface::current_asset_time` is the only clock method and returns a validated
+`AssetCreatedAt`; clock failure or out-of-range time returns `IdentityConflict` without fallback.
+`AssetIdentityGeneratorInterface` exposes exactly `generate_asset_id`, `generate_asset_import_id`,
+`generate_asset_content_finalization_id`, and `generate_asset_preview_lease_id`. Every method returns
+its named validated UUIDv4 value. Entropy failure or nil/non-v4 output returns `IdentityConflict`;
+transactions independently report persisted collisions as `IdentityConflict`. Generator methods do
+not retry or consult persistence.
+
+All six interfaces are `Send + Sync`. They use behavior-specific method names, return
+`AssetApplicationError`, and have no default methods or unsupported-operation branch. Contract tests
+must run unchanged against every fake and production implementation and cover absence, exact
+ordering/cursors, idempotent publication/finalization, collision, partial-write rollback, deadline,
+cancellation, and fault mapping.
 
 Production adapter names are frozen as `SqliteAssetRepositoryAdapterImpl`,
 `SqliteAssetIngestTransactionAdapterImpl`, `LocalFilesystemAssetManagedContentStoreAdapterImpl`,

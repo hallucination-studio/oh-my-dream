@@ -213,7 +213,7 @@ mechanically encodes it in the same transaction as the owning state.
 | `WorkflowRunRepositoryInterface` | idempotently admit and atomically transition Runs, outputs, and events |
 | `AssetRepositoryInterface` | load/query Assets and resolve node-output identity |
 | `AssetIngestTransactionInterface` | commit Pending/finalization and availability transitions |
-| `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove managed bytes |
+| `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove stale staged bytes |
 | `AssistantProductionPlanRepositoryInterface` | load and revision-CAS one plan aggregate |
 | `AssistantWorkflowChangeRepositoryInterface` | transition changes and query one pending approval per Session |
 | `AssistantRepairActivationRepositoryInterface` | record-or-get one factual activation per failed Run |
