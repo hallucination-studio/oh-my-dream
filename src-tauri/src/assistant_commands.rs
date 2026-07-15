@@ -59,7 +59,7 @@ pub struct AssistantApprovalDecisionInput {
 mod pending;
 mod repair;
 pub use pending::{
-    AssistantPendingApprovalDto, assistant_get_pending_approval,
+    ApprovalAssetDto, AssistantPendingApprovalDto, assistant_get_pending_approval,
     assistant_get_pending_approval_with_state,
 };
 

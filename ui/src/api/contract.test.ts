@@ -69,6 +69,10 @@ function isAssistantApprovalFixture(value: unknown): value is {
     pending.effect === "apply_reviewed_workflow_candidate" &&
     isRecord(pending.workflow) &&
     Array.isArray(pending.readiness_blockers) &&
+    Array.isArray(pending.assets) && pending.assets.every((asset) =>
+      isRecord(asset) && typeof asset.asset_id === "string" &&
+      (asset.kind === "image" || asset.kind === "video" || asset.kind === "audio")
+    ) &&
     typeof decision.project_id === "string" &&
     typeof decision.approval_scope_id === "string" &&
     typeof decision.candidate_digest === "string" &&

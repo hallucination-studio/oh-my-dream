@@ -19,6 +19,14 @@ pub struct AssistantPendingApprovalDto {
     pub effect: String,
     pub workflow: Value,
     pub readiness_blockers: Value,
+    pub assets: Vec<ApprovalAssetDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovalAssetDto {
+    pub asset_id: String,
+    pub kind: String,
 }
 
 /// Loads the exact candidate bound to the durable pending SDK approval.
@@ -54,6 +62,27 @@ pub(super) fn pending_approval_dto(
         .reviewed_change
         .replay_candidate(project_id, session_id, &input.review_receipt_id)
         .map_err(|error| error.to_string())?;
+    let workflow = serde_json::to_value(candidate.workflow()).map_err(|e| e.to_string())?;
+    let assets = candidate
+        .workflow()
+        .nodes
+        .iter()
+        .filter_map(|node| {
+            let kind = match node.type_id.as_str() {
+                "Image" => "image",
+                "Video" => "video",
+                "Audio" => "audio",
+                _ => return None,
+            };
+            (node.params.get("mode").and_then(Value::as_str) == Some("asset"))
+                .then(|| node.params.get("asset_id").and_then(Value::as_str))
+                .flatten()
+                .map(|asset_id| ApprovalAssetDto {
+                    asset_id: asset_id.to_owned(),
+                    kind: kind.to_owned(),
+                })
+        })
+        .collect();
     Ok(AssistantPendingApprovalDto {
         project_id: project_id.to_owned(),
         approval_scope_id: receipt.approval_scope_id().to_owned(),
@@ -64,9 +93,10 @@ pub(super) fn pending_approval_dto(
         review_summary: receipt.summary().to_owned(),
         review_findings: receipt.findings().to_vec(),
         effect: "apply_reviewed_workflow_candidate".to_owned(),
-        workflow: serde_json::to_value(candidate.workflow()).map_err(|e| e.to_string())?,
+        workflow,
         readiness_blockers: serde_json::to_value(candidate.readiness_blockers())
             .map_err(|e| e.to_string())?,
+        assets,
     })
 }
 

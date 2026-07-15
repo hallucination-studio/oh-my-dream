@@ -53,6 +53,7 @@ impl WorkflowPatchService {
         }
         let actual_fingerprint =
             workflow_fingerprint(&workflow).map_err(|error| hash_error(error, current_revision))?;
+        self.validate_asset_sources(&workflow, current_revision)?;
         if actual_fingerprint != expected_workflow_fingerprint {
             return Err(WorkflowApplyPatchError::new(
                 "REVIEWED_WORKFLOW_MISMATCH",

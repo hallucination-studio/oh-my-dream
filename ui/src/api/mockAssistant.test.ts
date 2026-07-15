@@ -18,6 +18,7 @@ const APPROVAL: AssistantPendingApproval = {
   effect: "apply_reviewed_workflow_candidate",
   workflow: { version: "1.0", project_id: "project-1", nodes: [] },
   readiness_blockers: [],
+  assets: [],
 };
 
 beforeEach(() => primeMockAssistantApproval(null));

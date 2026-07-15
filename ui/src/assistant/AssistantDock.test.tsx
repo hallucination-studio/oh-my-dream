@@ -22,6 +22,7 @@ const PENDING_APPROVAL = {
   effect: "apply_reviewed_workflow_candidate" as const,
   workflow: { version: "1.0", project_id: "project-1", nodes: [] },
   readiness_blockers: [],
+  assets: [],
 };
 
 describe("AssistantDock", () => {

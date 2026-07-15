@@ -16,7 +16,13 @@
       "project_id": "project-1",
       "version": "1.0"
     },
-    "readiness_blockers": []
+    "readiness_blockers": [],
+    "assets": [
+      {
+        "asset_id": "asset-1",
+        "kind": "video"
+      }
+    ]
   },
   "decision": {
     "project_id": "project-1",

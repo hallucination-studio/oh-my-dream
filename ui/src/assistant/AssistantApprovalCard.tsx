@@ -26,6 +26,9 @@ export function AssistantApprovalCard({
           <div key={finding}><dt>Finding</dt><dd>{finding}</dd></div>
         ))}
         <div><dt>Candidate</dt><dd>{approval.candidate_digest}</dd></div>
+        {approval.assets.map((asset) => (
+          <div key={`${asset.kind}:${asset.asset_id}`}><dt>Reused {asset.kind} Asset</dt><dd>{asset.asset_id}</dd></div>
+        ))}
       </dl>
       <div className="adock__preview" aria-label="Candidate Workflow preview">
         <strong>Editable Workflow preview</strong>

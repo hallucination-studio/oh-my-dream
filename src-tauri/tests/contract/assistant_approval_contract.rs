@@ -23,6 +23,10 @@ pub fn fixture() -> AssistantApprovalFixture {
             effect: "apply_reviewed_workflow_candidate".to_owned(),
             workflow: json!({"version":"1.0","project_id":"project-1","nodes":[]}),
             readiness_blockers: json!([]),
+            assets: vec![oh_my_dream_tauri::assistant_commands::ApprovalAssetDto {
+                asset_id: "asset-1".to_owned(),
+                kind: "video".to_owned(),
+            }],
         },
         decision: AssistantApprovalDecisionInput {
             project_id: "project-1".to_owned(),

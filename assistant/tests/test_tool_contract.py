@@ -44,6 +44,7 @@ class FunctionToolContractTests(unittest.IsolatedAsyncioTestCase):
                 '{ "params": { "position": 2, "type": "image" }, '
                 '"expected_revision": 7 }'
             ),
+            "workflow_evaluate_patch": '{"expected_revision":7,"operations":[]}',
             "proposal_execute": '{\n  "proposal_id": "proposal-42"\n}',
             "capability_search": '{"query":"three-shot video","kinds":null}',
             "capability_describe": (
@@ -53,6 +54,7 @@ class FunctionToolContractTests(unittest.IsolatedAsyncioTestCase):
         output_by_id = {
             "workspace_get_snapshot": '{ "result" : "snapshot" }',
             "workflow_apply_patch": '{"result":"patched", "revision": 8}',
+            "workflow_evaluate_patch": '{"changed":false,"readiness_blockers":[]}',
             "proposal_execute": '{\n "result": "started"\n}',
             "capability_search": '{"capabilities":[]}',
             "capability_describe": '{"capabilities":[]}',

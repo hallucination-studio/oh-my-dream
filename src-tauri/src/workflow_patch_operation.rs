@@ -159,6 +159,7 @@ impl WorkflowPatchService {
         let patch = WorkflowPatch { operations: input.operations };
         let result = apply_workflow_patch(&self.registry, &base, &patch)
             .map_err(|error| patch_error(error, current_revision))?;
+        self.validate_asset_sources(&result.workflow, current_revision)?;
         let request_hash = request_hash(input.expected_revision, &patch).map_err(|error| {
             WorkflowApplyPatchError::new(
                 "PATCH_HASH_FAILED",
@@ -208,7 +209,47 @@ impl WorkflowPatchService {
         let patch = WorkflowPatch { operations: input.operations };
         let result = apply_workflow_patch(&self.registry, &base, &patch)
             .map_err(|error| patch_error(error, current_revision))?;
+        self.validate_asset_sources(&result.workflow, current_revision)?;
         Ok(evaluation_output(current_revision, result))
+    }
+
+    fn validate_asset_sources(
+        &self,
+        workflow: &engine::Workflow,
+        current_revision: Option<u64>,
+    ) -> Result<(), WorkflowApplyPatchError> {
+        let store = self.store.lock().map_err(|_| {
+            WorkflowApplyPatchError::new(
+                "ASSET_STORE_UNAVAILABLE",
+                "/",
+                None,
+                "asset store lock is unavailable",
+                current_revision,
+            )
+        })?;
+        for (index, node) in workflow.nodes.iter().enumerate() {
+            if node.params.get("mode").and_then(serde_json::Value::as_str) != Some("asset") {
+                continue;
+            }
+            let Some(asset_id) = node.params.get("asset_id").and_then(serde_json::Value::as_str)
+            else {
+                continue;
+            };
+            let asset =
+                crate::managed_asset_access::get_visible(&store, &workflow.project_id, asset_id)
+                    .map_err(|_| asset_source_error(index, current_revision))?
+                    .ok_or_else(|| asset_source_error(index, current_revision))?;
+            let kind_matches = matches!(
+                (node.type_id.as_str(), asset.kind),
+                ("Image", assets::AssetKind::Image)
+                    | ("Video", assets::AssetKind::Video)
+                    | ("Audio", assets::AssetKind::Audio)
+            );
+            if !kind_matches || !std::path::Path::new(&asset.file_path).is_file() {
+                return Err(asset_source_error(index, current_revision));
+            }
+        }
+        Ok(())
     }
 
     /// Builds the sole registered model-facing Workflow mutation operation.
@@ -351,6 +392,16 @@ fn patch_error(
         error.pointer(),
         error.operation_index(),
         error.constraint(),
+        current_revision,
+    )
+}
+
+fn asset_source_error(index: usize, current_revision: Option<u64>) -> WorkflowApplyPatchError {
+    WorkflowApplyPatchError::new(
+        "ASSET_SOURCE_UNAVAILABLE",
+        format!("/workflow/nodes/{index}/params/asset_id"),
+        None,
+        "Asset Source is unavailable, out of scope, or has the wrong kind",
         current_revision,
     )
 }

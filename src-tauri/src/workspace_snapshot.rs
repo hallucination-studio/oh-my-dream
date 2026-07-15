@@ -246,14 +246,9 @@ fn selected_asset(
     id: &str,
     index: usize,
 ) -> Result<WorkspaceAssetSummaryDto, WorkspaceSnapshotError> {
-    let asset = match store.get(id) {
-        Ok(asset) => asset,
-        Err(AssetError::NotFound { .. }) => return Err(selected_asset_error(index)),
-        Err(error) => return Err(store_error(error)),
-    };
-    if asset.project_id.as_deref().is_some_and(|owner| owner != project_id) {
-        return Err(selected_asset_error(index));
-    }
+    let asset = crate::managed_asset_access::get_visible(store, project_id, id)
+        .map_err(store_error)?
+        .ok_or_else(|| selected_asset_error(index))?;
     Ok(WorkspaceAssetSummaryDto::from(asset))
 }
 

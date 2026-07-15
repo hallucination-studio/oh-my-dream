@@ -46,6 +46,7 @@ describe("M3 co-author flow", () => {
           workflow_head: next,
           aliases: [],
           readiness_blockers: [],
+          assets: [],
           changed: true,
           deduplicated: false,
           undo_id: "workflow:alpha:2",

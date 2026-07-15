@@ -281,6 +281,7 @@ export interface AssistantPendingApproval {
   effect: "apply_reviewed_workflow_candidate";
   workflow: Workflow;
   readiness_blockers: JsonValue;
+  assets: Array<{ asset_id: string; kind: AssetKind }>;
 }
 
 export type ResponsesStreamEvent = JsonObject & { type: string };
