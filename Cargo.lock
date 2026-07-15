@@ -2673,7 +2673,10 @@ dependencies = [
 name = "projects"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "sha2",
  "thiserror 2.0.18",
+ "tokio",
  "uuid",
 ]
 
