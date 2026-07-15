@@ -59,6 +59,9 @@ export function AssetLibrary({
               <path d="M21 21l-4-4" />
             </svg>
             <input
+              id="asset-library-search"
+              name="asset-library-search"
+              aria-label="Search assets"
               value={query}
               placeholder="Search by prompt or model…"
               onChange={(e) => setQuery(e.target.value)}

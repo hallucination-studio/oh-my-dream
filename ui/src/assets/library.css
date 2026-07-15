@@ -95,7 +95,7 @@
 .lib__msg {
   grid-column: 1 / -1;
   font-size: 12px;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 .lib__msg--err {
   color: var(--err);
