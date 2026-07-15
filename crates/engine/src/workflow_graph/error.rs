@@ -3,6 +3,9 @@
 /// Invalid frozen Workflow graph value or entity shape.
 #[derive(Clone, Copy, Debug, thiserror::Error, PartialEq, Eq)]
 pub enum WorkflowGraphConstructionError {
+    /// A mutation command contains zero or more than 128 actions.
+    #[error("workflow mutation action limit is exceeded")]
+    ActionLimitExceeded,
     /// Schema version is zero or not the hard-cut version.
     #[error("workflow schema version is unsupported")]
     SchemaVersionUnsupported,
