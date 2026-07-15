@@ -9,6 +9,9 @@ use super::{
     NodeCapabilityParameterErrorTarget, NodeCapabilityParameterKey,
 };
 
+pub(crate) type NodeCapabilityNormalizedParameterMap =
+    BTreeMap<NodeCapabilityParameterKey, NodeCapabilityParameterValue>;
+
 /// Exact runtime data types supported by the frozen MVP.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WorkflowDataType {
@@ -229,5 +232,15 @@ impl NodeCapabilityParameterSet {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    pub(crate) fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&NodeCapabilityParameterKey, &NodeCapabilityParameterValue)> {
+        self.0.iter()
+    }
+
+    pub(crate) const fn from_validated_map(values: NodeCapabilityNormalizedParameterMap) -> Self {
+        Self(values)
     }
 }
