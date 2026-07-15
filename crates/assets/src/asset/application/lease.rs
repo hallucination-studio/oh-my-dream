@@ -58,6 +58,10 @@ impl AssetManagedContentLease {
 
 /// One-shot access to an already-open trusted import source.
 pub struct AssetImportSourceLease {
+    source_stream: AssetOneShotSourceStream,
+}
+
+struct AssetOneShotSourceStream {
     deadline: Instant,
     stream: Pin<Box<dyn AsyncRead + Send>>,
 }
@@ -66,17 +70,47 @@ impl AssetImportSourceLease {
     /// Creates a lease over an already-open trusted source stream.
     #[must_use]
     pub fn new(deadline: Instant, stream: Pin<Box<dyn AsyncRead + Send>>) -> Self {
-        Self { deadline, stream }
+        Self { source_stream: AssetOneShotSourceStream { deadline, stream } }
     }
 
     /// Returns the caller-supplied monotonic deadline.
     #[must_use]
     pub const fn deadline(&self) -> Instant {
-        self.deadline
+        self.source_stream.deadline
     }
 
     /// Consumes the lease and returns its stream before expiry.
     pub fn try_take_stream(self) -> Result<Pin<Box<dyn AsyncRead + Send>>, AssetApplicationError> {
+        self.source_stream.try_take_stream()
+    }
+}
+
+/// One-shot access to an already-open node-produced media source.
+pub struct AssetNodeOutputSourceLease {
+    source_stream: AssetOneShotSourceStream,
+}
+
+impl AssetNodeOutputSourceLease {
+    /// Creates a lease over one already-open node-produced stream.
+    #[must_use]
+    pub fn new(deadline: Instant, stream: Pin<Box<dyn AsyncRead + Send>>) -> Self {
+        Self { source_stream: AssetOneShotSourceStream { deadline, stream } }
+    }
+
+    /// Returns the caller-supplied monotonic deadline.
+    #[must_use]
+    pub const fn deadline(&self) -> Instant {
+        self.source_stream.deadline
+    }
+
+    /// Consumes the lease and returns its stream before expiry.
+    pub fn try_take_stream(self) -> Result<Pin<Box<dyn AsyncRead + Send>>, AssetApplicationError> {
+        self.source_stream.try_take_stream()
+    }
+}
+
+impl AssetOneShotSourceStream {
+    fn try_take_stream(self) -> Result<Pin<Box<dyn AsyncRead + Send>>, AssetApplicationError> {
         if Instant::now() >= self.deadline {
             return Err(AssetApplicationError::DeadlineExceeded);
         }

@@ -4,13 +4,104 @@ use std::time::Instant;
 
 use projects::project::domain::ProjectId;
 
-use crate::asset::domain::{AssetDisplayName, AssetMediaKind, AssetOriginalFileName};
+use crate::asset::domain::{
+    AssetDisplayName, AssetMediaKind, AssetNodeOutputKey, AssetNodeOutputProduction,
+    AssetOriginalFileName, AssetWorkflowNodeOrigin,
+};
 
 use super::{
-    AssetAvailableContentRecoveryCursor, AssetFinalizationRecoveryCursor,
-    AssetFinalizeContentEffect, AssetImportSourceLease, AssetPageLimit,
+    AssetApplicationError, AssetAvailableContentRecoveryCursor, AssetFinalizationRecoveryCursor,
+    AssetFinalizeContentEffect, AssetImportSourceLease, AssetNodeOutputSourceLease, AssetPageLimit,
     AssetStagedContentRecoveryCursor,
 };
+
+/// Trusted translated input for recording one exact Workflow-node media output.
+pub struct AssetRecordNodeOutputCommand {
+    project_id: ProjectId,
+    expected_media_kind: AssetMediaKind,
+    display_name: AssetDisplayName,
+    producer: AssetWorkflowNodeOrigin,
+    production: AssetNodeOutputProduction,
+    output_key: AssetNodeOutputKey,
+    source: AssetNodeOutputSourceLease,
+}
+
+impl AssetRecordNodeOutputCommand {
+    /// Creates a command only when producer and output-key coordinates agree.
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_new(
+        project_id: ProjectId,
+        expected_media_kind: AssetMediaKind,
+        display_name: AssetDisplayName,
+        producer: AssetWorkflowNodeOrigin,
+        production: AssetNodeOutputProduction,
+        output_key: AssetNodeOutputKey,
+        source: AssetNodeOutputSourceLease,
+    ) -> Result<Self, AssetApplicationError> {
+        if producer.workflow_run_id() != output_key.workflow_run_id()
+            || producer.node_execution_id() != output_key.node_execution_id()
+        {
+            return Err(AssetApplicationError::IdentityConflict);
+        }
+        Ok(Self {
+            project_id,
+            expected_media_kind,
+            display_name,
+            producer,
+            production,
+            output_key,
+            source,
+        })
+    }
+
+    /// Returns the trusted owning Project.
+    #[must_use]
+    pub const fn project_id(&self) -> ProjectId {
+        self.project_id
+    }
+
+    /// Returns the exact expected media kind.
+    #[must_use]
+    pub const fn expected_media_kind(&self) -> AssetMediaKind {
+        self.expected_media_kind
+    }
+
+    /// Returns the user-visible output display name.
+    #[must_use]
+    pub const fn display_name(&self) -> &AssetDisplayName {
+        &self.display_name
+    }
+
+    /// Returns the translated Workflow producer coordinates.
+    #[must_use]
+    pub const fn producer(&self) -> &AssetWorkflowNodeOrigin {
+        &self.producer
+    }
+
+    /// Returns deterministic/provider production provenance.
+    #[must_use]
+    pub const fn production(&self) -> &AssetNodeOutputProduction {
+        &self.production
+    }
+
+    /// Returns the durable node-output idempotency key.
+    #[must_use]
+    pub const fn output_key(&self) -> &AssetNodeOutputKey {
+        &self.output_key
+    }
+
+    /// Returns the source's process-monotonic deadline.
+    #[must_use]
+    pub const fn deadline(&self) -> Instant {
+        self.source.deadline()
+    }
+
+    /// Consumes the command and returns its node-produced source lease.
+    #[must_use]
+    pub fn into_source_lease(self) -> AssetNodeOutputSourceLease {
+        self.source
+    }
+}
 
 /// Trusted input for importing one already-open local media source.
 pub struct AssetImportCommand {
