@@ -200,6 +200,7 @@ async function searchCapabilities(request: CapabilitySearchRequest): Promise<Cap
       selector,
       reference: contract.reference,
       presentation,
+      contextual_creation: contract.contextual_creation,
       status,
     }));
   const page = entries.slice(offset, offset + limit);

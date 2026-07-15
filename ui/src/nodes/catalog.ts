@@ -6,6 +6,7 @@ import type {
   CapabilityRef,
   CapabilitySelector,
   CapabilityStatus,
+  CapabilitySummary,
   JsonValue,
 } from "../api/types.ts";
 import type { CapabilityCacheSnapshot } from "../workflow/contractCache.ts";
@@ -54,6 +55,7 @@ export interface NodeTypeSpec {
   status: CapabilityStatus;
   contract: CapabilityContract | null;
   presentation: CapabilityPresentation | null;
+  contextualCreationRoute: string | null;
 }
 
 /** Projects loaded bundles into the node shape consumed by React Flow. */
@@ -73,6 +75,7 @@ export function nodeSpecFromBundle(bundle: CapabilityBundle): NodeTypeSpec {
     status,
     contract,
     presentation,
+    contextualCreationRoute: contract?.contextual_creation?.route ?? null,
   };
 }
 
@@ -95,6 +98,15 @@ export function recoveryNodeSpec(reference: CapabilityRef, reason: string): Node
 /** Projects every loaded exact bundle, including degraded placeholders. */
 export function nodeSpecsFromSnapshot(snapshot: CapabilityCacheSnapshot): NodeTypeSpec[] {
   return [...snapshot.bundles.values()].map(nodeSpecFromBundle);
+}
+
+/** Projects whether the ordinary palette path can create this capability. */
+export function paletteCreation(summary: CapabilitySummary): {
+  canAdd: boolean;
+  route: string | null;
+} {
+  const route = summary.contextual_creation?.route ?? null;
+  return { canAdd: summary.status.availability === "available" && route === null, route };
 }
 
 /** Resolves a node's persisted exact ref from the cache snapshot. */
@@ -177,7 +189,7 @@ function paramsFromContract(contract: CapabilityContract): ParamSpec[] {
     if (!kind) return [];
     const required = Array.isArray(contract.params_schema.required) &&
       contract.params_schema.required.includes(name);
-    const defaultValue = Object.hasOwn(contract.default_params, name)
+    const defaultValue = contract.default_params && Object.hasOwn(contract.default_params, name)
       ? contract.default_params[name]
       : Object.hasOwn(schema, "default") && isJsonValue(schema.default)
         ? schema.default

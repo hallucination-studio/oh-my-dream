@@ -121,6 +121,7 @@ function flowNode(
         status: { availability: "available", reason: null, provider_health: null, status_revision: 0 },
         contract: null,
         presentation: null,
+        contextualCreationRoute: null,
       } as NodeTypeSpec,
     } satisfies FlowNodeData,
   };

@@ -106,8 +106,13 @@ export interface CapabilityContract {
   inputs: CapabilityPort[];
   outputs: CapabilityPort[];
   params_schema: JsonObject;
-  default_params: Record<string, JsonValue>;
+  default_params: Record<string, JsonValue> | null;
+  contextual_creation: ContextualCreation | null;
   effects: CapabilityEffect[];
+}
+
+export interface ContextualCreation {
+  route: string;
 }
 
 export interface CapabilityPresentation {
@@ -130,6 +135,7 @@ export interface CapabilitySummary {
   selector: CapabilitySelector;
   reference: CapabilityRef;
   presentation: CapabilityPresentation;
+  contextual_creation: ContextualCreation | null;
   status: CapabilityStatus;
 }
 

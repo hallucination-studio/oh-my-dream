@@ -107,9 +107,21 @@ pub struct CapabilityContractDto {
     /// JSON Schema for the normalized params object.
     pub params_schema: serde_json::Value,
     /// Canonical params used when no params are supplied.
-    pub default_params: BTreeMap<String, serde_json::Value>,
+    #[schemars(required)]
+    pub default_params: Option<BTreeMap<String, serde_json::Value>>,
+    /// Trusted application route required for contextual creation.
+    #[schemars(required)]
+    pub contextual_creation: Option<ContextualCreationDto>,
     /// Policy-relevant execution effects.
     pub effects: Vec<CapabilityEffectDto>,
+}
+
+/// Context route used when a capability has no generic creation defaults.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ContextualCreationDto {
+    /// Stable application route identifier.
+    pub route: String,
 }
 
 /// Effect classification owned by an immutable capability contract.
@@ -174,6 +186,9 @@ pub struct CapabilitySummaryDto {
     pub reference: CapabilityRefDto,
     /// Non-authoritative display metadata.
     pub presentation: CapabilityPresentationDto,
+    /// Context route required instead of ordinary palette addition.
+    #[schemars(required)]
+    pub contextual_creation: Option<ContextualCreationDto>,
     /// Current availability metadata.
     pub status: CapabilityStatusDto,
 }

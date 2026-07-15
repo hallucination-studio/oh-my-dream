@@ -95,6 +95,14 @@ pub enum CapabilityEffect {
     External,
 }
 
+/// Trusted UI route that can supply params for a context-created capability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContextualCreation {
+    /// Stable application route identifier, such as `asset_library`.
+    pub route: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::CapabilityEffect;
@@ -124,7 +132,9 @@ pub struct CapabilityContract {
     /// Generated boundary schema for the params object.
     pub params_schema: serde_json::Value,
     /// Canonical normalized params used when no params were supplied.
-    pub default_params: NodeParams,
+    pub default_params: Option<NodeParams>,
+    /// Context route required when generic defaults are unavailable.
+    pub contextual_creation: Option<ContextualCreation>,
     /// Effects used by policy and approval layers.
     pub effects: Vec<CapabilityEffect>,
 }
@@ -140,7 +150,36 @@ impl CapabilityContract {
         default_params: NodeParams,
         effects: Vec<CapabilityEffect>,
     ) -> Self {
-        Self { reference, inputs, outputs, params_schema, default_params, effects }
+        Self {
+            reference,
+            inputs,
+            outputs,
+            params_schema,
+            default_params: Some(default_params),
+            contextual_creation: None,
+            effects,
+        }
+    }
+
+    /// Creates a contract whose params must come from trusted caller context.
+    #[must_use]
+    pub fn contextual(
+        reference: CapabilityRef,
+        inputs: Vec<CapabilityPort>,
+        outputs: Vec<CapabilityPort>,
+        params_schema: serde_json::Value,
+        route: impl Into<String>,
+        effects: Vec<CapabilityEffect>,
+    ) -> Self {
+        Self {
+            reference,
+            inputs,
+            outputs,
+            params_schema,
+            default_params: None,
+            contextual_creation: Some(ContextualCreation { route: route.into() }),
+            effects,
+        }
     }
 }
 
@@ -281,18 +320,39 @@ impl CapabilityRegistry {
         if let Some(selector) = &selector {
             self.validate_selector_binding(selector, &reference.id)?;
         }
-        let normalized_defaults =
-            registration.normalize_params(&NodeParams::new()).map_err(|source| {
-                CapabilityRegistryError::InvalidDefaultParams {
-                    reference: reference.clone(),
-                    reason: source.to_string(),
-                }
-            })?;
-        if normalized_defaults != registration.contract.default_params {
+        if registration.contract.default_params.is_some()
+            == registration.contract.contextual_creation.is_some()
+        {
             return Err(CapabilityRegistryError::InvalidDefaultParams {
                 reference,
-                reason: "normalizer output does not match default_params".to_owned(),
+                reason: "capability must declare exactly one creation mode".to_owned(),
             });
+        }
+        if registration
+            .contract
+            .contextual_creation
+            .as_ref()
+            .is_some_and(|metadata| metadata.route.trim().is_empty())
+        {
+            return Err(CapabilityRegistryError::InvalidDefaultParams {
+                reference,
+                reason: "contextual creation route must not be empty".to_owned(),
+            });
+        }
+        if let Some(default_params) = &registration.contract.default_params {
+            let normalized_defaults =
+                registration.normalize_params(&NodeParams::new()).map_err(|source| {
+                    CapabilityRegistryError::InvalidDefaultParams {
+                        reference: reference.clone(),
+                        reason: source.to_string(),
+                    }
+                })?;
+            if normalized_defaults != *default_params {
+                return Err(CapabilityRegistryError::InvalidDefaultParams {
+                    reference,
+                    reason: "normalizer output does not match default_params".to_owned(),
+                });
+            }
         }
         self.registrations.insert(reference.clone(), registration);
         if let Some(selector) = selector {

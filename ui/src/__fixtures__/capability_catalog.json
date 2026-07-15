@@ -57,6 +57,7 @@
           "mode": "image",
           "model": "mock-video"
         },
+        "contextual_creation": null,
         "effects": [
           "external"
         ]
@@ -119,6 +120,7 @@
           "mode": "literal",
           "text": ""
         },
+        "contextual_creation": null,
         "effects": [
           "pure"
         ]
@@ -188,6 +190,7 @@
           "mode": "text",
           "model": "mock-audio"
         },
+        "contextual_creation": null,
         "effects": [
           "external"
         ]
@@ -265,6 +268,7 @@
           "mode": "text",
           "model": "mock-image"
         },
+        "contextual_creation": null,
         "effects": [
           "external"
         ]
@@ -331,6 +335,7 @@
         "default_params": {
           "mode": "concat"
         },
+        "contextual_creation": null,
         "effects": [
           "pure"
         ]

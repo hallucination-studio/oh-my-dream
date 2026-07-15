@@ -250,6 +250,7 @@ pub(super) fn search_result(entry: &CapabilityCatalogEntryDto) -> CapabilitySear
         selector: entry.selector.clone(),
         reference: entry.contract.reference.clone(),
         presentation: entry.presentation.clone(),
+        contextual_creation: entry.contract.contextual_creation.clone(),
         status: entry.status.clone(),
     }
 }

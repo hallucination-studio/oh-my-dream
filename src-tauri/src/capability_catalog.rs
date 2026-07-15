@@ -5,7 +5,7 @@ use crate::dto::{
     CapabilityAvailabilityDto, CapabilityBundleDto, CapabilityBundlesDto, CapabilityCardinalityDto,
     CapabilityCatalogDto, CapabilityCatalogEntryDto, CapabilityContractDto, CapabilityEffectDto,
     CapabilityPortDto, CapabilityPresentationDto, CapabilityRefDto, CapabilitySearchPageDto,
-    CapabilitySelectorDto, CapabilityStatusDto, CapabilitySummaryDto,
+    CapabilitySelectorDto, CapabilityStatusDto, CapabilitySummaryDto, ContextualCreationDto,
 };
 use crate::state::AppState;
 use engine::{CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityRef, NodeRegistry};
@@ -84,6 +84,7 @@ pub fn search_capabilities_with_state(
             selector: entry.selector,
             reference: entry.contract.reference,
             presentation: entry.presentation,
+            contextual_creation: entry.contract.contextual_creation,
             status: entry.status,
         })
         .collect::<Vec<_>>();
@@ -165,11 +166,16 @@ fn contract_to_dto(contract: &CapabilityContract) -> CapabilityContractDto {
         inputs: contract.inputs.iter().map(port_to_dto).collect(),
         outputs: contract.outputs.iter().map(port_to_dto).collect(),
         params_schema: contract.params_schema.clone(),
-        default_params: contract
-            .default_params
-            .iter()
-            .map(|(name, value)| (name.clone(), value.clone()))
-            .collect::<BTreeMap<_, _>>(),
+        default_params: contract.default_params.as_ref().map(|params| {
+            params
+                .iter()
+                .map(|(name, value)| (name.clone(), value.clone()))
+                .collect::<BTreeMap<_, _>>()
+        }),
+        contextual_creation: contract
+            .contextual_creation
+            .as_ref()
+            .map(|metadata| ContextualCreationDto { route: metadata.route.clone() }),
         effects: contract.effects.iter().copied().map(effect_to_dto).collect(),
     }
 }
@@ -288,7 +294,7 @@ fn degraded_status(reason: &str) -> CapabilityStatusDto {
 
 #[cfg(test)]
 mod tests {
-    use super::status_for;
+    use super::{contract_to_dto, status_for};
     use engine::{CapabilityContract, CapabilityEffect, CapabilityRef};
 
     #[test]
@@ -303,5 +309,24 @@ mod tests {
         );
 
         assert!(status_for(&contract).provider_health.is_none());
+    }
+
+    #[test]
+    fn contextual_contract_projects_route_without_synthetic_defaults() {
+        let contract = CapabilityContract::contextual(
+            CapabilityRef::new("ImageAssetSource", "1.0"),
+            Vec::new(),
+            Vec::new(),
+            serde_json::json!({}),
+            "asset_library",
+            vec![CapabilityEffect::LocalRead],
+        );
+
+        let dto = contract_to_dto(&contract);
+        assert!(dto.default_params.is_none());
+        assert_eq!(
+            dto.contextual_creation.map(|metadata| metadata.route),
+            Some("asset_library".to_owned())
+        );
     }
 }

@@ -210,7 +210,7 @@ describe("assistant operation contract fixture", () => {
 });
 
 // Freezes the generated fixture as an opaque artifact, not a semantic source.
-const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:a3f3bcd4bf16e851";
+const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:a81c70af3a11db64";
 
 function isExactAssistantOperationsFixture(value: unknown): value is AssistantOperationsFixture {
   return (
@@ -356,12 +356,17 @@ function isCapabilityContract(value: unknown): boolean {
     Array.isArray(value.outputs) &&
     value.outputs.every(isCapabilityPort) &&
     isRecord(value.params_schema) &&
-    isRecord(value.default_params) &&
+    (value.default_params === null || isRecord(value.default_params)) &&
+    (value.contextual_creation === null || isContextualCreation(value.contextual_creation)) &&
     Array.isArray(value.effects) &&
     value.effects.every(
       (effect) => effect === "pure" || effect === "local_read" || effect === "external",
     )
   );
+}
+
+function isContextualCreation(value: unknown): boolean {
+  return isRecord(value) && typeof value.route === "string";
 }
 
 function isCapabilityRef(value: unknown): boolean {

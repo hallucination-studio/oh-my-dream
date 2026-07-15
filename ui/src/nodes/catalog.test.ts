@@ -7,6 +7,7 @@ import {
   findNodeType,
   nodeSpecFromBundle,
   nodeSpecsFromSnapshot,
+  paletteCreation,
   paramsForMode,
   recoveryNodeSpec,
 } from "./catalog.ts";
@@ -83,6 +84,7 @@ describe("node catalog contract", () => {
           },
         },
         default_params: {},
+        contextual_creation: null,
         effects: [],
       },
       presentation: {
@@ -103,6 +105,54 @@ describe("node catalog contract", () => {
       expect.objectContaining({ name: "caption", kind: "text" }),
       expect.objectContaining({ name: "steps", kind: "int" }),
     ]);
+  });
+
+  it("projects contextual creation without inventing default params", () => {
+    const spec = nodeSpecFromBundle({
+      selector: { type_id: "Image", mode: "asset" },
+      reference: { id: "ImageAssetSource", version: "1.0" },
+      contract: {
+        reference: { id: "ImageAssetSource", version: "1.0" },
+        inputs: [],
+        outputs: [],
+        params_schema: { type: "object" },
+        default_params: null,
+        contextual_creation: { route: "asset_library" },
+        effects: ["local_read"],
+      },
+      presentation: {
+        label: "Image Asset",
+        description: "Managed image",
+        category: "Assets",
+        search_terms: [],
+      },
+      status: {
+        availability: "available",
+        reason: null,
+        provider_health: null,
+        status_revision: 0,
+      },
+    });
+
+    expect(spec.contextualCreationRoute).toBe("asset_library");
+    expect(spec.params).toEqual([]);
+    expect(paletteCreation({
+      selector: { type_id: "Image", mode: "asset" },
+      reference: { id: "ImageAssetSource", version: "1.0" },
+      presentation: {
+        label: "Image Asset",
+        description: "Managed image",
+        category: "Assets",
+        search_terms: [],
+      },
+      contextual_creation: { route: "asset_library" },
+      status: {
+        availability: "available",
+        reason: null,
+        provider_health: null,
+        status_revision: 0,
+      },
+    })).toEqual({ canAdd: false, route: "asset_library" });
   });
 });
 
@@ -125,6 +175,7 @@ function snapshot() {
       selector,
       reference: contract.reference,
       presentation,
+      contextual_creation: contract.contextual_creation,
       status,
     })),
   };

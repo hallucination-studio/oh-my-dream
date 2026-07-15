@@ -69,6 +69,7 @@ describe("CapabilityContractCache", () => {
         selector: { type_id: "Text", mode: "literal" },
         reference: prompt,
         presentation: presentation("Text Prompt"),
+        contextual_creation: null,
         status: status(),
       }],
       next_cursor: "1",
@@ -85,12 +86,12 @@ describe("CapabilityContractCache", () => {
 
   it("replaces summaries when the palette query changes", async () => {
     const first: CapabilitySearchPage = {
-      capabilities: [{ selector: { type_id: "Text", mode: "literal" }, reference: prompt, presentation: presentation("Text Prompt"), status: status() }],
+      capabilities: [{ selector: { type_id: "Text", mode: "literal" }, reference: prompt, presentation: presentation("Text Prompt"), contextual_creation: null, status: status() }],
       next_cursor: null,
     };
     const secondRef = { id: "ImageToVideo", version: "1.0" };
     const second: CapabilitySearchPage = {
-      capabilities: [{ selector: { type_id: "Video", mode: "image" }, reference: secondRef, presentation: presentation("Image to Video"), status: status() }],
+      capabilities: [{ selector: { type_id: "Video", mode: "image" }, reference: secondRef, presentation: presentation("Image to Video"), contextual_creation: null, status: status() }],
       next_cursor: null,
     };
     const api = cacheApi([], first, second);
@@ -108,6 +109,7 @@ describe("CapabilityContractCache", () => {
         selector: { type_id: "Video", mode: "image" },
         reference: prompt,
         presentation: presentation("Text Prompt"),
+        contextual_creation: null,
         status: status(),
       }],
       next_cursor: "1",
@@ -118,6 +120,7 @@ describe("CapabilityContractCache", () => {
         selector: { type_id: "Image", mode: "text" },
         reference: secondRef,
         presentation: presentation("Text to Image"),
+        contextual_creation: null,
         status: status(),
       }],
       next_cursor: null,
@@ -135,13 +138,13 @@ describe("CapabilityContractCache", () => {
     const video = { id: "ImageToVideo", version: "1.0" };
     const concat = { id: "VideoConcat", version: "1.0" };
     const palette: CapabilitySearchPage = {
-      capabilities: [{ selector: { type_id: "Text", mode: "literal" }, reference: prompt, presentation: presentation("Text Prompt"), status: status() }],
+      capabilities: [{ selector: { type_id: "Text", mode: "literal" }, reference: prompt, presentation: presentation("Text Prompt"), contextual_creation: null, status: status() }],
       next_cursor: null,
     };
     const modes: CapabilitySearchPage = {
       capabilities: [
-        { selector: { type_id: "Video", mode: "image" }, reference: video, presentation: presentation("Image to Video"), status: status() },
-        { selector: { type_id: "Video", mode: "concat" }, reference: concat, presentation: presentation("Video Concat"), status: status() },
+        { selector: { type_id: "Video", mode: "image" }, reference: video, presentation: presentation("Image to Video"), contextual_creation: null, status: status() },
+        { selector: { type_id: "Video", mode: "concat" }, reference: concat, presentation: presentation("Video Concat"), contextual_creation: null, status: status() },
       ],
       next_cursor: null,
     };
@@ -182,6 +185,7 @@ function bundle(reference: { id: string; version: string }, degraded = false): C
       outputs: [],
       params_schema: { type: "object", properties: {} },
       default_params: {},
+      contextual_creation: null,
       effects: ["pure"],
     },
     presentation: degraded ? null : presentation(reference.id),

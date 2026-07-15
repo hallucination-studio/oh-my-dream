@@ -1622,6 +1622,20 @@
             "additionalProperties": false,
             "description": "A compact palette result containing presentation and live status only.",
             "properties": {
+              "contextual_creation": {
+                "additionalProperties": false,
+                "description": "Context route required instead of ordinary palette addition.",
+                "properties": {
+                  "route": {
+                    "description": "Stable application route identifier.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "route"
+                ],
+                "type": "object"
+              },
               "presentation": {
                 "allOf": [
                   {
@@ -1656,6 +1670,7 @@
               }
             },
             "required": [
+              "contextual_creation",
               "presentation",
               "reference",
               "selector",
@@ -1837,6 +1852,20 @@
             "additionalProperties": false,
             "description": "Immutable execution contract for one exact capability reference.",
             "properties": {
+              "contextual_creation": {
+                "additionalProperties": false,
+                "description": "Trusted application route required for contextual creation.",
+                "properties": {
+                  "route": {
+                    "description": "Stable application route identifier.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "route"
+                ],
+                "type": "object"
+              },
               "default_params": {
                 "additionalProperties": true,
                 "description": "Canonical params used when no params are supplied.",
@@ -1876,6 +1905,7 @@
               }
             },
             "required": [
+              "contextual_creation",
               "default_params",
               "effects",
               "inputs",

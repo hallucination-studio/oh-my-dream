@@ -116,6 +116,48 @@ fn exact_registration_projects_its_declared_selector() {
     assert_eq!(registration.selector(), Some(&selector));
 }
 
+#[test]
+fn contextual_registration_has_no_synthetic_defaults_and_still_normalizes_params() {
+    let reference = CapabilityRef::new("ImageAssetSource", "1.0");
+    let registration = CapabilityRegistration::new(
+        CapabilityContract::contextual(
+            reference.clone(),
+            Vec::new(),
+            Vec::new(),
+            serde_json::json!({ "type": "object", "required": ["asset_id"] }),
+            "asset_library",
+            Vec::new(),
+        ),
+        CapabilityPresentation::new("Asset", "Asset", "test", Vec::new()),
+        Box::new(|params| {
+            params
+                .get("asset_id")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.is_empty())
+                .map(|_| params.clone())
+                .ok_or_else(|| "asset_id is required".into())
+        }),
+        Box::new(|_| unreachable!("factory is not used by registry tests")),
+    )
+    .with_selector(CapabilitySelector::new("Image", "asset"));
+    let mut registry = CapabilityRegistry::default();
+    registry.register_selector_current(registration).expect("register contextual capability");
+
+    let contract = registry.resolve(&reference).expect("resolve contextual capability").contract();
+    assert!(contract.default_params.is_none());
+    assert_eq!(
+        contract.contextual_creation.as_ref().map(|metadata| metadata.route.as_str()),
+        Some("asset_library")
+    );
+    assert!(
+        registry
+            .resolve(&reference)
+            .expect("resolve registration")
+            .normalize_params(&NodeParams::new())
+            .is_err()
+    );
+}
+
 fn registration(id: &str, version: &str, selector: CapabilitySelector) -> CapabilityRegistration {
     CapabilityRegistration::new(
         CapabilityContract::new(

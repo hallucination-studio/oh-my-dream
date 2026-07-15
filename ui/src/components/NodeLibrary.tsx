@@ -6,6 +6,7 @@ import type {
   CapabilitySummary,
 } from "../api/types.ts";
 import type { NodeTypeSpec } from "../nodes/catalog.ts";
+import { paletteCreation } from "../nodes/catalog.ts";
 import { nodeAccent } from "../nodes/typeColor.ts";
 import "./nodeLibrary.css";
 
@@ -96,13 +97,16 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd }: NodeLib
                 <div className="nlib__leaves">
                   {group.nodes.map((summary) => {
                     const spec = loadedSpecs.find((candidate) => sameRef(candidate.ref, summary.reference));
+                    const creation = paletteCreation(summary);
                     return (
                       <button
                         key={`${summary.reference.id}@${summary.reference.version}`}
                         className="nlib__leaf"
-                        draggable
-                        disabled={summary.status.availability !== "available"}
-                        title={summary.status.reason ?? summary.presentation.description}
+                        draggable={creation.canAdd}
+                        disabled={!creation.canAdd}
+                        title={creation.route
+                          ? `Create from ${creation.route}`
+                          : summary.status.reason ?? summary.presentation.description}
                         onDragStart={(event) => event.dataTransfer.setData("application/oh-node", JSON.stringify(summary.reference))}
                         onClick={() => onAdd(summary.reference)}
                       >

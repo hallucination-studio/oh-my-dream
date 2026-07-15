@@ -34,7 +34,7 @@ fn capability_projection_contains_exact_contract_and_presentation_pairs() {
         .iter()
         .find(|projection| projection.contract.reference.id == "TextPrompt")
         .expect("prompt projection");
-    assert_eq!(prompt.contract.default_params["text"], "");
+    assert_eq!(prompt.contract.default_params.as_ref().expect("default params")["text"], "");
     assert_eq!(prompt.selector.type_id, "Text");
     assert_eq!(prompt.selector.mode, "literal");
     assert_eq!(prompt.contract.effects, vec![CapabilityEffect::Pure]);

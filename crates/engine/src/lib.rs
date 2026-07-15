@@ -23,7 +23,7 @@ pub use cache::ResultCache;
 pub use capability::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilityRegistry, CapabilityRegistryError, CapabilitySelector,
-    DEFAULT_CAPABILITY_VERSION,
+    ContextualCreation, DEFAULT_CAPABILITY_VERSION,
 };
 pub use error::{EngineError, Result};
 pub use executor::{

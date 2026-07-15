@@ -36,7 +36,7 @@ fn capability_registration_exposes_exact_refs_and_contracts() {
         .capability(&CapabilityRef::new("TextPrompt", "1.0"))
         .expect("TextPrompt contract should resolve");
     assert_eq!(prompt.contract().reference.id, "TextPrompt");
-    assert_eq!(prompt.contract().default_params["text"], "");
+    assert_eq!(prompt.contract().default_params.as_ref().expect("default params")["text"], "");
     assert_eq!(prompt.contract().effects, vec![CapabilityEffect::Pure]);
 
     let concat = registry
@@ -68,7 +68,10 @@ fn registrations_own_their_selector_mode_defaults_and_schema() {
             .expect("exact registration should resolve");
 
         assert_eq!(registration.selector(), Some(&CapabilitySelector::new(type_id, mode)));
-        assert_eq!(registration.contract().default_params["mode"], mode);
+        assert_eq!(
+            registration.contract().default_params.as_ref().expect("default params")["mode"],
+            mode
+        );
         assert_eq!(registration.contract().params_schema["properties"]["mode"]["const"], mode);
         assert_eq!(
             registration
