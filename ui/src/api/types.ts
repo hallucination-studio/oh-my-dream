@@ -51,9 +51,14 @@ export type WorkflowNodeRef =
   | { kind: "id"; id: string }
   | { kind: "alias"; alias: string };
 
+export interface WorkflowPatchOutputRef {
+  node: WorkflowNodeRef;
+  output: string;
+}
+
 export type WorkflowPatchBinding =
-  | { kind: "single"; source: WorkflowNodeRef }
-  | { kind: "ordered_many"; sources: WorkflowNodeRef[] };
+  | { kind: "single"; source: WorkflowPatchOutputRef }
+  | { kind: "ordered_many"; sources: WorkflowPatchOutputRef[] };
 
 export type WorkflowPatchOperation =
   | {

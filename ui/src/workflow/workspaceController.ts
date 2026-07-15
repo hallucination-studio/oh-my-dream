@@ -3,6 +3,7 @@ import type {
   WorkflowApplyPatchOutput,
   WorkflowHead,
   WorkflowNodeRef,
+  WorkflowPatchOutputRef,
   WorkflowPatchBinding,
   WorkflowPatchOperation,
 } from "../api/index.ts";
@@ -299,17 +300,28 @@ function patchBinding(
   recreated: Set<string>,
 ): WorkflowPatchBinding {
   if (Array.isArray(binding)) {
-    return { kind: "single", source: draftRef(binding[0], baseNodes, recreated) };
+    return { kind: "single", source: patchOutputRef(binding, baseNodes, recreated) };
   }
   if (!("kind" in binding)) {
-    return { kind: "single", source: draftRef(binding.node_id, baseNodes, recreated) };
+    return { kind: "single", source: patchOutputRef(binding, baseNodes, recreated) };
   }
   if (binding.kind === "single") {
-    return { kind: "single", source: draftRef(nodeIdOf(binding.source), baseNodes, recreated) };
+    return { kind: "single", source: patchOutputRef(binding.source, baseNodes, recreated) };
   }
   return {
     kind: "ordered_many",
-    sources: binding.sources.map((source) => draftRef(nodeIdOf(source), baseNodes, recreated)),
+    sources: binding.sources.map((source) => patchOutputRef(source, baseNodes, recreated)),
+  };
+}
+
+function patchOutputRef(
+  reference: OutputRef,
+  baseNodes: Map<string, WorkflowNode>,
+  recreated: Set<string>,
+): WorkflowPatchOutputRef {
+  return {
+    node: draftRef(nodeIdOf(reference), baseNodes, recreated),
+    output: outputNameOf(reference),
   };
 }
 
@@ -325,6 +337,10 @@ function draftRef(
 
 function nodeIdOf(reference: OutputRef): string {
   return Array.isArray(reference) ? reference[0] : reference.node_id;
+}
+
+function outputNameOf(reference: OutputRef): string {
+  return Array.isArray(reference) ? reference[1] : reference.output;
 }
 
 function idRef(id: string): WorkflowNodeRef {

@@ -7,6 +7,55 @@ it("has no persistent asset root outside Tauri", async () => {
   await expect(mockApi.assetsRoot()).resolves.toBeNull();
 });
 
+it("preserves requested patch outputs and rejects undeclared names", async () => {
+  const projectId = "named-output-project";
+  const created = await mockApi.applyWorkflowPatch(projectId, "create", {
+    expected_revision: null,
+    operations: [
+      {
+        op: "add_node",
+        alias: "prompt",
+        capability: { id: "TextPrompt", version: "1.0" },
+        params: {},
+        position: null,
+      },
+      {
+        op: "add_node",
+        alias: "image",
+        capability: { id: "TextToImage", version: "1.0" },
+        params: {},
+        position: null,
+      },
+      {
+        op: "set_input",
+        node: { kind: "alias", alias: "image" },
+        input: "prompt",
+        binding: {
+          kind: "single",
+          source: { node: { kind: "alias", alias: "prompt" }, output: "text" },
+        },
+      },
+    ],
+  });
+
+  expect(created.workflow_head?.workflow.nodes[1]?.inputs.prompt).toEqual({
+    kind: "single",
+    source: { node_id: "n1", output: "text" },
+  });
+  await expect(mockApi.applyWorkflowPatch(projectId, "invalid", {
+    expected_revision: 1,
+    operations: [{
+      op: "set_input",
+      node: { kind: "id", id: "n2" },
+      input: "prompt",
+      binding: {
+        kind: "single",
+        source: { node: { kind: "id", id: "n1" }, output: "missing" },
+      },
+    }],
+  })).rejects.toThrow("OUTPUT_NOT_DECLARED");
+});
+
 it("persists assistant settings for the in-browser workspace", async () => {
   const original = await mockApi.getAssistantConfig();
   const input: AssistantConfigInput = {

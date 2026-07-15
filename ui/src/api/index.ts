@@ -52,6 +52,7 @@ export type {
   WorkflowHead,
   WorkflowNodeRef,
   WorkflowPatchBinding,
+  WorkflowPatchOutputRef,
   WorkflowPatchOperation,
   WorkflowReadinessBlocker,
 } from "./types.ts";

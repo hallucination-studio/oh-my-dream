@@ -186,7 +186,10 @@ describe("WorkspaceController", () => {
         op: "set_input",
         node: { kind: "alias", alias: "draft-n1" },
         input: "prompt",
-        binding: { kind: "single", source: { kind: "id", id: "prompt" } },
+        binding: {
+          kind: "single",
+          source: { node: { kind: "id", id: "prompt" }, output: "text" },
+        },
       },
     ]);
   });
@@ -208,7 +211,10 @@ describe("WorkspaceController", () => {
       op: "set_input",
       node: { kind: "id", id: "image" },
       input: "prompt",
-      binding: { kind: "single", source: { kind: "alias", alias: "draft-prompt" } },
+      binding: {
+        kind: "single",
+        source: { node: { kind: "alias", alias: "draft-prompt" }, output: "text" },
+      },
     });
   });
 });

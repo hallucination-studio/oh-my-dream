@@ -27,6 +27,7 @@ import type {
   WorkflowHead,
   WorkflowNodeRef,
   WorkflowPatchBinding,
+  WorkflowPatchOutputRef,
 } from "./types.ts";
 import capabilityCatalogFixture from "../__fixtures__/capability_catalog.json";
 import { createRunId } from "./runId.ts";
@@ -312,11 +313,13 @@ function mockBinding(
   workflow: Workflow,
   aliases: Map<string, string>,
 ) {
-  const outputRef = (source: WorkflowNodeRef) => {
-    const nodeId = resolveMockNode(source, aliases);
+  const outputRef = (source: WorkflowPatchOutputRef) => {
+    const nodeId = resolveMockNode(source.node, aliases);
     const sourceNode = workflow.nodes.find((node) => node.id === nodeId);
     if (!sourceNode) throw new Error("NODE_NOT_FOUND");
-    return { node_id: nodeId, output: outputForNodeType(sourceNode.type, nodeId)?.name ?? "output" };
+    const declared = outputForNodeType(sourceNode.type, nodeId);
+    if (declared?.name !== source.output) throw new Error("OUTPUT_NOT_DECLARED");
+    return { node_id: nodeId, output: source.output };
   };
   return binding.kind === "single"
     ? { kind: "single" as const, source: outputRef(binding.source) }
