@@ -58,6 +58,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantEnabled, setAssistantEnabled] = useState(false);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const capabilityCacheRef = useRef<CapabilityContractCache | null>(null);
   if (capabilityCacheRef.current === null) {
     capabilityCacheRef.current = new CapabilityContractCache(api);
@@ -123,7 +124,7 @@ export function App() {
   }, [assistantEnabled, assistantOpen]);
 
   const addNode = useCallback(
-    (requested: string | CapabilityRef, position?: { x: number; y: number }) => {
+    (requested: string | CapabilityRef, position?: { x: number; y: number }, contextualParams?: Record<string, unknown>) => {
       if (!canEdit) {
         return;
       }
@@ -135,7 +136,8 @@ export function App() {
           ? nodeSpecFromBundle(bundle)
           : recoveryNodeSpec(reference, "exact capability bundle is unavailable");
         if (spec.contract === null || spec.status.availability !== "available") return;
-        const params = Object.fromEntries(spec.params.map((param) => [param.name, param.default]));
+        if (spec.contextualCreationRoute !== null && contextualParams === undefined) return;
+        const params = contextualParams ?? Object.fromEntries(spec.params.map((param) => [param.name, param.default]));
         markWorkflowMutation();
         setNodes((current) => {
           const id = nextNodeId(current);
@@ -161,6 +163,42 @@ export function App() {
     },
     [canEdit, capabilityCache, capabilitySnapshot, markWorkflowMutation, setNodes, setParam, setStatus],
   );
+
+  const addAssetSource = useCallback((assetId: string, position?: { x: number; y: number }) => {
+    const asset = assets.find((candidate) => candidate.id === assetId);
+    if (!asset) {
+      setStatus({ state: "failed", reason: "Asset is unavailable in the current workspace" });
+      return;
+    }
+    const summary = capabilitySnapshot.summaries.find((candidate) =>
+      candidate.selector.type_id.toLowerCase() === asset.kind && candidate.selector.mode === "asset"
+    );
+    if (!summary) {
+      setStatus({ state: "failed", reason: `No ${asset.kind} Asset Source capability is available` });
+      return;
+    }
+    addNode(summary.reference, position, { mode: "asset", asset_id: asset.id });
+    setSelectedAssetId(asset.id);
+  }, [addNode, assets, capabilitySnapshot.summaries]);
+
+  useEffect(() => {
+    const assetIndex = new Map(assets.map((asset) => [asset.id, asset]));
+    setNodes((current) => current.map((node) => {
+      const data = node.data as FlowNodeData;
+      if (data.capability?.selector?.mode !== "asset") return node;
+      const assetId = typeof data.params.asset_id === "string" ? data.params.asset_id : "";
+      const asset = assetIndex.get(assetId);
+      return {
+        ...node,
+        data: {
+          ...data,
+          runtime: asset
+            ? { ...data.runtime, state: data.runtime?.state ?? "idle", preview: { kind: asset.kind, url: asset.fileUrl } }
+            : { ...data.runtime, state: data.runtime?.state ?? "idle", preview: { kind: data.capability.selector?.type_id.toLowerCase() as "image" | "video" | "audio", url: null } },
+        },
+      };
+    }));
+  }, [assets, setNodes]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -264,9 +302,9 @@ export function App() {
       workflow_revision:
         workspaceState.state === "ready" ? workspaceState.workflowHead?.revision ?? null : null,
       selected_node_ids: selected ? [selected.id] : [],
-      selected_asset_ids: [],
+      selected_asset_ids: selectedAssetId ? [selectedAssetId] : [],
     }),
-    [project, selected, workspaceState],
+    [project, selected, selectedAssetId, workspaceState],
   );
 
   const onDrop = useCallback(
@@ -275,9 +313,12 @@ export function App() {
       const encoded = e.dataTransfer.getData("application/oh-node");
       if (encoded) {
         addNode(parseCapabilityRef(encoded), { x: e.clientX - 320, y: e.clientY - 90 });
+        return;
       }
+      const assetId = e.dataTransfer.getData("application/oh-asset");
+      if (assetId) addAssetSource(assetId, { x: e.clientX - 320, y: e.clientY - 90 });
     },
-    [addNode],
+    [addAssetSource, addNode],
   );
   const searchCapabilities = useCallback(
     (request: Parameters<CapabilityContractCache["search"]>[0]) => capabilityCache.search(request),
@@ -325,12 +366,13 @@ export function App() {
           <AssetLibrary
             assets={assets}
             error={assetError}
-            onAddToCanvas={() => setTab("nodes")}
+            selectedAssetId={selectedAssetId}
+            onSelectAsset={setSelectedAssetId}
+            onAddToCanvas={(asset) => addAssetSource(asset.id)}
             onJumpToNode={() => setTab("nodes")}
           />
         )}
 
-        {tab === "nodes" && (
           <>
             <div className="bench__canvas" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
               <ReactFlow
@@ -365,7 +407,6 @@ export function App() {
               onParamChange={setParam}
             />
           </>
-        )}
         {assistantEnabled && assistantOpen && (
           <AssistantDock
             key={project?.id ?? "no-project"}

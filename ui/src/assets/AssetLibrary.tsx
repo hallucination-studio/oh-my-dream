@@ -14,15 +14,21 @@ export function AssetLibrary({
   error,
   onAddToCanvas,
   onJumpToNode,
+  selectedAssetId,
+  onSelectAsset,
 }: {
   assets: AssetViewModel[];
   error: string | null;
   onAddToCanvas: (asset: AssetViewModel) => void;
   onJumpToNode: (asset: AssetViewModel) => void;
+  selectedAssetId?: string | null;
+  onSelectAsset?: (assetId: string | null) => void;
 }) {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<AssetKind | "all">("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
+  const selectedId = selectedAssetId === undefined ? localSelectedId : selectedAssetId;
+  const setSelectedId = onSelectAsset ?? setLocalSelectedId;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

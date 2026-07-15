@@ -138,7 +138,9 @@ function StatePill({ state }: { state: NodeExecutionState }) {
 
 function Preview({ preview }: { preview: NonNullable<NodeRuntime["preview"]> }) {
   if (preview.kind === "audio") {
-    return <div className="wf-preview wf-preview--audio">♪ audio</div>;
+    return preview.url
+      ? <audio className="wf-preview wf-preview--audio" controls src={preview.url} aria-label="Asset audio preview" />
+      : <div className="wf-preview wf-preview--audio" role="status">Audio unavailable</div>;
   }
   return (
     <div className={`wf-preview wf-preview--${preview.kind}`}>
