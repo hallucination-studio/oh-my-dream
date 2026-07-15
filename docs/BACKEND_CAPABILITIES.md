@@ -502,7 +502,8 @@ IDs, URLs, paths, credentials, and response bodies never cross these errors.
 The closed parameter categories are `UnknownParameter`, `RequiredParameterMissing`,
 `ParameterValueKindMismatch`, `ParameterValueOutOfBounds`, `ParameterChoiceNotDeclared`, and
 `ParameterSetTooLarge`. Readiness categories are `ManagedAssetUnavailable`,
-`ManagedAssetKindMismatch`, `GenerationProfileIncompatible`, `GenerationProfileUnavailable`, and
+`ManagedAssetKindMismatch`, `ManagedAssetReadinessIndeterminate`,
+`GenerationProfileIncompatible`, `GenerationProfileUnavailable`, and
 `GenerationProfileAvailabilityIndeterminate`. Execution stages are `ResolveInputs`, `CallProvider`,
 `ValidateProviderResult`, and `WriteManagedMedia`; normalization has its own pre-admission result.
 `NodeCapabilityExecutionError` wraps one invalid-invocation, readiness, provider, media,
@@ -540,6 +541,15 @@ and carries no field, message, supplied value, or validation detail. It is never
 parameters before admission, provider responses, media failures, or internal adapter failures. Its
 only purpose is to let a capability reject a malformed direct trait invocation without panic,
 provider dispatch, media read/write, or misclassifying the failure as another business category.
+
+Asset-read readiness maps reader outcomes exactly once: `Unavailable` becomes
+`ManagedAssetUnavailable`; `KindMismatch { expected, observed }` becomes
+`ManagedAssetKindMismatch` with the same distinct kinds; `DeadlineExceeded` and every other
+`NodeCapabilityMediaFailure` become `ManagedAssetReadinessIndeterminate`. The indeterminate issue
+uses the same `ManagedAsset { parameter_key, asset_id }` target and carries no technical category,
+message, retry hint, or adapter detail. It blocks admission only; it does not authorize retry, probe,
+cache, fallback, or a second read. Execution still preserves its exact media/deadline failure and
+never uses the readiness indeterminate category.
 
 An optional retry instant is present only when retryable and later than error creation. Cancellation,
 invalid requests/results, policy rejection, kind mismatch, digest mismatch, and output conflict are
