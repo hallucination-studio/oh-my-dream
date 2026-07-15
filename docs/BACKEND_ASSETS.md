@@ -369,6 +369,11 @@ private paths, process output, rows, and handles never cross an Asset interface.
 `PreviewLeaseExpired`, `PreviewRangeInvalid`, `Cancelled`, and `DeadlineExceeded`. Errors contain safe
 typed identities, never paths, tokens, process output, or raw content.
 
+Value construction maps non-v4 Asset-owned UUIDs to `InvalidIdentity`, negative
+`AssetCreatedAt` to `InvalidDescriptor`, invalid display/original names to their same-named
+categories, descriptor/content inconsistencies to `InvalidDescriptor`, and technical-fact bound
+violations to `InvalidMediaFacts`. No generic validation-message or catch-all category exists.
+
 Verification covers:
 
 - aggregate transitions, Project visibility, immutable facts, and provenance;
