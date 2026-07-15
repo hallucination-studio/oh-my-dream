@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/projects",
     "crates/engine",
     "crates/nodes",
     "crates/backends",
@@ -19,6 +20,7 @@ rust-version = "1.91"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+uuid = "1"
 # Assistant operation schemas are generated from their canonical Rust DTOs.
 schemars = "0.8.22"
 # Model-controlled operation input is validated against generated Draft 7 schemas.
@@ -42,3 +44,4 @@ engine = { path = "crates/engine" }
 backends = { path = "crates/backends" }
 assets = { path = "crates/assets" }
 nodes = { path = "crates/nodes" }
+projects = { path = "crates/projects" }
