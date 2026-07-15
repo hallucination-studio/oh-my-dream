@@ -123,13 +123,16 @@ unique. Project deletion is not an MVP transition.
 ## Logical Workflow Records
 
 `SqliteWorkflowRow` stores Project/Workflow identity, schema version, current revision, a bounded
-versioned graph payload, and timestamps.
+versioned graph payload, and timestamps. UUIDs are exact 16-byte values; timestamps are signed
+UTC-millisecond integers.
+
+`SqliteWorkflowCreateReceiptRow` stores creation request ID, command hash, the exact created
+Workflow snapshot, and result fingerprint.
 
 `SqliteWorkflowMutationReceiptRow` stores:
 
 - `WorkflowMutationRequestId` and canonical command hash;
-- Workflow ID, base revision, committed revision, and result fingerprint;
-- creation timestamp.
+- the exact committed Workflow snapshot and result fingerprint.
 
 The unique request ID makes mutation replay deterministic. Matching content returns the prior
 receipt; mismatched reuse is an idempotency conflict. A receipt is not Workflow history or undo.
@@ -146,6 +149,9 @@ Child records are:
 - `SqliteWorkflowNodeExecutionOutputRow`: complete named Text or typed Asset output;
 - `SqliteWorkflowRunEventRow`: monotonic per-Run event plus Desktop delivery state;
 - `SqliteWorkflowRunRequestReceiptRow`: request ID, canonical admission hash, and admitted Run ID.
+
+Run/event UUIDs are exact 16-byte values, event sequence is non-zero `u64`, progress is `u16`
+basis points, and event timestamps are signed UTC-millisecond integers.
 
 The frozen plan and outputs make a Run self-contained after admission. Reopening a Run does not
 require a historical Workflow snapshot or provider task.
@@ -336,7 +342,7 @@ resolve private application-data locations and validate non-secret DesktopBacken
   -> construct provider routes, Node Capabilities, Assistant adapter, and bridges
   -> validate the active Assistant contract epoch
   -> replay bounded Asset finalization effects
-  -> mark non-terminal Workflow Runs Failed(InterruptedByRestart) and abandon their effects
+  -> mark non-terminal Workflow Runs Failed with InterruptedByRestart and abandon their effects
   -> replay Assistant Applying effects through idempotency receipts
   -> emit bounded undispatched Workflow Run events
   -> start the post-commit worker and accept commands

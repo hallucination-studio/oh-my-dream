@@ -13,29 +13,15 @@ rule and never stores Project metadata.
 
 ## MVP Goal
 
-The frozen capability registry supports:
-
-```text
-Text -> Image -> Video
-  |
-  +------------> Speech
-
-Imported Image / Video / Audio -> matching Asset-read nodes
-```
-
-Users can edit, save, reopen, validate, run, cancel, observe, and preview this graph. The Workflow
+Users can edit, save, reopen, validate, run, cancel, observe, and preview the exact-seven graph. The Workflow
 context is the sole authority for graph revision, typed bindings, readiness, execution planning,
 Run state, node state, and output association. It performs no UI, network, filesystem, database,
 provider, or Assistant work.
 
 ## DDD Structure
 
-```text
-crates/engine/src/workflow/
-  domain/       graph and Run aggregates, entities, values, policies, errors
-  application/  source-first use cases, commands, queries, results
-  interfaces/   repositories, capability execution, clock, IDs, events, preview
-```
+`crates/engine/src/workflow/` contains `domain/`, `application/`, and `interfaces/`; names remain
+source-first inside each capability-owned layer.
 
 Aggregates approve transitions. Use cases coordinate aggregates and consumer-owned interfaces.
 Repositories persist already-approved state and expose no arbitrary state setter.
@@ -64,6 +50,15 @@ Project or returns `WorkflowAlreadyExistsForProject`; concurrent requests cannot
 `workflow_get_current` and by `DesktopProjectWorkflowBridgeAdapterImpl` when opening a Project. Neither
 Project nor Desktop reads Workflow rows directly.
 
+`WorkflowCreateRequestId` is a distinct RFC 9562 UUIDv4. Its command hash is SHA-256 over
+length-prefixed domain `oh-my-dream/workflow-create/v1` plus Project UUID bytes; request ID is
+excluded. `WorkflowCreateReceipt` stores request ID, hash, exact created Workflow snapshot, and a
+SHA-256 fingerprint using domain `oh-my-dream/workflow-create-result/v1`. Matching replay returns
+that original snapshot after later mutations. A different request for a Project that already has one
+returns `WorkflowAlreadyExistsForProject`; mismatched ID reuse is
+`WorkflowCreationIdempotencyConflict`. Workflow creation uses schema/revision `1`, an empty graph,
+and one observed non-negative UTC-millisecond timestamp.
+
 ## Draft Validity And Run Readiness
 
 An incomplete graph remains editable. Validation therefore has two levels.
@@ -91,6 +86,26 @@ An incomplete graph remains editable. Validation therefore has two levels.
 readiness semantics. The use case merges structured issues without copying either rule set. Run
 admission checks readiness again and never repairs the graph automatically.
 
+`WorkflowReadinessResult` is `Ready` or `Blocked { issues }`; blocked issues are non-empty and sorted
+by node ID, table-order category tag, then optional target key with absent first. There is no severity.
+`WorkflowReadinessIssue` is closed to:
+
+| Category | Safe structured detail |
+| --- | --- |
+| `WorkflowRequiredParameterMissing` | node ID, parameter key |
+| `WorkflowRequiredInputMissing` | node ID, input key |
+| `WorkflowReferenceMinimumNotMet` | node ID, input key, required/actual counts |
+| `WorkflowAssetUnavailable` | node ID, input key, Asset ID |
+| `WorkflowAssetKindMismatch` | node ID, input key, expected/actual media kind |
+| `WorkflowCapabilityUnregistered` | node ID, exact capability ref |
+| `WorkflowGenerationProfileIncompatible` | node ID, profile ref, capability ref |
+| `WorkflowGenerationProfileUnavailable` | node ID, profile ref |
+| `WorkflowGenerationProfileAvailabilityIndeterminate` | node ID, profile ref |
+| `WorkflowCapabilityExternalReadinessIssue` | node ID, capability-owned typed issue |
+
+The result contains no message-derived category, severity, automatic repair, fallback profile, or
+persisted availability observation. D0.3 owns parameter keys, profile refs, and capability issue values.
+
 ## Mutation Use Case
 
 All semantic and canvas-position edits enter one idempotent compare-and-swap boundary:
@@ -104,20 +119,8 @@ pub struct WorkflowApplyMutationCommand {
 }
 ```
 
-`WorkflowMutationAction` is a closed union whose payload types remain source-first:
-
-```text
-WorkflowAddNodeAction
-WorkflowRemoveNodeAction
-WorkflowReplaceNodeParametersAction
-WorkflowSelectNodeCapabilityAction
-WorkflowMoveNodeAction
-WorkflowBindSingleInputAction
-WorkflowInsertReferenceItemAction
-WorkflowMoveReferenceItemAction
-WorkflowRemoveInputItemAction
-WorkflowSetInputItemRoleAction
-```
+`WorkflowMutationAction` is the closed ten-action source-first union defined once in
+`BACKEND_WORKFLOW_GRAPH.md#frozen-mutation-contracts`.
 
 `WorkflowApplyMutationUseCase::apply_workflow_mutation`:
 
@@ -171,12 +174,19 @@ load the exact current revision
 Provider work starts only after commit. Reusing a Run request ID with the same canonical hash
 returns the admitted Run; different content is an idempotency conflict.
 
+`WorkflowRunId`, `WorkflowNodeExecutionId`, and `WorkflowRunRequestId` are distinct RFC 9562 UUIDv4
+newtypes. `WorkflowRunCommandHash` is SHA-256 over length-prefixed domain
+`oh-my-dream/workflow-start-run/v1`, Workflow UUID bytes, revision as big-endian `u64`, and scope tag
+(`0` Whole, `1` ThroughNode plus node UUID); request ID is excluded. `WorkflowRunRequestReceipt`
+stores request ID, hash, and admitted Run ID. Matching replay loads that Run; mismatched reuse is
+`WorkflowRunIdempotencyConflict`. A missing/corrupt referenced Run is a persistence failure.
+
 ## Frozen Execution Plan
 
 `WorkflowExecutionPlan` contains only what a Run needs after admission:
 
 - source Workflow ID and exact revision;
-- Run scope and deterministic dependency order;
+- Run scope and deterministic topological order, breaking ready-node ties by ascending node ID;
 - node ID and `WorkflowNodeExecutionId`;
 - exact `NodeCapabilityContractRef`;
 - `NodeCapabilityNormalizedParameters`;
@@ -223,33 +233,69 @@ Structured `WorkflowTextValue` may contain literal parts and stable input-item r
 owns cross-node referential integrity; the exact capability owns normalization and provider prompt
 mapping. Provider placeholder syntax is never persisted.
 
+`WorkflowTextValue` is a non-empty ordered list of at most 1,024 `Literal` or `InputItemReference`
+parts with at most 65,536 total UTF-8 literal bytes. Adjacent literals are normalized into one;
+empty literals are removed. Managed media variants contain one D0.4-owned typed Available Asset
+reference and exact content fingerprint. Input/output maps reject duplicate keys and contain every
+declared required output; they never contain null, partial, URL, path, or untyped media values.
+
 ## Run Aggregate And State
 
 `WorkflowRunAggregate` owns one execution of one frozen plan. Its
 `WorkflowNodeExecutionEntity` children own node progress, structured failure, and output set.
 
-```text
-WorkflowRunState:
-  Queued -> Running | Cancelled | Failed(InterruptedByRestart)
-  Running -> Succeeded | Failed | Cancelled
+The Run stores Run/Project/Workflow identity, source revision, scope, frozen plan, state, optional
+failure, and created/updated times. Each node execution stores execution/node identity, state,
+optional progress, failure or block reason, optional complete output set, and started/finished times.
+Queued/Pending values have none of those optional outcome fields; Running has start time and optional
+progress; each terminal value has finish time and exactly the outcome fields required by its state.
+Succeeded requires one complete output set, Failed requires one failure, Blocked requires one block
+reason, and Cancelled permits none. Restore rejects every other combination.
 
-WorkflowNodeExecutionState:
-  Pending -> Running -> Succeeded | Failed | Cancelled | Blocked
+`WorkflowRunState` is `Queued`, `Running`, `Succeeded`, `Failed`, or `Cancelled`.
+`WorkflowNodeExecutionState` is `Pending`, `Running`, `Succeeded`, `Failed`, `Cancelled`, or
+`Blocked`. Legal transitions are closed:
+
+```text
+Run:  Queued -> Running | Cancelled | Failed
+      Running -> Succeeded | Failed | Cancelled
+Node: Pending -> Running | Cancelled | Blocked
+      Running -> Succeeded | Failed | Cancelled
 ```
 
 Rules:
 
 - only domain methods perform transitions;
 - a node becomes `Succeeded` only with its complete output set;
-- one failed node blocks descendants but independent branches may finish;
+- one failed node blocks descendants but independent branches finish; the Run becomes Failed after
+  all remaining independent nodes are terminal; all-succeeded becomes Succeeded;
 - cancellation and its durable event are persisted before signalling active execution tokens;
 - cancellation stops new dispatch and rejects late output commits;
 - terminal states are immutable;
 - retry creates a new Run rather than reopening a terminal Run.
 
-`WorkflowRunEvent` has a monotonic sequence per Run and is committed before Desktop emission. The
-durable event record is also its delivery outbox: Desktop publishes undispatched records, clients
-deduplicate by `(workflow_run_id, sequence)`, and queries repair gaps.
+`WorkflowCancelRunUseCase::cancel_workflow_run` accepts one Run ID. Cancelling Queued/Running is
+idempotent, atomically commits Run/node cancellation plus events, then signals process tokens.
+Cancelling an already Cancelled Run returns it; Succeeded or Failed returns
+`WorkflowTerminalStateImmutable`. `WorkflowGetRunUseCase` loads one Run by ID and Project scope.
+
+Times are non-negative `i64` UTC milliseconds. Node progress is integer basis points `0..=10_000`,
+monotonic while Running, and absent outside progress events. A Failed Run has exactly one
+`WorkflowRunFailure`: `NodeExecutionFailed { sorted_failed_node_ids }` or `InterruptedByRestart`.
+A Failed node has one
+`WorkflowNodeExecutionFailure` wrapping the structured capability/execution category and safe target.
+A Blocked node has `UpstreamNodeFailed { sorted_upstream_node_ids }`. No state stores raw error text.
+
+`WorkflowRunEvent` contains Run ID, non-zero monotonic `u64` sequence, non-negative UTC-millisecond
+timestamp, and one closed payload:
+`WorkflowRunQueuedEvent`, `WorkflowRunStartedEvent`, `WorkflowNodeStartedEvent`,
+`WorkflowNodeProgressedEvent`, `WorkflowNodeSucceededEvent`, `WorkflowNodeFailedEvent`,
+`WorkflowNodeBlockedEvent`, `WorkflowNodeCancelledEvent`, `WorkflowRunSucceededEvent`,
+`WorkflowRunFailedEvent`, or `WorkflowRunCancelledEvent`. Payloads carry only owning IDs, typed
+progress/failure/block facts, and complete output identity where relevant. The state change and event
+commit atomically. `WorkflowRunEventPage` reads sequence greater than an optional cursor, ascending,
+with limit `1..=500`; `next_sequence` equals the last returned sequence only when another row exists.
+Desktop owns cursor JSON.
 
 ## Run Execution
 
@@ -264,10 +310,8 @@ WorkflowExecuteRunEffect { workflow_run_id }
 frozen plan, enforces bounded concurrency, commits transitions/events, resolves exact capability
 implementations, and calls them outside database transactions. It owns no provider or Asset rules.
 
-The effect remains associated with the Run until it is terminal. It is not replayed after process
-restart because a paid provider submission may have been accepted before the crash. Startup marks
-the Run `Failed(InterruptedByRestart)`, abandons the effect, and leaves durable events available for
-delivery/query. The user creates a new Run to retry.
+The effect remains associated until terminal. It is not replayed after restart: startup marks the
+Run Failed with `InterruptedByRestart`, abandons the effect, and retains events. Retry creates a new Run.
 
 ## Output And Preview Association
 
@@ -293,6 +337,17 @@ but can never be supplied as Workflow input.
 Each output records its producing revision. Editing the node or an ancestor marks the prior preview
 stale rather than rebinding it to the new graph.
 
+`WorkflowNodePresentationView` contains node ID, current Workflow revision, capability ref, sorted
+current readiness issues, optional latest execution summary (Run ID, node execution ID, state,
+progress, typed failure/block fact, producing revision), and exactly one shell derived from the
+primary output: `WorkflowTextNodePresentation`, `WorkflowImageNodePresentation`,
+`WorkflowVideoNodePresentation`, or `WorkflowAudioNodePresentation`. Text carries bounded text;
+media carries the typed Asset reference and optional `WorkflowMediaPreview`; absent complete output
+means absent value/preview. Every output summary stores producing revision and `is_stale`; stale
+means the node or any ancestor differs from that revision. Presentation never contains parameters,
+provider/native model, paths, or persisted URLs.
+Latest means maximum `(run_created_at, workflow_run_id)` among plans containing that node.
+
 ## Consumer-Owned Interfaces
 
 | Interface | Explicit behavior |
@@ -302,7 +357,7 @@ stale rather than rebinding it to the new graph.
 | `WorkflowNodeCapabilityInterface` | contract, normalization, external readiness, and exact execution |
 | `WorkflowMediaPreviewIssuerInterface` | `issue_workflow_media_preview` |
 | `WorkflowClockInterface` | `current_workflow_time` |
-| `WorkflowIdentityGeneratorInterface` | create Workflow, node, Run, execution, and request identities |
+| `WorkflowIdentityGeneratorInterface` | `generate_workflow_id`, `generate_workflow_run_id`, and `generate_workflow_node_execution_id` |
 | `WorkflowRunEventPublisherInterface` | `publish_committed_workflow_run_event` |
 
 Use cases receive focused interfaces through constructors. The concrete capability registry is injected
@@ -310,13 +365,16 @@ as an immutable collection. Only `DesktopCompositionRoot` selects concrete adapt
 
 ## Errors
 
-`WorkflowDomainError` owns invariant and transition failures. `WorkflowApplicationError` adds
-repository, capability, preview, and orchestration failures. Stable categories include revision
-conflict, idempotency conflict, unknown/unregistered capability, invalid parameter, missing
-node/input/output, type mismatch, occupied input, invalid cardinality/role/reference, cycle, already exists
-for Project, not ready,
-unavailable Asset/Profile, upstream failure, cancellation, interrupted restart, and execution
-failure.
+`WorkflowDomainError` owns the closed graph errors in `BACKEND_WORKFLOW_GRAPH.md` plus
+`WorkflowIllegalRunTransition`, `WorkflowIllegalNodeExecutionTransition`,
+`WorkflowProgressOutOfRange`, `WorkflowProgressRegression`, `WorkflowRunEventSequenceOverflow`,
+`WorkflowIncompleteOutputSet`, and `WorkflowTerminalStateImmutable`.
+`WorkflowApplicationError` adds `WorkflowNotFound`, `WorkflowAlreadyExistsForProject`,
+`WorkflowCreationIdempotencyConflict`, `WorkflowRevisionConflict`,
+`WorkflowMutationIdempotencyConflict`, `WorkflowRunNotFound`,
+`WorkflowRunRevisionMismatch`, `WorkflowRunIdempotencyConflict`, `WorkflowNotReady`,
+`WorkflowRunEventLimitOutOfBounds`, `WorkflowPersistenceFailure`, `WorkflowCapabilityExecutionFailure`,
+`WorkflowMediaPreviewIssueFailure`, and `WorkflowRunEventPublishFailure`.
 
 Errors contain safe typed IDs and structured details. Message text never controls behavior.
 

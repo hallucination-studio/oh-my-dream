@@ -18,6 +18,8 @@ pub struct WorkflowAggregate {
     pub id: WorkflowId,
     pub project_id: ProjectId,
     pub revision: WorkflowRevision,
+    pub created_at: WorkflowCreatedAt,
+    pub updated_at: WorkflowUpdatedAt,
     pub nodes: BTreeMap<WorkflowNodeId, WorkflowNodeEntity>,
     pub input_bindings:
         BTreeMap<WorkflowInputTarget, WorkflowInputBinding>,
@@ -64,6 +66,32 @@ execution.
 
 Nodes never persist input/output definitions, resolved runtime values, outputs, progress, errors, provider
 tasks, URLs, paths, previews, or playback state. UI interaction state remains in React.
+
+## Frozen Graph Value Contracts
+
+Graph-owned values are closed for the MVP:
+
+| Value | Frozen contract |
+| --- | --- |
+| `WorkflowSchemaVersion` | non-zero `u16`; the hard-cut schema is `1` |
+| `WorkflowId` | distinct RFC 9562 UUIDv4 newtype |
+| `WorkflowRevision` | non-zero `u64`; creation is `1`; one successful mutation adds exactly one |
+| `WorkflowCreatedAt` | non-negative `i64` UTC milliseconds; immutable after creation |
+| `WorkflowUpdatedAt` | same representation; creation equals created time; mutation uses `max(observed, previous + 1)` |
+| `WorkflowNodeId` | Workflow-local RFC 9562 UUIDv4 newtype |
+| `WorkflowInputItemId` | Workflow-local RFC 9562 UUIDv4 newtype, stable across reorder |
+| `WorkflowMutationRequestId` | separate RFC 9562 UUIDv4 idempotency newtype |
+| `WorkflowCanvasPosition` | finite `f64` `x` and `y`, each within `-1_000_000..=1_000_000`; normalize negative zero to zero |
+
+UUID values have no domain text encoding. Desktop owns UUID JSON text; SQLite owns exact 16-byte
+storage. IDs with the same bytes but different newtypes are never interchangeable. A restored
+aggregate rejects schema zero/unknown, revision zero, non-v4 IDs, invalid keys, non-finite/out-of-
+range positions, duplicate IDs, or any invariant violation. Revision or timestamp overflow rejects
+the complete mutation before state changes.
+
+`NodeCapabilityContractRef`, capability keys, and `NodeCapabilityParameterSet` remain opaque
+capability-owned structured values. D0.3 freezes their syntax, closed value union, bounds, and
+canonical bytes. Workflow never accepts arbitrary JSON as a parameter set.
 
 ## Persistence And Restore
 
@@ -149,6 +177,53 @@ Workflow schema version; the frozen MVP does not serialize placeholder variants.
 Binding an occupied single input never silently replaces it. One mutation explicitly removes the
 old item and adds the new item. Ordered input changes address stable item IDs, never array positions
 as identity.
+
+## Frozen Mutation Contracts
+
+`WorkflowApplyMutationCommand` contains one request ID, Workflow ID, base revision, and an ordered
+non-empty list of at most 128 actions. Action order is semantic. The union and exact payloads are:
+
+| Tag | Action | Exact payload |
+| --- | --- | --- |
+| `0` | `WorkflowAddNodeAction` | new node ID, capability ref, complete parameter set, canvas position |
+| `1` | `WorkflowRemoveNodeAction` | existing node ID |
+| `2` | `WorkflowReplaceNodeParametersAction` | existing node ID, complete replacement parameter set |
+| `3` | `WorkflowSelectNodeCapabilityAction` | existing node ID, replacement capability ref and complete parameter set |
+| `4` | `WorkflowMoveNodeAction` | existing node ID and replacement canvas position |
+| `5` | `WorkflowBindSingleInputAction` | target plus new role-free input item |
+| `6` | `WorkflowInsertReferenceItemAction` | target, new role-bearing item, insertion index in `0..=len` |
+| `7` | `WorkflowMoveReferenceItemAction` | target, existing item ID, insertion index after removing that item |
+| `8` | `WorkflowRemoveInputItemAction` | target and existing item ID; removes an empty binding |
+| `9` | `WorkflowSetInputItemRoleAction` | target, existing ordered-reference item ID, replacement declared role key |
+
+Add/select never infer defaults, preserve incompatible parameters, or remove bindings. The selected
+capability performs parameter normalization; the candidate graph performs complete binding
+validation after all actions. Any failed action or final validation rejects the entire candidate,
+revision increment, and receipt.
+
+`WorkflowMutationCommandHash` is SHA-256 over a length-prefixed binary encoding with domain
+`oh-my-dream/workflow-mutation/v1`, Workflow UUID bytes, base revision as big-endian `u64`, action
+count as big-endian `u32`, and each action in list order. Action tags use the explicit table `u8`.
+UUIDs use 16 bytes; integers and normalized `f64` bits are big-endian; strings/keys and
+opaque canonical parameter bytes use a big-endian `u32` length; maps use ascending key order; lists
+retain semantic order. The request ID is excluded.
+
+`WorkflowMutationReceipt` stores request ID, command hash, and the exact committed Workflow snapshot.
+Its result fingerprint is SHA-256 over domain `oh-my-dream/workflow-mutation-result/v1` plus the
+canonical committed snapshot. Snapshot order is schema, Workflow/Project IDs, revision, times,
+nodes by node ID, then bindings by target node/input key; ordered items retain vector order and all
+other maps use ascending typed-key order. Matching replay returns that snapshot even after later mutations;
+different content is `WorkflowMutationIdempotencyConflict`; corrupt fingerprints are persistence
+failures. Current readiness is recomputed after replay and is not frozen inside the receipt.
+
+Mutation domain failures are the closed structured categories `WorkflowActionLimitExceeded`,
+`WorkflowRevisionOverflow`, `WorkflowTimestampOutOfRange`, `WorkflowTimestampOverflow`,
+`WorkflowSchemaVersionUnsupported`, `WorkflowIdentityNotVersionFour`,
+`WorkflowCanvasPositionOutOfBounds`, `WorkflowDuplicateNode`,
+`WorkflowDuplicateInputItem`, `WorkflowNodeNotFound`, `WorkflowInputNotFound`,
+`WorkflowOutputNotFound`, `WorkflowInputItemNotFound`, `WorkflowInputOccupied`,
+`WorkflowBindingShapeMismatch`, `WorkflowDataTypeMismatch`, `WorkflowCardinalityViolation`,
+`WorkflowRoleViolation`, `WorkflowReferenceViolation`, `WorkflowSelfEdge`, and `WorkflowCycle`.
 
 ## Verification
 

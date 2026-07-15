@@ -208,7 +208,12 @@ as identity or behavior.
 | `WorkflowNodeExecutionEntity` | one planned node's state, progress, failure, and outputs |
 | `WorkflowRuntimeValue` | exact Text, Image, Video, or Audio runtime value in the MVP |
 | `WorkflowNodeOutputSet` | complete named output values from one node execution |
+| `WorkflowCreateRequestId` | stable idempotency identity for one Workflow creation request |
 | `WorkflowMutationRequestId` | stable idempotency identity for one mutation request |
+| `WorkflowMutationReceipt` | exact committed Workflow snapshot and integrity evidence for replay |
+| `WorkflowReadinessResult` | Ready or a non-empty sorted structured issue set |
+| `WorkflowRunRequestReceipt` | stable Run admission identity mapped to one admitted Run |
+| `WorkflowRunEventPage` | bounded ascending durable Run events after one sequence cursor |
 | `WorkflowExecuteRunEffect` | committed intent to execute one admitted Run |
 
 The words `WorkflowRun` and `WorkflowNodeExecution` replace generic `Task`, `Job`, and `Execution`
