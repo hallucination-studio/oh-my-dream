@@ -24,10 +24,13 @@ fn capability_registration_exposes_exact_refs_and_contracts() {
     assert_eq!(
         refs,
         vec![
+            ("AudioAssetSource", "1.0"),
+            ("ImageAssetSource", "1.0"),
             ("ImageToVideo", "1.0"),
             ("TextPrompt", "1.0"),
             ("TextToAudio", "1.0"),
             ("TextToImage", "1.0"),
+            ("VideoAssetSource", "1.0"),
             ("VideoConcat", "1.0"),
         ]
     );
@@ -118,10 +121,13 @@ fn current_discovery_and_direct_instantiation_use_selectors() {
     assert_eq!(
         registry.current_capability_refs(),
         vec![
+            CapabilityRef::new("AudioAssetSource", "1.0"),
+            CapabilityRef::new("ImageAssetSource", "1.0"),
             CapabilityRef::new("ImageToVideo", "1.0"),
             CapabilityRef::new("TextPrompt", "1.0"),
             CapabilityRef::new("TextToAudio", "1.0"),
             CapabilityRef::new("TextToImage", "1.0"),
+            CapabilityRef::new("VideoAssetSource", "1.0"),
             CapabilityRef::new("VideoConcat", "1.0"),
         ]
     );
@@ -148,6 +154,7 @@ fn duplicate_capability_refs_are_rejected() {
         Arc::new(NoopGenerator),
         Arc::new(NoopGenerator),
         store,
+        Arc::new(support::MissingResolver),
     )
     .expect_err("duplicate capability refs must be rejected");
     assert!(matches!(error, CapabilityRegistryError::DuplicateReference { .. }));
@@ -194,6 +201,7 @@ fn register(registry: &mut NodeRegistry, store: SharedAssetStore) {
         Arc::new(NoopGenerator),
         Arc::new(NoopGenerator),
         store,
+        Arc::new(support::MissingResolver),
     )
     .expect("capability registration");
 }
@@ -238,3 +246,4 @@ impl TextToAudioGenerator for NoopGenerator {
         })
     }
 }
+mod support;

@@ -215,6 +215,7 @@ fn registry() -> (TempDir, NodeRegistry) {
         Arc::new(NoopGenerator),
         Arc::new(NoopGenerator),
         store,
+        Arc::new(support::MissingResolver),
     )
     .expect("capability registration");
     (directory, registry)
@@ -251,3 +252,4 @@ impl TextToAudioGenerator for NoopGenerator {
         unreachable!("patch tests do not execute nodes")
     }
 }
+mod support;

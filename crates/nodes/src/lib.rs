@@ -10,6 +10,8 @@
 
 #![forbid(unsafe_code)]
 
+mod asset_reference;
+mod asset_source;
 mod contracts;
 mod error;
 mod generation;
@@ -28,6 +30,10 @@ use assets::AssetStore;
 use engine::NodeRegistry;
 use std::sync::{Arc, Mutex};
 
+pub use asset_reference::{
+    AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver,
+    ResolvedAssetReference,
+};
 pub use contracts::{
     CapabilityProjection, CapabilityProjectionError, project_capabilities, project_capability,
 };
@@ -55,6 +61,7 @@ pub fn register_all(
     image_to_video_generator: Arc<dyn ImageToVideoGenerator>,
     text_to_audio_generator: Arc<dyn TextToAudioGenerator>,
     store: SharedAssetStore,
+    asset_resolver: Arc<dyn AssetReferenceResolver>,
 ) -> Result<(), engine::CapabilityRegistryError> {
     registry::register_all(
         registry,
@@ -62,5 +69,6 @@ pub fn register_all(
         image_to_video_generator,
         text_to_audio_generator,
         store,
+        asset_resolver,
     )
 }

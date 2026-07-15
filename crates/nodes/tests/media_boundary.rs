@@ -5,9 +5,10 @@ use engine::{
     ResultCache, Value, Workflow, WorkflowNode,
 };
 use nodes::{
+    AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver,
     GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, InlineMedia, TextToAudioGenerator, TextToAudioRequest,
-    TextToImageGenerator, TextToImageRequest,
+    ImageToVideoRequest, InlineMedia, ResolvedAssetReference, TextToAudioGenerator,
+    TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -52,7 +53,7 @@ fn asset_prefixed_local_image_reaches_the_video_generator() {
         .suffix(".png")
         .tempfile_in(".")
         .expect("asset-prefixed local image");
-    let reference = local.path().file_name().and_then(|name| name.to_str()).expect("file name");
+    let reference = "asset-image-1";
     let directory = TempDir::new().expect("temp directory");
     let store = Arc::new(Mutex::new(AssetStore::open(directory.path()).expect("asset store")));
     let project = store.lock().expect("store lock").create_project("Default").expect("project");
@@ -67,7 +68,8 @@ fn asset_prefixed_local_image_reaches_the_video_generator() {
     let video: Arc<dyn ImageToVideoGenerator> = recorder.clone();
     let audio: Arc<dyn TextToAudioGenerator> = fixed;
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store))
+    let resolver = Arc::new(FixedResolver { path: local.path().to_path_buf() });
+    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store), resolver)
         .expect("register workflow capabilities");
     register_local_image(&mut registry, reference);
 
@@ -80,7 +82,7 @@ fn asset_prefixed_local_image_reaches_the_video_generator() {
         requests.as_slice(),
         &[ImageToVideoRequest {
             model: "fixed-video".to_owned(),
-            image: reference.to_owned(),
+            image: local.path().to_string_lossy().into_owned(),
             duration_seconds: None,
             fps: None,
         }]
@@ -104,8 +106,15 @@ fn cancellation_before_persistence_does_not_store_an_asset() {
     let video: Arc<dyn ImageToVideoGenerator> = fixed.clone();
     let audio: Arc<dyn TextToAudioGenerator> = fixed;
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store))
-        .expect("register workflow capabilities");
+    nodes::register_all(
+        &mut registry,
+        image,
+        video,
+        audio,
+        Arc::clone(&store),
+        Arc::new(support::MissingResolver),
+    )
+    .expect("register workflow capabilities");
     let signal = AtomicCancellation { cancelled };
 
     let error = Executor::new(&registry)
@@ -132,8 +141,15 @@ fn execute_text_to_image(
     let video: Arc<dyn ImageToVideoGenerator> = generators.clone();
     let audio: Arc<dyn TextToAudioGenerator> = generators;
     let mut registry = NodeRegistry::new();
-    nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store))
-        .expect("register workflow capabilities");
+    nodes::register_all(
+        &mut registry,
+        image,
+        video,
+        audio,
+        Arc::clone(&store),
+        Arc::new(support::MissingResolver),
+    )
+    .expect("register workflow capabilities");
     let workflow = text_to_image_workflow(project.id);
     let result = Executor::new(&registry).execute(&workflow, &mut ResultCache::new());
     (result, store, directory)
@@ -286,6 +302,25 @@ struct RecordingVideoGenerator {
     requests: Mutex<Vec<ImageToVideoRequest>>,
 }
 
+struct FixedResolver {
+    path: std::path::PathBuf,
+}
+
+impl AssetReferenceResolver for FixedResolver {
+    fn resolve(
+        &self,
+        request: AssetReferenceRequest<'_>,
+    ) -> Result<ResolvedAssetReference, AssetReferenceError> {
+        assert_eq!(request.expected_kind, AssetMediaKind::Image);
+        assert_eq!(request.asset_id, "asset-image-1");
+        Ok(ResolvedAssetReference {
+            asset_id: request.asset_id.to_owned(),
+            local_path: self.path.clone(),
+            prompt: None,
+        })
+    }
+}
+
 impl ImageToVideoGenerator for RecordingVideoGenerator {
     fn generate(
         &self,
@@ -337,3 +372,4 @@ impl TextToAudioGenerator for FixedGenerators {
         })
     }
 }
+mod support;

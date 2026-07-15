@@ -1,10 +1,13 @@
 use crate::error::{NodesError, boxed, generation_error};
-use crate::media::{AssetMetadata, ResolvedImageInput, resolve_image_input, store_generated_asset};
+use crate::media::{AssetMetadata, store_generated_asset};
 use crate::params::{
     canonicalize_mode, image_input, optional_param, reject_unknown_params, string_param,
 };
 use crate::ports::{output, required_input};
-use crate::{GenerationContext, ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore};
+use crate::{
+    AssetMediaKind, AssetReferenceRequest, AssetReferenceResolver, GenerationContext,
+    ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore,
+};
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
@@ -21,6 +24,7 @@ const MODE: &str = "image";
 pub(crate) fn registration(
     generator: Arc<dyn ImageToVideoGenerator>,
     store: SharedAssetStore,
+    resolver: Arc<dyn AssetReferenceResolver>,
 ) -> CapabilityRegistration {
     let contract = CapabilityContract::new(
         CapabilityRef::new(TYPE_ID, engine::DEFAULT_CAPABILITY_VERSION),
@@ -53,9 +57,14 @@ pub(crate) fn registration(
         ),
         Box::new(normalize_params),
         Box::new(move |params| {
-            ImageToVideoNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))
-                .map(boxed_node)
-                .map_err(boxed)
+            ImageToVideoNode::from_params(
+                params,
+                Arc::clone(&generator),
+                Arc::clone(&store),
+                Arc::clone(&resolver),
+            )
+            .map(boxed_node)
+            .map_err(boxed)
         }),
     )
     .with_selector(CapabilitySelector::new("Video", MODE))
@@ -95,6 +104,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
 struct ImageToVideoNode {
     generator: Arc<dyn ImageToVideoGenerator>,
     store: SharedAssetStore,
+    resolver: Arc<dyn AssetReferenceResolver>,
     model: String,
     duration_seconds: Option<f32>,
     fps: Option<u32>,
@@ -107,10 +117,12 @@ impl ImageToVideoNode {
         params: &NodeParams,
         generator: Arc<dyn ImageToVideoGenerator>,
         store: SharedAssetStore,
+        resolver: Arc<dyn AssetReferenceResolver>,
     ) -> Result<Self, NodesError> {
         Ok(Self {
             generator,
             store,
+            resolver,
             model: string_param(params, &["model"], "mock-video")?,
             duration_seconds: optional_param(params, &["duration", "duration_seconds"])?,
             fps: optional_param(params, &["fps"])?,
@@ -148,12 +160,18 @@ impl Node for ImageToVideoNode {
         context: &mut NodeRunContext,
     ) -> Result<NodeRunResult, NodeRunError> {
         let image = image_input(inputs, "image").map_err(boxed)?;
-        let ResolvedImageInput { file_path, prompt } =
-            resolve_image_input(&self.store, image).map_err(boxed)?;
+        let resolved = self
+            .resolver
+            .resolve(AssetReferenceRequest {
+                project_id: context.project_id(),
+                asset_id: image,
+                expected_kind: AssetMediaKind::Image,
+            })
+            .map_err(|source| Box::new(source) as NodeRunError)?;
         info!(type_id = TYPE_ID, "generating video from image");
         let output = self
             .generator
-            .generate(self.request(file_path), context)
+            .generate(self.request(resolved.local_path.to_string_lossy().into_owned()), context)
             .map_err(|source| generation_error("generate video", source))?;
         GenerationContext::ensure_active(context)
             .map_err(|source| generation_error("generate video", source))?;
@@ -163,7 +181,7 @@ impl Node for ImageToVideoNode {
             &output,
             TYPE_ID,
             context,
-            AssetMetadata { prompt, model: Some(self.model.clone()), seed: None },
+            AssetMetadata { prompt: resolved.prompt, model: Some(self.model.clone()), seed: None },
         )
         .map_err(boxed)?;
         Ok(NodeRunResult {

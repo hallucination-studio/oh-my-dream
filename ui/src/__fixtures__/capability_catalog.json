@@ -2,6 +2,128 @@
   "capabilities": [
     {
       "selector": {
+        "type_id": "Audio",
+        "mode": "asset"
+      },
+      "contract": {
+        "reference": {
+          "id": "AudioAssetSource",
+          "version": "1.0"
+        },
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "audio",
+            "port_type": "audio",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "asset_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mode": {
+              "const": "asset",
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "asset_id"
+          ],
+          "type": "object"
+        },
+        "default_params": null,
+        "contextual_creation": {
+          "route": "asset_library"
+        },
+        "effects": [
+          "local_read"
+        ]
+      },
+      "presentation": {
+        "label": "AudioAssetSource",
+        "description": "Reuse a managed local Asset.",
+        "category": "assets",
+        "search_terms": [
+          "asset",
+          "audio"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": null,
+        "status_revision": 0
+      }
+    },
+    {
+      "selector": {
+        "type_id": "Image",
+        "mode": "asset"
+      },
+      "contract": {
+        "reference": {
+          "id": "ImageAssetSource",
+          "version": "1.0"
+        },
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "image",
+            "port_type": "image",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "asset_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mode": {
+              "const": "asset",
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "asset_id"
+          ],
+          "type": "object"
+        },
+        "default_params": null,
+        "contextual_creation": {
+          "route": "asset_library"
+        },
+        "effects": [
+          "local_read"
+        ]
+      },
+      "presentation": {
+        "label": "ImageAssetSource",
+        "description": "Reuse a managed local Asset.",
+        "category": "assets",
+        "search_terms": [
+          "asset",
+          "image"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": null,
+        "status_revision": 0
+      }
+    },
+    {
+      "selector": {
         "type_id": "Video",
         "mode": "image"
       },
@@ -287,6 +409,67 @@
         "availability": "available",
         "reason": null,
         "provider_health": "unknown",
+        "status_revision": 0
+      }
+    },
+    {
+      "selector": {
+        "type_id": "Video",
+        "mode": "asset"
+      },
+      "contract": {
+        "reference": {
+          "id": "VideoAssetSource",
+          "version": "1.0"
+        },
+        "inputs": [],
+        "outputs": [
+          {
+            "name": "video",
+            "port_type": "video",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "asset_id": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "mode": {
+              "const": "asset",
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "asset_id"
+          ],
+          "type": "object"
+        },
+        "default_params": null,
+        "contextual_creation": {
+          "route": "asset_library"
+        },
+        "effects": [
+          "local_read"
+        ]
+      },
+      "presentation": {
+        "label": "VideoAssetSource",
+        "description": "Reuse a managed local Asset.",
+        "category": "assets",
+        "search_terms": [
+          "asset",
+          "video"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": null,
         "status_revision": 0
       }
     },

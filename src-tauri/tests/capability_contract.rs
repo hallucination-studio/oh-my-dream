@@ -31,10 +31,13 @@ fn capability_catalog_keeps_contract_presentation_and_status_independent() {
     assert_eq!(
         refs,
         vec![
+            ("AudioAssetSource", "1.0"),
+            ("ImageAssetSource", "1.0"),
             ("ImageToVideo", "1.0"),
             ("TextPrompt", "1.0"),
             ("TextToAudio", "1.0"),
             ("TextToImage", "1.0"),
+            ("VideoAssetSource", "1.0"),
             ("VideoConcat", "1.0"),
         ]
     );
@@ -70,7 +73,7 @@ fn capability_catalog_keeps_contract_presentation_and_status_independent() {
     assert_eq!(
         catalog.capabilities[0].contract.reference,
         oh_my_dream_tauri::dto::CapabilityRefDto {
-            id: "ImageToVideo".to_owned(),
+            id: "AudioAssetSource".to_owned(),
             version: "1.0".to_owned(),
         }
     );
@@ -161,9 +164,11 @@ fn palette_search_is_paged_and_only_returns_current_summaries() {
         &state,
     )
     .expect("search next capability page");
-    assert_eq!(second.capabilities.len(), 1);
-    assert_eq!(second.capabilities[0].reference.id, "VideoConcat");
-    assert_eq!(second.capabilities[0].selector.mode, "concat");
+    assert_eq!(second.capabilities.len(), 2);
+    assert_eq!(second.capabilities[0].reference.id, "VideoAssetSource");
+    assert_eq!(second.capabilities[0].selector.mode, "asset");
+    assert_eq!(second.capabilities[1].reference.id, "VideoConcat");
+    assert_eq!(second.capabilities[1].selector.mode, "concat");
     assert!(second.next_cursor.is_none());
 }
 

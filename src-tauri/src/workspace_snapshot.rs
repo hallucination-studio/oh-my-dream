@@ -13,7 +13,7 @@ use crate::dto::{
 use crate::state::AppState;
 use crate::workflow_authority::{WorkflowAuthority, WorkflowHead};
 use crate::workflow_runs::WorkflowRuns;
-use assets::{AssetError, AssetQuery, AssetSort, Project};
+use assets::{AssetError, Project};
 use engine::{NodeRegistry, validate_workflow};
 use nodes::SharedAssetStore;
 use std::sync::Arc;
@@ -171,19 +171,15 @@ impl WorkspaceSnapshotService {
             )
         })?;
         let project = store.get_project(project_id).map_err(project_error)?;
-        let assets = store
-            .list_with_query_limit(
-                &AssetQuery {
-                    project_id: Some(project_id.to_owned()),
-                    sort: AssetSort::Newest,
-                    ..AssetQuery::default()
-                },
-                MAX_WORKSPACE_ASSET_SUMMARIES,
-            )
-            .map_err(store_error)?
-            .into_iter()
-            .map(WorkspaceAssetSummaryDto::from)
-            .collect();
+        let assets = crate::managed_asset_access::list_visible(
+            &store,
+            project_id,
+            MAX_WORKSPACE_ASSET_SUMMARIES,
+        )
+        .map_err(store_error)?
+        .into_iter()
+        .map(WorkspaceAssetSummaryDto::from)
+        .collect();
         let selected_assets = context
             .selected_asset_ids()
             .iter()

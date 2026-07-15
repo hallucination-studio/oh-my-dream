@@ -39,13 +39,6 @@ pub enum NodesError {
         source: assets::AssetError,
     },
 
-    /// Looking up an image reference failed before its provenance was known.
-    #[error("image asset lookup failed")]
-    ImageAssetLookup {
-        #[source]
-        source: assets::AssetError,
-    },
-
     /// A remote media output requires a resolver that is not configured.
     #[error("remote media output requires a resolver")]
     RemoteMediaOutput,
@@ -53,10 +46,6 @@ pub enum NodesError {
     /// Inline media carried a different modality than the node output.
     #[error("inline media kind `{actual}` cannot satisfy `{expected}` asset")]
     InlineMediaKindMismatch { actual: &'static str, expected: &'static str },
-
-    /// An image input was neither a stored asset nor an existing local file.
-    #[error("image input must reference a local file or stored asset")]
-    InvalidImageInput,
 
     /// Creating or writing a private inline-media file failed.
     #[error("{operation} inline media: {source}")]

@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod asset_reference_adapter;
 pub mod assistant;
 pub mod assistant_approval;
 pub mod assistant_commands;
@@ -14,6 +15,7 @@ pub mod capability_discovery;
 mod command_error;
 pub mod commands;
 pub mod dto;
+mod managed_asset_access;
 mod mock_generation;
 pub mod production_plan;
 pub mod reviewed_change;

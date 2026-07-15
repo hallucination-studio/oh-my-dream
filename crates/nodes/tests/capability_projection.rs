@@ -22,10 +22,13 @@ fn capability_projection_contains_exact_contract_and_presentation_pairs() {
     assert_eq!(
         references,
         vec![
+            CapabilityRef::new("AudioAssetSource", "1.0"),
+            CapabilityRef::new("ImageAssetSource", "1.0"),
             CapabilityRef::new("ImageToVideo", "1.0"),
             CapabilityRef::new("TextPrompt", "1.0"),
             CapabilityRef::new("TextToAudio", "1.0"),
             CapabilityRef::new("TextToImage", "1.0"),
+            CapabilityRef::new("VideoAssetSource", "1.0"),
             CapabilityRef::new("VideoConcat", "1.0"),
         ]
     );
@@ -91,6 +94,7 @@ fn register(registry: &mut NodeRegistry, store: SharedAssetStore) {
         Arc::new(NoopGenerator),
         Arc::new(NoopGenerator),
         store,
+        Arc::new(support::MissingResolver),
     )
     .expect("capability registration");
 }
@@ -135,3 +139,4 @@ impl TextToAudioGenerator for NoopGenerator {
         })
     }
 }
+mod support;

@@ -259,7 +259,8 @@ fn register_test_generators(
     let image: Arc<dyn TextToImageGenerator> = generators.clone();
     let video: Arc<dyn ImageToVideoGenerator> = generators.clone();
     let audio: Arc<dyn TextToAudioGenerator> = generators;
-    nodes::register_all(registry, image, video, audio, store)
+    let resolver = Arc::new(support::StoreResolver(Arc::clone(&store)));
+    nodes::register_all(registry, image, video, audio, store, resolver)
         .expect("register workflow capabilities");
 }
 
@@ -344,3 +345,4 @@ fn silent_pcm_wave() -> Vec<u8> {
     bytes.extend_from_slice(&[0, 0]);
     bytes
 }
+mod support;

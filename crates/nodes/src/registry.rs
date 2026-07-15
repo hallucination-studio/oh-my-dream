@@ -1,6 +1,6 @@
 //! Concrete capability registrations owned by the nodes crate.
 
-use crate::{SharedAssetStore, TextToAudioGenerator};
+use crate::{AssetReferenceResolver, SharedAssetStore, TextToAudioGenerator};
 use engine::{CapabilityRegistryError, NodeRegistry};
 use std::sync::Arc;
 
@@ -11,7 +11,11 @@ pub(crate) fn register_all(
     image_to_video_generator: Arc<dyn crate::ImageToVideoGenerator>,
     text_to_audio_generator: Arc<dyn TextToAudioGenerator>,
     store: SharedAssetStore,
+    asset_resolver: Arc<dyn AssetReferenceResolver>,
 ) -> Result<(), CapabilityRegistryError> {
+    for registration in crate::asset_source::registrations(Arc::clone(&asset_resolver)) {
+        registry.register_selector_capability(registration)?;
+    }
     registry.register_selector_capability(crate::text_prompt::registration())?;
     registry.register_selector_capability(crate::text_to_image::registration(
         text_to_image_generator,
@@ -20,6 +24,7 @@ pub(crate) fn register_all(
     registry.register_selector_capability(crate::image_to_video::registration(
         image_to_video_generator,
         Arc::clone(&store),
+        asset_resolver,
     ))?;
     registry.register_selector_capability(crate::video_concat::registration())?;
     registry.register_selector_capability(crate::text_to_audio::registration(

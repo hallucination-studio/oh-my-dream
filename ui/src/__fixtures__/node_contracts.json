@@ -40,6 +40,26 @@
   ],
   "nodes": [
     {
+      "type_id": "AudioAssetSource",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "audio",
+          "port_type": "audio"
+        }
+      ]
+    },
+    {
+      "type_id": "ImageAssetSource",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "port_type": "image"
+        }
+      ]
+    },
+    {
       "type_id": "ImageToVideo",
       "inputs": [
         {
@@ -94,6 +114,16 @@
         {
           "name": "image",
           "port_type": "image"
+        }
+      ]
+    },
+    {
+      "type_id": "VideoAssetSource",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "video",
+          "port_type": "video"
         }
       ]
     },
