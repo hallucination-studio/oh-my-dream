@@ -62,31 +62,27 @@ pub fn resolve_workflow_node(
             CapabilityNodeResolution { node: normalized, status: CapabilityNodeStatus::Ready }
         }
         Err(engine::EngineError::UnknownCapabilityVersion {
-            type_id,
-            contract_version,
-            ..
+            type_id, contract_version, ..
         }) => CapabilityNodeResolution {
             node: node.clone(),
-            status: CapabilityNodeStatus::Degraded(
-                DegradedCapabilityReason::MissingExactVersion {
-                    reference: CapabilityRef::new(type_id, contract_version),
-                },
-            ),
+            status: CapabilityNodeStatus::Degraded(DegradedCapabilityReason::MissingExactVersion {
+                reference: CapabilityRef::new(type_id, contract_version),
+            }),
         },
         Err(engine::EngineError::InvalidCapabilityParams { source, .. }) => {
             CapabilityNodeResolution {
                 node: node.clone(),
-                status: CapabilityNodeStatus::Degraded(
-                    DegradedCapabilityReason::InvalidParams { message: source.to_string() },
-                ),
+                status: CapabilityNodeStatus::Degraded(DegradedCapabilityReason::InvalidParams {
+                    message: source.to_string(),
+                }),
             }
         }
         Err(engine::EngineError::InvalidCapabilitySelector { reason, .. }) => {
             CapabilityNodeResolution {
                 node: node.clone(),
-                status: CapabilityNodeStatus::Degraded(
-                    DegradedCapabilityReason::InvalidParams { message: reason },
-                ),
+                status: CapabilityNodeStatus::Degraded(DegradedCapabilityReason::InvalidParams {
+                    message: reason,
+                }),
             }
         }
         Err(_) => CapabilityNodeResolution {

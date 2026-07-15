@@ -15,10 +15,7 @@ pub enum CapabilityRegistryError {
     UnknownReference { reference: CapabilityRef },
     /// The registration's empty-input normalization disagrees with its defaults.
     #[error("invalid default params for capability `{reference:?}`: {reason}")]
-    InvalidDefaultParams {
-        reference: CapabilityRef,
-        reason: String,
-    },
+    InvalidDefaultParams { reference: CapabilityRef, reason: String },
     /// A selector-aware registration did not declare its selector.
     #[error("capability `{reference:?}` must declare a selector")]
     MissingSelector { reference: CapabilityRef },
@@ -29,9 +26,5 @@ pub enum CapabilityRegistryError {
     #[error(
         "capability selector `{selector:?}` is bound to `{registered_id}` and cannot select `{attempted_id}`"
     )]
-    SelectorRebind {
-        selector: CapabilitySelector,
-        registered_id: String,
-        attempted_id: String,
-    },
+    SelectorRebind { selector: CapabilitySelector, registered_id: String, attempted_id: String },
 }

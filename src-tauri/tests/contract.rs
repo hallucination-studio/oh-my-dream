@@ -169,11 +169,8 @@ fn node_contract_fixture() -> NodeContractsFixture {
         .capability_refs()
         .into_iter()
         .map(|reference| {
-            let contract = state
-                .registry
-                .capability(reference)
-                .expect("load node contract")
-                .contract();
+            let contract =
+                state.registry.capability(reference).expect("load node contract").contract();
             NodeContractFixture {
                 type_id: reference.id.clone(),
                 inputs: contract

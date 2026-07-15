@@ -8,8 +8,8 @@ use crate::{GenerationContext, ImageToVideoGenerator, ImageToVideoRequest, Share
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
-    NodeRunResult, OutputPort, PortType, Value, ValueMap,
+    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext,
+    NodeRunError, NodeRunResult, OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;

@@ -1,6 +1,8 @@
 //! Registration-derived capability contract and presentation projections.
 
-use engine::{CapabilityContract, CapabilityPresentation, CapabilityRef, CapabilitySelector, NodeRegistry};
+use engine::{
+    CapabilityContract, CapabilityPresentation, CapabilityRef, CapabilitySelector, NodeRegistry,
+};
 use thiserror::Error;
 
 /// One exact execution contract paired with its non-authoritative presentation.

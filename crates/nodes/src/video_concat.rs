@@ -3,8 +3,8 @@ use crate::params::canonicalize_mode;
 use crate::ports::{output, required_many_input};
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, Node, NodeParams, NodeRunContext, NodeRunError, NodeRunResult,
-    OutputPort, PortCardinality, PortType, Value, ValueMap,
+    CapabilityRegistration, CapabilitySelector, Node, NodeParams, NodeRunContext, NodeRunError,
+    NodeRunResult, OutputPort, PortCardinality, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 
@@ -28,10 +28,7 @@ pub(crate) fn registration() -> CapabilityRegistration {
             },
             "additionalProperties": false
         }),
-        NodeParams::from_iter([(
-            "mode".to_owned(),
-            serde_json::Value::String(MODE.to_owned()),
-        )]),
+        NodeParams::from_iter([("mode".to_owned(), serde_json::Value::String(MODE.to_owned()))]),
         vec![CapabilityEffect::Pure],
     );
     CapabilityRegistration::new(

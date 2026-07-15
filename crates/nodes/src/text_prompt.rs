@@ -3,8 +3,8 @@ use crate::params::{canonicalize_mode, reject_unknown_params, string_param};
 use crate::ports::output;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext, NodeRunError,
-    NodeRunResult, OutputPort, PortType, Value, ValueMap,
+    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeParams, NodeRunContext,
+    NodeRunError, NodeRunResult, OutputPort, PortType, Value, ValueMap,
 };
 use std::collections::BTreeMap;
 use tracing::info;

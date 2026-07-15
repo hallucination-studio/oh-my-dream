@@ -67,10 +67,7 @@ fn registrations_own_their_selector_mode_defaults_and_schema() {
             .capability(&CapabilityRef::new(id, "1.0"))
             .expect("exact registration should resolve");
 
-        assert_eq!(
-            registration.selector(),
-            Some(&CapabilitySelector::new(type_id, mode))
-        );
+        assert_eq!(registration.selector(), Some(&CapabilitySelector::new(type_id, mode)));
         assert_eq!(registration.contract().default_params["mode"], mode);
         assert_eq!(registration.contract().params_schema["properties"]["mode"]["const"], mode);
         assert_eq!(
@@ -130,10 +127,7 @@ fn current_discovery_and_direct_instantiation_use_selectors() {
         .instantiate(
             "image",
             "Image",
-            &serde_json::Map::from_iter([(
-                "mode".to_owned(),
-                serde_json::json!("text"),
-            )]),
+            &serde_json::Map::from_iter([("mode".to_owned(), serde_json::json!("text"))]),
         )
         .expect("selector-shaped node should instantiate");
     assert_eq!(node.type_id(), "TextToImage");

@@ -177,10 +177,7 @@ fn exact_bundle_batch_preserves_unknown_refs_as_degraded_placeholders() {
 
     assert_eq!(result.capabilities.len(), 2);
     assert_eq!(
-        result.capabilities[0]
-            .selector
-            .as_ref()
-            .map(|selector| selector.type_id.as_str()),
+        result.capabilities[0].selector.as_ref().map(|selector| selector.type_id.as_str()),
         Some("Text")
     );
     assert!(result.capabilities[0].contract.is_some());

@@ -119,10 +119,7 @@ fn nodes_with_selector<'a>(
     type_id: &'a str,
     mode: &'a str,
 ) -> impl Iterator<Item = &'a engine::WorkflowNode> {
-    workflow
-        .nodes
-        .iter()
-        .filter(move |node| node.type_id == type_id && node.params["mode"] == mode)
+    workflow.nodes.iter().filter(move |node| node.type_id == type_id && node.params["mode"] == mode)
 }
 
 fn state_with_project() -> (TempDir, AppState) {

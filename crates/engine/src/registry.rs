@@ -106,12 +106,8 @@ impl NodeRegistry {
         if !self.contains_capability_type(type_id) {
             return self.instantiate(node_id, type_id, params);
         }
-        let reference = self.resolve_workflow_capability_reference(
-            node_id,
-            type_id,
-            contract_version,
-            params,
-        )?;
+        let reference =
+            self.resolve_workflow_capability_reference(node_id, type_id, contract_version, params)?;
         self.instantiate_capability(node_id, &reference, params)
     }
 
@@ -123,18 +119,12 @@ impl NodeRegistry {
         contract_version: &str,
         params: &NodeParams,
     ) -> Result<&CapabilityRegistration, EngineError> {
-        let reference = self.resolve_workflow_capability_reference(
-            node_id,
-            type_id,
-            contract_version,
-            params,
-        )?;
-        self.capabilities.resolve(&reference).map_err(|_| {
-            EngineError::UnknownCapabilityVersion {
-                node_id: node_id.to_owned(),
-                type_id: reference.id,
-                contract_version: reference.version,
-            }
+        let reference =
+            self.resolve_workflow_capability_reference(node_id, type_id, contract_version, params)?;
+        self.capabilities.resolve(&reference).map_err(|_| EngineError::UnknownCapabilityVersion {
+            node_id: node_id.to_owned(),
+            type_id: reference.id,
+            contract_version: reference.version,
         })
     }
 
@@ -193,8 +183,7 @@ impl NodeRegistry {
     /// Returns whether an exact id or output modality belongs to a capability registration.
     #[must_use]
     pub fn contains_capability_type(&self, type_id: &str) -> bool {
-        self.capabilities.contains_id(type_id)
-            || self.capabilities.contains_selector_type(type_id)
+        self.capabilities.contains_id(type_id) || self.capabilities.contains_selector_type(type_id)
     }
 
     /// Returns registered node type ids in stable lexical order.

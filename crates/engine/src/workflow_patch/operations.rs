@@ -252,20 +252,10 @@ fn normalize_params(
     pointer: &str,
 ) -> Result<NodeParams, WorkflowPatchError> {
     let registration = registry
-        .workflow_capability(
-            &node.id,
-            &node.type_id,
-            &node.contract_version,
-            params,
-        )
+        .workflow_capability(&node.id, &node.type_id, &node.contract_version, params)
         .map_err(|error| {
             let diagnostic = super::engine_diagnostic(error, pointer);
-            indexed_error(
-                diagnostic.code,
-                pointer,
-                diagnostic.constraint,
-                index,
-            )
+            indexed_error(diagnostic.code, pointer, diagnostic.constraint, index)
         })?;
     registration.normalize_params(params).map_err(|error| {
         indexed_error("CAPABILITY_PARAMS_INVALID", pointer, error.to_string(), index)
@@ -282,10 +272,8 @@ fn normalize_for_reference(
     let registration = registry.capability(reference).map_err(|error| {
         indexed_error("CAPABILITY_VERSION_UNAVAILABLE", pointer, error.to_string(), index)
     })?;
-    let type_id = registration
-        .selector()
-        .map(|selector| selector.type_id.clone())
-        .ok_or_else(|| {
+    let type_id =
+        registration.selector().map(|selector| selector.type_id.clone()).ok_or_else(|| {
             indexed_error(
                 "CAPABILITY_SELECTOR_UNAVAILABLE",
                 pointer,

@@ -70,11 +70,7 @@ fn rejected_selector_rebind_does_not_register_the_exact_capability() {
         registry.current_for_selector(&selector),
         Some(CapabilityRef::new("ImageToVideo", "1.0"))
     );
-    assert!(
-        registry
-            .resolve(&CapabilityRef::new("UnexpectedVideoGenerator", "1.0"))
-            .is_err()
-    );
+    assert!(registry.resolve(&CapabilityRef::new("UnexpectedVideoGenerator", "1.0")).is_err());
 }
 
 #[test]
@@ -99,11 +95,7 @@ fn non_current_registration_also_reserves_the_selector_capability_id() {
             attempted_id: "UnexpectedVideoGenerator".to_owned(),
         })
     );
-    assert!(
-        registry
-            .resolve(&CapabilityRef::new("UnexpectedVideoGenerator", "1.0"))
-            .is_err()
-    );
+    assert!(registry.resolve(&CapabilityRef::new("UnexpectedVideoGenerator", "1.0")).is_err());
 }
 
 #[test]
@@ -119,9 +111,7 @@ fn exact_registration_projects_its_declared_selector() {
         ))
         .expect("capability should register");
 
-    let registration = registry
-        .resolve(&reference)
-        .expect("exact ref should resolve");
+    let registration = registry.resolve(&reference).expect("exact ref should resolve");
 
     assert_eq!(registration.selector(), Some(&selector));
 }

@@ -246,8 +246,7 @@ impl CapabilityDiscovery {
         let head = self.workflow_authority.load_head(project_id).map_err(|source| {
             CapabilityDiscoveryError::WorkflowUnavailable { message: source.to_string() }
         })?;
-        head
-            .map(|head| head.workflow.nodes)
+        head.map(|head| head.workflow.nodes)
             .unwrap_or_default()
             .into_iter()
             .map(|node| {

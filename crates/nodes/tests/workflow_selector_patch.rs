@@ -4,10 +4,9 @@ use engine::{
     WorkflowPatch, WorkflowPatchOperation, apply_workflow_patch,
 };
 use nodes::{
-    CapabilityNodeStatus,
-    GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, SharedAssetStore, TextToAudioGenerator, TextToAudioRequest,
-    TextToImageGenerator, TextToImageRequest,
+    CapabilityNodeStatus, GeneratedOutput, GenerationContext, GenerationError,
+    ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore, TextToAudioGenerator,
+    TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -20,9 +19,7 @@ fn add_node_persists_modality_and_canonical_mode() {
     let result = apply_workflow_patch(
         &registry,
         &empty_workflow(),
-        &WorkflowPatch {
-            operations: vec![add("image", "TextToImage")],
-        },
+        &WorkflowPatch { operations: vec![add("image", "TextToImage")] },
     )
     .expect("add node should succeed");
 
@@ -103,9 +100,7 @@ fn replace_params_selects_a_different_exact_capability_under_one_modality() {
     let initial = apply_workflow_patch(
         &registry,
         &empty_workflow(),
-        &WorkflowPatch {
-            operations: vec![add("video", "VideoConcat")],
-        },
+        &WorkflowPatch { operations: vec![add("video", "VideoConcat")] },
     )
     .expect("concat node should be added");
     let result = apply_workflow_patch(
