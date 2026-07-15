@@ -110,3 +110,11 @@ impl From<ProjectCreatedAt> for ProjectUpdatedAt {
         Self(value.get())
     }
 }
+
+impl ProjectCreatedAt {
+    /// Creates a creation timestamp from the validated Project clock observation.
+    #[must_use]
+    pub const fn from_observed_project_time(value: ProjectUpdatedAt) -> Self {
+        Self(value.get())
+    }
+}

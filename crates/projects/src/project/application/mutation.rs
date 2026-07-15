@@ -1,6 +1,6 @@
 //! Project mutation idempotency values shared with persistence.
 
-use crate::project::domain::ProjectAggregate;
+use crate::project::domain::{ProjectAggregate, ProjectId, ProjectName, ProjectRevision};
 use sha2::{Digest, Sha256};
 use uuid::{Uuid, Variant, Version};
 
@@ -28,6 +28,30 @@ impl ProjectMutationRequestId {
 pub struct ProjectMutationCommandHash([u8; 32]);
 
 impl ProjectMutationCommandHash {
+    /// Calculates the frozen canonical hash for Project creation.
+    #[must_use]
+    pub fn for_project_creation(name: &ProjectName) -> Self {
+        let mut hasher = Sha256::new();
+        update_length_prefixed(&mut hasher, b"oh-my-dream/project-create/v1");
+        update_length_prefixed(&mut hasher, name.as_str().as_bytes());
+        Self(hasher.finalize().into())
+    }
+
+    /// Calculates the frozen canonical hash for Project rename.
+    #[must_use]
+    pub fn for_project_rename(
+        project_id: ProjectId,
+        base_revision: ProjectRevision,
+        name: &ProjectName,
+    ) -> Self {
+        let mut hasher = Sha256::new();
+        update_length_prefixed(&mut hasher, b"oh-my-dream/project-rename/v1");
+        hasher.update(project_id.as_uuid().as_bytes());
+        hasher.update(base_revision.get().to_be_bytes());
+        update_length_prefixed(&mut hasher, name.as_str().as_bytes());
+        Self(hasher.finalize().into())
+    }
+
     /// Restores the exact digest bytes.
     #[must_use]
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
