@@ -207,6 +207,44 @@ The key identifies one durable media output slot. `AssetRecordNodeOutputUseCase`
 Asset when the key and content digest match. The same key with different bytes returns
 `AssetNodeOutputConflict`; it never silently rebinds the slot.
 
+`AssetNodeOutputSourceLease` is the node-output equivalent of `AssetImportSourceLease`: it owns one
+already-open `Pin<Box<dyn AsyncRead + Send>>`, one caller deadline, and one consuming
+`try_take_stream` operation. It is process-local, non-cloneable, non-serializable, non-persisted, and
+has no path conversion. It returns `DeadlineExceeded` when consumed at or after its deadline and
+does not buffer, rewind, retry, inspect, or own cancellation.
+
+`AssetRecordNodeOutputCommand` contains exactly the trusted Project ID, expected media kind, display
+name, translated `AssetWorkflowNodeOrigin`, `AssetNodeOutputProduction`, matching
+`AssetNodeOutputKey`, and one `AssetNodeOutputSourceLease`. It accepts no provider/model/route,
+caller identity, MIME, digest, media facts, path, URL, prompt, or original filename. Construction
+rejects producer/output-key disagreement as `IdentityConflict`. The source deadline bounds staging,
+inspection, transaction, inline finalization, and any cleanup.
+
+`record_asset_node_output` returns an `AssetAggregate` only when it is Available. It stages once and
+calculates the digest before replay lookup. The use case owns this exact decision:
+
+1. If no Asset is bound, inspect the staged bytes, observe time and generate Asset/finalization IDs
+   once, then attempt the atomic node-output Pending commit.
+2. If lookup or the atomic commit returns an existing binding, require the same Project, media kind,
+   producer, production, output key, descriptor digest, and byte length. Any difference removes the
+   new staging once and returns `NodeOutputConflict`.
+3. An exact existing Available Asset removes the new staging once and returns that Asset. An exact
+   Pending Asset removes the new staging, immediately replays its own committed finalization, and
+   returns it only if it becomes Available. An exact Missing Asset removes the new staging and
+   returns `ContentMissing`; the new staging is never substituted into an old finalization.
+4. A newly committed Pending Asset immediately finalizes through
+   `AssetFinalizeContentUseCase`. Available is returned; Pending returns `ContentPending`; Missing
+   returns `ContentMissing`. Every finalization error propagates unchanged rather than being
+   converted to a successful Pending result.
+
+Inspection, value construction, or transaction failure before a successful Pending commit attempts
+one idempotent removal of the new staging and preserves the primary error. The transaction race
+result is evaluated by the same replay decision as the initial lookup. Cleanup failure is logged and
+left for stale-staging reconciliation; it never replaces an existing-Asset result or the primary
+error. The use case does not attach a Workflow output, claim/complete an outbox effect, retry,
+restage, replace old staging, or run outputs concurrently. Workflow owns the later all-or-nothing
+`WorkflowNodeOutputSet` commit.
+
 This closes the failure window where content becomes Available but the Workflow output commit is
 uncertain. A late Asset may remain durable after cancellation, but Workflow rejects its late output
 association and never reports the cancelled node as succeeded.
