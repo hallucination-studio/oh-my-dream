@@ -60,6 +60,17 @@ class SdkRuntimeModuleTests(unittest.TestCase):
         self.assertIsInstance(sdk_runtime.SDK_MAX_TURNS, int)
         self.assertGreater(sdk_runtime.SDK_MAX_TURNS, 10)
 
+    def test_old_contract_epoch_is_rejected_before_sdk_state_restore(self) -> None:
+        sdk_runtime = importlib.import_module("assistant.sdk_runtime")
+        operations = [{"id": "workflow_prepare_patch", "version": 2}]
+        envelope = sdk_runtime.build_state_envelope(operations, {"opaque": True})
+        envelope["envelope_version"] = 1
+
+        with self.assertRaises(sdk_runtime.StateEnvelopeError) as raised:
+            sdk_runtime.validate_state_envelope(envelope, operations)
+
+        self.assertEqual(raised.exception.code, "state_metadata_mismatch")
+
     def test_fake_models_match_public_model_method_signatures(self) -> None:
         for fake_model in (DeterministicToolModel, RecordingFinalModel):
             for method_name in ("get_response", "stream_response"):

@@ -17,6 +17,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
+const ASSISTANT_CONTRACT_EPOCH: &str = "explicit-outputs-v2";
+
+pub(crate) fn assistant_epoch_root(config_root: &Path) -> PathBuf {
+    config_root.join("assistant_epochs").join(ASSISTANT_CONTRACT_EPOCH)
+}
+
 /// Managed application state shared by Tauri commands.
 pub struct AppState {
     /// Root directory for stored asset files and metadata.
@@ -103,15 +109,16 @@ impl AppState {
                 .map_err(|error| anyhow::anyhow!(error.to_string()))
                 .context("open Workflow authority")?;
         let workflow_authority = Arc::new(WorkflowAuthority::from_repository(workflow_repository));
+        let assistant_state_root = assistant_epoch_root(&config_root);
         let production_plan_repository = ProductionPlanSqliteRepository::open(
-            ProductionPlanSqliteRepository::path(&config_root),
+            ProductionPlanSqliteRepository::path(&assistant_state_root),
         )
         .map_err(|error| anyhow::anyhow!(error.to_string()))
         .context("open production plan memory")?;
         let production_plan =
             Arc::new(ProductionPlanService::new(Arc::new(production_plan_repository)));
         let reviewed_change_repository = ReviewedChangeSqliteRepository::open(
-            ReviewedChangeSqliteRepository::path(&config_root),
+            ReviewedChangeSqliteRepository::path(&assistant_state_root),
         )
         .map_err(|error| anyhow::anyhow!(error.to_string()))
         .context("open reviewed-change candidates")?;
@@ -122,7 +129,7 @@ impl AppState {
             Arc::new(reviewed_change_repository),
         ));
         let pending_approval_repository = PendingApprovalSqliteRepository::open(
-            PendingApprovalSqliteRepository::path(&config_root),
+            PendingApprovalSqliteRepository::path(&assistant_state_root),
         )
         .map_err(|error| anyhow::anyhow!(error.to_string()))
         .context("open pending Assistant approvals")?;
@@ -155,4 +162,38 @@ fn sibling_config_root(root: &Path) -> PathBuf {
         "{}-config",
         root.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("assets")
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn new_assistant_epoch_never_opens_legacy_orchestration_files() {
+        let directory = tempdir().expect("root");
+        let asset_root = directory.path().join("assets");
+        let config_root = directory.path().join("config");
+        std::fs::create_dir_all(config_root.join("assistant_sessions")).expect("legacy root");
+        let legacy_paths = [
+            config_root.join("production_plan.sqlite"),
+            config_root.join("reviewed_change.sqlite"),
+            config_root.join("assistant_approval.sqlite"),
+            config_root.join("assistant_sessions/project.sqlite3"),
+        ];
+        for path in &legacy_paths {
+            std::fs::write(path, b"not a sqlite database").expect("legacy file");
+        }
+
+        let _state = AppState::from_roots(&asset_root, &config_root)
+            .expect("legacy orchestration files must be unreachable");
+
+        for path in legacy_paths {
+            assert_eq!(std::fs::read(path).expect("legacy bytes"), b"not a sqlite database");
+        }
+        let epoch_root = assistant_epoch_root(&config_root);
+        assert!(epoch_root.join("production_plan.sqlite").exists());
+        assert!(epoch_root.join("reviewed_change.sqlite").exists());
+        assert!(epoch_root.join("assistant_approval.sqlite").exists());
+    }
 }

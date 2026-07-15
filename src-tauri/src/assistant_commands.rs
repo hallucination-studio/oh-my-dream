@@ -295,7 +295,7 @@ fn build_invocation(
 }
 
 fn assistant_identity(config_root: &Path, project_id: &str) -> Result<AssistantIdentity, String> {
-    let root = config_root.join("assistant_sessions");
+    let root = crate::state::assistant_epoch_root(config_root).join("sessions");
     std::fs::create_dir_all(&root).map_err(|error| error.to_string())?;
     Ok(AssistantIdentity {
         session_id: format!("project:{project_id}"),

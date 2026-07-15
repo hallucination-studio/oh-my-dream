@@ -24,7 +24,7 @@ set_tracing_disabled(True)
 
 AGENT_NAME = "workflow_assistant"
 SDK_VERSION = "0.18.1"
-STATE_ENVELOPE_VERSION = 1
+STATE_ENVELOPE_VERSION = 2
 SDK_MAX_TURNS = 64
 
 

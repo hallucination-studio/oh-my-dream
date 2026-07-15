@@ -268,7 +268,7 @@ fn waiting_for(receipt_id: &str, root: &std::path::Path) -> AssistantWaitingAppr
         "pending": {
             "call_id": "call-1",
             "operation_id": "workflow_apply_reviewed_candidate",
-            "operation_version": 1,
+            "operation_version": 2,
             "arguments_json": format!("{{\"review_receipt_id\":\"{receipt_id}\"}}")
         },
         "project_id": "project",

@@ -43,6 +43,7 @@ struct CandidateOutput {
     #[schemars(required)]
     base_revision: Option<u64>,
     patch_count: usize,
+    patches: Value,
     digest: String,
     workflow_fingerprint: String,
     workflow: Value,
@@ -80,7 +81,7 @@ impl ReviewedChangeOperations {
         let service = Arc::clone(&self.service);
         OperationRegistration::new_with_output_mode::<PreparePatchInput, CandidateOutput, _>(
             "workflow_prepare_patch",
-            1,
+            2,
             "Prepare an immutable Workflow candidate without changing canonical state.",
             OperationEffect::AssistantStateMutation,
             OperationInputSchemaMode::WorkflowPatchParamsOpen,
@@ -109,7 +110,7 @@ impl ReviewedChangeOperations {
         let service = Arc::clone(&self.service);
         OperationRegistration::new_with_output_mode::<GetCandidateInput, CandidateOutput, _>(
             "workflow_candidate_get",
-            1,
+            2,
             "Read one exact immutable Workflow candidate by opaque ID.",
             OperationEffect::LocalRead,
             OperationInputSchemaMode::Strict,
@@ -146,7 +147,7 @@ impl ReviewedChangeOperations {
             _,
         >(
             "workflow_apply_reviewed_candidate",
-            1,
+            2,
             "Apply one passed and human-approved immutable Workflow candidate.",
             OperationEffect::PreparedApprovalExecution,
             OperationInputSchemaMode::Strict,
@@ -235,6 +236,8 @@ impl CandidateOutput {
             user_intent: candidate.user_intent().to_owned(),
             base_revision: candidate.base_revision(),
             patch_count: candidate.patches().len(),
+            patches: serde_json::to_value(candidate.patches())
+                .map_err(|error| ReviewedChangeError::Storage(error.to_string()))?,
             digest: candidate.digest().to_owned(),
             workflow_fingerprint: candidate.workflow_fingerprint().to_owned(),
             workflow: serde_json::to_value(candidate.workflow())

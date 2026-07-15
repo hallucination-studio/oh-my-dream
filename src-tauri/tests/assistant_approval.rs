@@ -22,7 +22,7 @@ fn waiting(session_path: &str) -> AssistantWaitingApproval {
         "pending": {
             "call_id": "call-1",
             "operation_id": "workflow_apply_reviewed_candidate",
-            "operation_version": 1,
+            "operation_version": 2,
             "arguments_json": "{\"review_receipt_id\":\"receipt-1\"}"
         },
         "project_id": "project",
@@ -90,7 +90,7 @@ fn pending_approval_exposes_the_exact_reviewed_candidate() {
         .expect("receipt");
     let pending: AssistantWaitingApproval = serde_json::from_value(json!({
         "state": {},
-        "pending": {"call_id":"call-1","operation_id":"workflow_apply_reviewed_candidate","operation_version":1,"arguments_json":format!("{{\"review_receipt_id\":\"{}\"}}", receipt.id())},
+        "pending": {"call_id":"call-1","operation_id":"workflow_apply_reviewed_candidate","operation_version":2,"arguments_json":format!("{{\"review_receipt_id\":\"{}\"}}", receipt.id())},
         "project_id":"project","session_id":"project:project","session_path":"/tmp/session.sqlite3"
     }))
     .expect("pending");
@@ -285,7 +285,7 @@ fn reviewed_state(root: &std::path::Path) -> (AppState, String) {
 fn waiting_for(receipt_id: &str, root: &std::path::Path) -> AssistantWaitingApproval {
     serde_json::from_value(json!({
         "state": {},
-        "pending": {"call_id":"call-1","operation_id":"workflow_apply_reviewed_candidate","operation_version":1,"arguments_json":format!("{{\"review_receipt_id\":\"{receipt_id}\"}}")},
+        "pending": {"call_id":"call-1","operation_id":"workflow_apply_reviewed_candidate","operation_version":2,"arguments_json":format!("{{\"review_receipt_id\":\"{receipt_id}\"}}")},
         "project_id":"project","session_id":"project:project","session_path":root.join("session.sqlite3")
     }))
     .expect("waiting")

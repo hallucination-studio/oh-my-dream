@@ -1,4 +1,6 @@
-use engine::{CapabilityRef, NodeRef, WorkflowPatch, WorkflowPatchOperation};
+use engine::{
+    CapabilityRef, InputBinding, NodeRef, PatchOutputRef, WorkflowPatch, WorkflowPatchOperation,
+};
 use oh_my_dream_tauri::assistant_operations::{ApprovedEffect, RequestContext};
 use oh_my_dream_tauri::reviewed_change::{
     PrepareCandidateInput, RecordReviewInput, ReviewVerdict, ReviewedChangeOperations,
@@ -79,6 +81,60 @@ fn production_assistant_has_candidate_tools_without_direct_workflow_mutation() {
     assert!(ids.contains(&"workflow_prepare_patch".to_owned()));
     assert!(ids.contains(&"workflow_candidate_get".to_owned()));
     assert!(!ids.contains(&"workflow_apply_patch".to_owned()));
+}
+
+#[tokio::test]
+async fn candidate_get_exposes_the_exact_named_patch_sequence() {
+    let root = tempdir().expect("app root");
+    let state = AppState::from_asset_root(root.path()).expect("app state");
+    state
+        .store
+        .lock()
+        .expect("store")
+        .create_project_with_id("project", "Project")
+        .expect("project");
+    let candidate = state
+        .reviewed_change
+        .prepare(PrepareCandidateInput {
+            project_id: "project".to_owned(),
+            session_id: "session".to_owned(),
+            user_intent: "Connect the exact prompt output".to_owned(),
+            expected_revision: None,
+            prior_candidate_id: None,
+            patch: WorkflowPatch {
+                operations: vec![
+                    add_operation("prompt", "TextPrompt"),
+                    add_operation("image", "TextToImage"),
+                    WorkflowPatchOperation::SetInput {
+                        node: NodeRef::Alias { alias: "image".to_owned() },
+                        input: "prompt".to_owned(),
+                        binding: InputBinding::single(PatchOutputRef {
+                            node: NodeRef::Alias { alias: "prompt".to_owned() },
+                            output: "text".to_owned(),
+                        }),
+                    },
+                ],
+            },
+        })
+        .expect("candidate");
+    let registrations = ReviewedChangeOperations::new(
+        Arc::clone(&state.reviewed_change),
+        Arc::new(WorkflowPatchService::from_state(&state)),
+    )
+    .registrations()
+    .expect("registrations");
+    assert!(registrations.iter().all(|registration| registration.version() == 2));
+    let get = &registrations[1];
+    let output = get
+        .dispatch(
+            &RequestContext::new("project", "session", "get", get.version(), None),
+            json!({"candidate_id": candidate.id()}),
+        )
+        .await
+        .expect("candidate output");
+
+    assert_eq!(output["patches"][0]["operations"][2]["binding"]["source"]["output"], "text");
+    assert_eq!(output["patches"][0], serde_json::to_value(&candidate.patches()[0]).unwrap());
 }
 
 #[test]
@@ -202,8 +258,13 @@ fn expire_receipt(config_root: &std::path::Path, receipt_id: &str) {
         "{}-config",
         config_root.file_name().and_then(std::ffi::OsStr::to_str).unwrap_or("assets")
     ));
-    let connection = rusqlite::Connection::open(config_root.join("reviewed_change.sqlite"))
-        .expect("review database");
+    let connection = rusqlite::Connection::open(
+        config_root
+            .join("assistant_epochs")
+            .join("explicit-outputs-v2")
+            .join("reviewed_change.sqlite"),
+    )
+    .expect("review database");
     let receipt_json: String = connection
         .query_row(
             "SELECT receipt_json FROM review_receipts WHERE receipt_id = ?1",
@@ -219,4 +280,13 @@ fn expire_receipt(config_root: &std::path::Path, receipt_id: &str) {
             (receipt.to_string(), receipt_id),
         )
         .expect("expire receipt");
+}
+
+fn add_operation(alias: &str, capability: &str) -> WorkflowPatchOperation {
+    WorkflowPatchOperation::AddNode {
+        alias: alias.to_owned(),
+        capability: CapabilityRef::new(capability, "1.0"),
+        params: Map::new(),
+        position: None,
+    }
 }

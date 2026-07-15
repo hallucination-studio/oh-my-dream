@@ -14,7 +14,7 @@ from .sdk_runtime import SDK_MAX_TURNS, build_model_settings
 from .tool_contract import ToolInvoker, build_function_tools
 
 
-REVIEWER_VERSION = "workflow-reviewer-v1"
+REVIEWER_VERSION = "workflow-reviewer-explicit-outputs-v2"
 
 
 class ReviewRequest(BaseModel):
