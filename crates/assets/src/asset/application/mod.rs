@@ -5,6 +5,7 @@
 mod error;
 mod finalization;
 mod finalize_content;
+mod import_asset;
 mod inspected_media;
 mod lease;
 mod orchestration;
@@ -14,6 +15,7 @@ mod staged_content;
 pub use error::*;
 pub use finalization::*;
 pub use finalize_content::*;
+pub use import_asset::*;
 pub use inspected_media::*;
 pub use lease::*;
 pub use orchestration::*;
