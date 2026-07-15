@@ -353,6 +353,9 @@ arguments or UI stream events.
 The core authority and approval chain is coherent, but the current MVP has
 material implementation gaps. The detailed, prioritized backlog is in
 [`BACKEEND_ASSISANT_DISCOVER.md`](BACKEEND_ASSISANT_DISCOVER.md#review-findings-and-prioritized-optimization-backlog).
+Configuration wiring is a confirmed functional bug when the settings UI is part
+of the product contract; plaintext key persistence is a security debt. The
+remaining rows are robustness, operability, performance, or scope limitations.
 
 | Area | Current limitation | Direction |
 | --- | --- | --- |

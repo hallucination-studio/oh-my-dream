@@ -342,22 +342,25 @@ frontend type checking, and the complete Vitest suite.
 
 ## Review findings and prioritized optimization backlog
 
-`code-review-and-quality` found the authority boundaries, exact replay, schema
-validation, and fail-closed approval chain sound. The following findings remain:
+The authority boundaries, exact replay, schema validation, and fail-closed
+approval chain are coherent. Static code review confirms the first row as a
+functional bug: `assistant.rs` writes settings, but production `stdio_app.py`
+constructs `AgentStdioApp` with `model=None`; only tests call
+`AssistantConfig.load`, and `assistant_send` never checks `enabled`.
 
-| Priority | Finding | Required optimization and proof |
+| Priority/type | Finding | Required optimization and proof |
 | --- | --- | --- |
-| P0 | Stored Assistant settings are not used by the production SDK composition root | Wire and validate config once, enforce `enabled`, test file/env precedence and disabled sends |
-| P0 | Configured API keys are plain JSON | Use the platform credential store; add migration and prove public DTOs/logs never expose secret values |
-| P1 | Tauri errors are strings and UI branches on `ASSISTANT_*` substrings | Add a structured error DTO and cross-language fixtures; remove substring parsing |
-| P1 | No user cancellation path exists although `cancel` is a frame kind | Define cancellation ownership and ordering; test during model streaming, tool dispatch, approval wait, and shutdown |
-| P1 | Expired candidates/receipts are retained forever | Add reference-safe pruning with retention tests and bounded transaction work |
-| P1 | The generated operation fixture is a six-operation sample, not the eleven-operation production set; TS does not model `assistant_state_mutation` | Generate the fixture from the same production registration composition and make TS exhaustively represent all four effects |
-| P1 | Generic sidecar exceptions collapse to `sdk_error` without diagnostic correlation | Emit secret-safe structured Rust/Python diagnostics keyed by invocation ID while keeping UI messages bounded |
-| P2 | Sidecar spawn and schema compilation repeat per turn | Benchmark cold start and per-turn cost before choosing cached validators or a supervised long-lived process |
-| P2 | Session locking is process-local | Add SQLite leases only when multiple app processes or devices are supported |
-| P2 | Co-author and Reviewer share model configuration | Add independent Reviewer configuration and retain the evidence/version receipt contract |
-| P2 | Document filenames preserve requested misspellings | Add correctly spelled canonical aliases or rename with link updates when compatibility permits |
+| P0 functional bug | Stored Assistant settings are not used by the production SDK composition root; `enabled=false` is ignored | Wire and validate config once, enforce `enabled`, test file/env precedence and disabled sends |
+| P0 security debt | Configured API keys are plain JSON | Use the platform credential store; add migration and prove public DTOs/logs never expose secret values |
+| P1 robustness | Tauri errors are strings and UI branches on `ASSISTANT_*` substrings | Add a structured error DTO and cross-language fixtures; remove substring parsing |
+| P1 missing behavior | No user cancellation path exists although `cancel` is a frame kind | Define cancellation ownership and ordering; test during model streaming, tool dispatch, approval wait, and shutdown |
+| P1 storage leak | Expired candidates/receipts are retained forever | Add reference-safe pruning with retention tests and bounded transaction work |
+| P1 coverage gap | The generated operation fixture is a six-operation sample, not the eleven-operation production set; TS does not model `assistant_state_mutation` | Generate the fixture from the same production registration composition and make TS exhaustively represent all four effects |
+| P1 diagnostics | Generic sidecar exceptions collapse to `sdk_error` without diagnostic correlation | Emit secret-safe structured Rust/Python diagnostics keyed by invocation ID while keeping UI messages bounded |
+| P2 performance | Sidecar spawn and schema compilation repeat per turn | Benchmark cold start and per-turn cost before choosing cached validators or a supervised long-lived process |
+| P2 scale limit | Session locking is process-local | Add SQLite leases only when multiple app processes or devices are supported |
+| P2 review independence | Co-author and Reviewer share model configuration | Add independent Reviewer configuration and retain the evidence/version receipt contract |
+| P2 documentation | Document filenames preserve requested misspellings | Add correctly spelled canonical aliases or rename with link updates when compatibility permits |
 
 Implementation order should be vertical and testable:
 
