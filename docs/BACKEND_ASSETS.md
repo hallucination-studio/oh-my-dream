@@ -590,7 +590,8 @@ This interface exposes exactly these asynchronous byte-store operations:
 
 | Method | Exact input | Behavior |
 | --- | --- | --- |
-| `stage_asset_content` | import-source lease, expected `AssetMediaKind`, and `AssetCreatedAt` | consume the source once and return digest/length/reference facts |
+| `stage_imported_asset_content` | import-source lease, expected `AssetMediaKind`, and `AssetCreatedAt` | consume the imported source once and return digest/length/reference facts |
+| `stage_node_output_asset_content` | node-output source lease, expected `AssetMediaKind`, and `AssetCreatedAt` | consume the node-produced source once and return digest/length/reference facts |
 | `open_staged_asset_content` | staged reference and caller deadline | return a one-shot import-source lease, or `None` |
 | `publish_staged_asset_content` | staged reference, exact descriptor, and caller deadline | verify digest and length while idempotently publishing under the descriptor content ID |
 | `open_managed_asset_content` | exact descriptor and caller deadline | return an exact managed-content lease, or `None` |
@@ -598,12 +599,18 @@ This interface exposes exactly these asynchronous byte-store operations:
 | `list_stale_asset_staged_content` | exclusive `AssetCreatedAt` cutoff, optional staging cursor, and validated limit | return one ascending bounded page by `(created_at, staged_content_ref)` |
 | `remove_asset_staged_content` | exact staged reference and caller deadline | idempotently remove one exact staged object |
 
-`stage_asset_content` rejects an empty stream as `InvalidMedia` and an oversized stream as
+`stage_imported_asset_content` rejects an empty stream as `InvalidMedia` and an oversized stream as
 `MediaSizeLimitExceeded`; it applies the documented maximum for the supplied expected kind. Source
 read or staging write failures map to `ManagedStorageFailed`, and lease expiry maps to
 `DeadlineExceeded`. Publishing existing equal bytes is success; existing different bytes return
 `ContentDigestMismatch`. An absent staging source returns `ContentMissing`. No method returns a path,
 seeks or reopens a supplied source lease, inspects MIME, creates an Asset, or removes managed content.
+
+`stage_node_output_asset_content` has exactly the same digest, length, bound, deadline, error, and
+staging-creation semantics as `stage_imported_asset_content`, but accepts only
+`AssetNodeOutputSourceLease`. The two methods remain separate so import and node-produced sources
+cannot be exchanged accidentally. Implementations may share private copy logic; there is no public
+generic staging-source enum, conversion, trait, or unsupported branch.
 
 The stale-staging page contains only `AssetStagedContent` facts and a next cursor. The reconcile use
 case checks `is_asset_staged_content_referenced` before each removal; the store never guesses database
