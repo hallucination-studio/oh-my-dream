@@ -166,8 +166,8 @@ pub struct NodeCapabilityExecutionRequest {
 Readiness checks only parameter-selected external state: managed Assets and Generation Profiles.
 They do not resolve upstream runtime inputs, dispatch providers, mutate state, or write media. An
 empty issue vector means ready; otherwise it contains 1..=64 unique issues sorted by category tag,
-target kind, then target bytes. Every issue identifies one parameter key and its typed Asset ID or
-Generation Profile ref. At most one issue is returned per parameter; when several observations could
+target kind, then target bytes. Every external-state issue identifies one parameter key and its typed
+Asset ID or Generation Profile ref. At most one issue is returned per parameter; when several observations could
 apply, the category table order wins. The capability ref comes from the resolved implementation and
 is not duplicated in either request.
 
@@ -501,7 +501,7 @@ IDs, URLs, paths, credentials, and response bodies never cross these errors.
 
 The closed parameter categories are `UnknownParameter`, `RequiredParameterMissing`,
 `ParameterValueKindMismatch`, `ParameterValueOutOfBounds`, `ParameterChoiceNotDeclared`, and
-`ParameterSetTooLarge`. Readiness categories are `ManagedAssetUnavailable`,
+`ParameterSetTooLarge`. Readiness categories are `InvalidCapabilityInvocation`, `ManagedAssetUnavailable`,
 `ManagedAssetKindMismatch`, `ManagedAssetReadinessIndeterminate`,
 `GenerationProfileIncompatible`, `GenerationProfileUnavailable`, and
 `GenerationProfileAvailabilityIndeterminate`. Execution stages are `ResolveInputs`, `CallProvider`,
@@ -514,9 +514,9 @@ The error values are closed and field-exact:
 
 - `NodeCapabilityParameterError` contains one parameter category and
   `NodeCapabilityParameterErrorTarget`, either `ParameterSet` or `Parameter(key)`;
-- `NodeCapabilityReadinessIssue` contains one readiness category,
-  `NodeCapabilityReadinessTarget`, and the relevant typed boundary identity. The target is exactly
-  `ManagedAsset { parameter_key, asset_id }` or
+- `NodeCapabilityReadinessIssue` contains one readiness category and
+  `NodeCapabilityReadinessTarget`. The target is exactly
+  `Capability`, `ManagedAsset { parameter_key, asset_id }`, or
   `GenerationProfile { parameter_key, generation_profile_ref }`; kind-mismatch detail additionally
   contains expected and observed `WorkflowDataType` values;
 - `NodeCapabilityProviderFailure` contains its provider category, retryable flag, and optional safe
@@ -533,7 +533,8 @@ The error values are closed and field-exact:
 
 Construction rejects an execution target inconsistent with its stage: ResolveInputs targets a
 parameter, input, or capability; CallProvider targets the capability; result validation/media write
-targets an output or capability. Readiness targets only a declared parameter. Cancellation/deadline use
+targets an output or capability. Readiness targets `Capability` only for invalid invocation and a
+declared parameter for every external-state issue. Cancellation/deadline use
 the operation target active when observed; no absent-key convention carries target meaning.
 
 `InvalidCapabilityInvocation` is non-retryable, has stage `ResolveInputs` and target `Capability`,
@@ -550,6 +551,15 @@ uses the same `ManagedAsset { parameter_key, asset_id }` target and carries no t
 message, retry hint, or adapter detail. It blocks admission only; it does not authorize retry, probe,
 cache, fallback, or a second read. Execution still preserves its exact media/deadline failure and
 never uses the readiness indeterminate category.
+
+Readiness uses its own no-field `InvalidCapabilityInvocation` issue with target `Capability` when
+the supplied `NodeCapabilityNormalizedParameters` do not satisfy the already-resolved capability's
+parameter contract. It returns that single issue before any availability or media read. It is not an
+external-state observation and carries no parameter value, missing key, validation detail, or error
+message. It is the only identity-free `Capability`-target issue and is always returned alone. Raw
+parameter normalization still returns `NodeCapabilityParameterError`; valid requests
+never produce this issue. This addition does not make readiness renormalize parameters or authorize
+repair, defaults, retry, probe, or fallback.
 
 An optional retry instant is present only when retryable and later than error creation. Cancellation,
 invalid requests/results, policy rejection, kind mismatch, digest mismatch, and output conflict are
