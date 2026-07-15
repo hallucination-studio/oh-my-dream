@@ -37,7 +37,8 @@ pub use port::{PortCardinality, PortType};
 pub use registry::{NodeFactory, NodeParams, NodeRegistry};
 pub use value::{InputValue, NodeInputs, Value, ValueMap};
 pub use workflow_patch::{
-    MAX_WORKFLOW_PATCH_BYTES, MAX_WORKFLOW_PATCH_OPERATIONS, NodeRef, WorkflowDiagnostic,
-    WorkflowPatch, WorkflowPatchError, WorkflowPatchOperation, WorkflowPatchResult,
-    WorkflowReadinessBlocker, WorkflowValidationReport, apply_workflow_patch, validate_workflow,
+    MAX_WORKFLOW_PATCH_BYTES, MAX_WORKFLOW_PATCH_OPERATIONS, NodeRef, PatchOutputRef,
+    WorkflowDiagnostic, WorkflowPatch, WorkflowPatchError, WorkflowPatchOperation,
+    WorkflowPatchResult, WorkflowReadinessBlocker, WorkflowValidationReport, apply_workflow_patch,
+    validate_workflow,
 };

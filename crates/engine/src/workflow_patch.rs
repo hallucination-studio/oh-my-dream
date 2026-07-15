@@ -31,6 +31,16 @@ pub enum NodeRef {
     Alias { alias: String },
 }
 
+/// A patch source that names both its node and exact declared output.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PatchOutputRef {
+    /// Existing or patch-local source node.
+    pub node: NodeRef,
+    /// Exact output port declared by the source capability.
+    pub output: String,
+}
+
 /// One closed, ordered Workflow mutation operation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
@@ -49,7 +59,7 @@ pub enum WorkflowPatchOperation {
     /// Replaces the complete normalized params object of a node.
     ReplaceParams { node: NodeRef, params: NodeParams },
     /// Sets one explicit single or ordered-many input binding.
-    SetInput { node: NodeRef, input: String, binding: InputBinding<NodeRef> },
+    SetInput { node: NodeRef, input: String, binding: InputBinding<PatchOutputRef> },
     /// Removes an input binding while retaining the node.
     ClearInput { node: NodeRef, input: String },
     /// Removes a node and every incident input binding.

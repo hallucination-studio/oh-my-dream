@@ -1,7 +1,7 @@
 use assets::AssetStore;
 use engine::{
-    CapabilityRef, InputBinding, NodeParams, NodeRef, NodeRegistry, Workflow, WorkflowNode,
-    WorkflowPatch, WorkflowPatchOperation, apply_workflow_patch,
+    CapabilityRef, InputBinding, NodeParams, NodeRef, NodeRegistry, PatchOutputRef, Workflow,
+    WorkflowNode, WorkflowPatch, WorkflowPatchOperation, apply_workflow_patch,
 };
 use nodes::{
     CapabilityNodeStatus, GeneratedOutput, GenerationContext, GenerationError,
@@ -137,8 +137,14 @@ fn incompatible_mode_change_rejects_without_changing_the_existing_graph() {
                     node: NodeRef::Alias { alias: "concat".to_owned() },
                     input: "clips".to_owned(),
                     binding: InputBinding::ordered_many(vec![
-                        NodeRef::Alias { alias: "first".to_owned() },
-                        NodeRef::Alias { alias: "second".to_owned() },
+                        PatchOutputRef {
+                            node: NodeRef::Alias { alias: "first".to_owned() },
+                            output: "video".to_owned(),
+                        },
+                        PatchOutputRef {
+                            node: NodeRef::Alias { alias: "second".to_owned() },
+                            output: "video".to_owned(),
+                        },
                     ]),
                 },
             ],

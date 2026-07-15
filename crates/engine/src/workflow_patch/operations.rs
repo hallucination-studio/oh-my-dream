@@ -1,8 +1,8 @@
 //! Ordered mutation primitives for pure Workflow patch application.
 
 use super::{
-    NodeRef, WorkflowPatchError, WorkflowPatchOperation, indexed_error, instantiate,
-    validation::has_cycle,
+    NodeRef, PatchOutputRef, WorkflowPatchError, WorkflowPatchOperation, indexed_error,
+    instantiate, validation::has_cycle,
 };
 use crate::capability::CapabilityRef;
 use crate::graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
@@ -65,7 +65,7 @@ fn set_input(
     aliases: &BTreeMap<String, String>,
     node: &NodeRef,
     input: &str,
-    binding: &InputBinding<NodeRef>,
+    binding: &InputBinding<PatchOutputRef>,
     index: usize,
 ) -> Result<(), WorkflowPatchError> {
     let node_id = resolve_node(node, workflow, aliases, index, "/node")?;
@@ -148,7 +148,7 @@ fn convert_binding(
     registry: &NodeRegistry,
     workflow: &Workflow,
     aliases: &BTreeMap<String, String>,
-    binding: &InputBinding<NodeRef>,
+    binding: &InputBinding<PatchOutputRef>,
     cardinality: PortCardinality,
     target_type: PortType,
     index: usize,
@@ -159,25 +159,26 @@ fn convert_binding(
     };
     validate_binding_cardinality(ordered, cardinality, sources.len(), index)?;
     let mut converted = Vec::with_capacity(sources.len());
-    for source in sources {
-        let source_id = resolve_node(source, workflow, aliases, index, "/binding/source")?;
+    for (source_index, source) in sources.into_iter().enumerate() {
+        let pointer = binding_source_pointer(ordered, source_index);
+        let source_id = resolve_node(&source.node, workflow, aliases, index, &pointer)?;
         let source_node =
             workflow.nodes.iter().find(|node| node.id == source_id).ok_or_else(|| {
-                indexed_error("NODE_NOT_FOUND", "/binding/source", "source node is absent", index)
+                indexed_error("NODE_NOT_FOUND", &pointer, "source node is absent", index)
             })?;
-        let instance = instantiate(registry, source_node, index, "/binding/source")?;
-        let output = instance.outputs().first().ok_or_else(|| {
+        let instance = instantiate(registry, source_node, index, &pointer)?;
+        let output = instance.output_port(&source.output).ok_or_else(|| {
             indexed_error(
                 "OUTPUT_NOT_DECLARED",
-                "/binding/source",
-                "source node has no outputs",
+                format!("{pointer}/output"),
+                format!("source node does not declare output `{}`", source.output),
                 index,
             )
         })?;
         if !output.port_type.is_compatible_with(target_type) {
             return Err(indexed_error(
                 "INPUT_OUTPUT_TYPE_MISMATCH",
-                "/binding/source",
+                format!("{pointer}/output"),
                 "source output type is incompatible with the target input",
                 index,
             ));
@@ -192,6 +193,10 @@ fn convert_binding(
         })?;
         Ok(InputBinding::single(source))
     }
+}
+
+fn binding_source_pointer(ordered: bool, source_index: usize) -> String {
+    if ordered { format!("/binding/sources/{source_index}") } else { "/binding/source".to_owned() }
 }
 
 fn validate_binding_cardinality(
