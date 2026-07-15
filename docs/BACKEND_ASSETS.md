@@ -256,6 +256,13 @@ case and returns the still-Pending aggregate, because its durable effect remains
 confirmed absence of both exact staged and managed bytes returns the durably Missing aggregate.
 Errors before the Pending commit return `AssetApplicationError` and no Asset.
 
+For the inline attempt, exactly `ManagedStorageFailed`, `Cancelled`, and `DeadlineExceeded` are
+deferred transient errors and therefore return the committed Pending aggregate. `NotFound`,
+`FinalizationFailed`, `IdentityConflict`, and every other error category propagate because they
+indicate a contract, identity, or input failure rather than an approved deferred publication. The
+Pending aggregate and effect remain durable even when such an error propagates. Import does not add
+an outcome wrapper or reinterpret an error from the finalization use case.
+
 ```text
 open bounded source stream
   -> write restricted staging content
