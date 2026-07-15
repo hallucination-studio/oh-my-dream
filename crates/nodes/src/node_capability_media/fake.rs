@@ -6,9 +6,7 @@ use std::time::Instant;
 use super::*;
 use async_trait::async_trait;
 use engine::node_capability::{
-    NodeCapabilityMediaFailure, NodeCapabilityProviderFailure,
-    NodeCapabilityProviderFailureCategory, NodeCapabilityProviderFailureConstructionError,
-    WorkflowManagedAssetIdBoundaryValue, WorkflowManagedAudioRef,
+    NodeCapabilityMediaFailure, WorkflowManagedAssetIdBoundaryValue, WorkflowManagedAudioRef,
     WorkflowManagedContentFingerprint, WorkflowManagedImageRef, WorkflowManagedVideoRef,
 };
 use sha2::{Digest, Sha256};
@@ -147,9 +145,18 @@ pub struct NodeCapabilityProducedMediaWriterFakeImpl {
     output_by_key: Mutex<
         HashMap<
             (projects::project::domain::ProjectId, NodeCapabilityProducedMediaOutputKey),
-            (NodeCapabilityMediaContentDigest, NodeCapabilityProducedMediaReference),
+            ProducedMediaFakeRecord,
         >,
     >,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ProducedMediaFakeRecord {
+    digest: NodeCapabilityMediaContentDigest,
+    media_kind: NodeCapabilityMediaKind,
+    origin: engine::node_capability::WorkflowNodeExecutionOrigin,
+    provenance: super::NodeCapabilityProducedMediaProvenance,
+    reference: NodeCapabilityProducedMediaReference,
 }
 
 #[async_trait]
@@ -168,28 +175,19 @@ impl NodeCapabilityProducedMediaWriterInterface for NodeCapabilityProducedMediaW
         let key = request.output_key().clone();
         let kind = request.payload().media_kind();
         let expected_digest = request.payload().digest();
-        let source = match request.into_payload() {
-            NodeCapabilityProducedMediaPayload::GeneratedImage(value) => value.into_source(),
-            NodeCapabilityProducedMediaPayload::GeneratedVideo(value) => value.into_source(),
-            NodeCapabilityProducedMediaPayload::SynthesizedSpeech(value) => value.into_source(),
-        };
-        let expected_length = source.byte_length();
-        let mut stream = source.try_take_stream().map_err(media_value_to_boundary_error)?;
-        let mut bytes = Vec::new();
-        stream.read_to_end(&mut bytes).await.map_err(|_| {
-            NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::StorageFailed)
-        })?;
-        if bytes.len() as u64 != expected_length || digest_bytes(&bytes) != expected_digest {
-            return Err(NodeCapabilityMediaBoundaryError::Media(
-                NodeCapabilityMediaFailure::DigestMismatch,
-            ));
-        }
+        let origin = request.origin().clone();
+        let provenance = request.provenance().clone();
+        verify_produced_payload(request.into_payload(), expected_digest).await?;
         let mut outputs = self.output_by_key.lock().map_err(|_| {
             NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::StorageFailed)
         })?;
-        if let Some((digest, reference)) = outputs.get(&(project_id, key.clone())) {
-            return if digest == &expected_digest {
-                Ok(*reference)
+        if let Some(record) = outputs.get(&(project_id, key.clone())) {
+            return if record.digest == expected_digest
+                && record.media_kind == kind
+                && record.origin == origin
+                && record.provenance == provenance
+            {
+                Ok(record.reference)
             } else {
                 Err(NodeCapabilityMediaBoundaryError::Media(
                     NodeCapabilityMediaFailure::OutputConflict,
@@ -197,83 +195,42 @@ impl NodeCapabilityProducedMediaWriterInterface for NodeCapabilityProducedMediaW
             };
         }
         let reference = produced_reference(project_id, &key, kind, expected_digest)?;
-        outputs.insert((project_id, key), (expected_digest, reference));
+        outputs.insert(
+            (project_id, key),
+            ProducedMediaFakeRecord {
+                digest: expected_digest,
+                media_kind: kind,
+                origin,
+                provenance,
+                reference,
+            },
+        );
         Ok(reference)
     }
 }
 
-macro_rules! provider_fake {
-    ($name:ident, $interface:ident, $method:ident, $request:ty, $payload:ty, $facts:expr, $bytes:expr) => {
-        #[doc = concat!("Deterministic ", stringify!($interface), " fake implementation.")]
-        pub struct $name {
-            deadline_failure: NodeCapabilityProviderFailure,
-            invalid_response_failure: NodeCapabilityProviderFailure,
-        }
-        impl $name {
-            /// Creates a fake with fixed valid provider failures.
-            pub fn try_new() -> Result<Self, NodeCapabilityProviderFailureConstructionError> {
-                Ok(Self {
-                    deadline_failure: provider_failure(
-                        NodeCapabilityProviderFailureCategory::DeadlineExceeded,
-                    )?,
-                    invalid_response_failure: provider_failure(
-                        NodeCapabilityProviderFailureCategory::InvalidResponse,
-                    )?,
-                })
-            }
-        }
-        #[async_trait]
-        impl $interface for $name {
-            async fn $method(
-                &self,
-                request: $request,
-            ) -> Result<$payload, NodeCapabilityProviderFailure> {
-                if request.context().deadline.is_reached_at(Instant::now()) {
-                    return Err(self.deadline_failure.clone());
-                }
-                let bytes: Vec<u8> = $bytes;
-                let source = NodeCapabilityMediaSourceLease::try_new(
-                    bytes.len() as u64,
-                    digest_bytes(&bytes),
-                    request.context().deadline.monotonic_instant(),
-                    Box::pin(Cursor::new(bytes)),
-                )
-                .map_err(|_| self.invalid_response_failure.clone())?;
-                let facts = $facts.map_err(|_| self.invalid_response_failure.clone())?;
-                <$payload>::try_new(facts, source)
-                    .map_err(|_| self.invalid_response_failure.clone())
-            }
-        }
+async fn verify_produced_payload(
+    payload: NodeCapabilityProducedMediaPayload,
+    expected_digest: NodeCapabilityMediaContentDigest,
+) -> Result<(), NodeCapabilityMediaBoundaryError> {
+    let source = match payload {
+        NodeCapabilityProducedMediaPayload::GeneratedImage(value) => value.into_source(),
+        NodeCapabilityProducedMediaPayload::GeneratedVideo(value) => value.into_source(),
+        NodeCapabilityProducedMediaPayload::SynthesizedSpeech(value) => value.into_source(),
     };
+    let expected_length = source.byte_length();
+    let mut stream = source.try_take_stream().map_err(media_value_to_boundary_error)?;
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).await.map_err(|_| {
+        NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::StorageFailed)
+    })?;
+    if bytes.len() as u64 != expected_length || digest_bytes(&bytes) != expected_digest {
+        return Err(NodeCapabilityMediaBoundaryError::Media(
+            NodeCapabilityMediaFailure::DigestMismatch,
+        ));
+    }
+    Ok(())
 }
-
-provider_fake!(
-    TextToImageProviderFakeImpl,
-    TextToImageProviderInterface,
-    generate_image_from_text,
-    TextToImageProviderRequest,
-    GeneratedImagePayload,
-    NodeCapabilityDeclaredMediaFacts::try_image(32, 32),
-    vec![1; 16]
-);
-provider_fake!(
-    ImageToVideoProviderFakeImpl,
-    ImageToVideoProviderInterface,
-    generate_video_from_image,
-    ImageToVideoProviderRequest,
-    GeneratedVideoPayload,
-    NodeCapabilityDeclaredMediaFacts::try_video(32, 32, 5_000, false),
-    vec![2; 24]
-);
-provider_fake!(
-    TextToSpeechProviderFakeImpl,
-    TextToSpeechProviderInterface,
-    synthesize_speech_from_text,
-    TextToSpeechProviderRequest,
-    SynthesizedSpeechPayload,
-    NodeCapabilityDeclaredMediaFacts::try_audio(1_000, 44_100, 1),
-    vec![3; 12]
-);
 
 fn digest_bytes(bytes: &[u8]) -> NodeCapabilityMediaContentDigest {
     NodeCapabilityMediaContentDigest::from_bytes(Sha256::digest(bytes).into())
@@ -392,9 +349,4 @@ fn produced_reference(
             WorkflowManagedAudioRef::new(asset_id, fingerprint),
         ),
     })
-}
-fn provider_failure(
-    category: NodeCapabilityProviderFailureCategory,
-) -> Result<NodeCapabilityProviderFailure, NodeCapabilityProviderFailureConstructionError> {
-    NodeCapabilityProviderFailure::try_new(category, false, Instant::now(), None)
 }

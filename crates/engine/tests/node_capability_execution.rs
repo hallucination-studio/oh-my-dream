@@ -7,8 +7,9 @@ use engine::node_capability::{
     NodeCapabilityExecutionTarget, NodeCapabilityOutputKey, NodeCapabilityProviderFailure,
     NodeCapabilityProviderFailureCategory, NodeCapabilityReadinessCategory,
     NodeCapabilityReadinessDeadline, NodeCapabilityReadinessIssue, NodeCapabilityReadinessTarget,
-    WorkflowManagedAssetIdBoundaryValue, WorkflowNodeExecutionId,
+    WorkflowManagedAssetIdBoundaryValue, WorkflowNodeExecutionId, WorkflowNodeExecutionOrigin,
 };
+use engine::workflow_graph::{WorkflowId, WorkflowNodeId, WorkflowRevision};
 use uuid::Uuid;
 
 #[test]
@@ -116,6 +117,56 @@ fn provider_failure_rejects_retry_time_for_non_retryable_category() {
         Some(observed_at + Duration::from_secs(1)),
     );
     assert!(result.is_err());
+}
+
+#[test]
+fn workflow_node_execution_origin_keeps_exact_frozen_producer_coordinates() {
+    let workflow_id = WorkflowId::from_uuid(Uuid::from_bytes(uuid_v4_bytes(10))).unwrap();
+    let workflow_revision = WorkflowRevision::new(7).unwrap();
+    let workflow_node_id = WorkflowNodeId::from_uuid(Uuid::from_bytes(uuid_v4_bytes(11))).unwrap();
+    let capability_contract_ref = capability_ref("image.generate_from_text");
+    let origin = WorkflowNodeExecutionOrigin::new(
+        workflow_id,
+        workflow_revision,
+        workflow_node_id,
+        capability_contract_ref.clone(),
+    );
+
+    assert_eq!(origin.workflow_id(), workflow_id);
+    assert_eq!(origin.workflow_revision(), workflow_revision);
+    assert_eq!(origin.workflow_node_id(), workflow_node_id);
+    assert_eq!(origin.capability_contract_ref(), &capability_contract_ref);
+}
+
+#[test]
+fn invalid_capability_result_requires_its_exact_output_stage_and_target() {
+    let output_key = NodeCapabilityOutputKey::new("image").unwrap();
+    let valid = NodeCapabilityExecutionError::invalid_result_while_assembling_outputs(
+        capability_ref("image.generate_from_text"),
+        WorkflowNodeExecutionId::from_uuid(Uuid::from_bytes(uuid_v4_bytes(12))).unwrap(),
+        output_key.clone(),
+    );
+    assert_eq!(valid.stage(), NodeCapabilityExecutionStage::AssembleOutputs);
+    assert_eq!(valid.failure(), &NodeCapabilityExecutionFailure::InvalidCapabilityResult);
+    assert_eq!(valid.target(), &NodeCapabilityExecutionTarget::Output(output_key));
+
+    let invalid = NodeCapabilityExecutionError::try_new(
+        capability_ref("image.generate_from_text"),
+        WorkflowNodeExecutionId::from_uuid(Uuid::from_bytes(uuid_v4_bytes(13))).unwrap(),
+        NodeCapabilityExecutionStage::AssembleOutputs,
+        NodeCapabilityExecutionFailure::InvalidCapabilityResult,
+        NodeCapabilityExecutionTarget::Capability,
+    );
+    assert!(invalid.is_err());
+
+    let wrong_failure = NodeCapabilityExecutionError::try_new(
+        capability_ref("image.generate_from_text"),
+        WorkflowNodeExecutionId::from_uuid(Uuid::from_bytes(uuid_v4_bytes(14))).unwrap(),
+        NodeCapabilityExecutionStage::AssembleOutputs,
+        NodeCapabilityExecutionFailure::Cancelled,
+        NodeCapabilityExecutionTarget::Output(NodeCapabilityOutputKey::new("image").unwrap()),
+    );
+    assert!(wrong_failure.is_err());
 }
 
 fn capability_ref(id: &str) -> NodeCapabilityContractRef {

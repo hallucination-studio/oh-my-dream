@@ -10,6 +10,8 @@ use std::{
 
 use projects::project::domain::ProjectId;
 
+use crate::workflow_graph::{WorkflowId, WorkflowNodeId, WorkflowRevision};
+
 use super::{
     NodeCapabilityGenerationProfileRefParameterValue, NodeCapabilityNormalizedParameters,
     NodeCapabilityParameterKey, WorkflowDataType, WorkflowManagedAssetIdBoundaryValue,
@@ -152,6 +154,54 @@ impl NodeCapabilityReadinessIssue {
         }
     }
 
+    /// Creates an incompatible issue for one Generation Profile parameter.
+    #[must_use]
+    pub fn generation_profile_incompatible(
+        parameter_key: NodeCapabilityParameterKey,
+        generation_profile_ref: NodeCapabilityGenerationProfileRefParameterValue,
+    ) -> Self {
+        Self {
+            category: NodeCapabilityReadinessCategory::GenerationProfileIncompatible,
+            target: NodeCapabilityReadinessTarget::GenerationProfile {
+                parameter_key,
+                generation_profile_ref,
+            },
+            media_kind_mismatch: None,
+        }
+    }
+
+    /// Creates an unavailable issue for one Generation Profile parameter.
+    #[must_use]
+    pub fn generation_profile_unavailable(
+        parameter_key: NodeCapabilityParameterKey,
+        generation_profile_ref: NodeCapabilityGenerationProfileRefParameterValue,
+    ) -> Self {
+        Self {
+            category: NodeCapabilityReadinessCategory::GenerationProfileUnavailable,
+            target: NodeCapabilityReadinessTarget::GenerationProfile {
+                parameter_key,
+                generation_profile_ref,
+            },
+            media_kind_mismatch: None,
+        }
+    }
+
+    /// Creates an indeterminate issue for one Generation Profile parameter.
+    #[must_use]
+    pub fn generation_profile_availability_indeterminate(
+        parameter_key: NodeCapabilityParameterKey,
+        generation_profile_ref: NodeCapabilityGenerationProfileRefParameterValue,
+    ) -> Self {
+        Self {
+            category: NodeCapabilityReadinessCategory::GenerationProfileAvailabilityIndeterminate,
+            target: NodeCapabilityReadinessTarget::GenerationProfile {
+                parameter_key,
+                generation_profile_ref,
+            },
+            media_kind_mismatch: None,
+        }
+    }
+
     /// Creates one issue only when category, target, and kind detail agree.
     pub fn try_new(
         category: NodeCapabilityReadinessCategory,
@@ -267,11 +317,55 @@ pub struct WorkflowNodeExecutionContext {
     pub cancellation: NodeCapabilityExecutionCancellation,
 }
 
+/// Frozen Workflow producer coordinates for one exact capability execution.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkflowNodeExecutionOrigin {
+    workflow_id: WorkflowId,
+    workflow_revision: WorkflowRevision,
+    workflow_node_id: WorkflowNodeId,
+    capability_contract_ref: super::NodeCapabilityContractRef,
+}
+
+impl WorkflowNodeExecutionOrigin {
+    /// Combines exact producer coordinates from one frozen execution plan.
+    #[must_use]
+    pub const fn new(
+        workflow_id: WorkflowId,
+        workflow_revision: WorkflowRevision,
+        workflow_node_id: WorkflowNodeId,
+        capability_contract_ref: super::NodeCapabilityContractRef,
+    ) -> Self {
+        Self { workflow_id, workflow_revision, workflow_node_id, capability_contract_ref }
+    }
+    /// Returns the source Workflow identity.
+    #[must_use]
+    pub const fn workflow_id(&self) -> WorkflowId {
+        self.workflow_id
+    }
+    /// Returns the frozen source Workflow revision.
+    #[must_use]
+    pub const fn workflow_revision(&self) -> WorkflowRevision {
+        self.workflow_revision
+    }
+    /// Returns the producing Workflow node identity.
+    #[must_use]
+    pub const fn workflow_node_id(&self) -> WorkflowNodeId {
+        self.workflow_node_id
+    }
+    /// Returns the exact capability contract selected by the plan.
+    #[must_use]
+    pub const fn capability_contract_ref(&self) -> &super::NodeCapabilityContractRef {
+        &self.capability_contract_ref
+    }
+}
+
 /// Exact immutable request passed to a capability implementation.
 #[derive(Clone, Debug)]
 pub struct NodeCapabilityExecutionRequest {
     /// Execution identity, deadline, and cancellation.
     pub context: WorkflowNodeExecutionContext,
+    /// Frozen producer coordinates used only by capability-owned output writes.
+    pub origin: WorkflowNodeExecutionOrigin,
     /// Complete normalized parameters.
     pub normalized_parameters: NodeCapabilityNormalizedParameters,
     /// Complete contract-validated runtime inputs.

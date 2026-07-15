@@ -18,18 +18,21 @@ macro_rules! asset_read_capability {
         pub struct $name<R> {
             managed_media_reader: R,
             contract: NodeCapabilityContract,
+            output_key: NodeCapabilityOutputKey,
         }
 
         impl<R> $name<R> {
             #[doc = concat!("Builds the frozen `", $contract_id, "@1.0` capability.")]
             pub fn try_new(managed_media_reader: R) -> Result<Self, NodeCapabilityContractError> {
+                let output_key = NodeCapabilityOutputKey::new($output_key)?;
                 Ok(Self {
                     managed_media_reader,
                     contract: asset_read_contract(
                         $contract_id,
-                        $output_key,
+                        output_key.clone(),
                         NodeCapabilityMediaKind::$media_variant,
                     )?,
+                    output_key,
                 })
             }
         }
@@ -81,7 +84,7 @@ macro_rules! asset_read_capability {
                     &self.contract,
                     request,
                     NodeCapabilityMediaKind::$media_variant,
-                    $output_key,
+                    &self.output_key,
                     |value| match value {
                         NodeCapabilityReadableMediaInput::$media_variant(value) => {
                             Some(WorkflowRuntimeValue::$media_variant(value.media_reference()))
@@ -104,7 +107,7 @@ async fn execute_asset_read<R: NodeCapabilityManagedMediaReaderInterface>(
     contract: &NodeCapabilityContract,
     request: NodeCapabilityExecutionRequest,
     expected_kind: NodeCapabilityMediaKind,
-    output_key: &str,
+    output_key: &NodeCapabilityOutputKey,
     into_runtime_value: fn(NodeCapabilityReadableMediaInput) -> Option<WorkflowRuntimeValue>,
 ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
     let Some(asset_id) =
@@ -112,6 +115,9 @@ async fn execute_asset_read<R: NodeCapabilityManagedMediaReaderInterface>(
     else {
         return Err(invalid_invocation(contract, &request));
     };
+    if request.origin.capability_contract_ref() != contract.contract_ref() {
+        return Err(invalid_invocation(contract, &request));
+    }
     if let Some(error) = cancelled_or_elapsed_error(contract, &request) {
         return Err(error);
     }
@@ -129,7 +135,7 @@ async fn execute_asset_read<R: NodeCapabilityManagedMediaReaderInterface>(
     }
     let runtime_value = match result {
         Ok(readable) => {
-            let observed_kind = readable_media_kind(&readable);
+            let observed_kind = readable.media_kind();
             match into_runtime_value(readable) {
                 Some(value) => value,
                 None => {
@@ -144,12 +150,17 @@ async fn execute_asset_read<R: NodeCapabilityManagedMediaReaderInterface>(
         }
         Err(error) => return Err(media_boundary_execution_error(contract, &request, error)),
     };
-    single_output(contract, output_key, runtime_value)
-        .map_err(|_| invalid_invocation(contract, &request))
+    single_output(contract, output_key, runtime_value).map_err(|_| {
+        NodeCapabilityExecutionError::invalid_result_while_assembling_outputs(
+            contract.contract_ref().clone(),
+            request.context.node_execution_id,
+            output_key.clone(),
+        )
+    })
 }
 fn asset_read_contract(
     id: &str,
-    output_key: &str,
+    output_key: NodeCapabilityOutputKey,
     media_kind: NodeCapabilityMediaKind,
 ) -> Result<NodeCapabilityContract, NodeCapabilityContractError> {
     NodeCapabilityContract::try_new(
@@ -162,7 +173,7 @@ fn asset_read_contract(
         )],
         Vec::new(),
         vec![NodeCapabilityOutputContract::new(
-            NodeCapabilityOutputKey::new(output_key)?,
+            output_key,
             media_kind.to_workflow_data_type(),
             true,
         )],
@@ -190,13 +201,11 @@ fn normalized_asset_id(
 
 fn single_output(
     contract: &NodeCapabilityContract,
-    key: &str,
+    key: &NodeCapabilityOutputKey,
     value: WorkflowRuntimeValue,
 ) -> Result<WorkflowNodeOutputSet, WorkflowRuntimeValueError> {
     let mut values = BTreeMap::new();
-    let key = NodeCapabilityOutputKey::new(key)
-        .map_err(|_| WorkflowRuntimeValueError::InvalidOutputSet)?;
-    values.insert(key, value);
+    values.insert(key.clone(), value);
     WorkflowNodeOutputSet::try_new(contract, values)
 }
 
@@ -328,12 +337,4 @@ fn kind_mismatch_execution_error(
             observed: observed.to_workflow_data_type(),
         },
     )
-}
-
-const fn readable_media_kind(value: &NodeCapabilityReadableMediaInput) -> NodeCapabilityMediaKind {
-    match value {
-        NodeCapabilityReadableMediaInput::Image(_) => NodeCapabilityMediaKind::Image,
-        NodeCapabilityReadableMediaInput::Video(_) => NodeCapabilityMediaKind::Video,
-        NodeCapabilityReadableMediaInput::Audio(_) => NodeCapabilityMediaKind::Audio,
-    }
 }

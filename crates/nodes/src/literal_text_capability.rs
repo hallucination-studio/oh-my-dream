@@ -7,6 +7,7 @@ use engine::node_capability::*;
 /// Produces one normalized literal Text value without external dependencies.
 pub struct ProvideLiteralTextCapabilityImpl {
     contract: NodeCapabilityContract,
+    output_key: NodeCapabilityOutputKey,
 }
 
 impl ProvideLiteralTextCapabilityImpl {
@@ -16,6 +17,7 @@ impl ProvideLiteralTextCapabilityImpl {
             NodeCapabilityContractId::new("text.provide_literal")?,
             NodeCapabilityContractVersion::new(1, 0)?,
         );
+        let output_key = NodeCapabilityOutputKey::new("text")?;
         let contract = NodeCapabilityContract::try_new(
             contract_ref,
             vec![NodeCapabilityParameterContract::required(
@@ -24,13 +26,13 @@ impl ProvideLiteralTextCapabilityImpl {
             )],
             Vec::new(),
             vec![NodeCapabilityOutputContract::new(
-                NodeCapabilityOutputKey::new("text")?,
+                output_key.clone(),
                 WorkflowDataType::Text,
                 true,
             )],
             NodeCapabilityExecutionKind::PureValue,
         )?;
-        Ok(Self { contract })
+        Ok(Self { contract, output_key })
     }
 }
 
@@ -64,6 +66,7 @@ impl WorkflowNodeCapabilityInterface for ProvideLiteralTextCapabilityImpl {
     ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
         let Some(text) = normalized_literal_text(&request.normalized_parameters)
             .filter(|_| request.inputs.is_empty())
+            .filter(|_| request.origin.capability_contract_ref() == self.contract.contract_ref())
         else {
             return Err(invalid_invocation(&self.contract, &request));
         };
@@ -71,13 +74,11 @@ impl WorkflowNodeCapabilityInterface for ProvideLiteralTextCapabilityImpl {
             return Err(error);
         }
         let text = WorkflowTextValue::try_new([WorkflowTextPart::Literal(text.to_owned())])
-            .map_err(|_| invalid_invocation(&self.contract, &request))?;
-        let key = NodeCapabilityOutputKey::new("text")
-            .map_err(|_| invalid_invocation(&self.contract, &request))?;
+            .map_err(|_| invalid_output(&self.contract, &request, &self.output_key))?;
         let mut values = BTreeMap::new();
-        values.insert(key, WorkflowRuntimeValue::Text(text));
+        values.insert(self.output_key.clone(), WorkflowRuntimeValue::Text(text));
         WorkflowNodeOutputSet::try_new(&self.contract, values)
-            .map_err(|_| invalid_invocation(&self.contract, &request))
+            .map_err(|_| invalid_output(&self.contract, &request, &self.output_key))
     }
 }
 
@@ -121,5 +122,17 @@ fn invalid_invocation(
     NodeCapabilityExecutionError::invalid_capability_invocation(
         contract.contract_ref().clone(),
         request.context.node_execution_id,
+    )
+}
+
+fn invalid_output(
+    contract: &NodeCapabilityContract,
+    request: &NodeCapabilityExecutionRequest,
+    output_key: &NodeCapabilityOutputKey,
+) -> NodeCapabilityExecutionError {
+    NodeCapabilityExecutionError::invalid_result_while_assembling_outputs(
+        contract.contract_ref().clone(),
+        request.context.node_execution_id,
+        output_key.clone(),
     )
 }

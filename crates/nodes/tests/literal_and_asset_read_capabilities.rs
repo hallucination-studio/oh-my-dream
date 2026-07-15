@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
 
 use engine::node_capability::*;
+use engine::workflow_graph::{WorkflowId, WorkflowNodeId, WorkflowRevision};
 use nodes::{
     NodeCapabilityDeclaredMediaFacts, NodeCapabilityManagedMediaReaderFakeImpl,
     NodeCapabilityManagedMediaReference, NodeCapabilityMediaContentDigest,
@@ -12,44 +13,6 @@ use projects::project::domain::ProjectId;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-#[test]
-fn c3_capabilities_publish_the_four_frozen_contracts() {
-    let literal = ProvideLiteralTextCapabilityImpl::try_new().unwrap();
-    assert_contract(
-        &literal,
-        "text.provide_literal",
-        WorkflowDataType::Text,
-        NodeCapabilityExecutionKind::PureValue,
-    );
-
-    let image =
-        ReadImageAssetCapabilityImpl::try_new(NodeCapabilityManagedMediaReaderFakeImpl::default())
-            .unwrap();
-    assert_contract(
-        &image,
-        "image.read_asset",
-        WorkflowDataType::Image,
-        NodeCapabilityExecutionKind::ManagedAssetRead,
-    );
-    let video =
-        ReadVideoAssetCapabilityImpl::try_new(NodeCapabilityManagedMediaReaderFakeImpl::default())
-            .unwrap();
-    assert_contract(
-        &video,
-        "video.read_asset",
-        WorkflowDataType::Video,
-        NodeCapabilityExecutionKind::ManagedAssetRead,
-    );
-    let audio =
-        ReadAudioAssetCapabilityImpl::try_new(NodeCapabilityManagedMediaReaderFakeImpl::default())
-            .unwrap();
-    assert_contract(
-        &audio,
-        "audio.read_asset",
-        WorkflowDataType::Audio,
-        NodeCapabilityExecutionKind::ManagedAssetRead,
-    );
-}
 #[tokio::test]
 async fn literal_capability_normalizes_and_returns_exact_structured_text() {
     let capability = ProvideLiteralTextCapabilityImpl::try_new().unwrap();
@@ -182,6 +145,28 @@ async fn asset_read_capability_rejects_invalid_invocation_before_reader_access()
         .await;
     let Err(error) = result else { panic!("invalid direct invocation unexpectedly executed") };
     assert_eq!(error.failure(), &NodeCapabilityExecutionFailure::InvalidCapabilityInvocation);
+    assert_eq!(error.target(), &NodeCapabilityExecutionTarget::Capability);
+}
+
+#[tokio::test]
+async fn c3_capabilities_reject_an_origin_for_another_capability() {
+    let capability = ProvideLiteralTextCapabilityImpl::try_new().unwrap();
+    let normalized = normalize(&capability, NodeCapabilityParameterValue::Text("hello".into()));
+    let mut request = execution_request(&capability, normalized, 31);
+    request.origin = WorkflowNodeExecutionOrigin::new(
+        request.origin.workflow_id(),
+        request.origin.workflow_revision(),
+        request.origin.workflow_node_id(),
+        NodeCapabilityContractRef::new(
+            NodeCapabilityContractId::new("image.read_asset").unwrap(),
+            NodeCapabilityContractVersion::new(1, 0).unwrap(),
+        ),
+    );
+
+    let result = capability.execute_node_capability(request).await;
+    let Err(error) = result else { panic!("mismatched origin unexpectedly executed") };
+    assert_eq!(error.failure(), &NodeCapabilityExecutionFailure::InvalidCapabilityInvocation);
+    assert_eq!(error.stage(), NodeCapabilityExecutionStage::ResolveInputs);
     assert_eq!(error.target(), &NodeCapabilityExecutionTarget::Capability);
 }
 #[tokio::test]
@@ -319,22 +304,6 @@ async fn audio_asset_capability_returns_matching_typed_reference() {
     );
 }
 
-fn assert_contract(
-    capability: &impl WorkflowNodeCapabilityInterface,
-    expected_id: &str,
-    expected_output: WorkflowDataType,
-    expected_kind: NodeCapabilityExecutionKind,
-) {
-    let contract = capability.node_capability_contract();
-    assert_eq!(contract.contract_ref().id().as_str(), expected_id);
-    assert_eq!(contract.contract_ref().version().major(), 1);
-    assert_eq!(contract.contract_ref().version().minor(), 0);
-    assert_eq!(contract.inputs(), []);
-    assert_eq!(contract.outputs().len(), 1);
-    assert_eq!(contract.outputs()[0].data_type(), expected_output);
-    assert_eq!(contract.execution_kind(), expected_kind);
-}
-
 fn normalize(
     capability: &impl WorkflowNodeCapabilityInterface,
     value: NodeCapabilityParameterValue,
@@ -363,6 +332,12 @@ fn execution_request(
             deadline: NodeCapabilityExecutionDeadline::at(future_instant()),
             cancellation: NodeCapabilityExecutionCancellation::active(),
         },
+        origin: WorkflowNodeExecutionOrigin::new(
+            WorkflowId::from_uuid(uuid(seed.wrapping_add(100))).unwrap(),
+            WorkflowRevision::new(u64::from(seed) + 1).unwrap(),
+            WorkflowNodeId::from_uuid(uuid(seed.wrapping_add(120))).unwrap(),
+            capability.node_capability_contract().contract_ref().clone(),
+        ),
         normalized_parameters,
         inputs: WorkflowNodeInputSet::try_new(
             capability.node_capability_contract(),

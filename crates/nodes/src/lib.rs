@@ -16,8 +16,10 @@ mod asset_source;
 mod contracts;
 mod error;
 mod generation;
+mod generation_capability_execution;
 mod generation_profile;
 mod image_to_video;
+mod image_to_video_capability;
 mod literal_text_capability;
 mod media;
 mod migrations;
@@ -30,6 +32,8 @@ mod registry;
 mod text_prompt;
 mod text_to_audio;
 mod text_to_image;
+mod text_to_image_capability;
+mod text_to_speech_capability;
 mod video_concat;
 
 use assets::AssetStore;
@@ -51,12 +55,15 @@ pub use generation::{
     TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
 };
 pub use generation_profile::*;
+pub use image_to_video_capability::*;
 pub use literal_text_capability::*;
 pub use migrations::{
     CapabilityMigrationError, CapabilityNodeResolution, CapabilityNodeStatus,
     DegradedCapabilityReason, frozen_legacy_examples, migrate_legacy_node, resolve_workflow_node,
 };
 pub use node_capability_media::*;
+pub use text_to_image_capability::*;
+pub use text_to_speech_capability::*;
 
 /// Shared asset store used by node instances.
 ///

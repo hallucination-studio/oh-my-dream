@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use engine::node_capability::{
     NodeCapabilityMediaFailure, WorkflowManagedAssetIdBoundaryValue, WorkflowManagedAudioRef,
     WorkflowManagedImageRef, WorkflowManagedVideoRef, WorkflowNodeExecutionContext,
+    WorkflowNodeExecutionOrigin,
 };
 use projects::project::domain::ProjectId;
 
@@ -11,7 +12,6 @@ use super::{
     NodeCapabilityMediaSourceLease, NodeCapabilityMediaValueError,
     NodeCapabilityProducedMediaDisplayName, NodeCapabilityProducedMediaOutputKey,
     NodeCapabilityProducedMediaProvenance, SynthesizedSpeechPayload, byte_length_within_kind_limit,
-    output_key_matches_context,
 };
 
 /// Media-boundary failure preserving cancellation and deadline categories.
@@ -185,6 +185,18 @@ pub enum NodeCapabilityReadableMediaInput {
     Audio(NodeCapabilityReadableAudioInput),
 }
 
+impl NodeCapabilityReadableMediaInput {
+    /// Returns the exact readable managed-media kind.
+    #[must_use]
+    pub const fn media_kind(&self) -> NodeCapabilityMediaKind {
+        match self {
+            Self::Image(_) => NodeCapabilityMediaKind::Image,
+            Self::Video(_) => NodeCapabilityMediaKind::Video,
+            Self::Audio(_) => NodeCapabilityMediaKind::Audio,
+        }
+    }
+}
+
 /// Closed typed produced media payload.
 pub enum NodeCapabilityProducedMediaPayload {
     /// Generated Image payload.
@@ -219,6 +231,7 @@ impl NodeCapabilityProducedMediaPayload {
 /// Exact produced-media publication request.
 pub struct NodeCapabilityProducedMediaWriteRequest {
     context: WorkflowNodeExecutionContext,
+    origin: WorkflowNodeExecutionOrigin,
     output_key: NodeCapabilityProducedMediaOutputKey,
     display_name: NodeCapabilityProducedMediaDisplayName,
     provenance: NodeCapabilityProducedMediaProvenance,
@@ -229,6 +242,7 @@ impl NodeCapabilityProducedMediaWriteRequest {
     /// Creates a write only when output and execution coordinates agree.
     pub fn try_new(
         context: WorkflowNodeExecutionContext,
+        origin: WorkflowNodeExecutionOrigin,
         output_key: NodeCapabilityProducedMediaOutputKey,
         display_name: NodeCapabilityProducedMediaDisplayName,
         provenance: NodeCapabilityProducedMediaProvenance,
@@ -237,12 +251,17 @@ impl NodeCapabilityProducedMediaWriteRequest {
         if !output_key_matches_context(&output_key, &context) {
             return Err(NodeCapabilityMediaValueError::InvalidOutputCoordinates);
         }
-        Ok(Self { context, output_key, display_name, provenance, payload })
+        Ok(Self { context, origin, output_key, display_name, provenance, payload })
     }
     /// Returns execution identity, deadline, and cancellation.
     #[must_use]
     pub const fn context(&self) -> &WorkflowNodeExecutionContext {
         &self.context
+    }
+    /// Returns the unchanged frozen Workflow producer coordinates.
+    #[must_use]
+    pub const fn origin(&self) -> &WorkflowNodeExecutionOrigin {
+        &self.origin
     }
     /// Returns the exact output slot identity.
     #[must_use]
@@ -282,6 +301,18 @@ pub enum NodeCapabilityProducedMediaReference {
     Audio(WorkflowManagedAudioRef),
 }
 
+impl NodeCapabilityProducedMediaReference {
+    /// Returns the exact produced managed-media kind.
+    #[must_use]
+    pub const fn media_kind(&self) -> NodeCapabilityMediaKind {
+        match self {
+            Self::Image(_) => NodeCapabilityMediaKind::Image,
+            Self::Video(_) => NodeCapabilityMediaKind::Video,
+            Self::Audio(_) => NodeCapabilityMediaKind::Audio,
+        }
+    }
+}
+
 /// Reads exact Project-visible managed media for node capabilities.
 #[async_trait]
 pub trait NodeCapabilityManagedMediaReaderInterface: Send + Sync {
@@ -300,4 +331,12 @@ pub trait NodeCapabilityProducedMediaWriterInterface: Send + Sync {
         &self,
         request: NodeCapabilityProducedMediaWriteRequest,
     ) -> Result<NodeCapabilityProducedMediaReference, NodeCapabilityMediaBoundaryError>;
+}
+
+fn output_key_matches_context(
+    output_key: &NodeCapabilityProducedMediaOutputKey,
+    context: &WorkflowNodeExecutionContext,
+) -> bool {
+    output_key.workflow_run_id() == context.workflow_run_id
+        && output_key.node_execution_id() == context.node_execution_id
 }

@@ -1,13 +1,12 @@
 use std::pin::Pin;
 use std::time::Instant;
 
+use crate::GenerationProfileRef;
 use engine::node_capability::{
     NodeCapabilityOutputKey, WorkflowManagedAudioRef, WorkflowManagedImageRef,
-    WorkflowManagedVideoRef, WorkflowNodeExecutionContext, WorkflowNodeExecutionId, WorkflowRunId,
+    WorkflowManagedVideoRef, WorkflowNodeExecutionId, WorkflowRunId,
 };
 use tokio::io::AsyncRead;
-
-use crate::GenerationProfileRef;
 
 /// Invalid typed media boundary value or expired source handoff.
 #[derive(Clone, Copy, Debug, thiserror::Error, PartialEq, Eq)]
@@ -358,6 +357,27 @@ pub struct NodeCapabilityProviderDerivedMediaProvenance {
     profile_ref: GenerationProfileRef,
 }
 
+impl NodeCapabilityProviderGeneratedMediaProvenance {
+    /// Returns the exact profile that generated the media.
+    #[must_use]
+    pub const fn generation_profile_ref(&self) -> &GenerationProfileRef {
+        &self.profile_ref
+    }
+}
+
+impl NodeCapabilityProviderDerivedMediaProvenance {
+    /// Returns ordered exact source media references.
+    #[must_use]
+    pub fn source_media_references(&self) -> &[NodeCapabilityManagedMediaReference] {
+        &self.source_media_refs
+    }
+    /// Returns the exact profile that derived the media.
+    #[must_use]
+    pub const fn generation_profile_ref(&self) -> &GenerationProfileRef {
+        &self.profile_ref
+    }
+}
+
 impl NodeCapabilityProducedMediaProvenance {
     /// Creates provider-generated provenance.
     #[must_use]
@@ -377,24 +397,4 @@ impl NodeCapabilityProducedMediaProvenance {
             profile_ref,
         }))
     }
-}
-
-pub(crate) fn output_key_matches_context(
-    output_key: &NodeCapabilityProducedMediaOutputKey,
-    context: &WorkflowNodeExecutionContext,
-) -> bool {
-    output_key.workflow_run_id == context.workflow_run_id
-        && output_key.node_execution_id == context.node_execution_id
-}
-
-pub(crate) fn byte_length_within_kind_limit(
-    byte_length: u64,
-    kind: NodeCapabilityMediaKind,
-) -> bool {
-    let maximum = match kind {
-        NodeCapabilityMediaKind::Image => 32 * 1024 * 1024,
-        NodeCapabilityMediaKind::Video => 512 * 1024 * 1024,
-        NodeCapabilityMediaKind::Audio => 64 * 1024 * 1024,
-    };
-    byte_length > 0 && byte_length <= maximum
 }

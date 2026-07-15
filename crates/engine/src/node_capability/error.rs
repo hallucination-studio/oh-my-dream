@@ -2,187 +2,13 @@
 
 use thiserror::Error;
 
-use std::time::Instant;
-
 use super::{
-    NodeCapabilityContractRef, NodeCapabilityInputKey, NodeCapabilityOutputKey,
-    NodeCapabilityParameterKey, NodeCapabilityReadinessIssue, NodeCapabilityReadinessTarget,
-    WorkflowNodeExecutionId,
+    NodeCapabilityContractRef, NodeCapabilityExecutionErrorConstructionError,
+    NodeCapabilityExecutionFailure, NodeCapabilityExecutionStage, NodeCapabilityExecutionTarget,
+    NodeCapabilityInputKey, NodeCapabilityMediaFailure, NodeCapabilityOutputKey,
+    NodeCapabilityParameterKey, NodeCapabilityProviderFailure, WorkflowNodeExecutionId,
+    readiness_parameter_key,
 };
-
-/// Immutable-registry construction or lookup failure.
-#[derive(Clone, Debug, Error, PartialEq, Eq)]
-pub enum NodeCapabilityRegistryError {
-    /// Two implementations declared the same exact ref.
-    #[error("duplicate node capability contract ref: {contract_ref}")]
-    DuplicateContractRef {
-        /// Duplicated exact contract identity.
-        contract_ref: NodeCapabilityContractRef,
-    },
-    /// No active implementation had the requested exact ref.
-    #[error("node capability contract is not registered: {contract_ref}")]
-    ContractNotRegistered {
-        /// Missing exact contract identity.
-        contract_ref: NodeCapabilityContractRef,
-    },
-}
-
-/// Closed provider failure category shared by exact generation interfaces.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NodeCapabilityProviderFailureCategory {
-    /// Semantic request was invalid.
-    InvalidSemanticRequest,
-    /// Provider authentication failed.
-    AuthenticationFailed,
-    /// Provider denied the operation.
-    PermissionDenied,
-    /// Content policy rejected the request.
-    ContentPolicyRejected,
-    /// Provider rate limit was reached.
-    RateLimited,
-    /// Provider was temporarily unavailable.
-    ProviderUnavailable,
-    /// Operation deadline was exceeded.
-    DeadlineExceeded,
-    /// Provider rejected an otherwise valid operation.
-    ProviderRejected,
-    /// Provider response was invalid.
-    InvalidResponse,
-    /// Provider content download was rejected.
-    DownloadRejected,
-    /// Submission outcome could not be proven.
-    AmbiguousSubmission,
-}
-
-/// Validated provider failure without provider-private text.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NodeCapabilityProviderFailure {
-    category: NodeCapabilityProviderFailureCategory,
-    retryable: bool,
-    safe_retry_at: Option<Instant>,
-}
-
-/// Invalid provider retry metadata for its closed category.
-#[derive(Clone, Copy, Debug, Error, PartialEq, Eq)]
-#[error("node capability provider retry metadata is invalid")]
-pub struct NodeCapabilityProviderFailureConstructionError;
-
-impl NodeCapabilityProviderFailure {
-    /// Creates a provider failure and rejects inconsistent retry metadata.
-    pub fn try_new(
-        category: NodeCapabilityProviderFailureCategory,
-        submission_was_accepted: bool,
-        observed_at: Instant,
-        safe_retry_at: Option<Instant>,
-    ) -> Result<Self, NodeCapabilityProviderFailureConstructionError> {
-        let retryable = matches!(
-            category,
-            NodeCapabilityProviderFailureCategory::RateLimited
-                | NodeCapabilityProviderFailureCategory::ProviderUnavailable
-        ) || (category == NodeCapabilityProviderFailureCategory::DeadlineExceeded
-            && !submission_was_accepted);
-        if (!retryable && safe_retry_at.is_some())
-            || safe_retry_at.is_some_and(|retry_at| retry_at <= observed_at)
-        {
-            return Err(NodeCapabilityProviderFailureConstructionError);
-        }
-        Ok(Self { category, retryable, safe_retry_at })
-    }
-
-    /// Returns the closed provider failure category.
-    #[must_use]
-    pub const fn category(&self) -> NodeCapabilityProviderFailureCategory {
-        self.category
-    }
-
-    /// Reports whether a new Run may safely retry the semantic operation.
-    #[must_use]
-    pub const fn is_retryable(&self) -> bool {
-        self.retryable
-    }
-
-    /// Returns the optional monotonic instant before which retry is unsafe.
-    #[must_use]
-    pub const fn safe_retry_at(&self) -> Option<Instant> {
-        self.safe_retry_at
-    }
-}
-
-/// Closed managed-media failure category.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NodeCapabilityMediaFailure {
-    /// Selected managed media was unavailable.
-    Unavailable,
-    /// Selected managed media had the wrong kind.
-    KindMismatch {
-        /// Media kind required by the caller.
-        expected: super::WorkflowDataType,
-        /// Media kind observed at the boundary.
-        observed: super::WorkflowDataType,
-    },
-    /// Media content failed validation.
-    InvalidMedia,
-    /// Media exceeded its exact size limit.
-    SizeLimitExceeded,
-    /// Content digest did not match verified bytes.
-    DigestMismatch,
-    /// One output key was reused with different content.
-    OutputConflict,
-    /// Managed storage failed.
-    StorageFailed,
-    /// Media inspection failed.
-    InspectionFailed,
-    /// Managed-media finalization failed.
-    FinalizationFailed,
-}
-
-/// Stage at which exact capability execution failed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NodeCapabilityExecutionStage {
-    /// Runtime input or external selection resolution.
-    ResolveInputs,
-    /// Exact provider interface invocation.
-    CallProvider,
-    /// Provider result validation.
-    ValidateProviderResult,
-    /// Managed-media output publication.
-    WriteManagedMedia,
-}
-
-/// Safe structured target of an execution failure.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum NodeCapabilityExecutionTarget {
-    /// Capability operation as a whole.
-    Capability,
-    /// One declared parameter.
-    Parameter(NodeCapabilityParameterKey),
-    /// One declared input.
-    Input(NodeCapabilityInputKey),
-    /// One declared output.
-    Output(NodeCapabilityOutputKey),
-}
-
-/// Closed execution failure source.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum NodeCapabilityExecutionFailure {
-    /// Direct execution request did not satisfy the resolved capability contract.
-    InvalidCapabilityInvocation,
-    /// External readiness changed after admission.
-    Readiness(NodeCapabilityReadinessIssue),
-    /// Provider boundary failed.
-    Provider(NodeCapabilityProviderFailure),
-    /// Managed-media boundary failed.
-    Media(NodeCapabilityMediaFailure),
-    /// Cancellation was observed.
-    Cancelled,
-    /// Call-scoped deadline was observed.
-    DeadlineExceeded,
-}
-
-/// Invalid combination of execution stage and target.
-#[derive(Clone, Copy, Debug, Error, PartialEq, Eq)]
-#[error("node capability execution stage and target are inconsistent")]
-pub struct NodeCapabilityExecutionErrorConstructionError;
 
 /// Structured safe failure returned by one capability execution.
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
@@ -191,7 +17,7 @@ pub struct NodeCapabilityExecutionError {
     contract_ref: NodeCapabilityContractRef,
     node_execution_id: WorkflowNodeExecutionId,
     stage: NodeCapabilityExecutionStage,
-    failure: NodeCapabilityExecutionFailure,
+    failure: Box<NodeCapabilityExecutionFailure>,
     target: NodeCapabilityExecutionTarget,
 }
 
@@ -207,6 +33,38 @@ impl NodeCapabilityExecutionError {
             node_execution_id,
             NodeCapabilityExecutionFailure::InvalidCapabilityInvocation,
         )
+    }
+
+    /// Creates the fixed error for invalid final output-set assembly.
+    #[must_use]
+    pub fn invalid_result_while_assembling_outputs(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        output_key: NodeCapabilityOutputKey,
+    ) -> Self {
+        Self {
+            contract_ref,
+            node_execution_id,
+            stage: NodeCapabilityExecutionStage::AssembleOutputs,
+            failure: Box::new(NodeCapabilityExecutionFailure::InvalidCapabilityResult),
+            target: NodeCapabilityExecutionTarget::Output(output_key),
+        }
+    }
+
+    /// Creates the fixed error for invalid produced-media write-request construction.
+    #[must_use]
+    pub fn invalid_result_while_constructing_media_write(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        output_key: NodeCapabilityOutputKey,
+    ) -> Self {
+        Self {
+            contract_ref,
+            node_execution_id,
+            stage: NodeCapabilityExecutionStage::ValidateProviderResult,
+            failure: Box::new(NodeCapabilityExecutionFailure::InvalidCapabilityResult),
+            target: NodeCapabilityExecutionTarget::Output(output_key),
+        }
     }
 
     /// Creates a cancellation observed while resolving capability inputs.
@@ -246,7 +104,7 @@ impl NodeCapabilityExecutionError {
             contract_ref,
             node_execution_id,
             stage: NodeCapabilityExecutionStage::ResolveInputs,
-            failure: NodeCapabilityExecutionFailure::Cancelled,
+            failure: Box::new(NodeCapabilityExecutionFailure::Cancelled),
             target: NodeCapabilityExecutionTarget::Parameter(parameter_key),
         }
     }
@@ -262,7 +120,7 @@ impl NodeCapabilityExecutionError {
             contract_ref,
             node_execution_id,
             stage: NodeCapabilityExecutionStage::ResolveInputs,
-            failure: NodeCapabilityExecutionFailure::DeadlineExceeded,
+            failure: Box::new(NodeCapabilityExecutionFailure::DeadlineExceeded),
             target: NodeCapabilityExecutionTarget::Parameter(parameter_key),
         }
     }
@@ -279,9 +137,163 @@ impl NodeCapabilityExecutionError {
             contract_ref,
             node_execution_id,
             stage: NodeCapabilityExecutionStage::ResolveInputs,
-            failure: NodeCapabilityExecutionFailure::Media(failure),
+            failure: Box::new(NodeCapabilityExecutionFailure::Media(failure)),
             target: NodeCapabilityExecutionTarget::Parameter(parameter_key),
         }
+    }
+
+    /// Creates cancellation observed while resolving one runtime input.
+    #[must_use]
+    pub fn cancelled_while_resolving_input(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        input_key: NodeCapabilityInputKey,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::ResolveInputs,
+            NodeCapabilityExecutionFailure::Cancelled,
+            NodeCapabilityExecutionTarget::Input(input_key),
+        )
+    }
+
+    /// Creates deadline failure observed while resolving one runtime input.
+    #[must_use]
+    pub fn deadline_exceeded_while_resolving_input(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        input_key: NodeCapabilityInputKey,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::ResolveInputs,
+            NodeCapabilityExecutionFailure::DeadlineExceeded,
+            NodeCapabilityExecutionTarget::Input(input_key),
+        )
+    }
+
+    /// Creates managed-media failure observed while resolving one runtime input.
+    #[must_use]
+    pub fn managed_media_input_resolution_failed(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        input_key: NodeCapabilityInputKey,
+        failure: NodeCapabilityMediaFailure,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::ResolveInputs,
+            NodeCapabilityExecutionFailure::Media(failure),
+            NodeCapabilityExecutionTarget::Input(input_key),
+        )
+    }
+
+    /// Creates an exact provider call failure.
+    #[must_use]
+    pub fn provider_call_failed(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        failure: NodeCapabilityProviderFailure,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::CallProvider,
+            NodeCapabilityExecutionFailure::Provider(failure),
+            NodeCapabilityExecutionTarget::Capability,
+        )
+    }
+
+    /// Creates cancellation observed while calling the provider.
+    #[must_use]
+    pub fn cancelled_while_calling_provider(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::CallProvider,
+            NodeCapabilityExecutionFailure::Cancelled,
+            NodeCapabilityExecutionTarget::Capability,
+        )
+    }
+
+    /// Creates deadline failure observed while calling the provider.
+    #[must_use]
+    pub fn deadline_exceeded_while_calling_provider(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::CallProvider,
+            NodeCapabilityExecutionFailure::DeadlineExceeded,
+            NodeCapabilityExecutionTarget::Capability,
+        )
+    }
+
+    /// Creates exact managed-media failure observed while writing one output.
+    #[must_use]
+    pub fn managed_media_output_write_failed(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        output_key: NodeCapabilityOutputKey,
+        failure: NodeCapabilityMediaFailure,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::WriteManagedMedia,
+            NodeCapabilityExecutionFailure::Media(failure),
+            NodeCapabilityExecutionTarget::Output(output_key),
+        )
+    }
+
+    /// Creates cancellation observed while writing one output.
+    #[must_use]
+    pub fn cancelled_while_writing_output(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        output_key: NodeCapabilityOutputKey,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::WriteManagedMedia,
+            NodeCapabilityExecutionFailure::Cancelled,
+            NodeCapabilityExecutionTarget::Output(output_key),
+        )
+    }
+
+    /// Creates deadline failure observed while writing one output.
+    #[must_use]
+    pub fn deadline_exceeded_while_writing_output(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        output_key: NodeCapabilityOutputKey,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::WriteManagedMedia,
+            NodeCapabilityExecutionFailure::DeadlineExceeded,
+            NodeCapabilityExecutionTarget::Output(output_key),
+        )
+    }
+
+    fn operation_failure(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        stage: NodeCapabilityExecutionStage,
+        failure: NodeCapabilityExecutionFailure,
+        target: NodeCapabilityExecutionTarget,
+    ) -> Self {
+        Self { contract_ref, node_execution_id, stage, failure: Box::new(failure), target }
     }
 
     fn resolve_inputs_capability_failure(
@@ -293,7 +305,7 @@ impl NodeCapabilityExecutionError {
             contract_ref,
             node_execution_id,
             stage: NodeCapabilityExecutionStage::ResolveInputs,
-            failure,
+            failure: Box::new(failure),
             target: NodeCapabilityExecutionTarget::Capability,
         }
     }
@@ -321,6 +333,9 @@ impl NodeCapabilityExecutionError {
                 NodeCapabilityExecutionTarget::Capability
                     | NodeCapabilityExecutionTarget::Output(_)
             ),
+            NodeCapabilityExecutionStage::AssembleOutputs => {
+                matches!(target, NodeCapabilityExecutionTarget::Output(_))
+            }
         };
         let readiness_target_matches = match (&failure, &target) {
             (
@@ -334,10 +349,27 @@ impl NodeCapabilityExecutionError {
             == NodeCapabilityExecutionFailure::InvalidCapabilityInvocation
             && (stage != NodeCapabilityExecutionStage::ResolveInputs
                 || target != NodeCapabilityExecutionTarget::Capability);
-        if !valid_target || !readiness_target_matches || invalid_invocation_shape {
+        let invalid_result_shape = failure
+            == NodeCapabilityExecutionFailure::InvalidCapabilityResult
+            && !matches!(
+                (&stage, &target),
+                (
+                    NodeCapabilityExecutionStage::ValidateProviderResult
+                        | NodeCapabilityExecutionStage::AssembleOutputs,
+                    NodeCapabilityExecutionTarget::Output(_)
+                )
+            );
+        let assemble_outputs_failure_shape = stage == NodeCapabilityExecutionStage::AssembleOutputs
+            && failure != NodeCapabilityExecutionFailure::InvalidCapabilityResult;
+        if !valid_target
+            || !readiness_target_matches
+            || invalid_invocation_shape
+            || invalid_result_shape
+            || assemble_outputs_failure_shape
+        {
             return Err(NodeCapabilityExecutionErrorConstructionError);
         }
-        Ok(Self { contract_ref, node_execution_id, stage, failure, target })
+        Ok(Self { contract_ref, node_execution_id, stage, failure: Box::new(failure), target })
     }
 
     /// Returns the exact capability contract that failed.
@@ -364,17 +396,5 @@ impl NodeCapabilityExecutionError {
     #[must_use]
     pub const fn target(&self) -> &NodeCapabilityExecutionTarget {
         &self.target
-    }
-}
-
-fn readiness_parameter_key(
-    issue: &NodeCapabilityReadinessIssue,
-) -> Option<&NodeCapabilityParameterKey> {
-    match issue.target() {
-        NodeCapabilityReadinessTarget::Capability => None,
-        NodeCapabilityReadinessTarget::ManagedAsset { parameter_key, .. }
-        | NodeCapabilityReadinessTarget::GenerationProfile { parameter_key, .. } => {
-            Some(parameter_key)
-        }
     }
 }

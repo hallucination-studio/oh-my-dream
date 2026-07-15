@@ -229,6 +229,12 @@ impl WorkflowNodeInputSet {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    /// Returns the number of named runtime inputs.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 fn input_matches(

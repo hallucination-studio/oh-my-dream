@@ -3,11 +3,12 @@ use std::time::{Duration, Instant};
 
 use engine::node_capability::{
     NodeCapabilityExecutionCancellation, NodeCapabilityExecutionDeadline,
-    NodeCapabilityMediaFailure, NodeCapabilityOutputKey, NodeCapabilityProviderFailureCategory,
-    WorkflowManagedAssetIdBoundaryValue, WorkflowManagedContentFingerprint,
-    WorkflowManagedImageRef, WorkflowManagedVideoRef, WorkflowNodeExecutionContext,
-    WorkflowNodeExecutionId, WorkflowRunId, WorkflowTextPart, WorkflowTextValue,
+    NodeCapabilityMediaFailure, NodeCapabilityOutputKey, WorkflowManagedAssetIdBoundaryValue,
+    WorkflowManagedContentFingerprint, WorkflowManagedImageRef, WorkflowManagedVideoRef,
+    WorkflowNodeExecutionContext, WorkflowNodeExecutionId, WorkflowNodeExecutionOrigin,
+    WorkflowRunId,
 };
+use engine::workflow_graph::{WorkflowId, WorkflowNodeId, WorkflowRevision};
 use nodes::*;
 use projects::project::domain::ProjectId;
 use sha2::{Digest, Sha256};
@@ -207,6 +208,19 @@ async fn assert_produced_media_writer_contract(
         .unwrap();
     assert_ne!(first, other_project_output);
 
+    let origin_conflict = writer
+        .write_node_output_media(write_request_with_origin_seed(
+            context.clone(),
+            key.clone(),
+            vec![8; 16],
+            5,
+        ))
+        .await;
+    assert_eq!(
+        origin_conflict.unwrap_err(),
+        NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::OutputConflict)
+    );
+
     let conflict = writer.write_node_output_media(write_request(context, key, vec![9; 16])).await;
     assert_eq!(
         conflict.unwrap_err(),
@@ -214,89 +228,19 @@ async fn assert_produced_media_writer_contract(
     );
 }
 
-#[tokio::test]
-async fn text_to_image_provider_fake_impl_satisfies_provider_contract() {
-    let provider = TextToImageProviderFakeImpl::try_new().unwrap();
-    assert_text_to_image_provider_contract(&provider).await;
-}
-
-async fn assert_text_to_image_provider_contract(provider: &impl TextToImageProviderInterface) {
-    let payload = provider
-        .generate_image_from_text(TextToImageProviderRequest::new(
-            profile_ref(),
-            execution_context(5, future_instant()),
-            text("draw a moon"),
-            ImageAspectRatio::Square,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(payload.mime_type(), NodeCapabilityMediaMimeType::ImagePng);
-    assert_eq!(payload.facts(), NodeCapabilityDeclaredMediaFacts::try_image(32, 32).unwrap());
-    assert_eq!(read_stream(payload.into_source()).await, vec![1; 16]);
-}
-
-#[tokio::test]
-async fn image_to_video_provider_fake_impl_satisfies_provider_contract() {
-    let provider = ImageToVideoProviderFakeImpl::try_new().unwrap();
-    assert_image_to_video_provider_contract(&provider).await;
-}
-
-async fn assert_image_to_video_provider_contract(provider: &impl ImageToVideoProviderInterface) {
-    let image_bytes = vec![4; 12];
-    let image = NodeCapabilityReadableImageInput::try_new(
-        image_reference(6, digest(&image_bytes)),
-        NodeCapabilityMediaMimeType::ImagePng,
-        NodeCapabilityDeclaredMediaFacts::try_image(32, 32).unwrap(),
-        source(image_bytes, future_instant()),
-    )
-    .unwrap();
-    let payload = provider
-        .generate_video_from_image(ImageToVideoProviderRequest::new(
-            profile_ref(),
-            execution_context(7, future_instant()),
-            image,
-            Some(text("slow camera")),
-            ImageToVideoDurationSeconds::Five,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(payload.mime_type(), NodeCapabilityMediaMimeType::VideoMp4);
-    assert_eq!(read_stream(payload.into_source()).await, vec![2; 24]);
-}
-
-#[tokio::test]
-async fn text_to_speech_provider_fake_impl_satisfies_provider_contract() {
-    let provider = TextToSpeechProviderFakeImpl::try_new().unwrap();
-    assert_text_to_speech_provider_contract(&provider).await;
-}
-
-async fn assert_text_to_speech_provider_contract(provider: &impl TextToSpeechProviderInterface) {
-    let payload = provider
-        .synthesize_speech_from_text(TextToSpeechProviderRequest::new(
-            profile_ref(),
-            execution_context(8, future_instant()),
-            text("hello"),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(payload.mime_type(), NodeCapabilityMediaMimeType::AudioMpeg);
-    assert_eq!(read_stream(payload.into_source()).await, vec![3; 12]);
-
-    let failure = provider
-        .synthesize_speech_from_text(TextToSpeechProviderRequest::new(
-            profile_ref(),
-            execution_context(9, Instant::now()),
-            text("late"),
-        ))
-        .await;
-    let Err(failure) = failure else { panic!("expired provider request unexpectedly succeeded") };
-    assert_eq!(failure.category(), NodeCapabilityProviderFailureCategory::DeadlineExceeded);
-}
-
 fn write_request(
     context: WorkflowNodeExecutionContext,
     key: NodeCapabilityProducedMediaOutputKey,
     bytes: Vec<u8>,
+) -> NodeCapabilityProducedMediaWriteRequest {
+    write_request_with_origin_seed(context, key, bytes, 4)
+}
+
+fn write_request_with_origin_seed(
+    context: WorkflowNodeExecutionContext,
+    key: NodeCapabilityProducedMediaOutputKey,
+    bytes: Vec<u8>,
+    origin_seed: u8,
 ) -> NodeCapabilityProducedMediaWriteRequest {
     let payload = GeneratedImagePayload::try_new(
         NodeCapabilityDeclaredMediaFacts::try_image(32, 32).unwrap(),
@@ -305,12 +249,33 @@ fn write_request(
     .unwrap();
     NodeCapabilityProducedMediaWriteRequest::try_new(
         context,
+        execution_origin(origin_seed),
         key,
         NodeCapabilityProducedMediaDisplayName::try_new("Generated image").unwrap(),
         NodeCapabilityProducedMediaProvenance::provider_generated(profile_ref()),
         NodeCapabilityProducedMediaPayload::GeneratedImage(payload),
     )
     .unwrap()
+}
+
+fn execution_origin(seed: u8) -> WorkflowNodeExecutionOrigin {
+    WorkflowNodeExecutionOrigin::new(
+        WorkflowId::from_uuid(uuid(seed.wrapping_add(90))).unwrap(),
+        WorkflowRevision::new(u64::from(seed) + 1).unwrap(),
+        WorkflowNodeId::from_uuid(uuid(seed.wrapping_add(120))).unwrap(),
+        engine::node_capability::NodeCapabilityContractRef::new(
+            engine::node_capability::NodeCapabilityContractId::new("image.generate_from_text")
+                .unwrap(),
+            engine::node_capability::NodeCapabilityContractVersion::new(1, 0).unwrap(),
+        ),
+    )
+}
+
+fn profile_ref() -> GenerationProfileRef {
+    GenerationProfileRef::new(
+        GenerationProfileId::try_new("profile.image.standard").unwrap(),
+        GenerationProfileVersion::try_new(1).unwrap(),
+    )
 }
 
 fn output_key(context: &WorkflowNodeExecutionContext) -> NodeCapabilityProducedMediaOutputKey {
@@ -341,17 +306,6 @@ fn image_reference(seed: u8, digest: NodeCapabilityMediaContentDigest) -> Workfl
         WorkflowManagedAssetIdBoundaryValue::from_bytes(uuid(seed).into_bytes()).unwrap(),
         WorkflowManagedContentFingerprint::from_bytes(digest.as_bytes()),
     )
-}
-
-fn profile_ref() -> GenerationProfileRef {
-    GenerationProfileRef::new(
-        GenerationProfileId::try_new("openai.image").unwrap(),
-        GenerationProfileVersion::try_new(1).unwrap(),
-    )
-}
-
-fn text(value: &str) -> WorkflowTextValue {
-    WorkflowTextValue::try_new([WorkflowTextPart::Literal(value.to_owned())]).unwrap()
 }
 
 fn source(bytes: Vec<u8>, deadline: Instant) -> NodeCapabilityMediaSourceLease {
