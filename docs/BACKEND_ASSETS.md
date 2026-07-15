@@ -305,6 +305,15 @@ forward asynchronous stream, and expires at its caller-supplied deadline. `Asset
 is the equivalent one-shot opaque stream over the already-open trusted file handle. Neither lease
 is cloneable, serializable, persisted, or convertible to a path.
 
+The two stream leases are application values. Each owns one
+`Pin<Box<dyn AsyncRead + Send>>` and a process-monotonic `Instant` deadline. Construction accepts an
+already-open stream and validates no bytes. `AssetManagedContentLease` additionally carries its
+exact `AssetContentId` and byte length; `AssetImportSourceLease` carries no file identity or path.
+The only stream operation consumes the lease. It returns `DeadlineExceeded` when observed at or
+after the deadline and otherwise returns the owned stream. Reading after that handoff remains
+bounded by the same caller deadline at the consuming use case; the lease does not spawn work,
+retry, buffer, rewind, inspect, or orchestrate replay.
+
 `AssetListQuery` accepts Project, optional media kind, opaque cursor, and limit `1..=100`. Ordering
 is always `(created_at DESC, asset_id DESC)`, and the cursor contains both values.
 
@@ -331,6 +340,12 @@ process-scoped and is not persisted. Image rejects Range. Video and Audio accept
 one `bytes=start-end`, `bytes=start-`, or `bytes=-suffix` range. Multiple ranges, invalid syntax,
 zero suffix, unsatisfiable bounds, or a range spanning more than 16 MiB is rejected. `HEAD` returns
 the same status and headers as `GET` without opening or returning a body.
+
+Preview lease timestamps use the same non-negative epoch-millisecond representation as Asset
+timestamps. Construction derives expiry as exactly `issued_at + 300_000`; callers cannot supply a
+different expiry. A negative issue time or timestamp overflow returns `PreviewLeaseInvalid`.
+`AssetPreviewLease` is an immutable process-local application value. It contains no signed token and
+grants no content access by itself.
 
 ## Recovery
 
@@ -383,8 +398,16 @@ private paths, process output, rows, and handles never cross an Asset interface.
 `NotFound`, `NotVisible`, `MediaKindMismatch`, `ContentPending`, `ContentMissing`, `InvalidMedia`,
 `MediaSizeLimitExceeded`, `ContentDigestMismatch`, `NodeOutputConflict`, `ManagedStorageFailed`,
 `IdentityConflict`, `InspectionFailed`, `FinalizationFailed`, `PreviewLeaseInvalid`,
-`PreviewLeaseExpired`, `PreviewRangeInvalid`, `Cancelled`, and `DeadlineExceeded`. Errors contain safe
-typed identities, never paths, tokens, process output, or raw content.
+`PreviewLeaseExpired`, `PreviewRangeInvalid`, `Cancelled`, and `DeadlineExceeded`. Errors and their
+adjacent command or query results use only safe typed identities, never paths, tokens, process
+output, or raw content.
+
+The MVP `AssetApplicationError` variants carry no payload. Query and command values already retain
+the safe typed identities needed by their caller, while adapters record private diagnostics only at
+the boundary where the failure is handled. Implementations must not add a catch-all source error,
+message string, retry hint, provider detail, path, token, process output, or raw bytes to this public
+error. Domain-value construction failures remain `AssetDomainError` and are not duplicated as an
+application-error variant.
 
 Value construction maps non-v4 Asset-owned UUIDs to `InvalidIdentity`, negative
 `AssetCreatedAt` to `InvalidDescriptor`, invalid display/original names to their same-named
