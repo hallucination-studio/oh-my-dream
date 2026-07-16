@@ -43,6 +43,7 @@ async-trait.workspace = true
 base64.workspace = true
 backends.workspace = true
 engine.workspace = true
+getrandom.workspace = true
 image.workspace = true
 jsonschema.workspace = true
 nodes.workspace = true

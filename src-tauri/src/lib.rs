@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod asset_adapters;
+pub mod asset_preview_protocol;
 mod asset_reference_adapter;
 pub mod asset_storage_adapters;
 pub mod assistant;
@@ -22,6 +23,7 @@ pub mod commands;
 pub mod credential_repository;
 pub mod desktop_backend_config;
 pub mod desktop_bridges;
+pub mod desktop_node_capability_asset_bridge;
 pub mod dto;
 mod managed_asset_access;
 pub(crate) mod metadata_sqlite;

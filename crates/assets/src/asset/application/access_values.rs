@@ -5,7 +5,7 @@ use std::time::Instant;
 use projects::project::domain::ProjectId;
 
 use super::AssetManagedContentLease;
-use crate::asset::domain::{AssetContentDescriptor, AssetId, AssetMediaKind};
+use crate::asset::domain::{AssetContentDescriptor, AssetId, AssetMediaFacts, AssetMediaKind};
 
 /// One Project-scoped Asset lookup.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
@@ -77,20 +77,27 @@ impl AssetResolveContentQuery {
 /// Exact descriptor and one-shot managed-content access.
 pub struct AssetResolvedContent {
     descriptor: AssetContentDescriptor,
+    media_facts: AssetMediaFacts,
     content_lease: AssetManagedContentLease,
 }
 
 impl AssetResolvedContent {
     pub(crate) const fn new(
         descriptor: AssetContentDescriptor,
+        media_facts: AssetMediaFacts,
         content_lease: AssetManagedContentLease,
     ) -> Self {
-        Self { descriptor, content_lease }
+        Self { descriptor, media_facts, content_lease }
     }
     /// Returns the exact content descriptor.
     #[must_use]
     pub const fn descriptor(&self) -> &AssetContentDescriptor {
         &self.descriptor
+    }
+    /// Returns the authoritative inspected media facts.
+    #[must_use]
+    pub const fn media_facts(&self) -> AssetMediaFacts {
+        self.media_facts
     }
     /// Returns the matching one-shot content lease.
     #[must_use]

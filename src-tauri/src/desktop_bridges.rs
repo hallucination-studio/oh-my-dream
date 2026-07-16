@@ -22,6 +22,8 @@ use projects::project::{
     interfaces::ProjectWorkflowSummaryReaderInterface,
 };
 
+use crate::asset_preview_protocol::DesktopAssetPreviewProtocolAdapterImpl;
+
 /// Same-snapshot Workflow summary bridge consumed only by Project open.
 pub struct DesktopProjectWorkflowBridgeAdapterImpl<R> {
     get_current: Arc<WorkflowGetCurrentUseCase<R>>,
@@ -84,15 +86,19 @@ where
     }
 }
 
-/// Unsigned Asset preview-lease bridge; D2 replaces its opaque encoding with the signed URI.
+/// Signed Asset preview-lease bridge producing only opaque Workflow preview values.
 pub struct DesktopWorkflowMediaPreviewAdapterImpl {
     issue_preview: Arc<AssetIssuePreviewUseCase>,
+    preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
 }
 
 impl DesktopWorkflowMediaPreviewAdapterImpl {
     #[must_use]
-    pub const fn new(issue_preview: Arc<AssetIssuePreviewUseCase>) -> Self {
-        Self { issue_preview }
+    pub const fn new(
+        issue_preview: Arc<AssetIssuePreviewUseCase>,
+        preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
+    ) -> Self {
+        Self { issue_preview, preview_protocol }
     }
 }
 
@@ -121,26 +127,23 @@ impl WorkflowMediaPreviewIssuerInterface for DesktopWorkflowMediaPreviewAdapterI
             .issue_asset_preview(AssetIssuePreviewCommand::new(project_id, asset_id))
             .await
             .map_err(|_| WorkflowApplicationError::WorkflowMediaPreviewIssueFailure)?;
-        preview_from_lease(&lease, expected_fingerprint.as_bytes())
+        preview_from_lease(
+            &lease,
+            expected_fingerprint.as_bytes(),
+            &self.preview_protocol.issue_preview_uri(&lease),
+        )
     }
 }
 
 fn preview_from_lease(
     lease: &AssetPreviewLease,
     expected_fingerprint: [u8; 32],
+    opaque_preview: &str,
 ) -> Result<WorkflowMediaPreview, WorkflowApplicationError> {
     if lease.content_id().digest().as_bytes() != expected_fingerprint {
         return Err(WorkflowApplicationError::WorkflowMediaPreviewIssueFailure);
     }
-    WorkflowMediaPreview::try_new(format!(
-        "asset-preview-lease-v1:{}:{}:{}:{}:{}:{}",
-        lease.lease_id().as_uuid(),
-        lease.project_id().as_uuid(),
-        lease.asset_id().as_uuid(),
-        lease.content_id(),
-        lease.issued_at_utc_milliseconds(),
-        lease.expires_at_utc_milliseconds(),
-    ))
+    WorkflowMediaPreview::try_new(opaque_preview)
 }
 
 #[cfg(test)]
@@ -166,10 +169,10 @@ mod tests {
         )
         .unwrap();
 
-        let preview = preview_from_lease(&lease, digest).unwrap();
-        assert!(preview.as_str().starts_with("asset-preview-lease-v1:"));
+        let preview = preview_from_lease(&lease, digest, "desktop-asset://v1/token").unwrap();
+        assert_eq!(preview.as_str(), "desktop-asset://v1/token");
         assert_eq!(
-            preview_from_lease(&lease, [8; 32]),
+            preview_from_lease(&lease, [8; 32], "desktop-asset://v1/token"),
             Err(WorkflowApplicationError::WorkflowMediaPreviewIssueFailure)
         );
     }

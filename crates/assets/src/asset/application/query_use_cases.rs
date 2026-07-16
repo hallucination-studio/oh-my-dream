@@ -95,7 +95,7 @@ impl AssetResolveContentUseCase {
         )
         .await?
         .ok_or(AssetApplicationError::ContentMissing)?;
-        Ok(AssetResolvedContent::new(descriptor, lease))
+        Ok(AssetResolvedContent::new(descriptor, asset.media_facts(), lease))
     }
 }
 
