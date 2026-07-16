@@ -4,10 +4,13 @@
 // result is the sole terminal authority; cancellation remains a request until
 // that result reports cancelled, succeeded, or failed.
 
-import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AssetDto,
+  AssetKind,
+  AssetListPageDto,
+  AssetPreviewDto,
   AssistantConfig,
   AssistantConfigInput,
   AssistantApprovalDecisionInput,
@@ -16,7 +19,6 @@ import type {
   ResponsesStreamEvent,
   CapabilityRef,
   GenerationProfileForCapability,
-  ListAssetsOptions,
   NodeCapabilityContractDto,
   Project,
   ProjectWorkspace,
@@ -33,26 +35,47 @@ import type {
   WorkflowWithReadinessDto,
 } from "./types.ts";
 
-async function listAssets(options: ListAssetsOptions = {}): Promise<AssetDto[]> {
-  const root = await assetsRoot();
-  const assets = await invoke<AssetDto[]>("list_assets", {
-    kind: options.kind ?? null,
-    project_id: options.project_id ?? null,
-    model: options.model ?? null,
-    prompt: options.prompt ?? null,
-    sort: options.sort ?? null,
+async function assetImport(
+  projectId: string,
+  expectedMediaKind: AssetKind,
+): Promise<AssetDto | null> {
+  return invoke("asset_import", {
+    request: {
+      project_id: projectId,
+      expected_media_kind: expectedMediaKind,
+    },
   });
-  return assets.map((asset) => convertAssetPaths(asset, root));
 }
 
-async function getAsset(id: string): Promise<AssetDto> {
-  const root = await assetsRoot();
-  const asset = await invoke<AssetDto>("get_asset", { id });
-  return convertAssetPaths(asset, root);
+async function assetGet(projectId: string, assetId: string): Promise<AssetDto> {
+  return invoke("asset_get", {
+    request: { project_id: projectId, asset_id: assetId },
+  });
 }
 
-async function assetsRoot(): Promise<string> {
-  return invoke<string>("assets_root");
+async function assetList(
+  projectId: string,
+  mediaKind: AssetKind | null = null,
+  cursor: string | null = null,
+  limit = 100,
+): Promise<AssetListPageDto> {
+  return invoke("asset_list", {
+    request: {
+      project_id: projectId,
+      media_kind: mediaKind,
+      cursor,
+      limit,
+    },
+  });
+}
+
+async function assetIssuePreview(
+  projectId: string,
+  assetId: string,
+): Promise<AssetPreviewDto> {
+  return invoke("asset_issue_preview", {
+    request: { project_id: projectId, asset_id: assetId },
+  });
 }
 
 async function listProjects(): Promise<Project[]> {
@@ -269,35 +292,11 @@ async function getPendingAssistantApproval(
   });
 }
 
-function convertAssetPaths(asset: AssetDto, root: string | null): AssetDto {
-  return {
-    ...asset,
-    file_path: convertRootedPath(asset.file_path, root),
-    thumbnail_path:
-      asset.thumbnail_path === null ? null : convertRootedPath(asset.thumbnail_path, root),
-  };
-}
-
-function convertRootedPath(path: string, root: string | null): string {
-  if (!root || !isPathUnderRoot(path, root)) {
-    return path;
-  }
-  return convertFileSrc(path);
-}
-
-function isPathUnderRoot(path: string, root: string): boolean {
-  const normalizedRoot = root.replace(/[\\/]+$/, "");
-  return (
-    path === normalizedRoot ||
-    path.startsWith(`${normalizedRoot}/`) ||
-    path.startsWith(`${normalizedRoot}\\`)
-  );
-}
-
 export const tauriApi: WorkflowApi = {
-  assetsRoot,
-  listAssets,
-  getAsset,
+  assetImport,
+  assetGet,
+  assetList,
+  assetIssuePreview,
   listProjects,
   createProject,
   getProject,

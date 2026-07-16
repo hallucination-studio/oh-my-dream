@@ -2,6 +2,7 @@
 // with jump links, and actions (export, add to canvas).
 
 import type { AssetViewModel } from "./model.ts";
+import { AssetMediaPreview } from "./AssetMediaPreview.tsx";
 import "./assetDetail.css";
 
 export function AssetDetail({
@@ -21,27 +22,23 @@ export function AssetDetail({
     );
   }
 
-  const src = asset.thumbnailUrl ?? asset.fileUrl;
   return (
     <aside className="adet">
       <div className={`adet__prev adet__prev--${asset.kind}`}>
-        {src && asset.kind !== "audio" ? (
-          <img className="adet__img" src={src} alt={asset.kind} />
-        ) : (
-          <span className="adet__glyph">{asset.kind === "audio" ? "♪" : asset.kind}</span>
-        )}
+        <AssetMediaPreview
+          asset={asset}
+          className={asset.previewUrl ? "adet__img" : "adet__glyph"}
+          controls
+        />
       </div>
 
       <div className="adet__body">
         <span className={`adet__kind adet__kind--${asset.kind}`}>{asset.kind}</span>
-        <p className="adet__prompt">{asset.prompt ?? "Untitled"}</p>
+        <p className="adet__prompt">{asset.displayName}</p>
 
-        <Row k="Model" v={asset.model ?? "—"} mono />
-        {asset.seed != null && <Row k="Seed" v={String(asset.seed)} mono />}
-        {asset.cost != null && <Row k="Cost" v={`$${(asset.cost / 1_000_000).toFixed(4)}`} mono />}
-        {asset.projectName && (
-          <Row k="Project" v={<span className="adet__link">{asset.projectName} ↗</span>} />
-        )}
+        <Row k="MIME" v={asset.mimeType} mono />
+        <Row k="Bytes" v={asset.byteLength} mono />
+        <Row k="State" v={asset.contentState} mono />
         {asset.sourceNodeType && (
           <Row
             k="From node"
@@ -52,7 +49,7 @@ export function AssetDetail({
             }
           />
         )}
-        <Row k="Created" v={formatTime(asset.createdAt)} mono />
+        <Row k="Created" v={formatTime(asset.createdAtEpochMs)} mono />
       </div>
 
       <div className="adet__actions">
@@ -74,11 +71,11 @@ function Row({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) 
   );
 }
 
-function formatTime(unixSeconds: number): string {
-  if (!unixSeconds) {
+function formatTime(epochMs: string): string {
+  if (epochMs === "0") {
     return "just now";
   }
-  return new Date(unixSeconds * 1000).toLocaleString(undefined, {
+  return new Date(Number(epochMs)).toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     hour: "2-digit",

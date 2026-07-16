@@ -4,7 +4,6 @@ const invokeMock = vi.fn();
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
-  convertFileSrc: vi.fn(),
   Channel: class<T> {
     onmessage = (_event: T) => {};
   },

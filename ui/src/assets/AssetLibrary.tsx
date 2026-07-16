@@ -16,6 +16,7 @@ export function AssetLibrary({
   onJumpToNode,
   selectedAssetId,
   onSelectAsset,
+  onImport,
 }: {
   assets: AssetViewModel[];
   error: string | null;
@@ -23,6 +24,7 @@ export function AssetLibrary({
   onJumpToNode: (asset: AssetViewModel) => void;
   selectedAssetId?: string | null;
   onSelectAsset?: (assetId: string | null) => void;
+  onImport: (kind: AssetKind) => void;
 }) {
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<AssetKind | "all">("all");
@@ -36,7 +38,7 @@ export function AssetLibrary({
       if (kind !== "all" && a.kind !== kind) {
         return false;
       }
-      if (q && !(a.prompt ?? "").toLowerCase().includes(q) && !(a.model ?? "").toLowerCase().includes(q)) {
+      if (q && !a.displayName.toLowerCase().includes(q)) {
         return false;
       }
       return true;
@@ -75,6 +77,13 @@ export function AssetLibrary({
                 onClick={() => setKind(k)}
               >
                 {k === "all" ? "All" : k[0].toUpperCase() + k.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="lib__filters">
+            {(["image", "video", "audio"] as const).map((assetKind) => (
+              <button key={assetKind} className="lib__chip" onClick={() => onImport(assetKind)}>
+                Import {assetKind}
               </button>
             ))}
           </div>

@@ -71,7 +71,7 @@ export function App() {
     };
   }, []);
   const workflowForRunRef = useRef<import("./api/types.ts").WorkflowDto | null>(null);
-  const { assets, error: assetError, refresh } = useAssets();
+  const { assets, error: assetError, importAsset, refresh } = useAssets(project?.id ?? null);
   const { applyProgress, reset: resetRun, settle } = useRunProjection(setNodes, setEdges);
   const { cancel, invalidateRun, run: runCanonicalWorkflow } = useRunController({
     getWorkflow: () => workflowForRunRef.current,
@@ -183,10 +183,10 @@ export function App() {
         data: {
           ...data,
           assetPresentation: asset
-            ? { title: asset.prompt?.trim() || `Untitled ${asset.kind}`, available: true }
+            ? { title: asset.displayName, available: asset.contentState === "available" }
             : { title: `Untitled ${kind}`, available: false },
           runtime: asset
-            ? { ...data.runtime, state: data.runtime?.state ?? "idle", preview: { kind: asset.kind, url: asset.fileUrl } }
+            ? { ...data.runtime, state: data.runtime?.state ?? "idle", preview: { kind: asset.kind, url: asset.previewUrl } }
             : { ...data.runtime, state: data.runtime?.state ?? "idle", preview: { kind: kind as "image" | "video" | "audio", url: null } },
         },
       };
@@ -336,6 +336,11 @@ export function App() {
             onSelectAsset={setSelectedAssetId}
             onAddToCanvas={(asset) => addAssetSource(asset.id)}
             onJumpToNode={() => setTab("nodes")}
+            onImport={(kind) => {
+              void importAsset(kind).catch((error: unknown) => {
+                setStatus({ state: "failed", reason: String(error) });
+              });
+            }}
           />
         )}
 

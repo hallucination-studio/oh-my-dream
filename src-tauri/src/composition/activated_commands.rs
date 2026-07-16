@@ -1,5 +1,8 @@
 use std::sync::{Arc, Mutex};
 
+use assets::asset::application::{
+    AssetGetUseCase, AssetImportUseCase, AssetIssuePreviewUseCase, AssetListUseCase,
+};
 use engine::node_capability::WorkflowNodeCapabilityRegistry;
 use engine::workflow::{
     WorkflowApplyMutationUseCase, WorkflowCancelRunUseCase, WorkflowCheckReadinessUseCase,
@@ -19,6 +22,8 @@ use rusqlite::Connection;
 
 use super::{DesktopApplicationPaths, DesktopCompositionError, node_capabilities};
 use crate::{
+    asset_import_source_picker::DesktopAssetImportSourcePickerInterface,
+    asset_preview_protocol::DesktopAssetPreviewProtocolAdapterImpl,
     backend_settings_adapter::SqliteDesktopBackendSettingsAdapterImpl,
     desktop_backend_config::DesktopBackendConfigRepositoryInterface,
     desktop_bridges::{
@@ -96,12 +101,25 @@ pub struct DesktopActivatedCommandDependencies {
             DesktopWorkflowMediaPreviewAdapterImpl,
         >,
     >,
+    /// Trusted local Asset import boundary.
+    pub asset_import: Arc<AssetImportUseCase>,
+    /// Project-scoped Asset query boundary.
+    pub asset_get: Arc<AssetGetUseCase>,
+    /// Stable bounded Project Asset page boundary.
+    pub asset_list: Arc<AssetListUseCase>,
+    /// Five-minute Asset preview permission boundary.
+    pub asset_issue_preview: Arc<AssetIssuePreviewUseCase>,
+    /// Process-keyed signed preview URI adapter.
+    pub asset_preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
+    /// Native file selection and already-open source boundary.
+    pub asset_import_source_picker: Arc<dyn DesktopAssetImportSourcePickerInterface>,
     _metadata_connection: Arc<Mutex<Connection>>,
 }
 
 pub(super) async fn compose(
     paths: DesktopApplicationPaths,
     emitter: Arc<dyn DesktopEventEmitterInterface>,
+    asset_import_source_picker: Arc<dyn DesktopAssetImportSourcePickerInterface>,
 ) -> Result<DesktopActivatedCommandDependencies, DesktopCompositionError> {
     std::fs::create_dir_all(&paths.config_root).map_err(|_| DesktopCompositionError::Metadata)?;
     let connection = Arc::new(Mutex::new(
@@ -136,7 +154,14 @@ pub(super) async fn compose(
         SqliteProjectRepositoryAdapterImpl::try_new(connection.clone())
             .map_err(|_| DesktopCompositionError::Metadata)?,
     );
-    Ok(dependencies(connection, project_repository, workflow_repository, node_composition, emitter))
+    Ok(dependencies(
+        connection,
+        project_repository,
+        workflow_repository,
+        node_composition,
+        emitter,
+        asset_import_source_picker,
+    ))
 }
 
 fn dependencies(
@@ -145,6 +170,7 @@ fn dependencies(
     workflow_repository: Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
     node_composition: node_capabilities::DesktopNodeCapabilityComposition,
     emitter: Arc<dyn DesktopEventEmitterInterface>,
+    asset_import_source_picker: Arc<dyn DesktopAssetImportSourcePickerInterface>,
 ) -> DesktopActivatedCommandDependencies {
     let repository_interface: Arc<dyn ProjectRepositoryInterface> = repository;
     let clock = Arc::new(SystemProjectClockAdapterImpl);
@@ -216,6 +242,12 @@ fn dependencies(
             node_composition.preview_issuer,
             node_composition.registry,
         )),
+        asset_import: node_composition.asset_import,
+        asset_get: node_composition.asset_get,
+        asset_list: node_composition.asset_list,
+        asset_issue_preview: node_composition.asset_issue_preview,
+        asset_preview_protocol: node_composition.asset_preview_protocol,
+        asset_import_source_picker,
         _metadata_connection: connection,
     }
 }

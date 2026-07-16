@@ -1,17 +1,24 @@
 {
-  "id": "asset-0000000000000001",
-  "kind": "video",
-  "file_path": "/tmp/oh-my-dream/assets/files/asset-0000000000000001.mp4",
-  "thumbnail_path": "/tmp/oh-my-dream/assets/thumbnails/asset-0000000000000001.png",
-  "workflow_snapshot": {},
-  "prompt": "a red fox",
-  "project_id": "project-0000000000000001",
-  "project_name": "Default",
-  "source_node_id": "video",
-  "source_node_type": "ImageToVideo",
-  "model": "mock-video",
-  "seed": "18446744073709551615",
-  "cost": 900,
-  "tags": [],
-  "created_at": 0
+  "asset_id": "123e4567-e89b-42d3-a456-426600000020",
+  "project_id": "123e4567-e89b-42d3-a456-426600000001",
+  "media_kind": "video",
+  "content_state": "available",
+  "display_name": "A red fox",
+  "created_at_epoch_ms": "0",
+  "content": {
+    "content_fingerprint_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+    "byte_length": "1024",
+    "mime_type": "video/mp4"
+  },
+  "media_facts": {
+    "duration_ms": "1000",
+    "has_audio": true,
+    "height": 1080,
+    "kind": "video",
+    "width": 1920
+  },
+  "origin": {
+    "kind": "imported",
+    "original_file_name": "fox.mp4"
+  }
 }

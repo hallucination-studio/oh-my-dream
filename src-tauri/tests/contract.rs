@@ -1,11 +1,13 @@
 use engine::{NodeExecutionState, NodeProgressEvent, PortType};
-use oh_my_dream_tauri::dto::{
-    AssetDto, AssistantConfigDto, CapabilityCatalogDto, NodeProgressEventDto,
-};
+use oh_my_dream_tauri::dto::{AssistantConfigDto, CapabilityCatalogDto, NodeProgressEventDto};
 use oh_my_dream_tauri::project_commands::{
     ProjectDto, ProjectWorkflowReadinessDto, ProjectWorkflowSummaryDto, ProjectWorkspaceDto,
 };
 use oh_my_dream_tauri::{
+    asset_import_source_picker::{
+        DesktopAssetImportSourcePickerError, DesktopAssetImportSourcePickerInterface,
+        DesktopPickedAssetImportSource,
+    },
     composition::{DesktopApplicationPaths, DesktopCompositionRoot},
     node_capability_commands::{
         GenerationProfileListForCapabilityRequestDto, generation_profile_list_with_dependencies,
@@ -19,12 +21,13 @@ use oh_my_dream_tauri::{
     workflow_run_event_publisher::{DesktopEventEmissionError, DesktopEventEmitterInterface},
 };
 use serde_json::json;
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::tempdir;
 
+#[path = "contract/asset_contract.rs"]
+mod asset_contract;
 #[path = "contract/assistant_approval_contract.rs"]
 mod assistant_approval_contract;
 #[path = "contract/assistant_operation_contract.rs"]
@@ -35,7 +38,7 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let workflow = workflow_fixture();
     let workflow_run = workflow_run_fixture();
     let workflow_events = workflow_event_fixture();
-    let asset = asset_fixture();
+    let asset = asset_contract::fixture();
     let project = project_fixture();
     let open_project = open_project_fixture();
     let progress = progress_fixture();
@@ -52,21 +55,28 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     assert_eq!(
         serde_json::to_value(&asset).expect("serialize asset"),
         json!({
-            "id": "asset-0000000000000001",
-            "kind": "video",
-            "file_path": "/tmp/oh-my-dream/assets/files/asset-0000000000000001.mp4",
-            "thumbnail_path": "/tmp/oh-my-dream/assets/thumbnails/asset-0000000000000001.png",
-            "workflow_snapshot": {},
-            "prompt": "a red fox",
-            "project_id": "project-0000000000000001",
-            "project_name": "Default",
-            "source_node_id": "video",
-            "source_node_type": "ImageToVideo",
-            "model": "mock-video",
-            "seed": "18446744073709551615",
-            "cost": 900,
-            "tags": [],
-            "created_at": 0
+            "asset_id": "123e4567-e89b-42d3-a456-426600000020",
+            "project_id": "123e4567-e89b-42d3-a456-426600000001",
+            "media_kind": "video",
+            "content_state": "available",
+            "display_name": "A red fox",
+            "created_at_epoch_ms": "0",
+            "content": {
+                "content_fingerprint_hex": "00".repeat(32),
+                "byte_length": "1024",
+                "mime_type": "video/mp4"
+            },
+            "media_facts": {
+                "kind": "video",
+                "width": 1920,
+                "height": 1080,
+                "duration_ms": "1000",
+                "has_audio": true
+            },
+            "origin": {
+                "kind": "imported",
+                "original_file_name": "fox.mp4"
+            }
         })
     );
     assert_eq!(
@@ -137,6 +147,7 @@ fn node_capability_fixtures() -> (serde_json::Value, serde_json::Value) {
         let dependencies = DesktopCompositionRoot::compose_activated_commands_with_emitter(
             DesktopApplicationPaths::from_application_data_root(directory.path()),
             Arc::new(ContractEventEmitter),
+            Arc::new(CancelledAssetPicker),
         )
         .await
         .expect("compose activated commands");
@@ -160,6 +171,18 @@ fn node_capability_fixtures() -> (serde_json::Value, serde_json::Value) {
 }
 
 struct ContractEventEmitter;
+
+struct CancelledAssetPicker;
+
+#[async_trait::async_trait]
+impl DesktopAssetImportSourcePickerInterface for CancelledAssetPicker {
+    async fn pick_asset_import_source(
+        &self,
+        _expected_media_kind: assets::asset::domain::AssetMediaKind,
+    ) -> Result<Option<DesktopPickedAssetImportSource>, DesktopAssetImportSourcePickerError> {
+        Ok(None)
+    }
+}
 
 impl DesktopEventEmitterInterface for ContractEventEmitter {
     fn emit_desktop_event(
@@ -304,28 +327,6 @@ fn workflow_event_fixture() -> WorkflowRunEventPageDto {
             "payload":{"type":"run_queued"},
         })],
         next_sequence: None,
-    }
-}
-
-fn asset_fixture() -> AssetDto {
-    AssetDto {
-        id: "asset-0000000000000001".to_owned(),
-        kind: "video".to_owned(),
-        file_path: "/tmp/oh-my-dream/assets/files/asset-0000000000000001.mp4".to_owned(),
-        thumbnail_path: Some(
-            "/tmp/oh-my-dream/assets/thumbnails/asset-0000000000000001.png".to_owned(),
-        ),
-        workflow_snapshot: json!(BTreeMap::<String, serde_json::Value>::new()),
-        prompt: Some("a red fox".to_owned()),
-        project_id: Some("project-0000000000000001".to_owned()),
-        project_name: Some("Default".to_owned()),
-        source_node_id: Some("video".to_owned()),
-        source_node_type: Some("ImageToVideo".to_owned()),
-        model: Some("mock-video".to_owned()),
-        seed: Some("18446744073709551615".to_owned()),
-        cost: Some(900),
-        tags: Vec::new(),
-        created_at: 0,
     }
 }
 

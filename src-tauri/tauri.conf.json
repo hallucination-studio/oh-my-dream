@@ -10,12 +10,6 @@
     "beforeBuildCommand": "npm --prefix ui run build"
   },
   "app": {
-    "security": {
-      "assetProtocol": {
-        "enable": true,
-        "scope": ["$APPDATA/assets/**", "$APPLOCALDATA/assets/**"]
-      }
-    },
     "windows": [
       {
         "title": "oh-my-dream",

@@ -15,6 +15,10 @@ use engine::{
     },
 };
 use oh_my_dream_tauri::{
+    asset_import_source_picker::{
+        DesktopAssetImportSourcePickerError, DesktopAssetImportSourcePickerInterface,
+        DesktopPickedAssetImportSource,
+    },
     composition::{DesktopApplicationPaths, DesktopCompositionRoot},
     workflow_run_event_publisher::{DesktopEventEmissionError, DesktopEventEmitterInterface},
 };
@@ -28,6 +32,7 @@ fn canonical_workflow_slice_creates_mutates_admits_queries_and_cancels() {
         let dependencies = DesktopCompositionRoot::compose_activated_commands_with_emitter(
             DesktopApplicationPaths::from_application_data_root(directory.path()),
             Arc::new(TestEmitter),
+            Arc::new(CancelledPicker),
         )
         .await
         .unwrap();
@@ -163,6 +168,18 @@ fn id(seed: u128) -> Uuid {
 }
 
 struct TestEmitter;
+
+struct CancelledPicker;
+
+#[async_trait::async_trait]
+impl DesktopAssetImportSourcePickerInterface for CancelledPicker {
+    async fn pick_asset_import_source(
+        &self,
+        _expected_media_kind: assets::asset::domain::AssetMediaKind,
+    ) -> Result<Option<DesktopPickedAssetImportSource>, DesktopAssetImportSourcePickerError> {
+        Ok(None)
+    }
+}
 
 impl DesktopEventEmitterInterface for TestEmitter {
     fn emit_desktop_event(

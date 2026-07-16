@@ -1,5 +1,5 @@
 use crate::workflow_authority::WorkflowHead;
-use assets::{Asset, AssetKind, Project};
+use assets::{AssetKind, Project};
 use engine::{NodeExecutionState, NodeProgressEvent, RunOutputs, Value, ValueMap};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -46,63 +46,6 @@ pub struct RunOutputDto {
     pub kind: String,
     /// String representation of the produced value.
     pub value: String,
-}
-
-/// Stored asset metadata as returned by Tauri commands.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct AssetDto {
-    /// Unique asset id.
-    pub id: String,
-    /// `image`, `video`, or `audio`.
-    pub kind: String,
-    /// Stored media path.
-    pub file_path: String,
-    /// Stored thumbnail path, when available.
-    pub thumbnail_path: Option<String>,
-    /// Workflow snapshot captured when the asset was saved.
-    pub workflow_snapshot: serde_json::Value,
-    /// Prompt text that ultimately produced this asset, when available.
-    pub prompt: Option<String>,
-    /// Project id this asset belongs to.
-    pub project_id: Option<String>,
-    /// Project name captured for display.
-    pub project_name: Option<String>,
-    /// Source workflow node id.
-    pub source_node_id: Option<String>,
-    /// Source workflow node type.
-    pub source_node_type: Option<String>,
-    /// Model identifier used to produce this asset.
-    pub model: Option<String>,
-    /// Seed used to produce this asset, encoded as decimal text for JavaScript safety.
-    pub seed: Option<String>,
-    /// Estimated cost in micro-USD.
-    pub cost: Option<i64>,
-    /// Free-form asset tags.
-    pub tags: Vec<String>,
-    /// Unix timestamp in seconds.
-    pub created_at: i64,
-}
-
-impl From<Asset> for AssetDto {
-    fn from(asset: Asset) -> Self {
-        Self {
-            id: asset.id,
-            kind: asset_kind_as_str(asset.kind).to_owned(),
-            file_path: asset.file_path,
-            thumbnail_path: asset.thumbnail_path,
-            workflow_snapshot: asset.workflow_snapshot,
-            prompt: asset.prompt,
-            project_id: asset.project_id,
-            project_name: asset.project_name,
-            source_node_id: asset.source_node_id,
-            source_node_type: asset.source_node_type,
-            model: asset.model,
-            seed: asset.seed.map(|seed| seed.to_string()),
-            cost: asset.cost,
-            tags: asset.tags,
-            created_at: asset.created_at,
-        }
-    }
 }
 
 /// Project metadata returned by project commands.
@@ -156,6 +99,14 @@ pub struct OpenProjectResultDto {
 
 /// Compatibility name for callers that still refer to an opened Project workspace.
 pub type ProjectWorkspaceDto = OpenProjectResultDto;
+
+fn asset_kind_as_str(kind: AssetKind) -> &'static str {
+    match kind {
+        AssetKind::Image => "image",
+        AssetKind::Video => "video",
+        AssetKind::Audio => "audio",
+    }
+}
 
 /// Provider configuration summary returned to the frontend.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,14 +191,6 @@ fn run_output_to_dto(value: &Value) -> RunOutputDto {
 
 fn output(kind: &str, value: &str) -> RunOutputDto {
     RunOutputDto { kind: kind.to_owned(), value: value.to_owned() }
-}
-
-fn asset_kind_as_str(kind: AssetKind) -> &'static str {
-    match kind {
-        AssetKind::Image => "image",
-        AssetKind::Video => "video",
-        AssetKind::Audio => "audio",
-    }
 }
 
 fn node_state_as_str(state: NodeExecutionState) -> &'static str {

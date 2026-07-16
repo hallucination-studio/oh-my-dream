@@ -292,22 +292,20 @@ function requiredRecord(value: unknown): Record<string, unknown> {
 function isAsset(value: unknown): value is AssetDto {
   return (
     isRecord(value) &&
-    typeof value.id === "string" &&
-    (value.kind === "image" || value.kind === "video" || value.kind === "audio") &&
-    typeof value.file_path === "string" &&
-    (value.thumbnail_path === null || typeof value.thumbnail_path === "string") &&
-    typeof value.workflow_snapshot !== "undefined" &&
-    (value.prompt === null || typeof value.prompt === "string") &&
-    (value.project_id === null || typeof value.project_id === "string") &&
-    (value.project_name === null || typeof value.project_name === "string") &&
-    (value.source_node_id === null || typeof value.source_node_id === "string") &&
-    (value.source_node_type === null || typeof value.source_node_type === "string") &&
-    (value.model === null || typeof value.model === "string") &&
-    (value.seed === null || typeof value.seed === "string") &&
-    (value.cost === null || typeof value.cost === "number") &&
-    Array.isArray(value.tags) &&
-    value.tags.every((tag) => typeof tag === "string") &&
-    typeof value.created_at === "number"
+    typeof value.asset_id === "string" &&
+    typeof value.project_id === "string" &&
+    (value.media_kind === "image" || value.media_kind === "video" || value.media_kind === "audio") &&
+    (value.content_state === "pending" ||
+      value.content_state === "available" ||
+      value.content_state === "missing") &&
+    typeof value.display_name === "string" &&
+    typeof value.created_at_epoch_ms === "string" &&
+    isRecord(value.content) &&
+    typeof value.content.content_fingerprint_hex === "string" &&
+    typeof value.content.byte_length === "string" &&
+    typeof value.content.mime_type === "string" &&
+    isRecord(value.media_facts) &&
+    isRecord(value.origin)
   );
 }
 

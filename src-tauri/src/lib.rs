@@ -1,6 +1,9 @@
 #![forbid(unsafe_code)]
 
 pub mod asset_adapters;
+pub mod asset_command_dto;
+pub mod asset_commands;
+pub mod asset_import_source_picker;
 pub mod asset_preview_protocol;
 mod asset_reference_adapter;
 pub mod asset_storage_adapters;
@@ -54,10 +57,11 @@ pub mod workflow_runs;
 pub mod workflow_storage_adapters;
 pub mod workspace_snapshot;
 
+use asset_commands::{asset_get, asset_import, asset_issue_preview, asset_list};
 use commands::{
-    assets_root, assistant_decide_approval, assistant_get_pending_approval, assistant_send,
-    get_asset, get_assistant_config, get_capability_catalog, get_providers, list_assets,
-    set_active_provider, set_assistant_config, set_provider_key,
+    assistant_decide_approval, assistant_get_pending_approval, assistant_send,
+    get_assistant_config, get_capability_catalog, get_providers, set_active_provider,
+    set_assistant_config, set_provider_key,
 };
 use node_capability_commands::{generation_profile_list_for_capability, node_capability_list};
 use project_commands::{project_create, project_get, project_list, project_open, project_rename};
@@ -72,6 +76,23 @@ use workflow_mutation_commands::workflow_apply_mutation;
 pub fn run() -> tauri::Result<()> {
     init_logging();
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .register_asynchronous_uri_scheme_protocol(
+            "desktop-asset",
+            |context, request, responder| {
+                let protocol = context
+                    .app_handle()
+                    .state::<composition::DesktopActivatedCommandDependencies>()
+                    .asset_preview_protocol
+                    .clone();
+                let request = asset_preview_protocol::tauri_request(&request);
+                tauri::async_runtime::spawn(async move {
+                    responder.respond(asset_preview_protocol::tauri_response(
+                        protocol.handle(request).await,
+                    ));
+                });
+            },
+        )
         .setup(|app| {
             let app_data_root = app
                 .handle()
@@ -88,6 +109,11 @@ pub fn run() -> tauri::Result<()> {
                             app.handle().clone(),
                         ),
                     ),
+                    std::sync::Arc::new(
+                        asset_import_source_picker::TauriDesktopAssetImportSourcePickerAdapterImpl::new(
+                            app.handle().clone(),
+                        ),
+                    ),
                 ),
             )
             .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
@@ -101,9 +127,10 @@ pub fn run() -> tauri::Result<()> {
             assistant_send,
             assistant_get_pending_approval,
             assistant_decide_approval,
-            list_assets,
-            get_asset,
-            assets_root,
+            asset_import,
+            asset_get,
+            asset_list,
+            asset_issue_preview,
             project_create,
             project_rename,
             project_get,

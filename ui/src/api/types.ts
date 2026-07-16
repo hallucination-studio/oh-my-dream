@@ -20,28 +20,8 @@ import type {
   WorkflowWithReadinessDto,
 } from "./workflowTypes.ts";
 export type * from "./workflowTypes.ts";
-
-export type AssetKind = "image" | "video" | "audio";
-export type AssetSort = "newest" | "oldest" | "cost_desc" | "cost_asc";
-
-/** Metadata for a stored asset, mirroring the backend AssetDto. */
-export interface AssetDto {
-  id: string;
-  kind: AssetKind;
-  file_path: string;
-  thumbnail_path: string | null;
-  workflow_snapshot: unknown;
-  prompt: string | null;
-  project_id: string | null;
-  project_name: string | null;
-  source_node_id: string | null;
-  source_node_type: string | null;
-  model: string | null;
-  seed: string | null; // Decimal u64; never decode through a JavaScript number.
-  cost: number | null;
-  tags: string[];
-  created_at: number;
-}
+import type { AssetDto, AssetKind, AssetListPageDto, AssetPreviewDto } from "./assetTypes.ts";
+export type * from "./assetTypes.ts";
 
 export interface Project {
   id: string;
@@ -280,21 +260,16 @@ export interface AssistantPendingApproval {
 
 export type ResponsesStreamEvent = JsonObject & { type: string };
 
-export interface ListAssetsOptions {
-  kind?: AssetKind;
-  project_id?: string;
-  model?: string;
-  prompt?: string;
-  sort?: AssetSort;
-}
-
 export interface WorkflowApi {
-  /** Returns the backend asset root when one exists. */
-  assetsRoot: () => Promise<string | null>;
-  /** Lists stored assets, optionally filtered by kind. */
-  listAssets: (options?: ListAssetsOptions) => Promise<AssetDto[]>;
-  /** Fetches a single asset by id. */
-  getAsset: (id: string) => Promise<AssetDto>;
+  assetImport: (projectId: string, expectedMediaKind: AssetKind) => Promise<AssetDto | null>;
+  assetGet: (projectId: string, assetId: string) => Promise<AssetDto>;
+  assetList: (
+    projectId: string,
+    mediaKind?: AssetKind | null,
+    cursor?: string | null,
+    limit?: number,
+  ) => Promise<AssetListPageDto>;
+  assetIssuePreview: (projectId: string, assetId: string) => Promise<AssetPreviewDto>;
   listProjects: () => Promise<Project[]>;
   createProject: (name: string) => Promise<Project>;
   getProject: (id: string) => Promise<Project>;

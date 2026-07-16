@@ -17,7 +17,8 @@ export type { WorkflowApi } from "./types.ts";
 export type {
   AssetDto,
   AssetKind,
-  AssetSort,
+  AssetListPageDto,
+  AssetPreviewDto,
   AssistantConfig,
   AssistantConfigInput,
   AssistantContext,
@@ -41,7 +42,6 @@ export type {
   CapabilityStatus,
   CapabilitySummary,
   GenerationProfileForCapability,
-  ListAssetsOptions,
   NodeCapabilityContractDto,
   OpenProjectResult,
   Project,

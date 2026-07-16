@@ -13,6 +13,7 @@ use rusqlite::Connection;
 use uuid::Uuid;
 
 use crate::{
+    asset_import_source_picker::DesktopAssetImportSourcePickerInterface,
     backend_settings_adapter::SqliteDesktopBackendSettingsAdapterImpl,
     credential_repository::{
         AssistantModelCredentialId, AssistantModelCredentialRepositoryError,
@@ -151,8 +152,9 @@ impl DesktopCompositionRoot {
     pub async fn compose_activated_commands_with_emitter(
         paths: DesktopApplicationPaths,
         emitter: Arc<dyn DesktopEventEmitterInterface>,
+        asset_import_source_picker: Arc<dyn DesktopAssetImportSourcePickerInterface>,
     ) -> Result<DesktopActivatedCommandDependencies, DesktopCompositionError> {
-        activated_commands::compose(paths, emitter).await
+        activated_commands::compose(paths, emitter, asset_import_source_picker).await
     }
 
     /// Composes activated commands with a test-only event sink.
@@ -160,7 +162,12 @@ impl DesktopCompositionRoot {
     pub async fn compose_activated_commands(
         paths: DesktopApplicationPaths,
     ) -> Result<DesktopActivatedCommandDependencies, DesktopCompositionError> {
-        activated_commands::compose(paths, Arc::new(TestDesktopEventEmitterAdapterImpl)).await
+        activated_commands::compose(
+            paths,
+            Arc::new(TestDesktopEventEmitterAdapterImpl),
+            Arc::new(TestDesktopAssetImportSourcePickerAdapterImpl),
+        )
+        .await
     }
 
     /// Builds the host while allowing tests to substitute a deterministic business graph.
@@ -292,6 +299,23 @@ impl DesktopEventEmitterInterface for TestDesktopEventEmitterAdapterImpl {
         _payload: serde_json::Value,
     ) -> Result<(), crate::workflow_run_event_publisher::DesktopEventEmissionError> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+struct TestDesktopAssetImportSourcePickerAdapterImpl;
+
+#[cfg(test)]
+#[async_trait::async_trait]
+impl DesktopAssetImportSourcePickerInterface for TestDesktopAssetImportSourcePickerAdapterImpl {
+    async fn pick_asset_import_source(
+        &self,
+        _expected_media_kind: assets::asset::domain::AssetMediaKind,
+    ) -> Result<
+        Option<crate::asset_import_source_picker::DesktopPickedAssetImportSource>,
+        crate::asset_import_source_picker::DesktopAssetImportSourcePickerError,
+    > {
+        Ok(None)
     }
 }
 

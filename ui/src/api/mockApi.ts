@@ -4,7 +4,6 @@
 // not running inside a Tauri window.
 
 import type {
-  AssetDto,
   AssistantConfig,
   AssistantConfigInput,
   CapabilityRef,
@@ -25,6 +24,12 @@ import {
   getPendingAssistantApproval,
   sendAssistant,
 } from "./mockAssistant.ts";
+import {
+  mockAssetGet,
+  mockAssetImport,
+  mockAssetIssuePreview,
+  mockAssetList,
+} from "./mockAssets.ts";
 import nodeCapabilitiesFixture from "../__fixtures__/node_capabilities.json";
 
 const mockCanonicalWorkflows = new Map<string, WorkflowDto>();
@@ -47,20 +52,6 @@ let mockAssistantConfig: AssistantConfig = {
   model: "gpt-5.4",
   has_key: false,
 };
-
-// The mock has no persistent store; asset listing is empty until a real backend
-// is present. This keeps the interface total rather than throwing.
-async function listAssets(): Promise<AssetDto[]> {
-  return [];
-}
-
-async function assetsRoot(): Promise<string | null> {
-  return null;
-}
-
-async function getAsset(id: string): Promise<AssetDto> {
-  throw new Error(`Mock backend has no asset store; cannot fetch asset ${id}`);
-}
 
 async function listProjects() {
   return [...mockProjects.values()];
@@ -368,9 +359,10 @@ async function setAssistantConfig(input: AssistantConfigInput): Promise<void> {
 }
 
 export const mockApi: WorkflowApi = {
-  assetsRoot,
-  listAssets,
-  getAsset,
+  assetImport: mockAssetImport,
+  assetGet: mockAssetGet,
+  assetList: mockAssetList,
+  assetIssuePreview: mockAssetIssuePreview,
   listProjects,
   createProject,
   getProject,

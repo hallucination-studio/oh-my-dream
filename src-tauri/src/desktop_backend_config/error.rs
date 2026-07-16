@@ -14,6 +14,12 @@ pub enum DesktopErrorCode {
     WorkflowRunNotFound,
     WorkflowNotReady,
     WorkflowMutationConflict,
+    AssetInvalidRequest,
+    AssetNotFound,
+    AssetNotVisible,
+    AssetContentPending,
+    AssetContentMissing,
+    AssetInvalidMedia,
     ProviderUnavailable,
     AssistantProtocolViolation,
     StorageUnavailable,
@@ -113,6 +119,22 @@ fn safe_error(code: DesktopErrorCode) -> (&'static str, &'static str) {
         }
         DesktopErrorCode::WorkflowMutationConflict => {
             ("workflow.mutation_conflict", "The Workflow request conflicts with a prior request.")
+        }
+        DesktopErrorCode::AssetInvalidRequest => {
+            ("asset.invalid_request", "The Asset request was invalid.")
+        }
+        DesktopErrorCode::AssetNotFound => ("asset.not_found", "The Asset was not found."),
+        DesktopErrorCode::AssetNotVisible => {
+            ("asset.not_visible", "The Asset is not visible in this Project.")
+        }
+        DesktopErrorCode::AssetContentPending => {
+            ("asset.content_pending", "The Asset content is still being prepared.")
+        }
+        DesktopErrorCode::AssetContentMissing => {
+            ("asset.content_missing", "The Asset content is unavailable.")
+        }
+        DesktopErrorCode::AssetInvalidMedia => {
+            ("asset.invalid_media", "The selected file is not supported media.")
         }
         DesktopErrorCode::ProviderUnavailable => {
             ("provider.unavailable", "The selected generation provider is unavailable.")

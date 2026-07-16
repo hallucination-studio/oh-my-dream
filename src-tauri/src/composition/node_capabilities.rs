@@ -5,8 +5,8 @@ use std::{
 
 use assets::asset::{
     application::{
-        AssetFinalizeContentUseCase, AssetGetUseCase, AssetIssuePreviewUseCase,
-        AssetRecordNodeOutputUseCase, AssetResolveContentUseCase,
+        AssetFinalizeContentUseCase, AssetGetUseCase, AssetImportUseCase, AssetIssuePreviewUseCase,
+        AssetListUseCase, AssetRecordNodeOutputUseCase, AssetResolveContentUseCase,
     },
     interfaces::{
         AssetClockInterface, AssetIdentityGeneratorInterface, AssetIngestTransactionInterface,
@@ -56,6 +56,11 @@ pub(super) struct DesktopNodeCapabilityComposition {
     pub(super) catalog: Arc<GenerationProfileCatalog>,
     pub(super) availability_reader: Arc<dyn GenerationProfileAvailabilityReaderInterface>,
     pub(super) preview_issuer: Arc<DesktopWorkflowMediaPreviewAdapterImpl>,
+    pub(super) asset_import: Arc<AssetImportUseCase>,
+    pub(super) asset_get: Arc<AssetGetUseCase>,
+    pub(super) asset_list: Arc<AssetListUseCase>,
+    pub(super) asset_issue_preview: Arc<AssetIssuePreviewUseCase>,
+    pub(super) asset_preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
 }
 
 pub(super) fn compose_node_capabilities(
@@ -132,12 +137,22 @@ pub(super) fn compose_node_capabilities(
         catalog,
         availability_reader: availability,
         preview_issuer: assets.preview_issuer,
+        asset_import: assets.import,
+        asset_get: assets.get,
+        asset_list: assets.list,
+        asset_issue_preview: assets.issue_preview,
+        asset_preview_protocol: assets.preview_protocol,
     })
 }
 
 struct DesktopAssetComposition {
     bridge: Arc<DesktopNodeCapabilityAssetBridgeAdapterImpl>,
     preview_issuer: Arc<DesktopWorkflowMediaPreviewAdapterImpl>,
+    import: Arc<AssetImportUseCase>,
+    get: Arc<AssetGetUseCase>,
+    list: Arc<AssetListUseCase>,
+    issue_preview: Arc<AssetIssuePreviewUseCase>,
+    preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
 }
 
 fn compose_asset_bridge(
@@ -167,16 +182,29 @@ fn compose_asset_bridge(
         ingest.clone(),
         managed.clone(),
     ));
+    let import = Arc::new(AssetImportUseCase::new(
+        ingest.clone(),
+        managed.clone(),
+        inspector.clone(),
+        clock.clone(),
+        identities.clone(),
+        finalizer.clone(),
+    ));
     let resolve = Arc::new(AssetResolveContentUseCase::new(repository.clone(), managed.clone()));
     let get = Arc::new(AssetGetUseCase::new(repository.clone()));
+    let list = Arc::new(AssetListUseCase::new(repository.clone()));
     let issue_preview = Arc::new(AssetIssuePreviewUseCase::new(
         repository.clone(),
         clock.clone(),
         identities.clone(),
     ));
     let preview_protocol = Arc::new(
-        DesktopAssetPreviewProtocolAdapterImpl::try_new(get, resolve.clone(), clock.clone())
-            .map_err(|_| DesktopCompositionError::Business)?,
+        DesktopAssetPreviewProtocolAdapterImpl::try_new(
+            get.clone(),
+            resolve.clone(),
+            clock.clone(),
+        )
+        .map_err(|_| DesktopCompositionError::Business)?,
     );
     let record = Arc::new(AssetRecordNodeOutputUseCase::new(
         repository, ingest, managed, inspector, clock, identities, finalizer,
@@ -184,9 +212,14 @@ fn compose_asset_bridge(
     Ok(DesktopAssetComposition {
         bridge: Arc::new(DesktopNodeCapabilityAssetBridgeAdapterImpl::new(resolve, record)),
         preview_issuer: Arc::new(DesktopWorkflowMediaPreviewAdapterImpl::new(
-            issue_preview,
-            preview_protocol,
+            issue_preview.clone(),
+            preview_protocol.clone(),
         )),
+        import,
+        get,
+        list,
+        issue_preview,
+        preview_protocol,
     })
 }
 

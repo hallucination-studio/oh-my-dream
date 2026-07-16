@@ -1,12 +1,10 @@
 use crate::command_error::command_error;
-use crate::dto::{AssetDto, ProviderDto};
+use crate::dto::ProviderDto;
 use crate::state::AppState;
-use assets::{AssetKind, AssetQuery, AssetSort};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use tauri::State;
-use tracing::info;
 
 pub use crate::assistant::{
     get_assistant_config, get_assistant_config_with_state, set_assistant_config,
@@ -19,71 +17,6 @@ pub use crate::capability_catalog::{
     get_capability_bundles, get_capability_bundles_with_state, get_capability_catalog,
     get_capability_catalog_with_state, search_capabilities, search_capabilities_with_state,
 };
-
-/// Lists assets using optional library filters.
-#[tauri::command(rename_all = "snake_case")]
-pub fn list_assets(
-    kind: Option<String>,
-    project_id: Option<String>,
-    model: Option<String>,
-    prompt: Option<String>,
-    sort: Option<String>,
-    state: State<'_, AppState>,
-) -> Result<Vec<AssetDto>, String> {
-    list_assets_with_state(kind, project_id, model, prompt, sort, &state)
-}
-
-/// Lists assets against an explicit app state.
-pub fn list_assets_with_state(
-    kind: Option<String>,
-    project_id: Option<String>,
-    model: Option<String>,
-    prompt: Option<String>,
-    sort: Option<String>,
-    state: &AppState,
-) -> Result<Vec<AssetDto>, String> {
-    info!(kind = kind.as_deref().unwrap_or("all"), "list_assets command received");
-    let kind = parse_asset_kind_filter(kind)
-        .map_err(|source| command_error("parse asset kind", source))?;
-    let sort =
-        parse_asset_sort(sort).map_err(|source| command_error("parse asset sort", source))?;
-    let assets = state
-        .store
-        .lock()
-        .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?
-        .list_with_query(&AssetQuery { kind, project_id, model, prompt, sort })
-        .map_err(|source| command_error("list assets", source))?;
-    Ok(assets.into_iter().map(AssetDto::from).collect())
-}
-
-/// Returns a single asset by id.
-#[tauri::command(rename_all = "snake_case")]
-pub fn get_asset(id: String, state: State<'_, AppState>) -> Result<AssetDto, String> {
-    info!(asset_id = %id, "get_asset command received");
-    let asset = state
-        .store
-        .lock()
-        .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?
-        .get(&id)
-        .map_err(|source| command_error("get asset", source))?;
-    Ok(AssetDto::from(asset))
-}
-
-/// Returns the local asset store root path.
-#[tauri::command(rename_all = "snake_case")]
-pub fn assets_root(state: State<'_, AppState>) -> Result<String, String> {
-    info!(asset_root = %state.root.display(), "assets_root command received");
-    assets_root_with_state(&state)
-}
-
-/// Returns the configured asset root for tests and command adapters.
-pub fn assets_root_with_state(state: &AppState) -> Result<String, String> {
-    state
-        .root
-        .to_str()
-        .map(str::to_owned)
-        .ok_or_else(|| command_error("resolve asset root", "asset root path is not valid UTF-8"))
-}
 
 /// Returns provider summaries without raw keys.
 #[tauri::command(rename_all = "snake_case")]
@@ -139,28 +72,6 @@ pub fn set_provider_key_with_state(
     let mut config = read_provider_config(state)?;
     config.keys.insert(provider_id, key);
     write_provider_config(state, &config)
-}
-
-/// Parses a frontend asset kind filter.
-pub fn parse_asset_kind_filter(kind: Option<String>) -> anyhow::Result<Option<AssetKind>> {
-    match kind.as_deref() {
-        None | Some("") => Ok(None),
-        Some("image") => Ok(Some(AssetKind::Image)),
-        Some("video") => Ok(Some(AssetKind::Video)),
-        Some("audio") => Ok(Some(AssetKind::Audio)),
-        Some(value) => anyhow::bail!("unsupported asset kind `{value}`"),
-    }
-}
-
-/// Parses a frontend asset sort.
-pub fn parse_asset_sort(sort: Option<String>) -> anyhow::Result<AssetSort> {
-    match sort.as_deref() {
-        None | Some("") | Some("newest") => Ok(AssetSort::Newest),
-        Some("oldest") => Ok(AssetSort::Oldest),
-        Some("cost_desc") => Ok(AssetSort::CostDesc),
-        Some("cost_asc") => Ok(AssetSort::CostAsc),
-        Some(value) => anyhow::bail!("unsupported asset sort `{value}`"),
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

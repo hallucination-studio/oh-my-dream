@@ -1,3 +1,5 @@
+#[path = "asset_commands_v4.rs"]
+mod asset_commands_v4;
 #[path = "assistant.rs"]
 mod assistant;
 #[path = "assistant_approval.rs"]

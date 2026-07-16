@@ -249,9 +249,10 @@ describe("AssistantDock", () => {
 
 function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
   return {
-    assetsRoot: vi.fn(),
-    listAssets: vi.fn(),
-    getAsset: vi.fn(),
+    assetImport: vi.fn(),
+    assetGet: vi.fn(),
+    assetList: vi.fn(),
+    assetIssuePreview: vi.fn(),
     listProjects: vi.fn(),
     createProject: vi.fn(),
     getProject: vi.fn(),

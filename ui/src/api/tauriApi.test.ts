@@ -5,7 +5,6 @@ const listenMock = vi.fn();
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
-  convertFileSrc: (path: string) => path,
   Channel: class<T> {
     onmessage = (_event: T) => undefined;
   },
@@ -63,5 +62,35 @@ describe("canonical Workflow Tauri client", () => {
     listenMock.mockResolvedValue(() => undefined);
     await tauriApi.observeWorkflowRunEvents(vi.fn());
     expect(listenMock).toHaveBeenCalledWith("workflow-run-event-v1", expect.any(Function));
+  });
+
+  it("invokes the four canonical Asset commands without paths or bytes", async () => {
+    const { tauriApi } = await import("./tauriApi.ts");
+    invokeMock.mockResolvedValue({});
+
+    await tauriApi.assetImport("project", "image");
+    await tauriApi.assetGet("project", "asset");
+    await tauriApi.assetList("project", "video", "cursor", 25);
+    await tauriApi.assetIssuePreview("project", "asset");
+
+    expect(invokeMock.mock.calls).toEqual([
+      ["asset_import", {
+        request: { project_id: "project", expected_media_kind: "image" },
+      }],
+      ["asset_get", {
+        request: { project_id: "project", asset_id: "asset" },
+      }],
+      ["asset_list", {
+        request: {
+          project_id: "project",
+          media_kind: "video",
+          cursor: "cursor",
+          limit: 25,
+        },
+      }],
+      ["asset_issue_preview", {
+        request: { project_id: "project", asset_id: "asset" },
+      }],
+    ]);
   });
 });
