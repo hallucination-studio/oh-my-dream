@@ -121,7 +121,8 @@ async fn independent_boundary_faults_preserve_the_closed_category() {
         project_id,
         session_id,
         invocation_id: AssistantModelInvocationId::from_uuid(uuid(3)).unwrap(),
-        input: AssistantModelTurnInput::new(vec![1]).unwrap(),
+        intent: crate::domain::AssistantUserIntent::new("intent").unwrap(),
+        workspace_snapshot: AssistantWorkspaceSnapshot::new(vec![1]).unwrap(),
     };
     assert_eq!(
         fake.start_assistant_model_turn(request).await,

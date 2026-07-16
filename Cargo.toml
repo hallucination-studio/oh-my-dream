@@ -32,7 +32,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 async-trait = "0.1"
 # Async assistant transport and integration tests share one Tokio feature set.
-tokio = { version = "1", features = ["macros", "rt", "io-util", "process", "time"] }
+tokio = { version = "1", features = ["macros", "rt", "io-util", "process", "sync", "time"] }
 pollster = "0.4"
 tauri = "2"
 tauri-build = "2"

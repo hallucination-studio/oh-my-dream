@@ -2,8 +2,8 @@ use projects::project::domain::ProjectId;
 
 use crate::domain::{
     AssistantModelContinuationRef, AssistantModelInvocationId, AssistantRepairActivationId,
-    AssistantSessionId, AssistantWorkflowChangeCandidate, AssistantWorkflowChangeId,
-    AssistantWorkflowMutation, WorkflowRevisionBoundaryValue,
+    AssistantSessionId, AssistantUserIntent, AssistantWorkflowChangeCandidate,
+    AssistantWorkflowChangeId, AssistantWorkflowMutation, WorkflowRevisionBoundaryValue,
 };
 
 /// Closed Assistant application and boundary failures.
@@ -80,7 +80,8 @@ pub struct AssistantModelTurnRequest {
     pub project_id: ProjectId,
     pub session_id: AssistantSessionId,
     pub invocation_id: AssistantModelInvocationId,
-    pub input: AssistantModelTurnInput,
+    pub intent: AssistantUserIntent,
+    pub workspace_snapshot: AssistantWorkspaceSnapshot,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
