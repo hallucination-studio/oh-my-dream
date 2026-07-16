@@ -2,6 +2,7 @@
 
 pub mod asset_adapters;
 mod asset_reference_adapter;
+pub mod asset_storage_adapters;
 pub mod assistant;
 pub mod assistant_adapters;
 pub mod assistant_approval;
