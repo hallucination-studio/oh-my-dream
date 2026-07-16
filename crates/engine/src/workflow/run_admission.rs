@@ -12,7 +12,8 @@ use super::{
     WorkflowExecuteRunEffect, WorkflowExecutionPlan, WorkflowIdentityGeneratorInterface,
     WorkflowLoadKey, WorkflowPlannedInputBinding, WorkflowPlannedNode, WorkflowReadinessResult,
     WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt, WorkflowRunAggregate,
-    WorkflowRunCommandHash, WorkflowRunRepositoryInterface, WorkflowRunRequestId, WorkflowRunScope,
+    WorkflowRunCommandHash, WorkflowRunLoadKey, WorkflowRunRepositoryInterface,
+    WorkflowRunRequestId, WorkflowRunScope,
 };
 
 /// Idempotent request to admit one immutable Workflow execution plan.
@@ -146,7 +147,10 @@ where
             let run_id = receipt.replay_run_id(command)?;
             return self
                 .run_repository
-                .load_workflow_run(workflow.project_id, run_id)
+                .load_workflow_run(WorkflowRunLoadKey::ProjectScoped {
+                    project_id: workflow.project_id,
+                    workflow_run_id: run_id,
+                })
                 .await?
                 .ok_or(WorkflowApplicationError::WorkflowPersistenceFailure);
         }
@@ -170,7 +174,10 @@ where
             .admit_workflow_run(WorkflowRunAdmissionCommit::try_new(run, receipt.clone(), effect)?)
             .await?;
         self.run_repository
-            .load_workflow_run(workflow.project_id, run_id)
+            .load_workflow_run(WorkflowRunLoadKey::ProjectScoped {
+                project_id: workflow.project_id,
+                workflow_run_id: run_id,
+            })
             .await?
             .ok_or(WorkflowApplicationError::WorkflowPersistenceFailure)
     }

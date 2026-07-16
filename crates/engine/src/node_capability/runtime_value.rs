@@ -297,4 +297,8 @@ impl WorkflowNodeOutputSet {
     pub fn get(&self, key: &NodeCapabilityOutputKey) -> Option<&WorkflowRuntimeValue> {
         self.0.get(key)
     }
+    /// Iterates complete outputs in ascending key order.
+    pub fn iter(&self) -> impl Iterator<Item = (&NodeCapabilityOutputKey, &WorkflowRuntimeValue)> {
+        self.0.iter()
+    }
 }

@@ -14,7 +14,7 @@ use engine::workflow::{
     WorkflowExecuteRunEffect, WorkflowIdentityGeneratorInterface, WorkflowLoadKey,
     WorkflowManagedMediaPreviewSource, WorkflowMediaPreview, WorkflowMediaPreviewIssuerInterface,
     WorkflowMutationCommit, WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt,
-    WorkflowRunAggregate, WorkflowRunEvent, WorkflowRunEventPublisherInterface,
+    WorkflowRunAggregate, WorkflowRunEvent, WorkflowRunEventPublisherInterface, WorkflowRunLoadKey,
     WorkflowRunRepositoryInterface, WorkflowRunRequestId, WorkflowRunScope, WorkflowRunTime,
     WorkflowStartRunCommand,
 };
@@ -156,16 +156,17 @@ impl WorkflowAggregateRepositoryInterface for WorkflowContractFakeImpl {
 impl WorkflowRunRepositoryInterface for WorkflowContractFakeImpl {
     async fn load_workflow_run(
         &self,
-        project_id: ProjectId,
-        workflow_run_id: WorkflowRunId,
+        key: WorkflowRunLoadKey,
     ) -> Result<Option<WorkflowRunAggregate>, WorkflowApplicationError> {
-        Ok(self
-            .state
-            .lock()
-            .map_err(|_| persistence())?
-            .runs
-            .get(&(project_id, workflow_run_id))
-            .cloned())
+        let state = self.state.lock().map_err(|_| persistence())?;
+        Ok(match key {
+            WorkflowRunLoadKey::Run(run_id) => {
+                state.runs.values().find(|run| run.run_id() == run_id).cloned()
+            }
+            WorkflowRunLoadKey::ProjectScoped { project_id, workflow_run_id } => {
+                state.runs.get(&(project_id, workflow_run_id)).cloned()
+            }
+        })
     }
 
     async fn load_workflow_run_admission_receipt(
@@ -316,7 +317,15 @@ async fn run_repository_fake_admits_run_receipt_and_effect_as_one_unit() {
     .unwrap();
 
     assert_eq!(fake.admit_workflow_run(commit).await.unwrap(), receipt);
-    assert!(fake.load_workflow_run(project_id, run_id).await.unwrap().is_some());
+    assert!(
+        fake.load_workflow_run(WorkflowRunLoadKey::ProjectScoped {
+            project_id,
+            workflow_run_id: run_id,
+        })
+        .await
+        .unwrap()
+        .is_some()
+    );
     assert_eq!(fake.load_workflow_run_admission_receipt(request_id).await.unwrap(), Some(receipt));
 }
 

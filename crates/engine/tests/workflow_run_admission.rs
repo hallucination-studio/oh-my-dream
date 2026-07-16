@@ -144,7 +144,7 @@ fn run_hash_excludes_request_id_and_includes_revision_and_scope() {
     assert_ne!(first.command_hash(), through.command_hash());
 }
 
-fn branching_workflow(
+pub(crate) fn branching_workflow(
     registry: &WorkflowNodeCapabilityRegistry,
     contract: &NodeCapabilityContract,
     revision: u64,
@@ -181,7 +181,7 @@ fn branching_workflow(
     .unwrap()
 }
 
-fn contract() -> NodeCapabilityContract {
+pub(crate) fn contract() -> NodeCapabilityContract {
     NodeCapabilityContract::try_new(
         NodeCapabilityContractRef::new(
             NodeCapabilityContractId::new("test.admission").unwrap(),

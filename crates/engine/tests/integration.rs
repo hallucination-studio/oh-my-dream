@@ -41,5 +41,7 @@ mod workflow_patch;
 mod workflow_run_admission;
 #[path = "workflow_run_domain.rs"]
 mod workflow_run_domain;
+#[path = "workflow_run_execution.rs"]
+mod workflow_run_execution;
 #[path = "workflow_use_cases.rs"]
 mod workflow_use_cases;

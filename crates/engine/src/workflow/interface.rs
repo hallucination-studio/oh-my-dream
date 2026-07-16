@@ -18,6 +18,9 @@ use super::{
 /// Closed application and consumer-boundary failures for Workflow operations.
 #[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]
 pub enum WorkflowApplicationError {
+    /// The authoritative Run domain rejected a value or transition.
+    #[error(transparent)]
+    WorkflowDomain(#[from] super::WorkflowDomainError),
     /// The authoritative Workflow graph domain rejected a value or mutation.
     #[error(transparent)]
     WorkflowGraph(#[from] WorkflowGraphError),
@@ -60,6 +63,9 @@ pub enum WorkflowApplicationError {
     /// A media preview could not be issued.
     #[error("Workflow media preview issue failed")]
     WorkflowMediaPreviewIssueFailure,
+    /// Exact capability execution or coordinator task failed.
+    #[error("Workflow capability execution failed")]
+    WorkflowCapabilityExecutionFailure,
     /// A committed event could not be published.
     #[error("Workflow Run event publish failed")]
     WorkflowRunEventPublishFailure,
@@ -287,14 +293,27 @@ pub trait WorkflowAggregateRepositoryInterface: Send + Sync {
     ) -> Result<WorkflowMutationReceipt, WorkflowApplicationError>;
 }
 
+/// Exact identity accepted by the single Run load operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorkflowRunLoadKey {
+    /// Internal lookup by globally unique Run identity.
+    Run(WorkflowRunId),
+    /// Project-scoped external query.
+    ProjectScoped {
+        /// Owning Project.
+        project_id: ProjectId,
+        /// Requested Run.
+        workflow_run_id: WorkflowRunId,
+    },
+}
+
 /// Persistence boundary consumed by Run admission, coordination, and queries.
 #[async_trait]
 pub trait WorkflowRunRepositoryInterface: Send + Sync {
-    /// Loads one Project-scoped Run.
+    /// Loads one Run through an exact supported identity.
     async fn load_workflow_run(
         &self,
-        project_id: ProjectId,
-        workflow_run_id: WorkflowRunId,
+        key: WorkflowRunLoadKey,
     ) -> Result<Option<WorkflowRunAggregate>, WorkflowApplicationError>;
     /// Loads prior admission evidence by stable request identity bytes.
     async fn load_workflow_run_admission_receipt(
