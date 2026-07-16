@@ -143,6 +143,28 @@ fn conversation_requires_start_acceptance_serial_tool_pairs_and_failure_after_ca
     );
 }
 
+#[test]
+fn encoder_rejects_an_incompatible_continuation_before_transport() {
+    let frame = AssistantProtocolFrame {
+        protocol_version: 1,
+        invocation_id: INVOCATION_ID.to_owned(),
+        direction_sequence: 1,
+        payload: AssistantProtocolPayload::ContinuationResume(ContinuationResumePayload {
+            envelope: ContinuationEnvelopePayload {
+                protocol_version: 1,
+                contract_epoch: 1,
+                sdk_version: "wrong".to_owned(),
+                agent_id: "workflow_coauthor@1".to_owned(),
+                tool_ids: Vec::new(),
+                opaque_state: "state".to_owned(),
+            },
+            trusted_result: serde_json::json!({}),
+        }),
+    };
+
+    assert_eq!(encode_assistant_protocol_frame(&frame), Err(AssistantProtocolError::InvalidFrame));
+}
+
 fn decode_one(line: &[u8]) -> Result<AssistantProtocolFrame, AssistantProtocolError> {
     AssistantProtocolDecoder::new(AssistantProtocolDirection::PythonToRust).decode(line)
 }

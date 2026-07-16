@@ -64,7 +64,7 @@ impl AssistantSidecarCommand {
         self
     }
 
-    pub(super) fn command(&self) -> Command {
+    pub(crate) fn command(&self) -> Command {
         let mut command = Command::new(&self.program);
         command.args(&self.args).envs(&self.env);
         if let Some(current_dir) = &self.current_dir {

@@ -5,8 +5,10 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod codec;
 mod json;
 mod state;
+pub use codec::encode_assistant_protocol_frame;
 use json::{decode_strict_json, json_depth};
 pub use state::*;
 

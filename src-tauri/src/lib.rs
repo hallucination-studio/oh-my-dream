@@ -7,6 +7,7 @@ pub mod assistant;
 pub mod assistant_adapters;
 pub mod assistant_approval;
 pub mod assistant_commands;
+pub mod assistant_model_runner;
 pub mod assistant_operations;
 pub mod assistant_repair;
 mod assistant_review_bridge;
