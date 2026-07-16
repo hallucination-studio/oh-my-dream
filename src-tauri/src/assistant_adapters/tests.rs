@@ -4,9 +4,11 @@ use assistant::{
     application::AssistantApplyWorkflowChangeEffect,
     domain::*,
     interfaces::{
-        AssistantClockInterface, AssistantModelContinuationEnvelope,
+        AssistantClockInterface, AssistantFailedWorkflowRunId, AssistantModelContinuationEnvelope,
         AssistantModelContinuationStoreInterface, AssistantProductionPlanRepositoryInterface,
-        AssistantStoredContinuation, AssistantWorkflowChangeRepositoryInterface,
+        AssistantRepairActivation, AssistantRepairActivationRecordResult,
+        AssistantRepairActivationRepositoryInterface, AssistantStoredContinuation,
+        AssistantWorkflowChangeRepositoryInterface,
     },
 };
 use projects::project::domain::ProjectId;
@@ -126,6 +128,27 @@ async fn workflow_change_repository_enforces_one_pending_approval_per_project_se
     repository.insert_assistant_workflow_change(awaiting_change(9, 2, 5)).await.unwrap();
 }
 
+#[tokio::test]
+async fn repair_activation_repository_is_idempotent_per_project_and_failed_run() {
+    let repository =
+        SqliteAssistantRepairActivationRepositoryAdapterImpl::try_new(connection()).unwrap();
+    let first = repair_activation(1, 2, 3, 4);
+    assert_eq!(
+        repository.record_or_get_repair_activation(first.clone()).await.unwrap(),
+        AssistantRepairActivationRecordResult::Created(first.clone())
+    );
+    assert_eq!(
+        repository.record_or_get_repair_activation(repair_activation(1, 9, 8, 4)).await.unwrap(),
+        AssistantRepairActivationRecordResult::Existing(first.clone())
+    );
+    let independent = repair_activation(7, 9, 8, 4);
+    assert_eq!(
+        repository.record_or_get_repair_activation(independent.clone()).await.unwrap(),
+        AssistantRepairActivationRecordResult::Created(independent)
+    );
+    assert!(repository.load_repair_activation(project_id(9), first.id()).await.unwrap().is_none());
+}
+
 #[test]
 fn system_assistant_clock_returns_a_non_negative_timestamp() {
     assert!(SystemAssistantClockAdapterImpl.current_assistant_time().unwrap().epoch_ms() > 0);
@@ -154,6 +177,23 @@ fn stored_continuation() -> AssistantStoredContinuation {
         invocation_id: invocation_id(3),
         envelope: AssistantModelContinuationEnvelope::new(vec![1, 2, 3]).unwrap(),
     }
+}
+
+fn repair_activation(
+    project_seed: u8,
+    session_seed: u8,
+    activation_seed: u8,
+    run_seed: u8,
+) -> AssistantRepairActivation {
+    AssistantRepairActivation::new(
+        AssistantRepairActivationId::from_uuid(uuid(activation_seed)).unwrap(),
+        project_id(project_seed),
+        session_id(session_seed),
+        AssistantFailedWorkflowRunId(*uuid(run_seed).as_bytes()),
+        vec![1, 2, 3],
+        10,
+    )
+    .unwrap()
 }
 
 fn awaiting_change(
