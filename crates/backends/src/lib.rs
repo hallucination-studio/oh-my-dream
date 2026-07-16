@@ -16,6 +16,7 @@ pub mod traits;
 
 pub mod local;
 pub mod mock;
+pub mod provider_routing;
 
 pub use error::{BackendError, Result};
 pub use mock::MockBackend;

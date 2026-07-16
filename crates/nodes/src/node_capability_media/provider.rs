@@ -137,6 +137,14 @@ impl TextToImageProviderRequest {
     pub const fn aspect_ratio(&self) -> ImageAspectRatio {
         self.aspect_ratio
     }
+    /// Consumes the request into all provider-independent semantic fields.
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (GenerationProfileRef, WorkflowNodeExecutionContext, WorkflowTextValue, ImageAspectRatio)
+    {
+        (self.profile_ref, self.context, self.prompt, self.aspect_ratio)
+    }
 }
 
 /// Exact semantic image-to-video provider request.
@@ -190,6 +198,19 @@ impl ImageToVideoProviderRequest {
     pub fn into_readable_image(self) -> NodeCapabilityReadableImageInput {
         self.image
     }
+    /// Consumes the request into all provider-independent semantic fields.
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        GenerationProfileRef,
+        WorkflowNodeExecutionContext,
+        NodeCapabilityReadableImageInput,
+        Option<WorkflowTextValue>,
+        ImageToVideoDurationSeconds,
+    ) {
+        (self.profile_ref, self.context, self.image, self.prompt, self.duration_seconds)
+    }
 }
 
 /// Exact semantic text-to-speech provider request.
@@ -223,6 +244,13 @@ impl TextToSpeechProviderRequest {
     #[must_use]
     pub const fn text(&self) -> &WorkflowTextValue {
         &self.text
+    }
+    /// Consumes the request into all provider-independent semantic fields.
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (GenerationProfileRef, WorkflowNodeExecutionContext, WorkflowTextValue) {
+        (self.profile_ref, self.context, self.text)
     }
 }
 
