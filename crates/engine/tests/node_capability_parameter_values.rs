@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use engine::node_capability::{
     NodeCapabilityContractId, NodeCapabilityContractRef, NodeCapabilityContractVersion,
-    NodeCapabilityGenerationProfileRefParameterValue, NodeCapabilityParameterConstraint,
+    NodeCapabilityGenerationProfileRefParameterValue,
+    NodeCapabilityParameterCanonicalDecodeErrorCategory, NodeCapabilityParameterConstraint,
     NodeCapabilityParameterErrorCategory, NodeCapabilityParameterKey, NodeCapabilityParameterSet,
     NodeCapabilityParameterValue, WorkflowDataType, WorkflowInputItemId,
     WorkflowManagedAssetIdBoundaryValue,
@@ -71,6 +72,98 @@ fn raw_parameter_set_rejects_more_than_sixty_four_values() {
     let error = NodeCapabilityParameterSet::try_from_map(values).unwrap_err();
 
     assert_eq!(error.category(), NodeCapabilityParameterErrorCategory::ParameterSetTooLarge);
+}
+
+#[test]
+fn parameter_set_round_trips_every_canonical_value_shape() {
+    let asset_id = WorkflowManagedAssetIdBoundaryValue::from_bytes(uuid_v4_bytes(9)).unwrap();
+    let values = BTreeMap::from([
+        (
+            NodeCapabilityParameterKey::new("asset_id").unwrap(),
+            NodeCapabilityParameterValue::ManagedAsset(
+                engine::node_capability::NodeCapabilityManagedAssetIdParameterValue::new(asset_id),
+            ),
+        ),
+        (
+            NodeCapabilityParameterKey::new("choice").unwrap(),
+            NodeCapabilityParameterValue::Choice(
+                engine::node_capability::NodeCapabilityChoiceKey::new("wide").unwrap(),
+            ),
+        ),
+        (
+            NodeCapabilityParameterKey::new("count").unwrap(),
+            NodeCapabilityParameterValue::UnsignedInteger(10),
+        ),
+        (
+            NodeCapabilityParameterKey::new("profile").unwrap(),
+            NodeCapabilityParameterValue::GenerationProfile(
+                NodeCapabilityGenerationProfileRefParameterValue::new("image.standard", 2).unwrap(),
+            ),
+        ),
+        (
+            NodeCapabilityParameterKey::new("text").unwrap(),
+            NodeCapabilityParameterValue::Text("hello".to_owned()),
+        ),
+    ]);
+    let original = NodeCapabilityParameterSet::try_from_map(values).unwrap();
+
+    let restored =
+        NodeCapabilityParameterSet::try_from_canonical_bytes(&original.canonical_bytes()).unwrap();
+
+    assert_eq!(restored, original);
+}
+
+#[test]
+fn parameter_set_decoder_rejects_trailing_and_unknown_tag_bytes() {
+    let original = NodeCapabilityParameterSet::try_from_map(BTreeMap::from([(
+        NodeCapabilityParameterKey::new("count").unwrap(),
+        NodeCapabilityParameterValue::UnsignedInteger(10),
+    )]))
+    .unwrap();
+    let mut trailing = original.canonical_bytes();
+    trailing.push(0);
+    let mut unknown_tag = original.canonical_bytes();
+    unknown_tag[4 + 4 + "count".len()] = 99;
+
+    assert_eq!(
+        NodeCapabilityParameterSet::try_from_canonical_bytes(&trailing).unwrap_err().category(),
+        NodeCapabilityParameterCanonicalDecodeErrorCategory::TrailingBytes
+    );
+    assert_eq!(
+        NodeCapabilityParameterSet::try_from_canonical_bytes(&unknown_tag).unwrap_err().category(),
+        NodeCapabilityParameterCanonicalDecodeErrorCategory::UnknownValueTag
+    );
+}
+
+#[test]
+fn parameter_set_decoder_rejects_noncanonical_key_order_and_oversized_input() {
+    let values = BTreeMap::from([
+        (
+            NodeCapabilityParameterKey::new("alpha").unwrap(),
+            NodeCapabilityParameterValue::UnsignedInteger(1),
+        ),
+        (
+            NodeCapabilityParameterKey::new("bravo").unwrap(),
+            NodeCapabilityParameterValue::UnsignedInteger(2),
+        ),
+    ]);
+    let original = NodeCapabilityParameterSet::try_from_map(values).unwrap();
+    let mut reversed = original.canonical_bytes();
+    let first_entry_length = 4 + "alpha".len() + 1 + 8;
+    let entries = reversed.split_off(4);
+    reversed.extend_from_slice(&entries[first_entry_length..]);
+    reversed.extend_from_slice(&entries[..first_entry_length]);
+
+    assert_eq!(
+        NodeCapabilityParameterSet::try_from_canonical_bytes(&reversed).unwrap_err().category(),
+        NodeCapabilityParameterCanonicalDecodeErrorCategory::NonCanonicalKeyOrder
+    );
+    assert_eq!(
+        NodeCapabilityParameterSet::try_from_canonical_bytes(&vec![0; 1_048_577])
+            .unwrap_err()
+            .category(),
+        NodeCapabilityParameterCanonicalDecodeErrorCategory::InputTooLarge
+    );
 }
 
 fn uuid_v4_bytes(seed: u8) -> [u8; 16] {
