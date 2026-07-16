@@ -27,3 +27,14 @@ fn freezes_voice_path_and_request_body() {
         "https://api.elevenlabs.io/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb?output_format=mp3_44100_128"
     );
 }
+
+#[test]
+fn public_configuration_errors_never_include_candidate_secrets() {
+    let candidate = "secret/voice";
+    let Err(error) = ElevenLabsVoiceId::try_new(candidate) else {
+        panic!("invalid voice ID was accepted");
+    };
+
+    assert_eq!(error.to_string(), "invalid ElevenLabs voice ID");
+    assert!(!format!("{error:?}").contains(candidate));
+}

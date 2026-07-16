@@ -163,6 +163,49 @@ async fn rejects_unknown_queue_status_without_fetching_a_result() {
     assert_eq!(transport.requests().len(), 2);
 }
 
+#[test]
+fn provider_failures_expose_only_structured_safe_metadata() {
+    let secret = "credential-that-must-not-appear";
+    for error in [
+        translate_transport(FalTransportError::NetworkBeforeSubmission),
+        translate_transport(FalTransportError::NetworkAfterSubmission),
+        translate_transport(FalTransportError::ResponseTooLarge),
+        translate_transport(FalTransportError::InvalidCredential),
+    ] {
+        assert!(!format!("{error:?}").contains(secret));
+        assert!(error.safe_retry_at().is_none());
+    }
+}
+
+#[tokio::test]
+async fn ambiguous_submission_is_returned_without_resubmission() {
+    let transport = Arc::new(AmbiguousTransport::default());
+    let route = FalTextToImageProviderRouteImpl::with_transport(
+        credential_id(),
+        Arc::new(FakeVault),
+        transport.clone(),
+    );
+    let router = TextToImageProviderRouterImpl::try_new([(
+        profile(),
+        Arc::new(route) as Arc<dyn TextToImageProviderRouteInterface>,
+    )])
+    .unwrap();
+
+    let result = router
+        .generate_image_from_text(TextToImageProviderRequest::new(
+            profile(),
+            context(),
+            WorkflowTextValue::try_new([WorkflowTextPart::Literal("draw".into())]).unwrap(),
+            ImageAspectRatio::Square,
+        ))
+        .await;
+    let Err(error) = result else { panic!("ambiguous submission was accepted") };
+
+    assert_eq!(error.category(), NodeCapabilityProviderFailureCategory::AmbiguousSubmission);
+    assert!(!error.is_retryable());
+    assert_eq!(transport.calls.load(std::sync::atomic::Ordering::Acquire), 1);
+}
+
 struct FakeVault;
 struct MissingVault;
 
@@ -220,6 +263,32 @@ struct ScriptedTransport {
     queue: Mutex<VecDeque<FalHttpResponse>>,
     download: Mutex<Option<FalHttpResponse>>,
     requests: Mutex<Vec<RecordedRequest>>,
+}
+
+#[derive(Default)]
+struct AmbiguousTransport {
+    calls: std::sync::atomic::AtomicUsize,
+}
+
+#[async_trait]
+impl FalHttpTransportInterface for AmbiguousTransport {
+    async fn send_queue_request(
+        &self,
+        _request: FalQueueRequest,
+        _secret: &GenerationProviderCredentialSecret,
+    ) -> Result<FalHttpResponse, FalTransportError> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        Err(FalTransportError::NetworkAfterSubmission)
+    }
+
+    async fn download_media(
+        &self,
+        _url: &str,
+        _deadline: Instant,
+        _maximum_bytes: usize,
+    ) -> Result<FalHttpResponse, FalTransportError> {
+        Err(FalTransportError::DownloadRejected)
+    }
 }
 
 impl ScriptedTransport {

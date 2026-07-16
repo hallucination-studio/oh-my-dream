@@ -63,3 +63,32 @@ pub(super) fn validate_result(value: FalVideoResultDto) -> Result<FalVideoDto, (
     }
     Ok(value.video)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_wrong_media_contract_and_out_of_bounds_size() {
+        let valid = || FalVideoResultDto {
+            video: FalVideoDto {
+                url: "https://v3b.fal.media/files/video.mp4".into(),
+                content_type: "video/mp4".into(),
+                file_size: Some(16),
+            },
+        };
+        assert!(validate_result(valid()).is_ok());
+
+        let mut wrong_mime = valid();
+        wrong_mime.video.content_type = "application/json".into();
+        assert!(validate_result(wrong_mime).is_err());
+
+        let mut private_host = valid();
+        private_host.video.url = "https://127.0.0.1/video.mp4".into();
+        assert!(validate_result(private_host).is_err());
+
+        let mut too_large = valid();
+        too_large.video.file_size = Some(512 * 1024 * 1024 + 1);
+        assert!(validate_result(too_large).is_err());
+    }
+}
