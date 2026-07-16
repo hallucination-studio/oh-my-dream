@@ -12,7 +12,8 @@ use nodes::{
 
 use super::{
     GenerationProviderRouteAvailability, GenerationProviderRouteId,
-    GenerationProviderRouterConstructionError, no_configured_route_failure, validate_routes,
+    GenerationProviderRouterConstructionError, no_configured_route_availability,
+    no_configured_route_failure, validate_routes,
 };
 
 /// Profile-free semantic request delegated to one text-to-image route.
@@ -75,6 +76,17 @@ impl TextToImageProviderRouterImpl {
             )?,
             no_configured_route_failure: no_configured_route_failure()?,
         })
+    }
+
+    /// Reads current state from this router's exact profile-to-route map.
+    pub async fn observe_generation_profile_availability(
+        &self,
+        profile_ref: &GenerationProfileRef,
+    ) -> GenerationProviderRouteAvailability {
+        match self.routes_by_profile.get(profile_ref) {
+            Some(route) => route.observe_provider_route_availability().await,
+            None => no_configured_route_availability(),
+        }
     }
 }
 

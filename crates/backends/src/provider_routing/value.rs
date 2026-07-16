@@ -6,7 +6,10 @@ use engine::node_capability::{
     NodeCapabilityContractId, NodeCapabilityContractRef, NodeCapabilityContractVersion,
     NodeCapabilityProviderFailure, NodeCapabilityProviderFailureCategory,
 };
-use nodes::{GenerationProfileAvailabilityState, GenerationProfileCatalog, GenerationProfileRef};
+use nodes::{
+    GenerationProfileAvailabilityState, GenerationProfileCatalog, GenerationProfileRef,
+    GenerationProfileUnavailableReason,
+};
 use thiserror::Error;
 
 /// Current route state before profile-level observation metadata is attached.
@@ -95,4 +98,11 @@ pub(super) fn no_configured_route_failure()
         None,
     )
     .map_err(|_| GenerationProviderRouterConstructionError::InvalidRouteMap)
+}
+
+pub(super) const fn no_configured_route_availability() -> GenerationProviderRouteAvailability {
+    GenerationProviderRouteAvailability::Unavailable {
+        reason: GenerationProfileUnavailableReason::NoConfiguredRoute,
+        retry_after: None,
+    }
 }
