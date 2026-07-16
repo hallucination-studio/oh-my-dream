@@ -71,10 +71,11 @@ ends in `Impl`. Use the more specific endings `CapabilityImpl`, `AdapterImpl`, `
 - `cargo check` fast type-checks the workspace.
 - `cargo fmt --all` formats all Rust code with rustfmt defaults.
 - `cargo clippy --all-targets -- -D warnings` enforces lint cleanliness.
-- `cargo test` runs unit and integration tests.
-- `./scripts/e2e.sh` runs the full suite end to end: the entire Rust workspace (`cargo test --workspace`), then the frontend typecheck and Vitest suite (`cd ui && npm run typecheck && npm run test`). This is the single gate that must pass before merging any change.
+- `cargo test -p <affected-crate>` runs the unit and integration tests for a locally affected Rust crate.
+- `npm --prefix ui run typecheck` and `npm --prefix ui run test` validate local frontend changes.
+- `./scripts/e2e.sh` runs the complete Rust, Python, and frontend suite. It is a CI command and is not part of the normal local development loop.
 
-Run fmt, clippy, and tests before committing Rust changes.
+Run fmt, clippy, and the tests affected by the change before committing. Do not run the complete E2E suite locally unless the user explicitly requests it or a CI failure must be reproduced. Pull requests run both the complete Rust workspace tests and `./scripts/e2e.sh`; those required CI checks are the final merge gate.
 
 ## Testing Guidelines
 
@@ -96,7 +97,7 @@ The suite is layered — know which layer a change touches so you update the rig
 - **Fix a bug** → add a regression test that fails before the fix and passes after.
 - **Add or change a production provider route** → keep deterministic route contract tests green and add vendor-route tests behind their own gate.
 
-Every such change must leave `./scripts/e2e.sh` green.
+Every such change must leave its focused local tests green. The pull request CI must leave both the complete Rust workspace tests and `./scripts/e2e.sh` green before merge.
 
 ## Rust Coding Standards
 
