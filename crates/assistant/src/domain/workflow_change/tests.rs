@@ -71,7 +71,7 @@ fn pass_review_then_approval_reaches_applied_only_through_applying() {
     assert_eq!(change.state(), AssistantWorkflowChangeState::AwaitingApproval);
     change.begin_apply(decision_scope(&change), 19_999).unwrap();
     assert_eq!(change.state(), AssistantWorkflowChangeState::Applying);
-    change.mark_applied().unwrap();
+    change.mark_applied(AssistantWorkflowApplyReceiptBoundaryValue::new(vec![1]).unwrap()).unwrap();
     assert_eq!(change.state(), AssistantWorkflowChangeState::Applied);
 }
 
@@ -155,6 +155,9 @@ fn restore_rejects_state_without_matching_associated_evidence() {
             None,
             None,
             AssistantWorkflowChangeState::Applying,
+            None,
+            None,
+            AssistantContinuationOutcome::Pending,
         ),
         Err(AssistantWorkflowChangeError::InvalidValue)
     );

@@ -72,8 +72,6 @@ bounded_bytes!(AssistantNodeCapabilityCatalogSnapshot, 1024 * 1024);
 bounded_bytes!(AssistantModelTurnInput, 1024 * 1024);
 bounded_bytes!(AssistantModelTurnResult, 16 * 1024 * 1024);
 bounded_bytes!(AssistantModelContinuationEnvelope, 4 * 1024 * 1024);
-bounded_bytes!(AssistantWorkflowApplyReceiptBoundaryValue, 1024 * 1024);
-bounded_bytes!(AssistantWorkflowRunBoundaryValue, 1024 * 1024);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssistantModelTurnRequest {

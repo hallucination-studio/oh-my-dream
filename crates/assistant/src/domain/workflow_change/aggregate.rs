@@ -1,17 +1,16 @@
 use projects::project::domain::ProjectId;
 
+use super::validation::{valid_restored_evidence, validate_candidate};
 use super::{
-    AssistantModelContinuationRef, AssistantReviewReceipt, AssistantReviewVerdict,
+    AssistantContinuationOutcome, AssistantModelContinuationRef, AssistantReviewReceipt,
+    AssistantReviewVerdict, AssistantWorkflowApplyReceiptBoundaryValue,
     AssistantWorkflowChangeDecisionScope, AssistantWorkflowChangeError,
     AssistantWorkflowChangeExpiry, AssistantWorkflowChangeLineage, AssistantWorkflowChangeState,
     AssistantWorkflowFingerprint, AssistantWorkflowMutation, AssistantWorkflowMutationDigest,
-    AssistantWorkflowReadinessIssueBoundaryValue, AssistantWorkflowStableAliasSet,
-    WorkflowRevisionBoundaryValue,
+    AssistantWorkflowReadinessIssueBoundaryValue, AssistantWorkflowRunBoundaryValue,
+    AssistantWorkflowStableAliasSet, WorkflowRevisionBoundaryValue,
 };
 use crate::domain::{AssistantApprovalScopeId, AssistantSessionId, AssistantWorkflowChangeId};
-
-const MAX_ITEMS: usize = 128;
-const MAX_COMBINED_BYTES: usize = 1024 * 1024;
 
 /// Complete immutable evaluator result used to create one proposal.
 #[derive(Clone, Debug)]
@@ -48,6 +47,9 @@ pub struct AssistantWorkflowChangeAggregate {
     continuation_ref: Option<AssistantModelContinuationRef>,
     state: AssistantWorkflowChangeState,
     expires_at: AssistantWorkflowChangeExpiry,
+    applied_workflow_receipt: Option<AssistantWorkflowApplyReceiptBoundaryValue>,
+    admitted_workflow_run: Option<AssistantWorkflowRunBoundaryValue>,
+    continuation_outcome: AssistantContinuationOutcome,
 }
 
 impl AssistantWorkflowChangeAggregate {
@@ -72,6 +74,9 @@ impl AssistantWorkflowChangeAggregate {
             continuation_ref: None,
             state: AssistantWorkflowChangeState::Proposed,
             expires_at: candidate.expires_at,
+            applied_workflow_receipt: None,
+            admitted_workflow_run: None,
+            continuation_outcome: AssistantContinuationOutcome::Pending,
         })
     }
 
@@ -81,14 +86,28 @@ impl AssistantWorkflowChangeAggregate {
         review: Option<AssistantReviewReceipt>,
         continuation_ref: Option<AssistantModelContinuationRef>,
         state: AssistantWorkflowChangeState,
+        applied_workflow_receipt: Option<AssistantWorkflowApplyReceiptBoundaryValue>,
+        admitted_workflow_run: Option<AssistantWorkflowRunBoundaryValue>,
+        continuation_outcome: AssistantContinuationOutcome,
     ) -> Result<Self, AssistantWorkflowChangeError> {
         let mut aggregate = Self::new(candidate)?;
-        if !valid_restored_evidence(&aggregate, review.as_ref(), continuation_ref.as_ref(), state) {
+        if !valid_restored_evidence(
+            &aggregate,
+            review.as_ref(),
+            continuation_ref.as_ref(),
+            state,
+            applied_workflow_receipt.as_ref(),
+            admitted_workflow_run.as_ref(),
+            continuation_outcome,
+        ) {
             return Err(AssistantWorkflowChangeError::InvalidValue);
         }
         aggregate.review = review;
         aggregate.continuation_ref = continuation_ref;
         aggregate.state = state;
+        aggregate.applied_workflow_receipt = applied_workflow_receipt;
+        aggregate.admitted_workflow_run = admitted_workflow_run;
+        aggregate.continuation_outcome = continuation_outcome;
         Ok(aggregate)
     }
 
@@ -145,12 +164,32 @@ impl AssistantWorkflowChangeAggregate {
         self.expires_at
     }
     #[must_use]
+    pub fn applied_workflow_receipt(&self) -> Option<&AssistantWorkflowApplyReceiptBoundaryValue> {
+        self.applied_workflow_receipt.as_ref()
+    }
+    #[must_use]
+    pub fn admitted_workflow_run(&self) -> Option<&AssistantWorkflowRunBoundaryValue> {
+        self.admitted_workflow_run.as_ref()
+    }
+    #[must_use]
+    pub const fn continuation_outcome(&self) -> AssistantContinuationOutcome {
+        self.continuation_outcome
+    }
+    #[must_use]
     pub fn review(&self) -> Option<&AssistantReviewReceipt> {
         self.review.as_ref()
     }
     #[must_use]
     pub fn continuation_ref(&self) -> Option<&AssistantModelContinuationRef> {
         self.continuation_ref.as_ref()
+    }
+    #[must_use]
+    pub fn matches_decision_scope(&self, scope: AssistantWorkflowChangeDecisionScope) -> bool {
+        scope.project_id == self.project_id
+            && scope.session_id == self.session_id
+            && scope.change_id == self.id
+            && scope.approval_scope_id == self.approval_scope_id
+            && scope.mutation_digest == self.mutation_digest
     }
 
     /// Stores verified pass evidence and enters human approval.
@@ -184,7 +223,6 @@ impl AssistantWorkflowChangeAggregate {
         now_epoch_ms: i64,
     ) -> Result<(), AssistantWorkflowChangeError> {
         self.require_unexpired_approval(scope, now_epoch_ms)?;
-        self.continuation_ref = None;
         self.state = AssistantWorkflowChangeState::Rejected;
         Ok(())
     }
@@ -201,8 +239,59 @@ impl AssistantWorkflowChangeAggregate {
     }
 
     /// Marks a recoverable apply as durably completed.
-    pub fn mark_applied(&mut self) -> Result<(), AssistantWorkflowChangeError> {
-        self.transition_applying(AssistantWorkflowChangeState::Applied)
+    pub fn mark_applied(
+        &mut self,
+        receipt: AssistantWorkflowApplyReceiptBoundaryValue,
+    ) -> Result<(), AssistantWorkflowChangeError> {
+        if self.state != AssistantWorkflowChangeState::Applying {
+            return Err(AssistantWorkflowChangeError::InvalidTransition);
+        }
+        self.applied_workflow_receipt = Some(receipt);
+        self.state = AssistantWorkflowChangeState::Applied;
+        Ok(())
+    }
+
+    /// Links the stable admitted Run idempotently after canonical apply.
+    pub fn link_admitted_workflow_run(
+        &mut self,
+        run: AssistantWorkflowRunBoundaryValue,
+    ) -> Result<(), AssistantWorkflowChangeError> {
+        if self.state != AssistantWorkflowChangeState::Applied
+            || self.continuation_outcome == AssistantContinuationOutcome::Pending
+        {
+            return Err(AssistantWorkflowChangeError::InvalidTransition);
+        }
+        match self.admitted_workflow_run.as_ref() {
+            None => self.admitted_workflow_run = Some(run),
+            Some(existing) if existing == &run => {}
+            Some(_) => return Err(AssistantWorkflowChangeError::InvalidTransition),
+        }
+        Ok(())
+    }
+
+    /// Records a successful single-use continuation resume idempotently.
+    pub fn mark_continuation_resumed(&mut self) -> Result<(), AssistantWorkflowChangeError> {
+        self.mark_continuation_outcome(AssistantContinuationOutcome::Resumed)
+    }
+
+    /// Records a non-replayable continuation interruption idempotently.
+    pub fn mark_continuation_interrupted(&mut self) -> Result<(), AssistantWorkflowChangeError> {
+        self.mark_continuation_outcome(AssistantContinuationOutcome::Interrupted)
+    }
+
+    fn mark_continuation_outcome(
+        &mut self,
+        outcome: AssistantContinuationOutcome,
+    ) -> Result<(), AssistantWorkflowChangeError> {
+        if self.state != AssistantWorkflowChangeState::Applied {
+            return Err(AssistantWorkflowChangeError::InvalidTransition);
+        }
+        match self.continuation_outcome {
+            AssistantContinuationOutcome::Pending => self.continuation_outcome = outcome,
+            existing if existing == outcome => {}
+            _ => return Err(AssistantWorkflowChangeError::InvalidTransition),
+        }
+        Ok(())
     }
 
     /// Marks a recoverable apply as permanently failed.
@@ -217,7 +306,6 @@ impl AssistantWorkflowChangeAggregate {
         {
             return Err(AssistantWorkflowChangeError::InvalidTransition);
         }
-        self.continuation_ref = None;
         self.state = AssistantWorkflowChangeState::Expired;
         Ok(())
     }
@@ -251,12 +339,7 @@ impl AssistantWorkflowChangeAggregate {
         if now_epoch_ms < 0 || now_epoch_ms >= self.expires_at.epoch_ms() {
             return Err(AssistantWorkflowChangeError::ApprovalExpired);
         }
-        if scope.project_id != self.project_id
-            || scope.session_id != self.session_id
-            || scope.change_id != self.id
-            || scope.approval_scope_id != self.approval_scope_id
-            || scope.mutation_digest != self.mutation_digest
-        {
+        if !self.matches_decision_scope(scope) {
             return Err(AssistantWorkflowChangeError::InvalidValue);
         }
         Ok(())
@@ -270,59 +353,6 @@ impl AssistantWorkflowChangeAggregate {
             return Err(AssistantWorkflowChangeError::InvalidTransition);
         }
         self.state = next;
-        Ok(())
-    }
-}
-
-fn valid_restored_evidence(
-    aggregate: &AssistantWorkflowChangeAggregate,
-    review: Option<&AssistantReviewReceipt>,
-    continuation_ref: Option<&AssistantModelContinuationRef>,
-    state: AssistantWorkflowChangeState,
-) -> bool {
-    let verdict = review.map(|receipt| receipt.verdict);
-    let review_matches = review.is_none_or(|receipt| {
-        receipt.change_id == aggregate.id && receipt.mutation_digest == aggregate.mutation_digest
-    });
-    review_matches
-        && match state {
-            AssistantWorkflowChangeState::Proposed => {
-                review.is_none() && continuation_ref.is_none()
-            }
-            AssistantWorkflowChangeState::ReviewRejected => {
-                verdict == Some(AssistantReviewVerdict::Reject) && continuation_ref.is_none()
-            }
-            AssistantWorkflowChangeState::Rejected | AssistantWorkflowChangeState::Expired => {
-                verdict == Some(AssistantReviewVerdict::Pass) && continuation_ref.is_none()
-            }
-            AssistantWorkflowChangeState::AwaitingApproval
-            | AssistantWorkflowChangeState::Applying
-            | AssistantWorkflowChangeState::Applied
-            | AssistantWorkflowChangeState::ApplyFailed => {
-                verdict == Some(AssistantReviewVerdict::Pass) && continuation_ref.is_some()
-            }
-        }
-}
-
-fn validate_candidate(
-    candidate: &AssistantWorkflowChangeCandidate,
-) -> Result<(), AssistantWorkflowChangeError> {
-    if candidate.ordered_mutations.is_empty()
-        || candidate.ordered_mutations.len() > MAX_ITEMS
-        || candidate.readiness_issues.len() > MAX_ITEMS
-    {
-        return Err(AssistantWorkflowChangeError::CandidateTooLarge);
-    }
-    let bytes = candidate
-        .ordered_mutations
-        .iter()
-        .map(|value| value.canonical_bytes().len())
-        .chain(candidate.readiness_issues.iter().map(|value| value.canonical_bytes().len()))
-        .try_fold(0usize, usize::checked_add)
-        .ok_or(AssistantWorkflowChangeError::CandidateTooLarge)?;
-    if bytes > MAX_COMBINED_BYTES {
-        Err(AssistantWorkflowChangeError::CandidateTooLarge)
-    } else {
         Ok(())
     }
 }

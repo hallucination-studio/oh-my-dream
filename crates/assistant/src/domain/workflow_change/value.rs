@@ -111,6 +111,29 @@ macro_rules! digest_value {
 digest_value!(AssistantWorkflowMutationDigest);
 digest_value!(AssistantWorkflowFingerprint);
 
+macro_rules! outcome_carrier {
+    ($name:ident) => {
+        #[derive(Clone, Debug, PartialEq, Eq)]
+        pub struct $name(Vec<u8>);
+        impl $name {
+            pub fn new(value: Vec<u8>) -> Result<Self, AssistantWorkflowChangeError> {
+                if value.is_empty() || value.len() > MAX_CARRIER_BYTES {
+                    Err(AssistantWorkflowChangeError::InvalidValue)
+                } else {
+                    Ok(Self(value))
+                }
+            }
+            #[must_use]
+            pub fn canonical_bytes(&self) -> &[u8] {
+                &self.0
+            }
+        }
+    };
+}
+
+outcome_carrier!(AssistantWorkflowApplyReceiptBoundaryValue);
+outcome_carrier!(AssistantWorkflowRunBoundaryValue);
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct AssistantWorkflowStableAliasEntry {
     alias: String,
@@ -279,6 +302,14 @@ pub enum AssistantWorkflowChangeState {
     Applied,
     ApplyFailed,
     Expired,
+}
+
+/// Closed single-use model continuation recovery evidence.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub enum AssistantContinuationOutcome {
+    Pending,
+    Resumed,
+    Interrupted,
 }
 
 /// Exact immutable scope echoed by one human approval decision.

@@ -1,6 +1,7 @@
 //! Immutable reviewed Workflow change authority.
 
 mod aggregate;
+mod validation;
 mod value;
 
 pub use aggregate::*;

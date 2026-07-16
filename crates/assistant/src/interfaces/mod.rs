@@ -5,6 +5,9 @@ mod model;
 mod repository;
 mod value;
 
+pub use crate::domain::{
+    AssistantWorkflowApplyReceiptBoundaryValue, AssistantWorkflowRunBoundaryValue,
+};
 pub use bridge::*;
 pub use model::*;
 pub use repository::*;
