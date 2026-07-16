@@ -70,7 +70,7 @@ def decode_frames(data: bytes) -> list[Frame]:
 
 async def pause_approval(session_path: str) -> dict[str, Any]:
     """Create one pending approval state through the real stdio app."""
-    from assistant.stdio_app import AgentStdioApp
+    from assistant.tests.legacy_stdio_app import AgentStdioApp
 
     input_bytes = encode_frames(
         [
@@ -359,7 +359,7 @@ def main() -> None:
         arguments_json = '{\n  "proposal_id": "proposal-42"\n}'
         model = ToolThenMessageModel(operation_id, arguments_json)
 
-    from assistant.stdio_app import AgentStdioApp
+    from assistant.tests.legacy_stdio_app import AgentStdioApp
 
     app = AgentStdioApp(
         FrameReader(sys.stdin.buffer),

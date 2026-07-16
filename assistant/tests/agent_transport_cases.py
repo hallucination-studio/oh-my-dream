@@ -54,7 +54,7 @@ class FailClosedTests(unittest.IsolatedAsyncioTestCase):
         expected_code: str,
         call_id: str = "call-1",
     ) -> None:
-        from assistant.stdio_app import AgentStdioApp
+        from assistant.tests.legacy_stdio_app import AgentStdioApp
 
         with tempfile.TemporaryDirectory() as directory:
             session_path = str(Path(directory) / "invalid.sqlite3")

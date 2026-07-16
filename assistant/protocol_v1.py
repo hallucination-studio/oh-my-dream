@@ -137,6 +137,30 @@ class ProtocolDecoder:
         }
 
 
+def encode_frame(frame: ProtocolFrame, direction: ProtocolDirection) -> bytes:
+    """Encode one typed, direction-checked frame as bounded canonical NDJSON."""
+    value = {
+        "protocol_version": frame.protocol_version,
+        "invocation_id": frame.invocation_id,
+        "direction_sequence": frame.direction_sequence,
+        "kind": frame.kind.value,
+        "payload": frame.payload,
+    }
+    _validate_frame(cast(dict[str, object], value), direction, frame.direction_sequence)
+    try:
+        encoded = (
+            json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode(
+                "utf-8"
+            )
+            + b"\n"
+        )
+    except (TypeError, ValueError, UnicodeEncodeError, RecursionError) as error:
+        raise ProtocolError("frame cannot be encoded") from error
+    if len(encoded) > MAX_FRAME_BYTES:
+        raise ProtocolError("frame too large")
+    return encoded
+
+
 def _decode_json(encoded: bytes) -> dict[str, object]:
     try:
         value = json.loads(

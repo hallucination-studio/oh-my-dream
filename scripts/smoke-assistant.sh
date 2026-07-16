@@ -19,57 +19,81 @@ rm -rf "$BUILD_ROOT/smoke-work" "$BUILD_ROOT/smoke-dist"
   --workpath "$BUILD_ROOT/smoke-work" \
   "$PROJECT_ROOT/assistant/smoke.spec" >/dev/null
 
-SESSION_PATH="$BUILD_ROOT/smoke-session.sqlite3"
 INPUT_PATH="$BUILD_ROOT/smoke-input.ndjson"
 OUTPUT_PATH="$BUILD_ROOT/smoke-output.ndjson"
-"$VENV/bin/python" - "$SESSION_PATH" >"$INPUT_PATH" <<'PY'
+"$VENV/bin/python" >"$INPUT_PATH" <<'PY'
+import json
 import sys
 
-from assistant.tests.agent_transport_fixture import encode_frames, operation
-from assistant.stdio_protocol import FrameKind
+from assistant.protocol_v1 import TOOL_IDS
 
-session_path = sys.argv[1]
-frames = [
-    (
-        FrameKind.INVOKE,
-        {
-            "invocation_id": "frozen-smoke",
-            "session_id": "frozen-session",
-            "session_path": session_path,
-            "input": "Use the operation.",
-            "operations": [operation("workspace_get_snapshot")],
-            "state": None,
+contracts = [
+    {
+        "tool_id": tool_id,
+        "description": "Exact Rust tool.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
         },
-    ),
-    (
-        FrameKind.TOOL_RESPONSE,
-        {
-            "invocation_id": "frozen-smoke",
-            "call_id": "call-1",
-            "output_json": '{"result":"smoke"}',
-        },
-    ),
+        "output_schema": {},
+        "effect": "HumanApprovalRequest" if tool_id == "assistant.workflow.request_apply@1" else "AuthoritativeRead",
+        "requires_human_approval": tool_id == "assistant.workflow.request_apply@1",
+    }
+    for tool_id in sorted(TOOL_IDS)
 ]
-sys.stdout.buffer.write(encode_frames(frames))
+invocation_id = "03000000-0000-4000-8000-000000000003"
+frames = [
+    {
+        "protocol_version": 1,
+        "invocation_id": invocation_id,
+        "direction_sequence": 1,
+        "kind": "InvocationStart",
+        "payload": {
+            "start": {"kind": "UserMessage", "message": "Use the operation."},
+            "trusted_context": {
+                "project_id": "01000000-0000-4000-8000-000000000001",
+                "session_id": "02000000-0000-4000-8000-000000000002",
+                "workspace_snapshot": {},
+            },
+            "tool_contracts": contracts,
+            "budgets": {
+                "maximum_frame_bytes": 8388608,
+                "maximum_events": 512,
+                "maximum_tool_calls": 64,
+                "maximum_model_turns": 16,
+                "maximum_direction_bytes": 16777216,
+                "deadline_ms": 600000,
+            },
+        },
+    },
+    {
+        "protocol_version": 1,
+        "invocation_id": invocation_id,
+        "direction_sequence": 2,
+        "kind": "ToolResult",
+        "payload": {
+            "call_id": "call-1",
+            "tool_id": "assistant.workspace.get_snapshot@1",
+            "result": {"snapshot": {"smoke": True}},
+        },
+    },
+]
+for frame in frames:
+    sys.stdout.write(json.dumps(frame, separators=(",", ":")) + "\n")
 PY
 
 "$BUILD_ROOT/smoke-dist/oh-my-dream-assistant-smoke$EXE_SUFFIX" \
   <"$INPUT_PATH" >"$OUTPUT_PATH" 2>"$BUILD_ROOT/smoke-stderr.log"
 
 "$VENV/bin/python" - "$OUTPUT_PATH" "$BUILD_ROOT/smoke-stderr.log" <<'PY'
+import json
 import sys
 
-from assistant.stdio_protocol import FrameKind, FrameReader
-
 with open(sys.argv[1], "rb") as stream:
-    reader = FrameReader(stream)
-    frames = []
-    while True:
-        try:
-            frames.append(reader.read_frame())
-        except Exception:
-            break
-assert frames[-1].kind is FrameKind.COMPLETED, [frame.kind for frame in frames]
+    frames = [json.loads(line) for line in stream]
+assert frames[-1]["kind"] == "InvocationCompleted", [frame["kind"] for frame in frames]
 assert "ASSISTANT_SMOKE_TRACING_DISABLED=1" in open(sys.argv[2]).read()
 PY
 

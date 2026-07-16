@@ -46,5 +46,7 @@ fn app_state_wires_the_framed_stdio_command() {
     let root = tempdir().expect("create asset root");
     let state = AppState::from_asset_root(root.path()).expect("build app state");
 
-    assert!(format!("{:?}", state.assistant_sidecar_command()).contains("assistant.stdio_app"));
+    assert!(
+        format!("{:?}", state.assistant_sidecar_command()).contains("assistant.protocol_v1_app")
+    );
 }

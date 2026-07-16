@@ -30,7 +30,7 @@ def load_operations() -> list[dict[str, object]]:
 async def run_agent(
     frames: list[tuple[FrameKind, dict[str, object]]], model: SequencedDiscoveryModel
 ) -> list[Frame]:
-    from assistant.stdio_app import AgentStdioApp
+    from assistant.tests.legacy_stdio_app import AgentStdioApp
 
     output = RecordingWriter()
     await AgentStdioApp(

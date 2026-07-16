@@ -10,7 +10,7 @@ from typing import Any, cast
 from agents import Agent, Model, Runner, RunState, Tool
 from agents.stream_events import RawResponsesStreamEvent
 
-from .sdk_runtime import (
+from ..sdk_runtime import (
     AGENT_NAME,
     SDK_MAX_TURNS,
     StateEnvelopeError,
@@ -21,9 +21,9 @@ from .sdk_runtime import (
     restore_run_state,
     validate_state_envelope,
 )
-from .reviewer import AttestedReview, build_reviewer_tool
-from .system_prompt import build_system_prompt
-from .stdio_protocol import (
+from ..reviewer import AttestedReview, build_reviewer_tool
+from ..system_prompt import build_system_prompt
+from ..stdio_protocol import (
     PROTOCOL_VERSION,
     Frame,
     FrameKind,
@@ -32,7 +32,7 @@ from .stdio_protocol import (
     JsonValue,
     ProtocolError,
 )
-from .stdio_invocation import (
+from ..stdio_invocation import (
     AgentTransportError,
     Invocation,
     interruption_arguments,
@@ -44,7 +44,7 @@ from .stdio_invocation import (
     require_string,
     single_interruption,
 )
-from .tool_contract import ToolRequest, ToolResponse, build_function_tools
+from ..tool_contract import ToolRequest, ToolResponse, build_function_tools
 
 
 class AgentStdioApp:

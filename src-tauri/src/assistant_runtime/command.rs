@@ -21,7 +21,7 @@ impl AssistantSidecarCommand {
 
     /// Creates the development command using the same framed stdio entrypoint.
     pub fn development(python: impl Into<OsString>, repository_root: impl AsRef<Path>) -> Self {
-        Self::new(python).args(["-m", "assistant.stdio_app"]).current_dir(repository_root)
+        Self::new(python).args(["-m", "assistant.protocol_v1_app"]).current_dir(repository_root)
     }
 
     /// Creates a command for a frozen executable shipped with the desktop app.
@@ -97,7 +97,7 @@ mod tests {
     fn development_command_uses_stdio_module() {
         let command = AssistantSidecarCommand::development("python3", "/workspace");
         let debug = format!("{command:?}");
-        assert!(debug.contains("assistant.stdio_app"));
+        assert!(debug.contains("assistant.protocol_v1_app"));
         assert!(debug.contains("/workspace"));
     }
 }
