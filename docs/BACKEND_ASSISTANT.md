@@ -184,6 +184,17 @@ presentation text and never authority. A rejection stores the receipt before tra
 Assistant-owned boundary values are translated to Workflow types by a bridge; the Assistant module
 does not copy Workflow validation or import a persistence row.
 
+The mechanical carriers are closed as follows. `WorkflowRevisionBoundaryValue` is a non-zero
+`u64`. Each `AssistantWorkflowMutation` contains one non-empty canonical Workflow action byte string
+produced by the evaluator; there are `1..=128` actions and their combined bytes are at most 1 MiB.
+`AssistantWorkflowReadinessIssueBoundaryValue` contains one non-empty canonical engine projection;
+the ordered list has at most 128 entries and at most 1 MiB combined bytes. Assistant stores and
+compares these bytes but never parses them. A stable-alias entry contains its validated alias and
+one exact 16-byte resulting Workflow node UUID boundary value. `AssistantModelContinuationRef`,
+`AssistantModelIdentity`, and `AssistantToolCallId` are distinct non-empty ASCII values of at most
+256 bytes; they are opaque to the domain. `AssistantContractEpoch` is a non-zero `u32`.
+`AssistantReviewedAt` and `AssistantWorkflowChangeExpiry` are non-negative epoch milliseconds.
+
 ```text
 AssistantWorkflowChangeState:
   Proposed -> ReviewRejected
