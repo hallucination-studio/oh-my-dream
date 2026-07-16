@@ -14,8 +14,8 @@ use crate::{
         AssistantApprovalScopeId, AssistantModelInvocationId, AssistantProductionPlanAggregate,
         AssistantProductionPlanId, AssistantSessionId, AssistantUserIntent,
         AssistantWorkflowChangeAggregate, AssistantWorkflowChangeCandidate,
-        AssistantWorkflowChangeExpiry, AssistantWorkflowChangeId, AssistantWorkflowChangeLineage,
-        AssistantWorkflowFingerprint, AssistantWorkflowMutationDigest,
+        AssistantWorkflowChangeExpiry, AssistantWorkflowChangeId, AssistantWorkflowFingerprint,
+        AssistantWorkflowMutation, AssistantWorkflowMutationDigest,
         AssistantWorkflowStableAliasSet,
     },
     interfaces::{
@@ -24,7 +24,7 @@ use crate::{
         AssistantProductionPlanRepositoryInterface, AssistantWorkflowChangeRepositoryInterface,
         AssistantWorkflowEvaluationRequest, AssistantWorkflowEvaluationResult,
         AssistantWorkflowMutationEvaluatorInterface, AssistantWorkspaceSnapshot,
-        AssistantWorkspaceSnapshotReaderInterface,
+        AssistantWorkspaceSnapshotReaderInterface, AssistantWorkspaceSnapshotRequest,
     },
 };
 
@@ -107,13 +107,32 @@ fn capability_describe_request_is_exact_bounded_and_unique() {
 }
 
 #[tokio::test]
+async fn dispatcher_rejects_workspace_scope_drift_before_any_tool() {
+    let (dispatcher, _) = dispatcher();
+    let mut context = context();
+    context.workspace_request = AssistantWorkspaceSnapshotRequest::try_new(
+        ProjectId::from_uuid(uuid(99)).unwrap(),
+        context.session_id,
+        None,
+        Vec::new(),
+        Vec::new(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        dispatcher.execute(context, "assistant.workspace.get_snapshot@1", json!({})).await,
+        Err(AssistantApplicationError::ProtocolViolation)
+    );
+}
+
+#[tokio::test]
 async fn dispatcher_executes_plan_tools_and_rejects_direct_authority() {
     let (dispatcher, _) = dispatcher();
     let context = context();
 
     let created = dispatcher
         .execute(
-            context,
+            context.clone(),
             "assistant.production_plan.create@1",
             json!({"title": "Plan", "items": [{"id": "first", "goal": "Draft"}]}),
         )
@@ -123,7 +142,7 @@ async fn dispatcher_executes_plan_tools_and_rejects_direct_authority() {
 
     let updated = dispatcher
         .execute(
-            context,
+            context.clone(),
             "assistant.production_plan.update_item@1",
             json!({
                 "expected_revision": 1,
@@ -147,8 +166,10 @@ async fn dispatcher_executes_bounded_authoritative_read_tools() {
     let (dispatcher, _) = dispatcher();
     let context = context();
 
-    let workspace =
-        dispatcher.execute(context, "assistant.workspace.get_snapshot@1", json!({})).await.unwrap();
+    let workspace = dispatcher
+        .execute(context.clone(), "assistant.workspace.get_snapshot@1", json!({}))
+        .await
+        .unwrap();
     assert_eq!(workspace["snapshot"], json!({}));
 
     let described = dispatcher
@@ -168,11 +189,17 @@ async fn dispatcher_evaluates_without_persistence_and_proposes_with_persistence(
     let context = context();
     let input = json!({
         "base_workflow_revision": 1,
-        "ordered_mutations": [{"type": "add_node"}]
+        "ordered_mutations": [{
+            "type": "add_node",
+            "alias": "hero",
+            "capability": {"id": "image.generate", "major": 1, "minor": 0},
+            "parameters": {},
+            "position": {"x": 0.0, "y": 0.0}
+        }]
     });
 
     let evaluated = dispatcher
-        .execute(context, "assistant.workflow.evaluate_mutation@1", input.clone())
+        .execute(context.clone(), "assistant.workflow.evaluate_mutation@1", input.clone())
         .await
         .unwrap();
     assert_eq!(evaluated["state"], "proposed");
@@ -210,6 +237,19 @@ fn context() -> AssistantToolExecutionContext {
         project_id: project_id(),
         session_id: session_id(),
         production_plan_id: plan_id(),
+        workflow_change_id: change_id(),
+        approval_scope_id: AssistantApprovalScopeId::from_uuid(uuid(6)).unwrap(),
+        invocation_id: AssistantModelInvocationId::from_uuid(uuid(5)).unwrap(),
+        user_intent: AssistantUserIntent::new("Create workflow").unwrap(),
+        workflow_change_expires_at: AssistantWorkflowChangeExpiry::new(60_000).unwrap(),
+        workspace_request: AssistantWorkspaceSnapshotRequest::try_new(
+            project_id(),
+            session_id(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        )
+        .unwrap(),
     }
 }
 
@@ -219,8 +259,7 @@ struct WorkspaceFake;
 impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceFake {
     async fn read_assistant_workspace_snapshot(
         &self,
-        _project_id: ProjectId,
-        _session_id: AssistantSessionId,
+        _request: AssistantWorkspaceSnapshotRequest,
     ) -> Result<AssistantWorkspaceSnapshot, AssistantApplicationError> {
         AssistantWorkspaceSnapshot::new(b"{}".to_vec())
     }
@@ -283,21 +322,22 @@ impl AssistantWorkflowMutationEvaluatorInterface for EvaluatorFake {
     ) -> Result<AssistantWorkflowEvaluationResult, AssistantApplicationError> {
         Ok(AssistantWorkflowEvaluationResult {
             candidate: AssistantWorkflowChangeCandidate {
-                id: change_id(),
-                project_id: request.project_id,
-                session_id: request.session_id,
+                id: request.authorization.change_id,
+                project_id: request.authorization.project_id,
+                session_id: request.authorization.session_id,
                 base_workflow_revision: request.base_workflow_revision,
-                ordered_mutations: request.ordered_mutations,
+                ordered_mutations: request
+                    .proposed_mutations
+                    .iter()
+                    .map(|value| AssistantWorkflowMutation::new(value.as_bytes().to_vec()).unwrap())
+                    .collect(),
                 stable_aliases: AssistantWorkflowStableAliasSet::default(),
                 readiness_issues: Vec::new(),
                 mutation_digest: AssistantWorkflowMutationDigest::new([7; 32]),
                 resulting_workflow_fingerprint: AssistantWorkflowFingerprint::new([8; 32]),
-                lineage: AssistantWorkflowChangeLineage::UserMessage {
-                    invocation_id: AssistantModelInvocationId::from_uuid(uuid(5)).unwrap(),
-                    intent: AssistantUserIntent::new("Create workflow").unwrap(),
-                },
-                approval_scope_id: AssistantApprovalScopeId::from_uuid(uuid(6)).unwrap(),
-                expires_at: AssistantWorkflowChangeExpiry::new(60_000).unwrap(),
+                lineage: request.authorization.lineage,
+                approval_scope_id: request.authorization.approval_scope_id,
+                expires_at: request.authorization.expires_at,
             },
         })
     }

@@ -12,7 +12,7 @@ use crate::{
     domain::AssistantWorkflowRunBoundaryValue,
     interfaces::{
         AssistantModelResumeRequest, AssistantRepairActivationRecordResult,
-        AssistantWorkspaceSnapshot,
+        AssistantWorkspaceSnapshot, AssistantWorkspaceSnapshotRequest,
     },
 };
 
@@ -113,8 +113,7 @@ struct WorkspaceReaderFake;
 impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceReaderFake {
     async fn read_assistant_workspace_snapshot(
         &self,
-        _project_id: ProjectId,
-        _session_id: AssistantSessionId,
+        _request: AssistantWorkspaceSnapshotRequest,
     ) -> Result<AssistantWorkspaceSnapshot, AssistantApplicationError> {
         AssistantWorkspaceSnapshot::new(vec![2])
     }

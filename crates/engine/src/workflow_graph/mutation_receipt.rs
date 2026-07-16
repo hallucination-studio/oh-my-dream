@@ -94,7 +94,27 @@ impl WorkflowMutationReceipt {
     }
 }
 
-fn fingerprint_workflow(workflow: &WorkflowAggregate) -> WorkflowMutationResultFingerprint {
+impl WorkflowAggregate {
+    /// Returns the frozen canonical Workflow snapshot fingerprint.
+    #[must_use]
+    pub fn canonical_fingerprint(&self) -> [u8; 32] {
+        fingerprint_workflow(self).as_bytes()
+    }
+
+    /// Returns a timestamp- and revision-independent canonical graph fingerprint.
+    #[must_use]
+    pub fn canonical_graph_fingerprint(&self) -> [u8; 32] {
+        let mut bytes = Vec::new();
+        append_bytes(&mut bytes, b"oh-my-dream/workflow-graph-result/v1");
+        bytes.extend_from_slice(&self.schema_version.get().to_be_bytes());
+        append_graph(&mut bytes, self);
+        Sha256::digest(bytes).into()
+    }
+}
+
+pub(crate) fn fingerprint_workflow(
+    workflow: &WorkflowAggregate,
+) -> WorkflowMutationResultFingerprint {
     let mut bytes = Vec::new();
     append_bytes(&mut bytes, b"oh-my-dream/workflow-mutation-result/v1");
     bytes.extend_from_slice(&workflow.schema_version.get().to_be_bytes());
@@ -103,21 +123,25 @@ fn fingerprint_workflow(workflow: &WorkflowAggregate) -> WorkflowMutationResultF
     bytes.extend_from_slice(&workflow.revision.get().to_be_bytes());
     bytes.extend_from_slice(&workflow.created_at.as_utc_milliseconds().to_be_bytes());
     bytes.extend_from_slice(&workflow.updated_at.as_utc_milliseconds().to_be_bytes());
-    append_u64(&mut bytes, workflow.nodes().len() as u64);
+    append_graph(&mut bytes, workflow);
+    WorkflowMutationResultFingerprint(Sha256::digest(bytes).into())
+}
+
+fn append_graph(bytes: &mut Vec<u8>, workflow: &WorkflowAggregate) {
+    append_u64(bytes, workflow.nodes().len() as u64);
     for node in workflow.nodes().values() {
         bytes.extend_from_slice(node.id.as_uuid().as_bytes());
-        append_contract_ref(&mut bytes, &node.capability_contract);
-        append_bytes(&mut bytes, &node.parameter_set.canonical_bytes());
+        append_contract_ref(bytes, &node.capability_contract);
+        append_bytes(bytes, &node.parameter_set.canonical_bytes());
         bytes.extend_from_slice(&node.canvas_position.x().to_bits().to_be_bytes());
         bytes.extend_from_slice(&node.canvas_position.y().to_bits().to_be_bytes());
     }
-    append_u64(&mut bytes, workflow.input_bindings().len() as u64);
+    append_u64(bytes, workflow.input_bindings().len() as u64);
     for (target, binding) in workflow.input_bindings() {
         bytes.extend_from_slice(target.node_id.as_uuid().as_bytes());
-        append_bytes(&mut bytes, target.input_key.as_str().as_bytes());
-        append_binding(&mut bytes, binding);
+        append_bytes(bytes, target.input_key.as_str().as_bytes());
+        append_binding(bytes, binding);
     }
-    WorkflowMutationResultFingerprint(Sha256::digest(bytes).into())
 }
 
 fn append_binding(bytes: &mut Vec<u8>, binding: &WorkflowInputBinding) {

@@ -82,7 +82,15 @@ where
 
         let workspace_snapshot = self
             .workspace_reader
-            .read_assistant_workspace_snapshot(command.project_id, command.session_id)
+            .read_assistant_workspace_snapshot(
+                crate::interfaces::AssistantWorkspaceSnapshotRequest::try_new(
+                    command.project_id,
+                    command.session_id,
+                    None,
+                    Vec::new(),
+                    Vec::new(),
+                )?,
+            )
             .await?;
         let result = self
             .model_runner

@@ -41,7 +41,7 @@ impl WorkflowMutationCommandHash {
     }
 }
 
-fn append_action(bytes: &mut Vec<u8>, action: &WorkflowMutationAction) {
+pub(super) fn append_action(bytes: &mut Vec<u8>, action: &WorkflowMutationAction) {
     match action {
         WorkflowMutationAction::AddNode(value) => {
             bytes.push(0);

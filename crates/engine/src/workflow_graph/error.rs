@@ -78,4 +78,7 @@ pub enum WorkflowGraphError {
     /// A capability contract or opaque parameter reference is invalid.
     #[error("workflow contains an invalid capability reference")]
     ReferenceViolation,
+    /// Canonical mutation action bytes are malformed or non-canonical.
+    #[error("workflow canonical mutation action is invalid")]
+    CanonicalMutationInvalid,
 }

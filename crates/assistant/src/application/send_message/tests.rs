@@ -40,8 +40,7 @@ struct WorkspaceReaderFake;
 impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceReaderFake {
     async fn read_assistant_workspace_snapshot(
         &self,
-        _project_id: ProjectId,
-        _session_id: AssistantSessionId,
+        _request: AssistantWorkspaceSnapshotRequest,
     ) -> Result<AssistantWorkspaceSnapshot, AssistantApplicationError> {
         AssistantWorkspaceSnapshot::new(vec![1])
     }
@@ -100,8 +99,14 @@ async fn different_projects_may_invoke_the_same_session_identity_independently()
 
 fn command(project_seed: u8, session_seed: u8, invocation_seed: u8) -> AssistantSendMessageCommand {
     AssistantSendMessageCommand {
-        project_id: ProjectId::from_uuid(uuid(project_seed)).unwrap(),
-        session_id: AssistantSessionId::from_uuid(uuid(session_seed)).unwrap(),
+        workspace_request: AssistantWorkspaceSnapshotRequest::try_new(
+            ProjectId::from_uuid(uuid(project_seed)).unwrap(),
+            AssistantSessionId::from_uuid(uuid(session_seed)).unwrap(),
+            None,
+            Vec::new(),
+            Vec::new(),
+        )
+        .unwrap(),
         invocation_id: AssistantModelInvocationId::from_uuid(uuid(invocation_seed)).unwrap(),
         intent: AssistantUserIntent::new("Create a scene").unwrap(),
     }

@@ -15,6 +15,7 @@ mod assistant_review_bridge;
 pub mod assistant_runtime;
 pub mod assistant_sidecar;
 pub mod assistant_transport;
+pub mod assistant_workflow_bridge;
 pub mod backend_settings_adapter;
 pub mod capability_catalog;
 pub mod capability_discovery;

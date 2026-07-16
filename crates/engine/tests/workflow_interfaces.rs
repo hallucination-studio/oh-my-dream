@@ -15,8 +15,8 @@ use engine::workflow::{
     WorkflowManagedMediaPreviewSource, WorkflowMediaPreview, WorkflowMediaPreviewIssuerInterface,
     WorkflowMutationCommit, WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt,
     WorkflowRunAggregate, WorkflowRunEvent, WorkflowRunEventPublisherInterface, WorkflowRunLoadKey,
-    WorkflowRunRepositoryInterface, WorkflowRunRequestId, WorkflowRunScope, WorkflowRunTime,
-    WorkflowStartRunCommand,
+    WorkflowRunRepositoryInterface, WorkflowRunRequestId, WorkflowRunScope, WorkflowRunState,
+    WorkflowRunTime, WorkflowStartRunCommand,
 };
 use engine::workflow_graph::{
     WorkflowAggregate, WorkflowAggregateRestoreData, WorkflowCreatedAt, WorkflowId,
@@ -167,6 +167,28 @@ impl WorkflowRunRepositoryInterface for WorkflowContractFakeImpl {
                 state.runs.get(&(project_id, workflow_run_id)).cloned()
             }
         })
+    }
+
+    async fn list_active_project_workflow_runs(
+        &self,
+        project_id: ProjectId,
+        limit: usize,
+    ) -> Result<Vec<WorkflowRunAggregate>, WorkflowApplicationError> {
+        let mut runs = self
+            .state
+            .lock()
+            .map_err(|_| persistence())?
+            .runs
+            .values()
+            .filter(|run| {
+                run.project_id() == project_id
+                    && matches!(run.state(), WorkflowRunState::Queued | WorkflowRunState::Running)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        runs.sort_by_key(|run| std::cmp::Reverse((run.created_at(), run.run_id())));
+        runs.truncate(limit);
+        Ok(runs)
     }
 
     async fn load_workflow_run_admission_receipt(

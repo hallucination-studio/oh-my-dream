@@ -62,6 +62,41 @@ pub(super) fn load_run(
         .transpose()
 }
 
+pub(super) fn list_active_runs(
+    connection: &Connection,
+    project_id: ProjectId,
+    limit: usize,
+) -> Result<Vec<WorkflowRunAggregate>, WorkflowApplicationError> {
+    let mut statement = connection
+        .prepare(
+            "SELECT workflow_run_id, run_payload FROM workflow_runs
+             WHERE project_id = ?1
+             ORDER BY created_at DESC, workflow_run_id DESC",
+        )
+        .map_err(|_| persistence())?;
+    let rows = statement
+        .query_map([project_id.as_uuid().as_bytes().as_slice()], |row| {
+            Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, Vec<u8>>(1)?))
+        })
+        .map_err(|_| persistence())?;
+    let mut runs = Vec::with_capacity(limit);
+    for row in rows {
+        let (id, payload) = row.map_err(|_| persistence())?;
+        let core = decode_run_core(&payload)?;
+        if matches!(
+            core.state,
+            engine::workflow::WorkflowRunState::Queued
+                | engine::workflow::WorkflowRunState::Running
+        ) {
+            runs.push(load_run_by_id(connection, workflow_run_id(&id)?)?);
+            if runs.len() == limit {
+                break;
+            }
+        }
+    }
+    Ok(runs)
+}
+
 fn load_run_by_id(
     connection: &Connection,
     run_id: WorkflowRunId,

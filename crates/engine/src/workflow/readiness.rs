@@ -109,6 +109,14 @@ pub enum WorkflowReadinessIssue {
 }
 
 impl WorkflowReadinessIssue {
+    /// Encodes one issue as a frozen engine-owned boundary projection.
+    #[must_use]
+    pub fn canonical_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        encode_readiness_issue(&mut bytes, self);
+        bytes
+    }
+
     fn node_and_tag(&self) -> (WorkflowNodeId, u8) {
         match self {
             Self::WorkflowRequiredParameterMissing { node_id, .. } => (*node_id, 0),
@@ -174,6 +182,132 @@ impl WorkflowReadinessIssue {
             ) => left.cmp(right),
             _ => Ordering::Equal,
         }
+    }
+}
+
+fn encode_readiness_issue(bytes: &mut Vec<u8>, issue: &WorkflowReadinessIssue) {
+    let (node_id, tag) = issue.node_and_tag();
+    bytes.push(tag);
+    bytes.extend_from_slice(node_id.as_uuid().as_bytes());
+    match issue {
+        WorkflowReadinessIssue::WorkflowRequiredParameterMissing { parameter_key, .. } => {
+            append_text(bytes, parameter_key.as_str());
+        }
+        WorkflowReadinessIssue::WorkflowRequiredInputMissing { input_key, .. } => {
+            append_text(bytes, input_key.as_str());
+        }
+        WorkflowReadinessIssue::WorkflowReferenceMinimumNotMet {
+            input_key,
+            required_count,
+            actual_count,
+            ..
+        } => {
+            append_text(bytes, input_key.as_str());
+            bytes.extend_from_slice(&required_count.to_be_bytes());
+            bytes.extend_from_slice(&actual_count.to_be_bytes());
+        }
+        WorkflowReadinessIssue::WorkflowAssetUnavailable { input_key, asset_id, .. } => {
+            append_text(bytes, input_key.as_str());
+            bytes.extend_from_slice(&asset_id.as_bytes());
+        }
+        WorkflowReadinessIssue::WorkflowAssetKindMismatch {
+            input_key, expected, actual, ..
+        } => {
+            append_text(bytes, input_key.as_str());
+            bytes.push(data_type_tag(*expected));
+            bytes.push(data_type_tag(*actual));
+        }
+        WorkflowReadinessIssue::WorkflowCapabilityUnregistered { capability_ref, .. } => {
+            append_contract_ref(bytes, capability_ref);
+        }
+        WorkflowReadinessIssue::WorkflowGenerationProfileIncompatible {
+            profile_ref,
+            capability_ref,
+            ..
+        } => {
+            append_profile_ref(bytes, profile_ref);
+            append_contract_ref(bytes, capability_ref);
+        }
+        WorkflowReadinessIssue::WorkflowGenerationProfileUnavailable { profile_ref, .. }
+        | WorkflowReadinessIssue::WorkflowGenerationProfileAvailabilityIndeterminate {
+            profile_ref,
+            ..
+        } => append_profile_ref(bytes, profile_ref),
+        WorkflowReadinessIssue::WorkflowCapabilityExternalReadinessIssue { issue, .. } => {
+            bytes.push(readiness_category_tag(issue.category()));
+            encode_readiness_target(bytes, issue.target());
+            match issue.media_kind_mismatch() {
+                Some((expected, observed)) => {
+                    bytes.push(1);
+                    bytes.push(data_type_tag(expected));
+                    bytes.push(data_type_tag(observed));
+                }
+                None => bytes.push(0),
+            }
+        }
+    }
+}
+
+fn encode_readiness_target(
+    bytes: &mut Vec<u8>,
+    target: &crate::node_capability::NodeCapabilityReadinessTarget,
+) {
+    use crate::node_capability::NodeCapabilityReadinessTarget as Target;
+    match target {
+        Target::Capability => bytes.push(0),
+        Target::ManagedAsset { parameter_key, asset_id } => {
+            bytes.push(1);
+            append_text(bytes, parameter_key.as_str());
+            bytes.extend_from_slice(&asset_id.as_bytes());
+        }
+        Target::GenerationProfile { parameter_key, generation_profile_ref } => {
+            bytes.push(2);
+            append_text(bytes, parameter_key.as_str());
+            append_profile_ref(bytes, generation_profile_ref);
+        }
+    }
+}
+
+fn append_contract_ref(bytes: &mut Vec<u8>, value: &NodeCapabilityContractRef) {
+    append_text(bytes, value.id().as_str());
+    bytes.extend_from_slice(&value.version().major().to_be_bytes());
+    bytes.extend_from_slice(&value.version().minor().to_be_bytes());
+}
+
+fn append_profile_ref(
+    bytes: &mut Vec<u8>,
+    value: &NodeCapabilityGenerationProfileRefParameterValue,
+) {
+    append_text(bytes, value.profile_id());
+    bytes.extend_from_slice(&value.version().to_be_bytes());
+}
+
+fn append_text(bytes: &mut Vec<u8>, value: &str) {
+    bytes.extend_from_slice(&(value.len() as u32).to_be_bytes());
+    bytes.extend_from_slice(value.as_bytes());
+}
+
+const fn data_type_tag(value: WorkflowDataType) -> u8 {
+    match value {
+        WorkflowDataType::Text => 0,
+        WorkflowDataType::Image => 1,
+        WorkflowDataType::Video => 2,
+        WorkflowDataType::Audio => 3,
+    }
+}
+
+const fn readiness_category_tag(
+    value: crate::node_capability::NodeCapabilityReadinessCategory,
+) -> u8 {
+    use crate::node_capability::NodeCapabilityReadinessCategory as Category;
+    match value {
+        Category::InvalidCapabilityInvocation => 0,
+        Category::ManagedAssetUnavailable => 1,
+        Category::ManagedAssetKindMismatch => 2,
+        Category::ManagedAssetReadinessIndeterminate => 3,
+        Category::GenerationProfileIncompatible => 4,
+        Category::GenerationProfileUnavailable => 5,
+        Category::GenerationProfileAvailabilityIndeterminate => 6,
     }
 }
 

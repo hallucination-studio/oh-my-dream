@@ -1,3 +1,4 @@
+use crate::interfaces::AssistantWorkflowMutationProposalDto;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -63,7 +64,7 @@ pub(super) enum PlanItemTransitionInput {
 pub(super) struct WorkflowMutationsInput {
     pub base_workflow_revision: u64,
     #[schemars(length(min = 1, max = 128))]
-    pub ordered_mutations: Vec<Value>,
+    pub ordered_mutations: Vec<AssistantWorkflowMutationProposalDto>,
 }
 
 #[derive(Deserialize, JsonSchema)]

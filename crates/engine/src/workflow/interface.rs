@@ -321,6 +321,12 @@ pub trait WorkflowRunRepositoryInterface: Send + Sync {
         &self,
         key: WorkflowRunLoadKey,
     ) -> Result<Option<WorkflowRunAggregate>, WorkflowApplicationError>;
+    /// Lists at most `limit` non-terminal Runs for one Project in newest-first order.
+    async fn list_active_project_workflow_runs(
+        &self,
+        project_id: ProjectId,
+        limit: usize,
+    ) -> Result<Vec<WorkflowRunAggregate>, WorkflowApplicationError>;
     /// Loads prior admission evidence by stable request identity bytes.
     async fn load_workflow_run_admission_receipt(
         &self,

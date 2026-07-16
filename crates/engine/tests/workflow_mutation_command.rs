@@ -90,6 +90,22 @@ fn command_hash_excludes_request_id_but_includes_action_order() {
     assert_ne!(first.command_hash(), reordered.command_hash());
 }
 
+#[test]
+fn canonical_action_bytes_round_trip_and_reject_trailing_or_unknown_data() {
+    let action = add_node_action(3);
+    let bytes = action.canonical_bytes();
+
+    assert_eq!(WorkflowMutationAction::try_from_canonical_bytes(&bytes).unwrap(), action);
+
+    let mut trailing = bytes.clone();
+    trailing.push(0);
+    assert!(WorkflowMutationAction::try_from_canonical_bytes(&trailing).is_err());
+
+    let mut unknown = bytes;
+    unknown[0] = 255;
+    assert!(WorkflowMutationAction::try_from_canonical_bytes(&unknown).is_err());
+}
+
 fn add_node_action(seed: u8) -> WorkflowMutationAction {
     WorkflowMutationAction::AddNode(WorkflowAddNodeAction {
         new_node_id: WorkflowNodeId::from_uuid(uuid(seed)).unwrap(),

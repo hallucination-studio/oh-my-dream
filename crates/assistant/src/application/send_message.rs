@@ -10,15 +10,14 @@ use crate::{
     interfaces::{
         AssistantApplicationError, AssistantModelRunnerInterface, AssistantModelTurnRequest,
         AssistantModelTurnResult, AssistantModelTurnStart,
-        AssistantWorkspaceSnapshotReaderInterface,
+        AssistantWorkspaceSnapshotReaderInterface, AssistantWorkspaceSnapshotRequest,
     },
 };
 
 /// Trusted command admitted after Desktop resolves the Project and identities.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssistantSendMessageCommand {
-    pub project_id: ProjectId,
-    pub session_id: AssistantSessionId,
+    pub workspace_request: AssistantWorkspaceSnapshotRequest,
     pub invocation_id: AssistantModelInvocationId,
     pub intent: AssistantUserIntent,
 }
@@ -83,15 +82,17 @@ where
         &self,
         command: AssistantSendMessageCommand,
     ) -> Result<AssistantModelTurnResult, AssistantApplicationError> {
-        let _guard = self.active_invocations.claim(command.project_id, command.session_id)?;
+        let project_id = command.workspace_request.project_id;
+        let session_id = command.workspace_request.session_id;
+        let _guard = self.active_invocations.claim(project_id, session_id)?;
         let workspace_snapshot = self
             .workspace_reader
-            .read_assistant_workspace_snapshot(command.project_id, command.session_id)
+            .read_assistant_workspace_snapshot(command.workspace_request)
             .await?;
         self.model_runner
             .start_assistant_model_turn(AssistantModelTurnRequest {
-                project_id: command.project_id,
-                session_id: command.session_id,
+                project_id,
+                session_id,
                 invocation_id: command.invocation_id,
                 start: AssistantModelTurnStart::UserMessage(command.intent),
                 workspace_snapshot,

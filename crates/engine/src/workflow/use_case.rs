@@ -282,7 +282,7 @@ where
     }
 }
 
-async fn check_readiness(
+pub(super) async fn check_readiness(
     workflow: &WorkflowAggregate,
     capabilities: &WorkflowNodeCapabilityRegistry,
 ) -> Result<WorkflowReadinessResult, WorkflowApplicationError> {

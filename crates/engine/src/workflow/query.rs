@@ -123,6 +123,33 @@ pub struct WorkflowGetRunUseCase<R> {
     repository: Arc<R>,
 }
 
+/// Lists one bounded page of active Project Runs.
+pub struct WorkflowListActiveRunsUseCase<R> {
+    repository: Arc<R>,
+}
+
+impl<R: WorkflowRunRepositoryInterface> WorkflowListActiveRunsUseCase<R> {
+    /// Wires the Run repository.
+    #[must_use]
+    pub fn new(repository: Arc<R>) -> Self {
+        Self { repository }
+    }
+
+    /// Returns newest-first Queued/Running Runs with a `1..=32` bound.
+    pub async fn list_active_workflow_runs(
+        &self,
+        project_id: ProjectId,
+        limit: u8,
+    ) -> Result<Vec<WorkflowRunAggregate>, WorkflowApplicationError> {
+        if !(1..=32).contains(&limit) {
+            return Err(WorkflowApplicationError::WorkflowRunEventLimitOutOfBounds {
+                requested_limit: u16::from(limit),
+            });
+        }
+        self.repository.list_active_project_workflow_runs(project_id, usize::from(limit)).await
+    }
+}
+
 impl<R: WorkflowRunRepositoryInterface> WorkflowGetRunUseCase<R> {
     /// Wires the Run repository.
     #[must_use]

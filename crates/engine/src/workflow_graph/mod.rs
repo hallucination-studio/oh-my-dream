@@ -8,6 +8,7 @@ mod error;
 mod identity;
 mod mutation_apply;
 mod mutation_command;
+mod mutation_decode;
 mod mutation_hash;
 mod mutation_receipt;
 mod value;

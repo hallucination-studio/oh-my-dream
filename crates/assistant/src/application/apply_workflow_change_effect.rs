@@ -88,6 +88,10 @@ where
             .start_assistant_workflow_run(AssistantWorkflowRunRequest {
                 project_id: change.project_id(),
                 workflow_change_id: change.id(),
+                applied_workflow_receipt: change
+                    .applied_workflow_receipt()
+                    .ok_or(AssistantApplicationError::InvalidTransition)?
+                    .clone(),
             })
             .await?;
         change

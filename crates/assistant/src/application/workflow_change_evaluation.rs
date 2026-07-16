@@ -31,10 +31,13 @@ where
     ) -> Result<AssistantWorkflowChangeAggregate, AssistantApplicationError> {
         let expected = request.clone();
         let evaluation = self.evaluator.evaluate_assistant_workflow_mutations(request).await?;
-        if evaluation.candidate.project_id != expected.project_id
-            || evaluation.candidate.session_id != expected.session_id
+        if evaluation.candidate.id != expected.authorization.change_id
+            || evaluation.candidate.project_id != expected.authorization.project_id
+            || evaluation.candidate.session_id != expected.authorization.session_id
             || evaluation.candidate.base_workflow_revision != expected.base_workflow_revision
-            || evaluation.candidate.ordered_mutations != expected.ordered_mutations
+            || evaluation.candidate.lineage != expected.authorization.lineage
+            || evaluation.candidate.approval_scope_id != expected.authorization.approval_scope_id
+            || evaluation.candidate.expires_at != expected.authorization.expires_at
         {
             return Err(AssistantApplicationError::CandidateFingerprintMismatch);
         }

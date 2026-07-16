@@ -2,6 +2,7 @@
 
 mod bridge;
 mod model;
+mod proposal;
 mod repository;
 mod value;
 
@@ -10,6 +11,7 @@ pub use crate::domain::{
 };
 pub use bridge::*;
 pub use model::*;
+pub use proposal::*;
 pub use repository::*;
 pub use value::*;
 

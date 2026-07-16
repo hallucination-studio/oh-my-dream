@@ -1,9 +1,11 @@
 use projects::project::domain::ProjectId;
+use uuid::{Uuid, Variant, Version};
 
 use crate::domain::{
-    AssistantModelContinuationRef, AssistantModelInvocationId, AssistantRepairActivationId,
-    AssistantSessionId, AssistantUserIntent, AssistantWorkflowChangeCandidate,
-    AssistantWorkflowChangeId, AssistantWorkflowMutation, WorkflowRevisionBoundaryValue,
+    AssistantApprovalScopeId, AssistantModelContinuationRef, AssistantModelInvocationId,
+    AssistantRepairActivationId, AssistantSessionId, AssistantUserIntent,
+    AssistantWorkflowChangeCandidate, AssistantWorkflowChangeExpiry, AssistantWorkflowChangeId,
+    AssistantWorkflowChangeLineage, WorkflowRevisionBoundaryValue,
 };
 
 /// Closed Assistant application and boundary failures.
@@ -72,6 +74,78 @@ bounded_bytes!(AssistantNodeCapabilityCatalogSnapshot, 1024 * 1024);
 bounded_bytes!(AssistantModelTurnInput, 1024 * 1024);
 bounded_bytes!(AssistantModelTurnResult, 16 * 1024 * 1024);
 bounded_bytes!(AssistantModelContinuationEnvelope, 4 * 1024 * 1024);
+bounded_bytes!(AssistantWorkflowMutationProposal, 1024 * 1024);
+
+macro_rules! selected_uuid {
+    ($name:ident) => {
+        #[doc = "Validated selected RFC 9562 UUIDv4 boundary bytes."]
+        #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+        pub struct $name([u8; 16]);
+        impl $name {
+            /// Restores only an RFC 9562 UUIDv4 selection.
+            pub fn from_bytes(value: [u8; 16]) -> Result<Self, AssistantApplicationError> {
+                let uuid = Uuid::from_bytes(value);
+                if uuid.get_version() == Some(Version::Random)
+                    && uuid.get_variant() == Variant::RFC4122
+                {
+                    Ok(Self(value))
+                } else {
+                    Err(AssistantApplicationError::ProtocolViolation)
+                }
+            }
+            #[must_use]
+            pub const fn as_bytes(self) -> [u8; 16] {
+                self.0
+            }
+        }
+    };
+}
+
+selected_uuid!(AssistantSelectedWorkflowNodeId);
+selected_uuid!(AssistantSelectedAssetId);
+
+/// Trusted bounded workspace observation and selection request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AssistantWorkspaceSnapshotRequest {
+    /// Authoritative Project scope.
+    pub project_id: ProjectId,
+    /// Authoritative Assistant Session scope.
+    pub session_id: AssistantSessionId,
+    /// Optional Workflow revision observed by the user.
+    pub observed_workflow_revision: Option<WorkflowRevisionBoundaryValue>,
+    /// Unique selected Workflow nodes.
+    pub selected_node_ids: Vec<AssistantSelectedWorkflowNodeId>,
+    /// Unique selected managed Assets.
+    pub selected_asset_ids: Vec<AssistantSelectedAssetId>,
+}
+
+impl AssistantWorkspaceSnapshotRequest {
+    /// Validates unique selection lists of at most 32 entries each.
+    pub fn try_new(
+        project_id: ProjectId,
+        session_id: AssistantSessionId,
+        observed_workflow_revision: Option<WorkflowRevisionBoundaryValue>,
+        selected_node_ids: Vec<AssistantSelectedWorkflowNodeId>,
+        selected_asset_ids: Vec<AssistantSelectedAssetId>,
+    ) -> Result<Self, AssistantApplicationError> {
+        let nodes = selected_node_ids.iter().collect::<std::collections::BTreeSet<_>>();
+        let assets = selected_asset_ids.iter().collect::<std::collections::BTreeSet<_>>();
+        if selected_node_ids.len() > 32
+            || selected_asset_ids.len() > 32
+            || nodes.len() != selected_node_ids.len()
+            || assets.len() != selected_asset_ids.len()
+        {
+            return Err(AssistantApplicationError::ProtocolViolation);
+        }
+        Ok(Self {
+            project_id,
+            session_id,
+            observed_workflow_revision,
+            selected_node_ids,
+            selected_asset_ids,
+        })
+    }
+}
 
 /// Closed authoritative capability-catalog query.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -122,12 +196,32 @@ pub struct AssistantModelResumeRequest {
     pub input: AssistantModelTurnInput,
 }
 
+/// Rust-authorized immutable facts for one evaluated Workflow candidate.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AssistantWorkflowCandidateAuthorization {
+    /// Reserved Workflow change identity.
+    pub change_id: AssistantWorkflowChangeId,
+    /// Authoritative Project scope.
+    pub project_id: ProjectId,
+    /// Authoritative Session scope.
+    pub session_id: AssistantSessionId,
+    /// Exact user-message or repair lineage.
+    pub lineage: AssistantWorkflowChangeLineage,
+    /// Reserved human approval scope.
+    pub approval_scope_id: AssistantApprovalScopeId,
+    /// Immutable candidate expiry.
+    pub expires_at: AssistantWorkflowChangeExpiry,
+}
+
+/// Non-committing Workflow proposal evaluation request.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssistantWorkflowEvaluationRequest {
-    pub project_id: ProjectId,
-    pub session_id: AssistantSessionId,
+    /// Trusted candidate authorization.
+    pub authorization: AssistantWorkflowCandidateAuthorization,
+    /// Exact required current Workflow revision.
     pub base_workflow_revision: WorkflowRevisionBoundaryValue,
-    pub ordered_mutations: Vec<AssistantWorkflowMutation>,
+    /// Strict model proposal JSON actions.
+    pub proposed_mutations: Vec<AssistantWorkflowMutationProposal>,
 }
 
 #[derive(Clone, Debug)]
@@ -135,10 +229,14 @@ pub struct AssistantWorkflowApplyRequest {
     pub change: crate::domain::AssistantWorkflowChangeAggregate,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssistantWorkflowRunRequest {
+    /// Authoritative Project scope.
     pub project_id: ProjectId,
+    /// Approved Workflow change identity used for stable Run admission.
     pub workflow_change_id: AssistantWorkflowChangeId,
+    /// Exact committed Workflow apply receipt.
+    pub applied_workflow_receipt: crate::domain::AssistantWorkflowApplyReceiptBoundaryValue,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]

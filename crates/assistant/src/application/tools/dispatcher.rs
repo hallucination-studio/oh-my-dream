@@ -14,22 +14,26 @@ use super::{
 };
 use crate::{
     domain::{
-        AssistantPlanItemEntity, AssistantPlanItemId, AssistantProductionPlanAggregate,
-        AssistantProductionPlanError, AssistantProductionPlanId, AssistantSessionId,
-        AssistantWorkflowChangeAggregate, AssistantWorkflowChangeId, AssistantWorkflowChangeState,
-        AssistantWorkflowMutation, WorkflowRevisionBoundaryValue,
+        AssistantApprovalScopeId, AssistantModelInvocationId, AssistantPlanItemEntity,
+        AssistantPlanItemId, AssistantProductionPlanAggregate, AssistantProductionPlanError,
+        AssistantProductionPlanId, AssistantSessionId, AssistantUserIntent,
+        AssistantWorkflowChangeAggregate, AssistantWorkflowChangeExpiry, AssistantWorkflowChangeId,
+        AssistantWorkflowChangeLineage, AssistantWorkflowChangeState,
+        WorkflowRevisionBoundaryValue,
     },
     interfaces::{
         AssistantApplicationError, AssistantNodeCapabilityCatalogReaderInterface,
         AssistantNodeCapabilityCatalogRequest, AssistantProductionPlanRepositoryInterface,
-        AssistantWorkflowChangeRepositoryInterface, AssistantWorkflowEvaluationRequest,
-        AssistantWorkflowMutationEvaluatorInterface, AssistantWorkspaceSnapshotReaderInterface,
+        AssistantWorkflowCandidateAuthorization, AssistantWorkflowChangeRepositoryInterface,
+        AssistantWorkflowEvaluationRequest, AssistantWorkflowMutationEvaluatorInterface,
+        AssistantWorkflowMutationProposal, AssistantWorkspaceSnapshotReaderInterface,
+        AssistantWorkspaceSnapshotRequest,
     },
 };
 use output::{change_value, plan_dto, plan_value, serialize};
 
 /// Trusted scope supplied by Rust, never accepted from model arguments.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct AssistantToolExecutionContext {
     /// Authoritative Project scope.
     pub project_id: ProjectId,
@@ -37,6 +41,18 @@ pub struct AssistantToolExecutionContext {
     pub session_id: AssistantSessionId,
     /// Rust-created identity reserved for a plan-create call.
     pub production_plan_id: AssistantProductionPlanId,
+    /// Rust-reserved identity for this turn's Workflow candidate.
+    pub workflow_change_id: AssistantWorkflowChangeId,
+    /// Rust-reserved approval scope for this turn's Workflow candidate.
+    pub approval_scope_id: AssistantApprovalScopeId,
+    /// Immutable user-message authorization for candidate lineage.
+    pub invocation_id: AssistantModelInvocationId,
+    /// Exact user intent authorizing the candidate.
+    pub user_intent: AssistantUserIntent,
+    /// Precomputed immutable candidate expiry.
+    pub workflow_change_expires_at: AssistantWorkflowChangeExpiry,
+    /// Exact trusted workspace selection and observed revision.
+    pub workspace_request: AssistantWorkspaceSnapshotRequest,
 }
 
 /// Concrete typed dispatcher for exactly the eleven frozen Assistant tools.
@@ -82,6 +98,11 @@ where
         tool_id: &str,
         input: Value,
     ) -> Result<Value, AssistantApplicationError> {
+        if context.workspace_request.project_id != context.project_id
+            || context.workspace_request.session_id != context.session_id
+        {
+            return Err(AssistantApplicationError::ProtocolViolation);
+        }
         let contract =
             self.catalog.contract(tool_id).ok_or(AssistantApplicationError::ProtocolViolation)?;
         contract.validate_input(&input)?;
@@ -131,10 +152,8 @@ where
         &self,
         context: AssistantToolExecutionContext,
     ) -> Result<Value, AssistantApplicationError> {
-        let snapshot = self
-            .workspace
-            .read_assistant_workspace_snapshot(context.project_id, context.session_id)
-            .await?;
+        let snapshot =
+            self.workspace.read_assistant_workspace_snapshot(context.workspace_request).await?;
         serialize(&WorkspaceOutput { snapshot: carrier(snapshot.as_bytes())? })
     }
 
@@ -251,10 +270,13 @@ where
         let expected = request.clone();
         let result = self.evaluator.evaluate_assistant_workflow_mutations(request).await?;
         let candidate = result.candidate;
-        if candidate.project_id != expected.project_id
-            || candidate.session_id != expected.session_id
+        if candidate.id != expected.authorization.change_id
+            || candidate.project_id != expected.authorization.project_id
+            || candidate.session_id != expected.authorization.session_id
             || candidate.base_workflow_revision != expected.base_workflow_revision
-            || candidate.ordered_mutations != expected.ordered_mutations
+            || candidate.lineage != expected.authorization.lineage
+            || candidate.approval_scope_id != expected.authorization.approval_scope_id
+            || candidate.expires_at != expected.authorization.expires_at
         {
             return Err(AssistantApplicationError::CandidateFingerprintMismatch);
         }
@@ -311,23 +333,29 @@ fn evaluation_request(
 ) -> Result<AssistantWorkflowEvaluationRequest, AssistantApplicationError> {
     let revision = WorkflowRevisionBoundaryValue::new(input.base_workflow_revision)
         .map_err(|_| AssistantApplicationError::ProtocolViolation)?;
-    let ordered_mutations = input
+    let proposed_mutations = input
         .ordered_mutations
         .into_iter()
         .map(|value| {
             serde_json::to_vec(&value)
                 .map_err(|_| AssistantApplicationError::ProtocolViolation)
-                .and_then(|bytes| {
-                    AssistantWorkflowMutation::new(bytes)
-                        .map_err(|_| AssistantApplicationError::ProtocolViolation)
-                })
+                .and_then(AssistantWorkflowMutationProposal::new)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(AssistantWorkflowEvaluationRequest {
-        project_id: context.project_id,
-        session_id: context.session_id,
+        authorization: AssistantWorkflowCandidateAuthorization {
+            change_id: context.workflow_change_id,
+            project_id: context.project_id,
+            session_id: context.session_id,
+            lineage: AssistantWorkflowChangeLineage::UserMessage {
+                invocation_id: context.invocation_id,
+                intent: context.user_intent,
+            },
+            approval_scope_id: context.approval_scope_id,
+            expires_at: context.workflow_change_expires_at,
+        },
         base_workflow_revision: revision,
-        ordered_mutations,
+        proposed_mutations,
     })
 }
 

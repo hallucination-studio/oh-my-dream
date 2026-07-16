@@ -240,6 +240,14 @@ impl WorkflowRunRepositoryInterface for SqliteWorkflowRunRepositoryAdapterImpl {
         self.blocking(move |connection, _| load_run(connection, key)).await
     }
 
+    async fn list_active_project_workflow_runs(
+        &self,
+        project_id: projects::project::domain::ProjectId,
+        limit: usize,
+    ) -> Result<Vec<engine::workflow::WorkflowRunAggregate>, WorkflowApplicationError> {
+        self.blocking(move |connection, _| list_active_runs(connection, project_id, limit)).await
+    }
+
     async fn load_workflow_run_admission_receipt(
         &self,
         request_id: WorkflowRunRequestId,

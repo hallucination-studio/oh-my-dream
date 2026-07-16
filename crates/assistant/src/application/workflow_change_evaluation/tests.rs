@@ -6,8 +6,12 @@ use uuid::Uuid;
 
 use super::*;
 use crate::{
-    application::AssistantApplyWorkflowChangeEffect, domain::*,
-    interfaces::AssistantWorkflowEvaluationResult,
+    application::AssistantApplyWorkflowChangeEffect,
+    domain::*,
+    interfaces::{
+        AssistantWorkflowCandidateAuthorization, AssistantWorkflowEvaluationResult,
+        AssistantWorkflowMutationProposal,
+    },
 };
 
 struct EvaluatorFake(AssistantWorkflowChangeCandidate);
@@ -74,10 +78,23 @@ async fn evaluator_owned_candidate_is_persisted_without_workflow_commit() {
     );
     let result = use_case
         .evaluate_workflow_change(AssistantWorkflowEvaluationRequest {
-            project_id: candidate.project_id,
-            session_id: candidate.session_id,
+            authorization: AssistantWorkflowCandidateAuthorization {
+                change_id: candidate.id,
+                project_id: candidate.project_id,
+                session_id: candidate.session_id,
+                lineage: candidate.lineage.clone(),
+                approval_scope_id: candidate.approval_scope_id,
+                expires_at: candidate.expires_at,
+            },
             base_workflow_revision: candidate.base_workflow_revision,
-            ordered_mutations: candidate.ordered_mutations.clone(),
+            proposed_mutations: candidate
+                .ordered_mutations
+                .iter()
+                .map(|value| {
+                    AssistantWorkflowMutationProposal::new(value.canonical_bytes().to_vec())
+                        .unwrap()
+                })
+                .collect(),
         })
         .await
         .unwrap();

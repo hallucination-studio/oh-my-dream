@@ -336,6 +336,9 @@ returns the same authorization and base revision plus canonical `AssistantWorkfl
 values, resolved stable aliases, readiness issues, mutation digest, and resulting Workflow
 fingerprint. Assistant application code verifies every authorization field before constructing the
 candidate; it never compares proposal JSON bytes with canonical Workflow action bytes.
+`AssistantWorkflowFingerprint` hashes the resulting schema plus canonical nodes and bindings only;
+it excludes Workflow/Project identity, revision, and timestamps so a later approved commit can
+prove the same graph even though the authoritative mutation timestamp is observed at commit time.
 
 One model turn reserves one Workflow change ID and approval-scope ID in its trusted tool execution
 context, just as it reserves one Production Plan ID. Repeating evaluate/propose within that turn

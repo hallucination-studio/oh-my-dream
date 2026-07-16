@@ -4,6 +4,7 @@
 
 mod create_receipt;
 mod error;
+mod evaluate_mutation;
 mod interface;
 mod plan;
 mod query;
@@ -15,6 +16,7 @@ mod use_case;
 mod value;
 
 pub use error::*;
+pub use evaluate_mutation::*;
 pub use interface::*;
 pub use plan::*;
 pub use query::*;

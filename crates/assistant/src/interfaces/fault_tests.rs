@@ -30,8 +30,7 @@ impl AssistantModelRunnerInterface for BoundaryFaultFake {
 impl AssistantWorkspaceSnapshotReaderInterface for BoundaryFaultFake {
     async fn read_assistant_workspace_snapshot(
         &self,
-        _project_id: ProjectId,
-        _session_id: AssistantSessionId,
+        _request: AssistantWorkspaceSnapshotRequest,
     ) -> Result<AssistantWorkspaceSnapshot, AssistantApplicationError> {
         Err(AssistantApplicationError::ExternalBoundaryFailed)
     }
@@ -132,7 +131,17 @@ async fn independent_boundary_faults_preserve_the_closed_category() {
         Err(AssistantApplicationError::ExternalBoundaryFailed)
     );
     assert_eq!(
-        fake.read_assistant_workspace_snapshot(project_id, session_id).await,
+        fake.read_assistant_workspace_snapshot(
+            AssistantWorkspaceSnapshotRequest::try_new(
+                project_id,
+                session_id,
+                None,
+                Vec::new(),
+                Vec::new(),
+            )
+            .unwrap(),
+        )
+        .await,
         Err(AssistantApplicationError::ExternalBoundaryFailed)
     );
     assert_eq!(

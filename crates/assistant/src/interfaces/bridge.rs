@@ -8,15 +8,13 @@ use super::{
     AssistantWorkflowEvaluationResult, AssistantWorkflowRunBoundaryValue,
     AssistantWorkflowRunRequest, AssistantWorkspaceSnapshot,
 };
-use crate::domain::AssistantSessionId;
 
 /// Authoritative bounded workspace projection reader.
 #[async_trait]
 pub trait AssistantWorkspaceSnapshotReaderInterface: Send + Sync {
     async fn read_assistant_workspace_snapshot(
         &self,
-        project_id: ProjectId,
-        session_id: AssistantSessionId,
+        request: super::AssistantWorkspaceSnapshotRequest,
     ) -> Result<AssistantWorkspaceSnapshot, AssistantApplicationError>;
 }
 
