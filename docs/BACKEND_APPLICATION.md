@@ -155,6 +155,14 @@ lease to node code.
 calling canonical Workflow use cases. `DesktopAssistantWorkspaceBridgeAdapterImpl` composes bounded
 Workflow, Asset, capability, profile, and Run projections through their public queries.
 
+The Workspace bridge accepts `AssistantWorkspaceSnapshotRequest`, calls
+`WorkflowGetCurrentUseCase`, `WorkflowListActiveRunsUseCase`, `AssetGetUseCase`,
+`AssetListUseCase`, `NodeCapabilityListUseCase`, and
+`GenerationProfileListForCapabilityUseCase`, and emits one canonical bounded JSON snapshot.
+Missing selected nodes or Assets are represented as unavailable selections rather than silently
+dropped. The bridge performs no repository access and does not expose parameters, content leases,
+paths, preview tokens, provider routes, or credentials.
+
 The Workflow bridge parses only the strict Assistant-tool mutation proposal DTO frozen by
 `BACKEND_ASSISTANT.md`, translates it to Workflow-owned typed actions, and emits Workflow's
 canonical action bytes. It does not call or retain the superseded `WorkflowPatchService`,

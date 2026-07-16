@@ -278,9 +278,18 @@ field names and encodings.
 
 ## Bounded Observation And Tools
 
-The workspace snapshot includes the current Workflow revision, selected nodes/Assets, a small recent
-Asset page, active Run facts, and active capability/profile summaries. It omits paths, bytes,
-preview URLs, provider details, and unbounded history.
+`AssistantWorkspaceSnapshotRequest` contains the trusted Project and Session plus the
+user-observed optional Workflow revision and unique selected Workflow node and Asset IDs, each
+bounded to 32. `AssistantSendMessageCommand`, the trusted tool execution context, and the workspace
+reader carry that request unchanged; no selected identity is recovered from model text or
+process-global UI state.
+
+The workspace snapshot includes the current Workflow revision, requested selected nodes/Assets, a
+small recent Asset page, at most 32 non-terminal Runs from
+`WorkflowListActiveRunsUseCase`, and active capability/profile summaries. It omits paths, bytes,
+preview URLs, provider details, and unbounded history. The active-Run query is Project-scoped,
+ordered by creation time then Run ID, and exposes only canonical Workflow application values; the
+Desktop bridge never lists Run rows directly.
 
 Model tool IDs are source-first and versioned:
 
