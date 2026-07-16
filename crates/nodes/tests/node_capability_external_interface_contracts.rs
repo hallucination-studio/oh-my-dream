@@ -226,6 +226,36 @@ async fn assert_produced_media_writer_contract(
         conflict.unwrap_err(),
         NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::OutputConflict)
     );
+    assert_writer_interruptions_and_digest_validation(writer).await;
+}
+
+async fn assert_writer_interruptions_and_digest_validation(
+    writer: &impl NodeCapabilityProducedMediaWriterInterface,
+) {
+    let cancelled_context = execution_context(70, future_instant());
+    cancelled_context.cancellation.cancel();
+    let cancelled_key = output_key(&cancelled_context);
+    let cancelled = writer
+        .write_node_output_media(write_request(cancelled_context, cancelled_key, vec![1; 16]))
+        .await;
+    assert_eq!(cancelled.unwrap_err(), NodeCapabilityMediaBoundaryError::Cancelled);
+
+    let expired_context = execution_context(71, Instant::now());
+    let expired_key = output_key(&expired_context);
+    let expired = writer
+        .write_node_output_media(write_request(expired_context, expired_key, vec![1; 16]))
+        .await;
+    assert_eq!(expired.unwrap_err(), NodeCapabilityMediaBoundaryError::DeadlineExceeded);
+
+    let context = execution_context(72, future_instant());
+    let key = output_key(&context);
+    let mismatched = writer
+        .write_node_output_media(write_request_with_digest(context, key, vec![1; 16], digest(&[9])))
+        .await;
+    assert_eq!(
+        mismatched.unwrap_err(),
+        NodeCapabilityMediaBoundaryError::Media(NodeCapabilityMediaFailure::DigestMismatch)
+    );
 }
 
 fn write_request(
@@ -250,6 +280,35 @@ fn write_request_with_origin_seed(
     NodeCapabilityProducedMediaWriteRequest::try_new(
         context,
         execution_origin(origin_seed),
+        key,
+        NodeCapabilityProducedMediaDisplayName::try_new("Generated image").unwrap(),
+        NodeCapabilityProducedMediaProvenance::provider_generated(profile_ref()),
+        NodeCapabilityProducedMediaPayload::GeneratedImage(payload),
+    )
+    .unwrap()
+}
+
+fn write_request_with_digest(
+    context: WorkflowNodeExecutionContext,
+    key: NodeCapabilityProducedMediaOutputKey,
+    bytes: Vec<u8>,
+    declared_digest: NodeCapabilityMediaContentDigest,
+) -> NodeCapabilityProducedMediaWriteRequest {
+    let source = NodeCapabilityMediaSourceLease::try_new(
+        bytes.len() as u64,
+        declared_digest,
+        future_instant(),
+        Box::pin(Cursor::new(bytes)),
+    )
+    .unwrap();
+    let payload = GeneratedImagePayload::try_new(
+        NodeCapabilityDeclaredMediaFacts::try_image(32, 32).unwrap(),
+        source,
+    )
+    .unwrap();
+    NodeCapabilityProducedMediaWriteRequest::try_new(
+        context,
+        execution_origin(4),
         key,
         NodeCapabilityProducedMediaDisplayName::try_new("Generated image").unwrap(),
         NodeCapabilityProducedMediaProvenance::provider_generated(profile_ref()),

@@ -1,17 +1,7 @@
+use std::fs;
+use std::path::{Path, PathBuf};
+
 const ENGINE_MANIFEST: &str = include_str!("../Cargo.toml");
-const NODE_CAPABILITY_SOURCES: &[&str] = &[
-    include_str!("../src/node_capability/boundary_value.rs"),
-    include_str!("../src/node_capability/contract.rs"),
-    include_str!("../src/node_capability/contract_error.rs"),
-    include_str!("../src/node_capability/error.rs"),
-    include_str!("../src/node_capability/execution.rs"),
-    include_str!("../src/node_capability/identity.rs"),
-    include_str!("../src/node_capability/interface.rs"),
-    include_str!("../src/node_capability/normalization.rs"),
-    include_str!("../src/node_capability/parameter.rs"),
-    include_str!("../src/node_capability/registry.rs"),
-    include_str!("../src/node_capability/runtime_value.rs"),
-];
 
 #[test]
 fn engine_capability_boundary_does_not_depend_on_outward_modules() {
@@ -22,7 +12,44 @@ fn engine_capability_boundary_does_not_depend_on_outward_modules() {
 
 #[test]
 fn node_capability_public_names_do_not_reintroduce_port_suffixes() {
-    for source in NODE_CAPABILITY_SOURCES {
-        assert!(!source.contains("Port"));
+    for source in rust_sources(&manifest_dir().join("src/node_capability")) {
+        for identifier in public_declaration_identifiers(&source) {
+            assert!(!identifier.ends_with("Port") && !identifier.ends_with("Ports"));
+        }
     }
+}
+
+fn public_declaration_identifiers(source: &str) -> Vec<&str> {
+    let tokens = source
+        .lines()
+        .filter_map(|line| line.split_once("//").map_or(Some(line), |(code, _)| Some(code)))
+        .flat_map(str::split_whitespace)
+        .collect::<Vec<_>>();
+    tokens
+        .windows(3)
+        .filter(|tokens| {
+            tokens[0] == "pub" && matches!(tokens[1], "struct" | "enum" | "trait" | "type")
+        })
+        .map(|tokens| tokens[2].trim_end_matches([':', '<', '{', '(', ';']))
+        .collect()
+}
+
+fn rust_sources(root: &Path) -> Vec<String> {
+    let mut pending = vec![root.to_path_buf()];
+    let mut sources = Vec::new();
+    while let Some(path) = pending.pop() {
+        for entry in fs::read_dir(path).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                sources.push(fs::read_to_string(path).unwrap());
+            }
+        }
+    }
+    sources
+}
+
+fn manifest_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }

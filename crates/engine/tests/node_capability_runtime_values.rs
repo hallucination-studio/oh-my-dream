@@ -114,21 +114,36 @@ fn ordered_runtime_inputs_require_declared_roles_and_types() {
         NodeCapabilityExecutionKind::ContentGeneration,
     )
     .unwrap();
-    let item = WorkflowRuntimeInputItem {
+    let first_item = WorkflowRuntimeInputItem {
         input_item_id: workflow_input_item_id(10),
-        input_role_key: Some(role),
+        input_role_key: Some(role.clone()),
         value: WorkflowRuntimeValue::Image(WorkflowManagedImageRef::new(
             WorkflowManagedAssetIdBoundaryValue::from_bytes(uuid_v4_bytes(11)).unwrap(),
             WorkflowManagedContentFingerprint::from_bytes([4; 32]),
         )),
     };
-
-    assert!(
-        WorkflowNodeInputSet::try_new(
-            &contract,
-            BTreeMap::from([(input_key, WorkflowNodeInputValue::OrderedReferences(vec![item]))]),
-        )
-        .is_ok()
+    let second_item = WorkflowRuntimeInputItem {
+        input_item_id: workflow_input_item_id(12),
+        input_role_key: Some(role),
+        value: WorkflowRuntimeValue::Image(WorkflowManagedImageRef::new(
+            WorkflowManagedAssetIdBoundaryValue::from_bytes(uuid_v4_bytes(13)).unwrap(),
+            WorkflowManagedContentFingerprint::from_bytes([5; 32]),
+        )),
+    };
+    let ordered = WorkflowNodeInputSet::try_new(
+        &contract,
+        BTreeMap::from([(
+            input_key.clone(),
+            WorkflowNodeInputValue::OrderedReferences(vec![first_item, second_item]),
+        )]),
+    )
+    .unwrap();
+    let Some(WorkflowNodeInputValue::OrderedReferences(items)) = ordered.get(&input_key) else {
+        panic!("ordered input was not preserved")
+    };
+    assert_eq!(
+        items.iter().map(|item| item.input_item_id).collect::<Vec<_>>(),
+        vec![workflow_input_item_id(10), workflow_input_item_id(12)]
     );
 }
 

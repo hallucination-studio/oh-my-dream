@@ -185,6 +185,11 @@ impl ImageToVideoProviderRequest {
     pub const fn duration_seconds(&self) -> ImageToVideoDurationSeconds {
         self.duration_seconds
     }
+    /// Consumes the request and returns the exact readable source Image.
+    #[must_use]
+    pub fn into_readable_image(self) -> NodeCapabilityReadableImageInput {
+        self.image
+    }
 }
 
 /// Exact semantic text-to-speech provider request.
