@@ -1,5 +1,8 @@
 use std::collections::BTreeMap;
-use std::sync::Mutex;
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU8, Ordering},
+};
 
 use async_trait::async_trait;
 use engine::node_capability::{
@@ -11,9 +14,9 @@ use engine::workflow::{
     WorkflowExecuteRunEffect, WorkflowIdentityGeneratorInterface, WorkflowLoadKey,
     WorkflowManagedMediaPreviewSource, WorkflowMediaPreview, WorkflowMediaPreviewIssuerInterface,
     WorkflowMutationCommit, WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt,
-    WorkflowRunAggregate, WorkflowRunCommandHash, WorkflowRunEvent,
-    WorkflowRunEventPublisherInterface, WorkflowRunRepositoryInterface, WorkflowRunRequestId,
-    WorkflowRunScope, WorkflowRunTime,
+    WorkflowRunAggregate, WorkflowRunEvent, WorkflowRunEventPublisherInterface,
+    WorkflowRunRepositoryInterface, WorkflowRunRequestId, WorkflowRunScope, WorkflowRunTime,
+    WorkflowStartRunCommand,
 };
 use engine::workflow_graph::{
     WorkflowAggregate, WorkflowAggregateRestoreData, WorkflowCreatedAt, WorkflowId,
@@ -23,14 +26,30 @@ use engine::workflow_graph::{
 use projects::project::domain::ProjectId;
 use uuid::Uuid;
 
-#[derive(Default)]
 pub(crate) struct WorkflowContractFakeImpl {
     state: Mutex<WorkflowContractFakeState>,
+    workflow_identity_seed: AtomicU8,
+    run_identity_seed: AtomicU8,
+    node_execution_identity_seed: AtomicU8,
+}
+
+impl Default for WorkflowContractFakeImpl {
+    fn default() -> Self {
+        Self {
+            state: Mutex::default(),
+            workflow_identity_seed: AtomicU8::new(90),
+            run_identity_seed: AtomicU8::new(91),
+            node_execution_identity_seed: AtomicU8::new(92),
+        }
+    }
 }
 
 impl WorkflowContractFakeImpl {
     pub(crate) fn seed_workflow(&self, workflow: WorkflowAggregate) {
         self.state.lock().unwrap().workflows.insert(workflow.project_id, workflow);
+    }
+    pub(crate) fn has_execute_effect(&self, run_id: WorkflowRunId) -> bool {
+        self.state.lock().unwrap().execute_effects.contains_key(&run_id)
     }
 }
 
@@ -41,6 +60,7 @@ struct WorkflowContractFakeState {
     mutation_receipts: BTreeMap<WorkflowMutationRequestId, WorkflowMutationReceipt>,
     runs: BTreeMap<(ProjectId, WorkflowRunId), WorkflowRunAggregate>,
     run_receipts: BTreeMap<WorkflowRunRequestId, WorkflowRunAdmissionReceipt>,
+    execute_effects: BTreeMap<WorkflowRunId, WorkflowExecuteRunEffect>,
 }
 
 #[async_trait]
@@ -159,18 +179,19 @@ impl WorkflowRunRepositoryInterface for WorkflowContractFakeImpl {
         &self,
         commit: WorkflowRunAdmissionCommit,
     ) -> Result<WorkflowRunAdmissionReceipt, WorkflowApplicationError> {
-        let (run, receipt, _effect) = commit.into_parts();
+        let (run, receipt, effect) = commit.into_parts();
         let key = (run.project_id(), run.run_id());
         let mut state = self.state.lock().map_err(|_| persistence())?;
-        if let Some(existing) = state.run_receipts.get(&receipt.request_id) {
-            return if existing.command_hash == receipt.command_hash {
+        if let Some(existing) = state.run_receipts.get(&receipt.request_id()) {
+            return if existing.command_hash() == receipt.command_hash() {
                 Ok(existing.clone())
             } else {
                 Err(WorkflowApplicationError::WorkflowRunIdempotencyConflict)
             };
         }
         state.runs.insert(key, run);
-        state.run_receipts.insert(receipt.request_id, receipt.clone());
+        state.run_receipts.insert(receipt.request_id(), receipt.clone());
+        state.execute_effects.insert(effect.workflow_run_id, effect);
         Ok(receipt)
     }
 
@@ -198,13 +219,17 @@ impl WorkflowClockInterface for WorkflowContractFakeImpl {
 
 impl WorkflowIdentityGeneratorInterface for WorkflowContractFakeImpl {
     fn generate_workflow_id(&self) -> WorkflowId {
-        workflow_id(90)
+        workflow_id(self.workflow_identity_seed.fetch_add(1, Ordering::Relaxed))
     }
     fn generate_workflow_run_id(&self) -> WorkflowRunId {
-        WorkflowRunId::from_uuid(uuid(91)).unwrap()
+        WorkflowRunId::from_uuid(uuid(self.run_identity_seed.fetch_add(1, Ordering::Relaxed)))
+            .unwrap()
     }
     fn generate_workflow_node_execution_id(&self) -> WorkflowNodeExecutionId {
-        WorkflowNodeExecutionId::from_uuid(uuid(92)).unwrap()
+        WorkflowNodeExecutionId::from_uuid(uuid(
+            self.node_execution_identity_seed.fetch_add(1, Ordering::Relaxed),
+        ))
+        .unwrap()
     }
 }
 
@@ -274,11 +299,15 @@ async fn run_repository_fake_admits_run_receipt_and_effect_as_one_unit() {
     )
     .unwrap();
     let request_id = WorkflowRunRequestId::from_uuid(uuid(25)).unwrap();
-    let receipt = WorkflowRunAdmissionReceipt {
-        request_id,
-        command_hash: WorkflowRunCommandHash::from_bytes([26; 32]),
-        workflow_run_id: run_id,
-    };
+    let receipt = WorkflowRunAdmissionReceipt::new(
+        WorkflowStartRunCommand::new(
+            request_id,
+            workflow_id(22),
+            WorkflowRevision::new(1).unwrap(),
+            WorkflowRunScope::WholeWorkflow,
+        ),
+        run_id,
+    );
     let commit = WorkflowRunAdmissionCommit::try_new(
         run,
         receipt.clone(),

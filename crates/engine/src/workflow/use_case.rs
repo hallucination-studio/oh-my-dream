@@ -266,9 +266,20 @@ async fn check_readiness(
     workflow: &WorkflowAggregate,
     capabilities: &WorkflowNodeCapabilityRegistry,
 ) -> Result<WorkflowReadinessResult, WorkflowApplicationError> {
+    check_readiness_for_nodes(workflow, capabilities, None).await
+}
+
+pub(super) async fn check_readiness_for_nodes(
+    workflow: &WorkflowAggregate,
+    capabilities: &WorkflowNodeCapabilityRegistry,
+    selected_node_ids: Option<&std::collections::BTreeSet<crate::workflow_graph::WorkflowNodeId>>,
+) -> Result<WorkflowReadinessResult, WorkflowApplicationError> {
     let deadline = NodeCapabilityReadinessDeadline::at(Instant::now() + Duration::from_secs(5));
     let mut issues = Vec::new();
     for node in workflow.nodes().values() {
+        if selected_node_ids.is_some_and(|selected| !selected.contains(&node.id)) {
+            continue;
+        }
         let Ok(capability) = capabilities.resolve_node_capability(&node.capability_contract) else {
             issues.push(WorkflowReadinessIssue::WorkflowCapabilityUnregistered {
                 node_id: node.id,

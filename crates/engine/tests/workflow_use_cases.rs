@@ -27,9 +27,9 @@ use uuid::Uuid;
 
 use super::workflow_interfaces::WorkflowContractFakeImpl;
 
-struct ReadinessCapabilityImpl {
-    contract: NodeCapabilityContract,
-    issues: Vec<NodeCapabilityReadinessIssue>,
+pub(crate) struct ReadinessCapabilityImpl {
+    pub(crate) contract: NodeCapabilityContract,
+    pub(crate) issues: Vec<NodeCapabilityReadinessIssue>,
 }
 
 #[async_trait]

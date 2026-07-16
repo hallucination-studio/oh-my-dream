@@ -50,7 +50,10 @@ pub enum WorkflowApplicationError {
     WorkflowRunIdempotencyConflict,
     /// Current readiness blocks Run admission.
     #[error("Workflow is not ready")]
-    WorkflowNotReady,
+    WorkflowNotReady {
+        /// Complete sorted readiness evidence.
+        readiness: super::WorkflowReadinessResult,
+    },
     /// A persistence operation failed without exposing implementation details.
     #[error("Workflow persistence failed")]
     WorkflowPersistenceFailure,
@@ -155,11 +158,11 @@ pub struct WorkflowExecuteRunEffect {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WorkflowRunAdmissionReceipt {
     /// Stable request identity.
-    pub request_id: WorkflowRunRequestId,
+    pub(super) request_id: WorkflowRunRequestId,
     /// Canonical SHA-256 admission command hash.
-    pub command_hash: WorkflowRunCommandHash,
+    pub(super) command_hash: WorkflowRunCommandHash,
     /// Admitted Run identity.
-    pub workflow_run_id: WorkflowRunId,
+    pub(super) workflow_run_id: WorkflowRunId,
 }
 
 /// Canonical Workflow Run admission command hash.
