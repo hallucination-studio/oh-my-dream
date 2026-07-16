@@ -19,6 +19,7 @@ pub mod dto;
 mod managed_asset_access;
 pub(crate) mod metadata_sqlite;
 mod mock_generation;
+pub mod post_commit_effect;
 pub mod production_plan;
 pub mod project_adapters;
 pub mod reviewed_change;

@@ -37,6 +37,7 @@ tauri-build.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+assistant.workspace = true
 assets.workspace = true
 async-trait.workspace = true
 backends.workspace = true

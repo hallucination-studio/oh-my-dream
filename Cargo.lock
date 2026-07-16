@@ -2424,6 +2424,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "assets",
+ "assistant",
  "async-trait",
  "backends",
  "engine",
