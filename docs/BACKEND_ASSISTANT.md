@@ -136,6 +136,7 @@ pub struct AssistantWorkflowChangeAggregate {
     pub expires_at: AssistantWorkflowChangeExpiry,
     pub applied_workflow_receipt: Option<AssistantWorkflowApplyReceiptBoundaryValue>,
     pub admitted_workflow_run: Option<AssistantWorkflowRunBoundaryValue>,
+    pub continuation_outcome: AssistantContinuationOutcome,
 }
 ```
 
@@ -217,6 +218,13 @@ Assistant. `applied_workflow_receipt` is absent before `Applied` and required fr
 still resuming the model/admitting the Run, and becomes immutable once linked. Replaying the same
 receipt or Run bytes is success; different bytes are `InvalidTransition`. No additional apply/Run
 state, scheduler record, or Workflow semantics are introduced.
+
+`AssistantContinuationOutcome` is `Pending | Resumed | Interrupted`. It is `Pending` before and
+after canonical apply until the single-use continuation is consumed. A successful same-turn resume
+records `Resumed`; a missing already-consumed envelope, process loss after consumption, ambiguous
+resume, or any non-replayable resume failure records `Interrupted`. Both terminal outcomes permit
+the stable Run admission to proceed and are immutable/idempotent. This value records only model-turn
+recovery evidence; it does not claim Workflow or Run state and does not add a retry loop.
 
 Candidate content and digest are immutable. Revision, Project, Session, review identity, approval
 scope, and expiry must all match before each transition. A stale Workflow revision fails closed;
