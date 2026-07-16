@@ -3,6 +3,7 @@
 mod apply_workflow_change_effect;
 mod decide_workflow_change;
 mod pending_workflow_change;
+mod repair_activation;
 mod review_workflow_change;
 mod send_message;
 mod tools;
@@ -12,6 +13,7 @@ mod workflow_change_evaluation;
 pub use apply_workflow_change_effect::*;
 pub use decide_workflow_change::*;
 pub use pending_workflow_change::*;
+pub use repair_activation::*;
 pub use review_workflow_change::*;
 pub use send_message::*;
 pub use tools::*;

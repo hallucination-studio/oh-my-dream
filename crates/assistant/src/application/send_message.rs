@@ -9,7 +9,8 @@ use crate::{
     domain::{AssistantModelInvocationId, AssistantSessionId, AssistantUserIntent},
     interfaces::{
         AssistantApplicationError, AssistantModelRunnerInterface, AssistantModelTurnRequest,
-        AssistantModelTurnResult, AssistantWorkspaceSnapshotReaderInterface,
+        AssistantModelTurnResult, AssistantModelTurnStart,
+        AssistantWorkspaceSnapshotReaderInterface,
     },
 };
 
@@ -29,7 +30,7 @@ pub struct AssistantActiveInvocationRegistry {
 }
 
 impl AssistantActiveInvocationRegistry {
-    fn claim(
+    pub(crate) fn claim(
         &self,
         project_id: ProjectId,
         session_id: AssistantSessionId,
@@ -44,7 +45,7 @@ impl AssistantActiveInvocationRegistry {
     }
 }
 
-struct AssistantActiveInvocationGuard {
+pub(crate) struct AssistantActiveInvocationGuard {
     active: Arc<Mutex<BTreeSet<(ProjectId, AssistantSessionId)>>>,
     key: (ProjectId, AssistantSessionId),
 }
@@ -92,7 +93,7 @@ where
                 project_id: command.project_id,
                 session_id: command.session_id,
                 invocation_id: command.invocation_id,
-                intent: command.intent,
+                start: AssistantModelTurnStart::UserMessage(command.intent),
                 workspace_snapshot,
             })
             .await

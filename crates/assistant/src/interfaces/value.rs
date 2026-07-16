@@ -99,11 +99,17 @@ impl AssistantNodeCapabilityCatalogRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AssistantModelTurnStart {
+    UserMessage(AssistantUserIntent),
+    RepairActivation(AssistantRepairActivation),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssistantModelTurnRequest {
     pub project_id: ProjectId,
     pub session_id: AssistantSessionId,
     pub invocation_id: AssistantModelInvocationId,
-    pub intent: AssistantUserIntent,
+    pub start: AssistantModelTurnStart,
     pub workspace_snapshot: AssistantWorkspaceSnapshot,
 }
 
