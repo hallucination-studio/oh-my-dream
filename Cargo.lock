@@ -2538,6 +2538,7 @@ dependencies = [
  "assistant",
  "async-trait",
  "backends",
+ "base64 0.22.1",
  "engine",
  "image",
  "jsonschema",

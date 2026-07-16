@@ -255,6 +255,7 @@ impl FalHttpTransportInterface for ScriptedTransport {
         &self,
         url: &str,
         _deadline: Instant,
+        _maximum_bytes: usize,
     ) -> Result<FalHttpResponse, FalTransportError> {
         assert_eq!(url, "https://v3b.fal.media/files/test.png");
         self.download.lock().unwrap().take().ok_or(FalTransportError::DownloadRejected)

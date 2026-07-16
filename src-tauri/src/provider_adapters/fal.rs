@@ -13,7 +13,6 @@ use crate::credential_vault::{
 };
 
 const MAX_JSON_RESPONSE_BYTES: usize = 1024 * 1024;
-const MAX_IMAGE_BYTES: usize = 32 * 1024 * 1024;
 
 pub(super) struct FalGenerationProviderAccount {
     credential_id: GenerationProviderCredentialId,
@@ -84,6 +83,7 @@ pub(super) trait FalHttpTransportInterface: Send + Sync {
         &self,
         url: &str,
         deadline: Instant,
+        maximum_bytes: usize,
     ) -> Result<FalHttpResponse, FalTransportError>;
 }
 
@@ -140,6 +140,7 @@ impl FalHttpTransportInterface for ReqwestFalHttpTransport {
         &self,
         url: &str,
         deadline: Instant,
+        maximum_bytes: usize,
     ) -> Result<FalHttpResponse, FalTransportError> {
         let mut current = validate_media_url(url)?;
         for redirect_count in 0..=3 {
@@ -175,7 +176,7 @@ impl FalHttpTransportInterface for ReqwestFalHttpTransport {
                 )?;
                 continue;
             }
-            return read_response(response, MAX_IMAGE_BYTES, false)
+            return read_response(response, maximum_bytes, false)
                 .await
                 .map_err(|_| FalTransportError::DownloadRejected);
         }
@@ -240,7 +241,9 @@ fn validate_media_url(value: &str) -> Result<Url, FalTransportError> {
     let host = url.host_str().ok_or(FalTransportError::DownloadRejected)?;
     if url.scheme() != "https"
         || url.port().is_some()
-        || !(host == "fal.media" || host.ends_with(".fal.media"))
+        || !(host == "fal.media"
+            || host.ends_with(".fal.media")
+            || host == "storage.googleapis.com")
     {
         return Err(FalTransportError::DownloadRejected);
     }

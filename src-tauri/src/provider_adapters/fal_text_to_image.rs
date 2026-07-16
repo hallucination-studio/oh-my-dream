@@ -40,6 +40,7 @@ use wire::{
 
 const QUEUE_ROOT: &str = "https://queue.fal.run";
 const OPERATION_DEADLINE: Duration = Duration::from_secs(180);
+const MAX_IMAGE_BYTES: usize = 32 * 1024 * 1024;
 const POLL_DELAY: Duration = Duration::from_millis(500);
 const ROUTE_ID: &str = "fal.text_to_image";
 const NATIVE_MODEL_ID: FalTextToImageModelId =
@@ -202,7 +203,7 @@ impl FalTextToImageProviderRouteImpl {
     ) -> Result<GeneratedImagePayload, NodeCapabilityProviderFailure> {
         let response = self
             .transport
-            .download_media(&result.url, deadline)
+            .download_media(&result.url, deadline, MAX_IMAGE_BYTES)
             .await
             .map_err(translate_transport)?;
         if !status_is_success(response.status)

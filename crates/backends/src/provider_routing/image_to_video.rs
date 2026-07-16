@@ -45,6 +45,19 @@ impl ImageToVideoProviderRouteRequest {
     pub const fn duration_seconds(&self) -> ImageToVideoDurationSeconds {
         self.duration_seconds
     }
+
+    /// Consumes the routed request into every provider-independent field.
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (
+        WorkflowNodeExecutionContext,
+        NodeCapabilityReadableImageInput,
+        Option<WorkflowTextValue>,
+        ImageToVideoDurationSeconds,
+    ) {
+        (self.context, self.image, self.prompt, self.duration_seconds)
+    }
 }
 
 /// Private exact route boundary implemented by image-to-video adapters.

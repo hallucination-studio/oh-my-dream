@@ -124,6 +124,20 @@ pub struct NodeCapabilityAudioMediaFacts {
     channels: u8,
 }
 
+impl NodeCapabilityImageMediaFacts {
+    /// Returns the exact pixel width.
+    #[must_use]
+    pub const fn width(self) -> u32 {
+        self.width
+    }
+
+    /// Returns the exact pixel height.
+    #[must_use]
+    pub const fn height(self) -> u32 {
+        self.height
+    }
+}
+
 impl NodeCapabilityDeclaredMediaFacts {
     /// Creates validated Image facts.
     pub const fn try_image(width: u32, height: u32) -> Result<Self, NodeCapabilityMediaValueError> {
