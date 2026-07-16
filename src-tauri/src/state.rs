@@ -29,6 +29,8 @@ pub struct AppState {
     pub root: PathBuf,
     /// Root directory for local non-asset configuration.
     pub config_root: PathBuf,
+    /// Process-owned connection to the single private metadata database.
+    _metadata_connection: Arc<Mutex<rusqlite::Connection>>,
     /// Deterministic backend used for the first local integration.
     pub backend: Arc<MockBackend>,
     /// Local asset store.
@@ -90,6 +92,11 @@ impl AppState {
         let root = root.as_ref().to_path_buf();
         let config_root = config_root.as_ref().to_path_buf();
         std::fs::create_dir_all(&config_root).context("create config root")?;
+        let metadata_connection = crate::metadata_sqlite::open_metadata_sqlite(
+            &crate::metadata_sqlite::metadata_sqlite_path(&config_root),
+        )
+        .map_err(anyhow::Error::new)
+        .context("open metadata storage")?;
         let assistant_sidecar_command = configured_assistant_command()
             .map_err(anyhow::Error::msg)
             .context("resolve assistant stdio command")?;
@@ -148,6 +155,7 @@ impl AppState {
         Ok(Self {
             root,
             config_root,
+            _metadata_connection: Arc::new(Mutex::new(metadata_connection)),
             backend,
             store,
             registry,
