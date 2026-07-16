@@ -6,8 +6,8 @@ use crate::node_capability::{
     WorkflowNodeExecutionId, WorkflowRunId,
 };
 use crate::workflow_graph::{
-    WorkflowAggregate, WorkflowId, WorkflowMutationReceipt, WorkflowMutationRequestId,
-    WorkflowRevision,
+    WorkflowAggregate, WorkflowGraphError, WorkflowId, WorkflowMutationReceipt,
+    WorkflowMutationRequestId, WorkflowRevision,
 };
 
 use super::{
@@ -18,9 +18,15 @@ use super::{
 /// Closed application and consumer-boundary failures for Workflow operations.
 #[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]
 pub enum WorkflowApplicationError {
+    /// The authoritative Workflow graph domain rejected a value or mutation.
+    #[error(transparent)]
+    WorkflowGraph(#[from] WorkflowGraphError),
     /// No current Workflow exists for the requested Project.
     #[error("Workflow was not found")]
-    WorkflowNotFound,
+    WorkflowNotFound {
+        /// Exact lookup identity that was absent.
+        key: WorkflowLoadKey,
+    },
     /// The Project already owns its one current Workflow.
     #[error("Project already has a Workflow")]
     WorkflowAlreadyExistsForProject,
@@ -102,13 +108,13 @@ impl WorkflowCreateCommandHash {
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorkflowCreateReceipt {
     /// Stable request identity.
-    pub request_id: WorkflowCreateRequestId,
+    pub(super) request_id: WorkflowCreateRequestId,
     /// Canonical command hash.
-    pub command_hash: WorkflowCreateCommandHash,
+    pub(super) command_hash: WorkflowCreateCommandHash,
     /// Exact created snapshot returned by replay.
-    pub created_workflow: WorkflowAggregate,
+    pub(super) created_workflow: WorkflowAggregate,
     /// SHA-256 integrity fingerprint of the created snapshot.
-    pub result_fingerprint: [u8; 32],
+    pub(super) result_fingerprint: [u8; 32],
 }
 
 /// Atomic Workflow mutation compare-and-swap request.
@@ -239,13 +245,22 @@ impl WorkflowMediaPreview {
     }
 }
 
+/// Exact identity accepted by the single Workflow load operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorkflowLoadKey {
+    /// Load the one current Workflow associated with a Project.
+    Project(ProjectId),
+    /// Load one Workflow by aggregate identity.
+    Workflow(WorkflowId),
+}
+
 /// Persistence boundary consumed by Workflow document use cases.
 #[async_trait]
 pub trait WorkflowAggregateRepositoryInterface: Send + Sync {
-    /// Loads the one current Workflow owned by a Project.
+    /// Loads a current Workflow through one exact supported identity.
     async fn load_workflow(
         &self,
-        project_id: ProjectId,
+        key: WorkflowLoadKey,
     ) -> Result<Option<WorkflowAggregate>, WorkflowApplicationError>;
     /// Loads exact Workflow creation replay evidence.
     async fn load_workflow_creation_receipt(

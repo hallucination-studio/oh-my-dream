@@ -8,7 +8,7 @@ use engine::node_capability::{
 use engine::workflow::{
     WorkflowAggregateRepositoryInterface, WorkflowApplicationError, WorkflowClockInterface,
     WorkflowCreateCommandHash, WorkflowCreateReceipt, WorkflowCreationCommit,
-    WorkflowExecuteRunEffect, WorkflowIdentityGeneratorInterface,
+    WorkflowExecuteRunEffect, WorkflowIdentityGeneratorInterface, WorkflowLoadKey,
     WorkflowManagedMediaPreviewSource, WorkflowMediaPreview, WorkflowMediaPreviewIssuerInterface,
     WorkflowMutationCommit, WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt,
     WorkflowRunAggregate, WorkflowRunCommandHash, WorkflowRunEvent,
@@ -24,8 +24,14 @@ use projects::project::domain::ProjectId;
 use uuid::Uuid;
 
 #[derive(Default)]
-struct WorkflowContractFakeImpl {
+pub(crate) struct WorkflowContractFakeImpl {
     state: Mutex<WorkflowContractFakeState>,
+}
+
+impl WorkflowContractFakeImpl {
+    pub(crate) fn seed_workflow(&self, workflow: WorkflowAggregate) {
+        self.state.lock().unwrap().workflows.insert(workflow.project_id, workflow);
+    }
 }
 
 #[derive(Default)]
@@ -41,9 +47,15 @@ struct WorkflowContractFakeState {
 impl WorkflowAggregateRepositoryInterface for WorkflowContractFakeImpl {
     async fn load_workflow(
         &self,
-        project_id: ProjectId,
+        key: WorkflowLoadKey,
     ) -> Result<Option<WorkflowAggregate>, WorkflowApplicationError> {
-        Ok(self.state.lock().map_err(|_| persistence())?.workflows.get(&project_id).cloned())
+        let state = self.state.lock().map_err(|_| persistence())?;
+        Ok(match key {
+            WorkflowLoadKey::Project(project_id) => state.workflows.get(&project_id).cloned(),
+            WorkflowLoadKey::Workflow(workflow_id) => {
+                state.workflows.values().find(|workflow| workflow.id == workflow_id).cloned()
+            }
+        })
     }
 
     async fn load_workflow_creation_receipt(
@@ -78,9 +90,9 @@ impl WorkflowAggregateRepositoryInterface for WorkflowContractFakeImpl {
     ) -> Result<WorkflowAggregate, WorkflowApplicationError> {
         let (workflow, receipt) = commit.into_parts();
         let mut state = self.state.lock().map_err(|_| persistence())?;
-        if let Some(existing) = state.creation_receipts.get(&receipt.request_id) {
-            return if existing.command_hash == receipt.command_hash {
-                Ok(existing.created_workflow.clone())
+        if let Some(existing) = state.creation_receipts.get(&receipt.request_id()) {
+            return if existing.command_hash() == receipt.command_hash() {
+                Ok(existing.created_workflow().clone())
             } else {
                 Err(WorkflowApplicationError::WorkflowCreationIdempotencyConflict)
             };
@@ -89,7 +101,7 @@ impl WorkflowAggregateRepositoryInterface for WorkflowContractFakeImpl {
             return Err(WorkflowApplicationError::WorkflowAlreadyExistsForProject);
         }
         state.workflows.insert(workflow.project_id, workflow.clone());
-        state.creation_receipts.insert(receipt.request_id, receipt);
+        state.creation_receipts.insert(receipt.request_id(), receipt);
         Ok(workflow)
     }
 
@@ -106,10 +118,11 @@ impl WorkflowAggregateRepositoryInterface for WorkflowContractFakeImpl {
                 Err(WorkflowApplicationError::WorkflowMutationIdempotencyConflict)
             };
         }
-        let current = state
-            .workflows
-            .get(&workflow.project_id)
-            .ok_or(WorkflowApplicationError::WorkflowNotFound)?;
+        let current = state.workflows.get(&workflow.project_id).ok_or(
+            WorkflowApplicationError::WorkflowNotFound {
+                key: WorkflowLoadKey::Project(workflow.project_id),
+            },
+        )?;
         if current.revision != expected_revision {
             return Err(WorkflowApplicationError::WorkflowRevisionConflict);
         }
@@ -225,7 +238,10 @@ async fn repository_fake_atomically_rejects_a_second_workflow_for_one_project() 
     let error =
         fake.commit_workflow_creation(creation_commit(empty_workflow(1, 3), 5)).await.unwrap_err();
     assert_eq!(error, WorkflowApplicationError::WorkflowAlreadyExistsForProject);
-    assert_eq!(fake.load_workflow(project_id(1)).await.unwrap().unwrap().id, workflow.id);
+    assert_eq!(
+        fake.load_workflow(WorkflowLoadKey::Project(project_id(1))).await.unwrap().unwrap().id,
+        workflow.id
+    );
 }
 
 #[tokio::test]
@@ -285,12 +301,12 @@ fn deterministic_clock_and_identity_fake_satisfy_exact_interfaces() {
 #[test]
 fn atomic_creation_unit_rejects_a_receipt_for_another_snapshot() {
     let workflow = empty_workflow(7, 8);
-    let receipt = WorkflowCreateReceipt {
-        request_id: engine::workflow::WorkflowCreateRequestId::from_uuid(uuid(9)).unwrap(),
-        command_hash: WorkflowCreateCommandHash::from_bytes([10; 32]),
-        created_workflow: empty_workflow(7, 11),
-        result_fingerprint: [12; 32],
-    };
+    let receipt = WorkflowCreateReceipt::new(
+        engine::workflow::WorkflowCreateRequestId::from_uuid(uuid(9)).unwrap(),
+        WorkflowCreateCommandHash::from_bytes([10; 32]),
+        empty_workflow(7, 11),
+    )
+    .unwrap();
     assert_eq!(
         WorkflowCreationCommit::try_new(workflow, receipt).unwrap_err(),
         WorkflowApplicationError::WorkflowPersistenceFailure
@@ -300,13 +316,12 @@ fn atomic_creation_unit_rejects_a_receipt_for_another_snapshot() {
 fn creation_commit(workflow: WorkflowAggregate, request_seed: u8) -> WorkflowCreationCommit {
     WorkflowCreationCommit::try_new(
         workflow.clone(),
-        WorkflowCreateReceipt {
-            request_id: engine::workflow::WorkflowCreateRequestId::from_uuid(uuid(request_seed))
-                .unwrap(),
-            command_hash: WorkflowCreateCommandHash::from_bytes([5; 32]),
-            created_workflow: workflow,
-            result_fingerprint: [6; 32],
-        },
+        WorkflowCreateReceipt::new(
+            engine::workflow::WorkflowCreateRequestId::from_uuid(uuid(request_seed)).unwrap(),
+            WorkflowCreateCommandHash::from_bytes([5; 32]),
+            workflow,
+        )
+        .unwrap(),
     )
     .unwrap()
 }
