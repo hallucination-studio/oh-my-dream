@@ -473,6 +473,11 @@ different expiry. A negative issue time or timestamp overflow returns `PreviewLe
 `AssetPreviewLease` is an immutable process-local application value. It contains no signed token and
 grants no content access by itself.
 
+`AssetPreviewPolicy` is the non-secret Desktop configuration representation of these fixed protocol
+bounds. It contains exactly `lease_lifetime_ms: 300_000` and
+`max_range_bytes: 16_777_216`. Both values must equal those constants; configuration cannot weaken,
+extend, or disable either bound.
+
 ## Recovery
 
 `AssetReconcileContentUseCase` and the post-commit worker process bounded recovery candidates at
@@ -511,6 +516,13 @@ error; already-committed earlier work remains valid and an error result exposes 
 Replaying the same input is safe through finalization, transition, verification, and removal
 idempotency. Reconciliation does not claim outbox effects, run candidates concurrently, retry a
 candidate, sleep, or invent a recovery state.
+
+`AssetReconciliationPolicy` contains exactly `page_limit: 50`,
+`operation_deadline_ms: 30_000`, and `stale_staging_after_ms: 86_400_000`. These are fixed startup
+configuration values: all three must equal their documented constants. The Desktop recovery caller
+derives one monotonic deadline 30 seconds from invocation and passes the page limit to the command;
+the Asset use case remains the sole owner of class order, stale-cutoff derivation, and fail-fast
+behavior.
 
 Recovery compares content ID, digest, and length. It never searches by filename, crosses Project
 scope, substitutes similar bytes, or changes an output key.
