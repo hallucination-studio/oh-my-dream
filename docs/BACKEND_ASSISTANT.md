@@ -188,8 +188,11 @@ Assistant-owned boundary values are translated to Workflow types by a bridge; th
 does not copy Workflow validation or import a persistence row.
 
 The mechanical carriers are closed as follows. `WorkflowRevisionBoundaryValue` is a non-zero
-`u64`. Each `AssistantWorkflowMutation` contains one non-empty canonical Workflow action byte string
-produced by the evaluator; there are `1..=128` actions and their combined bytes are at most 1 MiB.
+`u64`. `AssistantWorkflowMutationProposal` contains one non-empty canonical Assistant-tool JSON
+action supplied to the evaluator. `AssistantWorkflowMutation` contains one non-empty canonical
+Workflow action byte string produced only after the evaluator has resolved aliases, generated exact
+Workflow-local identities, translated parameter boundary values, and applied Workflow validation.
+There are `1..=128` proposal or canonical actions and their combined bytes are at most 1 MiB.
 `AssistantWorkflowReadinessIssueBoundaryValue` contains one non-empty canonical engine projection;
 the ordered list has at most 128 entries and at most 1 MiB combined bytes. Assistant stores and
 compares these bytes but never parses them. A stable-alias entry contains its validated alias and
@@ -315,6 +318,31 @@ authoritative base revision. Candidate creation stores:
 - lineage, expiry, and approval scope.
 
 It never advances the canonical Workflow.
+
+The evaluator request contains a trusted `AssistantWorkflowCandidateAuthorization` supplied by the
+Rust turn context: exact change ID, Project, Session, user-message or repair lineage, approval-scope
+ID, and expiry. None of those values comes from model arguments or from the Desktop bridge. The
+request separately contains ordered `AssistantWorkflowMutationProposal` values. The evaluator
+returns the same authorization and base revision plus canonical `AssistantWorkflowMutation`
+values, resolved stable aliases, readiness issues, mutation digest, and resulting Workflow
+fingerprint. Assistant application code verifies every authorization field before constructing the
+candidate; it never compares proposal JSON bytes with canonical Workflow action bytes.
+
+One model turn reserves one Workflow change ID and approval-scope ID in its trusted tool execution
+context, just as it reserves one Production Plan ID. Repeating evaluate/propose within that turn
+therefore evaluates the same candidate identity. Only one pending approval may be inserted for the
+Session. The expiry is computed before model execution from `AssistantClockInterface`; the
+evaluator and model cannot extend it.
+
+Assistant-tool mutation JSON is a strict tagged boundary representation of the frozen ten Workflow
+actions. A node reference is exactly `Id { id }` or `Alias { alias }`; an alias must have been
+introduced by an earlier Add Node proposal. Add Node and new input-item proposals omit Workflow
+identities, which the evaluator generates once and returns inside canonical action bytes. Parameter
+maps use the closed tagged parameter boundary values owned by Node Capability: unsigned integer,
+text, choice, Generation Profile reference, or managed Asset ID. Unknown fields, duplicate map keys,
+unknown tags, forward aliases, non-canonical JSON, and any action that cannot translate exactly to
+the Workflow-owned action union fail before evaluation. These JSON shapes are Assistant-tool
+protocol only and are not Tauri DTOs.
 
 The main model passes only `AssistantWorkflowChangeId` to a read-only Reviewer Agent. The Reviewer
 must fetch the exact candidate through Rust and returns a typed pass/reject verdict. Rust accepts a

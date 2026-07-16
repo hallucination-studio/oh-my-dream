@@ -155,6 +155,15 @@ lease to node code.
 calling canonical Workflow use cases. `DesktopAssistantWorkspaceBridgeAdapterImpl` composes bounded
 Workflow, Asset, capability, profile, and Run projections through their public queries.
 
+The Workflow bridge parses only the strict Assistant-tool mutation proposal DTO frozen by
+`BACKEND_ASSISTANT.md`, translates it to Workflow-owned typed actions, and emits Workflow's
+canonical action bytes. It does not call or retain the superseded `WorkflowPatchService`,
+`WorkflowAuthority`, legacy `NodeRegistry`, or legacy Asset store. Evaluation loads the current
+Workflow once, requires the exact base revision, applies the typed actions in memory through the
+same Workflow aggregate policy used by commit, and derives readiness and fingerprint from that
+candidate. Apply decodes only the persisted canonical actions and invokes
+`WorkflowApplyMutationUseCase`; it never reevaluates model JSON.
+
 The Assistant sidecar adapter receives only Rust-generated tool schemas and trusted invocation
 context. Tool calls return to typed Rust handlers. Python never receives a repository, path, raw
 credential, canonical mutation command, or direct Run-start operation.
