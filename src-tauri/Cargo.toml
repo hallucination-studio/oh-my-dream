@@ -6,6 +6,19 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 default-run = "oh-my-dream-tauri"
+autotests = false
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+[[test]]
+name = "capability_contract"
+path = "tests/capability_contract.rs"
+
+[[test]]
+name = "capability_discovery"
+path = "tests/capability_discovery.rs"
 
 # Repository-owned integration-test helper; Tauri runs and bundles the default app target.
 [[bin]]
