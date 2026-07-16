@@ -166,6 +166,19 @@ impl SqliteWorkflowRunRepositoryAdapterImpl {
         })
         .await
     }
+
+    /// Lists a bounded stable page of all non-terminal Run identities for startup recovery.
+    pub async fn list_active_workflow_run_ids_after(
+        &self,
+        after: Option<WorkflowRunId>,
+        limit: usize,
+    ) -> Result<Vec<WorkflowRunId>, WorkflowApplicationError> {
+        if limit == 0 || limit > 100 {
+            return Err(persistence());
+        }
+        self.blocking(move |connection, _| list_active_run_ids_after(connection, after, limit))
+            .await
+    }
 }
 
 #[async_trait]

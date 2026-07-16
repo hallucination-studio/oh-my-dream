@@ -21,6 +21,7 @@ pub mod capability_catalog;
 pub mod capability_discovery;
 mod command_error;
 pub mod commands;
+pub mod composition;
 pub mod credential_repository;
 pub mod desktop_backend_config;
 pub mod desktop_bridges;

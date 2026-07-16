@@ -186,6 +186,7 @@ async fn atomically_admits_transitions_and_restores_complete_run_outputs_and_eve
         adapter.list_active_project_workflow_runs(run.project_id(), 32).await.unwrap().len(),
         1
     );
+    assert_eq!(adapter.list_active_workflow_run_ids_after(None, 100).await.unwrap(), vec![run_id]);
     let queued_event = adapter.list_undelivered_workflow_run_events(10).await.unwrap();
     assert_eq!(queued_event.len(), 1);
     adapter
@@ -213,6 +214,7 @@ async fn atomically_admits_transitions_and_restores_complete_run_outputs_and_eve
     assert!(
         adapter.list_active_project_workflow_runs(run.project_id(), 32).await.unwrap().is_empty()
     );
+    assert!(adapter.list_active_workflow_run_ids_after(None, 100).await.unwrap().is_empty());
     let restored =
         adapter.load_workflow_run(WorkflowRunLoadKey::Run(run_id)).await.unwrap().unwrap();
     let latest = adapter

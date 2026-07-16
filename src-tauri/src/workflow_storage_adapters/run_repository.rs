@@ -97,6 +97,40 @@ pub(super) fn list_active_runs(
     Ok(runs)
 }
 
+pub(super) fn list_active_run_ids_after(
+    connection: &Connection,
+    after: Option<WorkflowRunId>,
+    limit: usize,
+) -> Result<Vec<WorkflowRunId>, WorkflowApplicationError> {
+    let mut statement = connection
+        .prepare(
+            "SELECT workflow_run_id, run_payload FROM workflow_runs
+             WHERE (?1 IS NULL OR workflow_run_id > ?1)
+             ORDER BY workflow_run_id ASC",
+        )
+        .map_err(|_| persistence())?;
+    let after = after.map(|id| id.as_uuid().as_bytes().to_vec());
+    let rows = statement
+        .query_map([after], |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, Vec<u8>>(1)?)))
+        .map_err(|_| persistence())?;
+    let mut run_ids = Vec::with_capacity(limit);
+    for row in rows {
+        let (id, payload) = row.map_err(|_| persistence())?;
+        let core = decode_run_core(&payload)?;
+        if matches!(
+            core.state,
+            engine::workflow::WorkflowRunState::Queued
+                | engine::workflow::WorkflowRunState::Running
+        ) {
+            run_ids.push(workflow_run_id(&id)?);
+            if run_ids.len() == limit {
+                break;
+            }
+        }
+    }
+    Ok(run_ids)
+}
+
 fn load_run_by_id(
     connection: &Connection,
     run_id: WorkflowRunId,
