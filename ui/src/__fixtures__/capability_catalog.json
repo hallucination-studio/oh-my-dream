@@ -203,6 +203,191 @@
     },
     {
       "selector": {
+        "type_id": "Image",
+        "mode": "references"
+      },
+      "contract": {
+        "reference": {
+          "id": "ReferenceImageGeneration",
+          "version": "1.0"
+        },
+        "inputs": [
+          {
+            "name": "images",
+            "port_type": "image",
+            "cardinality": {
+              "many": {
+                "minimum": 1,
+                "maximum": 16
+              }
+            },
+            "required": true
+          },
+          {
+            "name": "prompt",
+            "port_type": "string",
+            "cardinality": "one",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "image",
+            "port_type": "image",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "const": "references",
+              "default": "references",
+              "type": "string"
+            },
+            "model": {
+              "default": "mock-reference-image",
+              "type": "string"
+            },
+            "negative_prompt": {
+              "type": "string"
+            },
+            "seed": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "steps": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "default_params": {
+          "mode": "references",
+          "model": "mock-reference-image"
+        },
+        "contextual_creation": null,
+        "effects": [
+          "external"
+        ]
+      },
+      "presentation": {
+        "label": "Reference Image Generation",
+        "description": "Generate an image from ordered image references and a prompt.",
+        "category": "image",
+        "search_terms": [
+          "image",
+          "generation",
+          "references"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": "unknown",
+        "status_revision": 0
+      }
+    },
+    {
+      "selector": {
+        "type_id": "Video",
+        "mode": "references"
+      },
+      "contract": {
+        "reference": {
+          "id": "ReferenceVideoGeneration",
+          "version": "1.0"
+        },
+        "inputs": [
+          {
+            "name": "images",
+            "port_type": "image",
+            "cardinality": {
+              "many": {
+                "minimum": 1,
+                "maximum": 16
+              }
+            },
+            "required": true
+          },
+          {
+            "name": "prompt",
+            "port_type": "string",
+            "cardinality": "one",
+            "required": true
+          }
+        ],
+        "outputs": [
+          {
+            "name": "video",
+            "port_type": "video",
+            "cardinality": "one",
+            "required": false
+          }
+        ],
+        "params_schema": {
+          "additionalProperties": false,
+          "properties": {
+            "aspect_ratio": {
+              "type": "string"
+            },
+            "duration": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "duration_seconds": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "fps": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "mode": {
+              "const": "references",
+              "default": "references",
+              "type": "string"
+            },
+            "model": {
+              "default": "mock-reference-video",
+              "type": "string"
+            },
+            "resolution": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "default_params": {
+          "mode": "references",
+          "model": "mock-reference-video"
+        },
+        "contextual_creation": null,
+        "effects": [
+          "external"
+        ]
+      },
+      "presentation": {
+        "label": "Reference Video Generation",
+        "description": "Generate a video from ordered image references and a prompt.",
+        "category": "video",
+        "search_terms": [
+          "video",
+          "generation",
+          "references"
+        ]
+      },
+      "status": {
+        "availability": "available",
+        "reason": null,
+        "provider_health": "unknown",
+        "status_revision": 0
+      }
+    },
+    {
+      "selector": {
         "type_id": "Text",
         "mode": "literal"
       },
