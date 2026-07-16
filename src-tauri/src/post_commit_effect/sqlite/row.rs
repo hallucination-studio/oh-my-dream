@@ -96,7 +96,6 @@ fn decode_state(
     }
 }
 
-#[cfg(test)]
 pub(super) fn encode_effect(effect: DesktopPostCommitEffect) -> (i64, [u8; 16]) {
     match effect {
         DesktopPostCommitEffect::Workflow(effect) => {

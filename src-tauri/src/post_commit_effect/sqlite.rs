@@ -7,12 +7,9 @@ mod tests;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-#[cfg(test)]
-use rusqlite::Transaction;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
 use super::*;
-#[cfg(test)]
 use row::encode_effect;
 use row::{decode_record, encode_reason, read_record};
 
@@ -76,7 +73,6 @@ impl SqliteDesktopPostCommitEffectOutboxAdapterImpl {
 }
 
 /// Inserts one Ready effect inside an owning business transaction.
-#[cfg(test)]
 pub(crate) fn insert_ready_post_commit_effect(
     transaction: &Transaction<'_>,
     effect_id: DesktopPostCommitEffectId,
