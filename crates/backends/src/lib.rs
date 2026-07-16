@@ -14,6 +14,7 @@ pub mod request;
 pub mod task;
 pub mod traits;
 
+pub mod deterministic_provider;
 pub mod local;
 pub mod mock;
 pub mod provider_routing;
