@@ -306,9 +306,9 @@ durable authority; after a gap or restart React reloads pending change and canon
 `DesktopCompositionRoot` in `composition.rs` is the only code that names concrete adapters:
 
 ```text
-validate DesktopBackendConfig
-  -> open/migrate SQLite and managed-content roots
-  -> connect generation-provider and Assistant OS credential vault adapters
+open/migrate SQLite and managed-content roots
+  -> construct SQLite backend-config and plaintext credential repositories
+  -> load and validate DesktopBackendConfig
   -> construct Project, Workflow, Asset, and Assistant repositories
   -> construct Project use cases and DesktopProjectWorkflowBridgeAdapterImpl
   -> construct Asset storage/inspection use cases
@@ -329,8 +329,8 @@ adapters without starting Tauri.
 
 ## Configuration And Credentials
 
-`backend-config.json` has schema version `1` and is read only by
-`JsonFileDesktopBackendConfigReaderAdapterImpl`. `DesktopBackendConfig` contains exactly
+`DesktopBackendConfig` schema version `1` is stored in `metadata.sqlite` and loaded through
+`DesktopBackendConfigRepositoryInterface`. `DesktopBackendConfig` contains exactly
 `sqlite_busy_timeout_ms`, `post_commit_effect_concurrency`, `workflow_run_concurrency`,
 `workflow_node_concurrency`, `asset_reconciliation_policy`, `asset_preview_policy`,
 `generation_provider_routes`, `assistant_model`, and `assistant_protocol_budgets`. Defaults for the
@@ -347,26 +347,28 @@ D0.3 profile/route contract. `assistant_protocol_budgets` has exactly
 `snapshot_max_bytes`, `candidate_max_bytes`, `continuation_max_bytes`, and `approval_expiry_ms`, with
 D0.5 exact values.
 
-The file is UTF-8 JSON, at most 256 KiB, rejects duplicate/unknown fields, symlinks, group/other
-writable POSIX permissions, non-private Windows ACLs, wrong schema, Assistant native model
-overrides, plaintext credentials, and paths.
-An absent file yields the exact defaults with no provider routes and Assistant disabled; it is not
-written implicitly. Its Assistant default is schema `1`, enabled `false`,
+The repository uses one canonical JSON payload of at most 256 KiB inside a versioned SQLite row.
+It rejects duplicate/unknown fields, wrong schema, Assistant native model overrides, credential
+values inside the config payload, and paths. An absent row yields and atomically stores the exact
+defaults with no provider routes and Assistant disabled. Its Assistant default is schema `1`,
+enabled `false`,
 `assistant.workflow_coauthor@1`, and credential ID `assistant.openai.default`. Configuration is
 validated once at startup. Missing provider credentials make only affected Generation Profiles
 unavailable; a missing Assistant
 credential disables only Assistant commands.
 
-`GenerationProviderCredentialVaultInterface` and `AssistantModelCredentialVaultInterface` are separate
-consumer-owned interfaces even when one OS adapter implements both. Production secrets live in the
-operating-system credential store. Plaintext is call-scoped and never enters SQLite, config, DTOs,
-errors, or logs.
+`GenerationProviderCredentialRepositoryInterface` and
+`AssistantModelCredentialRepositoryInterface` are separate consumer-owned interfaces even when one
+SQLite adapter implements both. Production secrets are stored as plaintext blobs in dedicated
+`metadata.sqlite` tables. This provides no encryption at rest: any actor able to read the database
+can read the credentials. Plaintext must still never enter the config payload, public DTOs, errors,
+or logs, and provider/Assistant consumers retain it only for one bounded authenticated call.
 
-Credential IDs follow lowercase dot-segment identity rules and are at most 128 bytes. Production
-adapters are the distinct generation/Assistant pairs prefixed `MacOsKeychain`,
-`WindowsCredentialManager`, or `LinuxSecretService`. Their service scopes are
-`oh-my-dream/generation-provider` and `oh-my-dream/assistant-model`; account is the credential ID.
-They implement only save, load, and delete, and never enumerate or fall back to a file.
+Credential IDs follow lowercase dot-segment identity rules and are at most 128 bytes.
+`SqliteDesktopBackendSettingsAdapterImpl` implements the config repository plus both focused
+credential repositories. The two credential tables have independent namespaces keyed by credential
+ID. They implement only save, load, and delete and never enumerate through the business
+interfaces. There is no JSON-file, platform-vault, encrypted-column, or embedded-key fallback.
 
 ## Representation Boundaries
 

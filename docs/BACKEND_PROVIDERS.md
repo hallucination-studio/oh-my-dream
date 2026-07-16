@@ -48,7 +48,8 @@ Methods state the complete behavior: `generate_image_from_text`, `generate_video
 
 Provider-shared infrastructure uses the `GenerationProvider` prefix, such as
 `GenerationProviderAccountId`, `GenerationProviderRouteId`, and
-`GenerationProviderCredentialVaultInterface`. It cannot be confused with Assistant model configuration.
+`GenerationProviderCredentialRepositoryInterface`. It cannot be confused with Assistant model
+configuration.
 
 ## Dependency Direction
 
@@ -63,7 +64,7 @@ crates/backends
   provider routers, vendor routes, private protocol DTOs
              ^
 src-tauri
-  non-secret configuration, credential-vault adapters, construction
+  SQLite configuration/plaintext credential repositories, construction
 ```
 
 Recommended adapter layout:
@@ -410,16 +411,18 @@ Endpoint IDs/hosts, operation deadlines, polling bounds, response limits, and na
 constants owned by each shipped concrete route; configuration cannot override them or create a new
 route/profile mapping.
 
-`GenerationProviderCredentialVaultInterface` is owned by the Desktop provider-configuration consumer.
-Production adapters use the operating-system credential facility. Plaintext exists only in one
-short-lived `GenerationProviderCredentialSecret` and never enters SQLite, config files, DTOs,
-domain objects, errors, or logs. There is no plaintext or embedded-key fallback.
+`GenerationProviderCredentialRepositoryInterface` is owned by the Desktop
+provider-configuration consumer. Its production adapter stores the credential as plaintext in the
+dedicated generation-provider credential table in `metadata.sqlite`. The MVP provides no
+encryption at rest: an actor able to read that database can read the credential. The value is
+materialized as one short-lived `GenerationProviderCredentialSecret` for authenticated calls and
+never enters the config payload, public DTOs, domain objects, errors, or logs.
 
-Only `DesktopCompositionRoot` resolves credential IDs to opaque vault handles and constructs routes;
-only an authenticated route request materializes the handle's secret. A missing or inaccessible
+Only `DesktopCompositionRoot` supplies the focused credential repository and constructs routes;
+only an authenticated route request loads the credential ID's secret. A missing or inaccessible
 credential makes affected profiles unavailable without preventing application startup.
-Each constructed provider account retains only an opaque OS-vault credential handle and typed
-credential ID. Immediately before an authenticated HTTP request the handle materializes one
+Each constructed provider account retains only the repository handle and typed credential ID.
+Immediately before an authenticated HTTP request the repository loads one
 `GenerationProviderCredentialSecret`, the transport attaches its vendor header, and the temporary
 buffer is zeroized where supported when that request is built. Route structs, clients, availability
 observations, and retry/poll state never retain or clone plaintext credentials.
@@ -450,7 +453,7 @@ provider failure into `NodeCapabilityExecutionError`; Workflow then owns the nod
 - deterministic and vendor routes pass the same private route contract suite;
 - each vendor route passes translation, idempotency, polling, cancellation, malformed-response,
   bounded-download, and ambiguous-submission tests;
-- credential tests prove OS-vault round trip, denial handling, no persisted plaintext, and missing-
-  credential availability behavior;
+- credential tests prove SQLite plaintext round trip, namespace isolation, redaction from
+  DTOs/errors/logs, and missing-credential availability behavior;
 - architecture tests reject node provider/model fields, broad provider interfaces, roadmap runtime
   interfaces, removed binding/task layers, and construction outside composition.

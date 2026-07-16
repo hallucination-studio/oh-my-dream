@@ -448,10 +448,11 @@ The frozen defaults and maxima are identical: approval expires after 30 minutes;
 invocation/frame/turn/tool/output/snapshot/candidate bounds are the exact values above. Startup
 rejects a config that weakens or exceeds them; D0.6 owns their non-secret wire representation.
 
-`AssistantModelCredentialVaultInterface` uses the operating-system credential facility. Public DTOs
-expose only credential presence. Plaintext never enters JSON, SQLite, model messages, unrelated
-sidecar frames, errors, or logs; an ephemeral development environment variable may be supplied
-directly to composition but is never persisted.
+`AssistantModelCredentialRepositoryInterface` stores the model credential as plaintext in its
+dedicated `metadata.sqlite` table. The MVP provides no encryption at rest: an actor able to read
+that database can read the credential. Public DTOs expose only credential presence and ID.
+Plaintext never enters the config payload, model messages, unrelated sidecar frames, errors, or
+logs; the runner receives it only for one bounded model invocation.
 
 The composition root must enforce `enabled`, load the selected model configuration, and supply the
 credential when constructing the runner adapter. Missing/denied credentials make Assistant

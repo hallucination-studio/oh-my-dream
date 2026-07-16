@@ -13,18 +13,14 @@ no business transition.
 ```text
 Desktop application data root
   +-- metadata.sqlite
-  |     Project, Workflow, Run, Asset, Assistant, and three closed post-commit effects
+  |     Project, Workflow, Run, Asset, Assistant, backend configuration,
+  |     plaintext provider/Assistant credentials, and three closed post-commit effects
   +-- managed-media/
   |     immutable validated Image, Video, and Audio bytes
   +-- staging/
   |     incomplete Asset bytes awaiting finalization
   +-- assistant-epochs/<contract-epoch>/
-  |     Python SDK Sessions and opaque model continuations
-  +-- backend-config.json
-        versioned non-secret startup configuration
-
-Operating-system credential facility
-  generation-provider and Assistant model credentials
+        Python SDK Sessions and opaque model continuations
 ```
 
 There is no server, distributed queue, generic job database, generation-task table, provider-task
@@ -34,8 +30,8 @@ store, application cache, or cross-device synchronization in the MVP.
 
 1. Aggregates and exact capabilities own semantics; adapters only encode approved state.
 2. Every durable fact has one authoritative location.
-3. SQLite transactions remain short and never include filesystem, provider, sidecar, credential-
-   vault, or Tauri work.
+3. SQLite transactions remain short and never include filesystem, provider, sidecar, or Tauri
+   work.
 4. Required state and idempotency evidence commit before external follow-up.
 5. SQLite and filesystem publication are coordinated explicitly, not called one transaction.
 6. Rows, paths, URLs, provider payloads, SDK bytes, and plaintext secrets never enter domain identity
@@ -61,8 +57,8 @@ store, application cache, or cross-device synchronization in the MVP.
 | opaque Assistant continuation and SDK Session | contract-epoch storage owned by the model adapter |
 | validated media bytes | managed-media directory |
 | incomplete media bytes | staging directory |
-| non-secret locations, limits, route/profile entries, credential IDs | configuration document |
-| provider and Assistant API secrets | operating-system credential facility |
+| validated startup limits, route/profile entries, credential IDs | SQLite |
+| provider and Assistant API secrets | plaintext SQLite credential rows |
 
 `ProjectId` is defined by `crates/projects` and stored on every Project-owned Workflow, Run, Asset,
 Production Plan, and Assistant Workflow Change. Other contexts do not copy Project metadata.
@@ -73,7 +69,7 @@ Production Plan, and Assistant Workflow Change. Other contexts do not copy Proje
 - active `DesktopPostCommitEffectWorker` handles and cancellation tokens;
 - one active Assistant invocation lock per Session;
 - provider transport, selected route, polling handle, and cancellation observation during one node;
-- decrypted credential values during one bounded use;
+- loaded credential values during one bounded use;
 - open source, staging, managed-content, sidecar, and preview handles;
 - one process-local signing secret for preview leases;
 - one bulk Generation Profile availability observation response.
@@ -85,7 +81,7 @@ No command assumes any process-scoped value survives restart.
 - React selection, hover, drag, menu, viewport, zoom, seek, volume, or object URL;
 - preview URLs, preview tokens, preview leases, or signing keys;
 - user source paths or managed absolute paths in business records;
-- plaintext credentials in SQLite/config/session state;
+- credentials outside their dedicated SQLite rows or call-scoped secret values;
 - provider request/response bodies, signed URLs, native model IDs, or remote task handles;
 - current provider availability observations;
 - generated media bytes inside SQLite;
@@ -219,12 +215,12 @@ mechanically encodes it in the same transaction as the owning state.
 | `AssistantRepairActivationRepositoryInterface` | record-or-get one factual activation per failed Run |
 | `AssistantModelContinuationStoreInterface` | store/load/consume versioned opaque continuation state |
 | `DesktopPostCommitEffectOutboxInterface` | claim/finish one closed effect and page/CAS prior-instance claims plus Ready Workflow effects for startup recovery |
-| `GenerationProviderCredentialVaultInterface` | save/load/delete generation-provider secrets in OS storage |
-| `AssistantModelCredentialVaultInterface` | save/load/delete Assistant model secrets in OS storage |
-| `DesktopBackendConfigReaderInterface` | read and validate non-secret startup configuration |
+| `GenerationProviderCredentialRepositoryInterface` | save/load/delete plaintext generation-provider secrets in SQLite |
+| `AssistantModelCredentialRepositoryInterface` | save/load/delete plaintext Assistant model secrets in SQLite |
+| `DesktopBackendConfigRepositoryInterface` | load/save and validate startup configuration in SQLite |
 
 There is no global `Store`, `Database`, repository, unit of work, or credential interface. SQLite,
-filesystem, epoch-storage, OS-vault, and config adapters depend inward on their consumers.
+filesystem, and epoch-storage adapters depend inward on their consumers.
 
 ## Required Atomic Writes
 
@@ -311,18 +307,39 @@ permissions. Managed bytes are immutable after availability.
 | expected bytes absent | mark Asset Missing |
 | Available bytes later absent | detect and mark Asset Missing |
 
-## Credentials
+## Configuration And Credentials
 
-Production credentials use the platform facility: macOS Keychain, Windows Credential Manager, or
-the supported Linux secret service. Non-secret configuration contains only typed credential IDs.
+`metadata.sqlite` stores the validated `DesktopBackendConfig` and the two credential classes in
+separate focused tables. Credential values are deliberately stored as plaintext blobs. The MVP
+does not claim encryption at rest, does not derive or embed an encryption key, and does not use
+macOS Keychain, Windows Credential Manager, Linux Secret Service, a JSON config file, or an
+environment-variable persistence fallback.
 
-Vault adapters must use private access policy, return structured denied/not-found/unavailable
-errors, zeroize temporary secret buffers where supported, and never fall back to plaintext files,
-SQLite ciphertext with an embedded key, environment-variable persistence, or empty credentials.
+The physical rows are exact:
 
-Tests use an in-memory fault-injecting adapter that passes the same save/load/delete and isolation
-contract. Environment variables may supply ephemeral development credentials but are never copied
-into durable configuration.
+| Table | Key and payload |
+| --- | --- |
+| `desktop_backend_config` | singleton key `1`, schema version, canonical JSON blob `1..=262,144` bytes |
+| `generation_provider_credentials` | typed credential ID primary key, plaintext secret blob `1..=16,384` bytes |
+| `assistant_model_credentials` | typed credential ID primary key, plaintext secret blob `1..=16,384` bytes |
+
+Saving config or one credential is an atomic upsert of only that row. Loading an absent credential
+returns `NotFound`; deleting is idempotent. The two credential tables cannot be queried through one
+broad interface or joined into config DTOs. Config initialization writes the frozen default only
+when the singleton row is absent; a corrupt, oversized, unsupported-version, or non-canonical row
+fails startup and is never silently replaced.
+
+The database and parent data directory use private user-only permissions where the platform
+supports them. This reduces accidental disclosure but is not encryption: any process or user able
+to read the database can read every stored credential. Public DTOs expose only configured presence
+and typed credential IDs. Provider routes and the Assistant runner load one secret immediately
+before an authenticated call; request construction may zeroize temporary header buffers, but the
+durable SQLite value remains plaintext by design.
+
+The generation-provider and Assistant credential repositories remain separate consumer-owned
+interfaces and separate tables even when one SQLite adapter implements both. Tests prove
+save/load/delete, Project-independent credential-ID isolation, missing/unavailable behavior,
+plaintext round trip, and absence from DTOs, errors, and logs.
 
 ## Reads And Preview
 
@@ -338,9 +355,9 @@ the process-secret lifetime and the opaque managed-content read used after valid
 ## Startup And Restart
 
 ```text
-resolve private application-data locations and validate non-secret DesktopBackendConfig
+resolve private application-data locations
   -> open SQLite and apply known migrations
-  -> connect OS credential facilities
+  -> load or initialize validated DesktopBackendConfig and credential repositories
   -> construct Project and other repositories, managed-content adapters, and application use cases
   -> construct provider routes, Node Capabilities, Assistant adapter, and bridges
   -> validate the active Assistant contract epoch
@@ -379,7 +396,8 @@ destructive reset path.
 
 Storage adapters return structured categories: unavailable, busy, permission denied, unsupported
 version, corruption, revision conflict, idempotency conflict, limit exceeded, content mismatch,
-credential denied, and credential unavailable. Errors include safe operation and typed identity,
+credential not found, invalid credential, and credential unavailable. Errors include safe
+operation and typed identity,
 never paths, secrets, model prompts, provider bodies, signed URLs, or SDK bytes.
 
 Verification proves:
@@ -390,7 +408,8 @@ Verification proves:
 - Asset fault injection at every SQLite/filesystem boundary and node-output replay/conflict;
 - Assistant plan CAS, exact change reconstruction, Applying recovery, and Run-link idempotency;
 - restart interruption without provider-task resume;
-- OS-vault round trip, denial, isolation, deletion, and no durable plaintext;
+- SQLite configuration and plaintext credential round trip, isolation, deletion, and redaction
+  from DTOs/errors/logs;
 - bounded queries, Project isolation, preview expiry/Range, and path non-disclosure;
 - translators reject unknown versions, variants, corrupt combinations, and oversized payloads.
 

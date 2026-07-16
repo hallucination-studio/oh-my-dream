@@ -42,7 +42,7 @@ exported names.
 `ProjectId` is the only Project type shared with other business contexts. A provider vendor or
 storage technology is a concrete adapter prefix, not a semantic owner:
 `FalImageToVideoProviderRouteImpl`, `SqliteWorkflowRunRepositoryAdapterImpl`, and
-`MacOsKeychainGenerationProviderCredentialVaultAdapterImpl`.
+`SqliteDesktopBackendSettingsAdapterImpl`.
 
 ## Role Suffixes
 
@@ -313,7 +313,9 @@ AssistantModelRunnerInterface
 AssistantProductionPlanRepositoryInterface
 AssistantWorkflowChangeRepositoryInterface
 AssistantRepairActivationRepositoryInterface
-GenerationProviderCredentialVaultInterface
+GenerationProviderCredentialRepositoryInterface
+AssistantModelCredentialRepositoryInterface
+DesktopBackendConfigRepositoryInterface
 DesktopPostCommitEffectOutboxInterface
 ```
 
@@ -327,7 +329,7 @@ LocalFilesystemAssetManagedContentStoreAdapterImpl
 DesktopNodeCapabilityAssetBridgeAdapterImpl
 DesktopAssistantWorkflowBridgeAdapterImpl
 FalImageToVideoProviderRouteImpl
-MacOsKeychainGenerationProviderCredentialVaultAdapterImpl
+SqliteDesktopBackendSettingsAdapterImpl
 SqliteDesktopPostCommitEffectOutboxAdapterImpl
 DesktopPostCommitEffectWorker
 ```

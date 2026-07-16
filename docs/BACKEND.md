@@ -164,7 +164,7 @@ deterministic route and at least one configured production route before MVP rele
 | Asset | import, get/list, node-output write, resolve, preview, Pending reconciliation | delete, archive, tags, search, export, derivatives, garbage collection |
 | Assistant | durable non-executable plan, candidate, review, human decision, exact apply, canonical Run, reviewed repair | plan-as-queue scheduler, unreviewed apply/repair, parallel approvals, distributed Sessions |
 | Desktop | commands, DTOs, one post-commit worker, durable event repair, preview protocol, composition | generic job host, server mode, plugins, distributed workers |
-| Storage | SQLite metadata, managed files, staging, OS credential vault, config file | cloud sync, multi-writer coordination, full media encryption, backup/restore UI |
+| Storage | SQLite metadata/config/plaintext credentials, managed files, staging | cloud sync, multi-writer coordination, credential/media encryption, backup/restore UI |
 
 Roadmap capability names remain in `BACKEND_CAPABILITIES.md` so their semantics and names are not
 invented ad hoc later. They enter the active registry only through a new reviewed MVP or release
@@ -209,9 +209,9 @@ Public methods state their action. Vague methods such as `execute`, `process`, `
 
 ```text
 DesktopCompositionRoot
-  -> validate non-secret configuration
   -> open and migrate SQLite
-  -> connect operating-system credential vault
+  -> load and validate SQLite backend configuration
+  -> construct focused SQLite plaintext credential repositories
   -> construct Project, Asset, Workflow, and Assistant repositories/use cases
   -> construct Project/Workflow and other cross-context bridges
   -> construct profile catalog, exact provider routes, routers, and availability reader
