@@ -52,6 +52,38 @@ fn production_plan_rejects_duplicate_ids_and_text_outside_frozen_bounds() {
     assert!(AssistantPlanItemGoal::new("x".repeat(2_001)).is_err());
 }
 
+#[test]
+fn production_plan_restore_revalidates_items_and_nonzero_revision() {
+    let item = AssistantPlanItemEntity::try_restore(
+        "draft_story",
+        "Draft the story",
+        AssistantPlanItemState::InProgress,
+    )
+    .unwrap();
+    let restored = AssistantProductionPlanAggregate::try_restore(
+        production_plan_id(),
+        project_id(),
+        session_id(),
+        "Create a story",
+        vec![item.clone()],
+        7,
+    )
+    .unwrap();
+    assert_eq!(restored.revision().get(), 7);
+    assert_eq!(restored.items(), &[item]);
+    assert_eq!(
+        AssistantProductionPlanAggregate::try_restore(
+            production_plan_id(),
+            project_id(),
+            session_id(),
+            "Create a story",
+            vec![],
+            0,
+        ),
+        Err(AssistantProductionPlanError::InvalidRevision)
+    );
+}
+
 fn plan() -> AssistantProductionPlanAggregate {
     AssistantProductionPlanAggregate::new(
         production_plan_id(),

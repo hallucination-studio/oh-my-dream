@@ -38,6 +38,9 @@ pub enum AssistantProductionPlanError {
     /// Revision increment overflowed.
     #[error("Assistant production plan revision overflow")]
     RevisionOverflow,
+    /// A restored revision is zero.
+    #[error("Assistant production plan revision is invalid")]
+    InvalidRevision,
 }
 
 macro_rules! bounded_text {
@@ -141,6 +144,19 @@ impl AssistantPlanItemEntity {
         })
     }
 
+    /// Restores one persisted item while revalidating its identity and goal.
+    pub fn try_restore(
+        id: impl Into<String>,
+        goal: impl AsRef<str>,
+        state: AssistantPlanItemState,
+    ) -> Result<Self, AssistantProductionPlanError> {
+        Ok(Self {
+            id: AssistantPlanItemId::new(id)?,
+            goal: AssistantPlanItemGoal::new(goal)?,
+            state,
+        })
+    }
+
     /// Returns the stable item identity.
     #[must_use]
     pub fn id(&self) -> &AssistantPlanItemId {
@@ -169,6 +185,15 @@ impl AssistantProductionPlanRevision {
     #[must_use]
     pub const fn initial() -> Self {
         Self(1)
+    }
+
+    /// Restores a persisted non-zero revision.
+    pub fn new(value: u64) -> Result<Self, AssistantProductionPlanError> {
+        if value == 0 {
+            Err(AssistantProductionPlanError::InvalidRevision)
+        } else {
+            Ok(Self(value))
+        }
     }
 
     /// Returns the stored non-zero revision.
@@ -207,6 +232,50 @@ impl AssistantProductionPlanAggregate {
             items,
             revision: AssistantProductionPlanRevision::initial(),
         })
+    }
+
+    /// Restores one persisted plan while rechecking all aggregate invariants.
+    pub fn try_restore(
+        id: AssistantProductionPlanId,
+        project_id: ProjectId,
+        session_id: AssistantSessionId,
+        title: impl AsRef<str>,
+        items: Vec<AssistantPlanItemEntity>,
+        revision: u64,
+    ) -> Result<Self, AssistantProductionPlanError> {
+        validate_items(&items)?;
+        Ok(Self {
+            id,
+            project_id,
+            session_id,
+            title: AssistantPlanTitle::new(title)?,
+            items,
+            revision: AssistantProductionPlanRevision::new(revision)?,
+        })
+    }
+
+    /// Returns the plan identity.
+    #[must_use]
+    pub const fn id(&self) -> AssistantProductionPlanId {
+        self.id
+    }
+
+    /// Returns the owning Project.
+    #[must_use]
+    pub const fn project_id(&self) -> ProjectId {
+        self.project_id
+    }
+
+    /// Returns the owning Assistant Session.
+    #[must_use]
+    pub const fn session_id(&self) -> AssistantSessionId {
+        self.session_id
+    }
+
+    /// Returns the bounded title.
+    #[must_use]
+    pub const fn title(&self) -> &AssistantPlanTitle {
+        &self.title
     }
 
     /// Returns the current revision.
