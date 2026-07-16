@@ -147,6 +147,15 @@ pub struct WorkflowGetCurrentUseCase<R> {
     repository: Arc<R>,
 }
 
+/// One authoritative current Workflow snapshot and readiness derived from it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WorkflowCurrentResult {
+    /// The single loaded current Workflow.
+    pub workflow: WorkflowAggregate,
+    /// Readiness evaluated from that exact aggregate snapshot.
+    pub readiness: WorkflowReadinessResult,
+}
+
 impl<R: WorkflowAggregateRepositoryInterface> WorkflowGetCurrentUseCase<R> {
     /// Wires the Workflow repository.
     #[must_use]
@@ -163,6 +172,17 @@ impl<R: WorkflowAggregateRepositoryInterface> WorkflowGetCurrentUseCase<R> {
             .load_workflow(key)
             .await?
             .ok_or(WorkflowApplicationError::WorkflowNotFound { key })
+    }
+
+    /// Loads once and evaluates readiness from the exact returned snapshot.
+    pub async fn get_current_workflow_with_readiness(
+        &self,
+        project_id: ProjectId,
+        capabilities: &WorkflowNodeCapabilityRegistry,
+    ) -> Result<WorkflowCurrentResult, WorkflowApplicationError> {
+        let workflow = self.get_current_workflow(project_id).await?;
+        let readiness = check_readiness(&workflow, capabilities).await?;
+        Ok(WorkflowCurrentResult { workflow, readiness })
     }
 }
 

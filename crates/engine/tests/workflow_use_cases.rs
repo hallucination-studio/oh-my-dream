@@ -87,11 +87,18 @@ async fn create_replays_exact_snapshot_and_get_current_reads_it() {
 
     assert_eq!(created, replayed);
     assert!(created.nodes().is_empty());
-    let loaded = WorkflowGetCurrentUseCase::new(repository)
-        .get_current_workflow(project_id(2))
+    let get_current = WorkflowGetCurrentUseCase::new(repository);
+    let loaded = get_current.get_current_workflow(project_id(2)).await.unwrap();
+    assert_eq!(loaded, created);
+    let current = get_current
+        .get_current_workflow_with_readiness(
+            project_id(2),
+            &WorkflowNodeCapabilityRegistry::try_new([]).unwrap(),
+        )
         .await
         .unwrap();
-    assert_eq!(loaded, created);
+    assert_eq!(current.workflow, created);
+    assert_eq!(current.readiness, WorkflowReadinessResult::Ready);
 }
 
 #[test]

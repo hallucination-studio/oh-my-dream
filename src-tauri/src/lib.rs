@@ -21,6 +21,7 @@ mod command_error;
 pub mod commands;
 pub mod credential_repository;
 pub mod desktop_backend_config;
+pub mod desktop_bridges;
 pub mod dto;
 mod managed_asset_access;
 pub(crate) mod metadata_sqlite;
