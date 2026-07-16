@@ -41,6 +41,7 @@ assets.workspace = true
 async-trait.workspace = true
 backends.workspace = true
 engine.workspace = true
+image.workspace = true
 jsonschema.workspace = true
 nodes.workspace = true
 pollster.workspace = true
