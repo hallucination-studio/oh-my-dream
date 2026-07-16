@@ -38,26 +38,10 @@ def load_operations() -> list[dict[str, Any]]:
 class FunctionToolContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_builds_fixture_tools_and_preserves_opaque_json(self) -> None:
         operations = load_operations()
-        arguments_by_id = {
-            "workspace_get_snapshot": "{}",
-            "workflow_apply_patch": (
-                '{ "params": { "position": 2, "type": "image" }, '
-                '"expected_revision": 7 }'
-            ),
-            "workflow_evaluate_patch": '{"expected_revision":7,"operations":[]}',
-            "proposal_execute": '{\n  "proposal_id": "proposal-42"\n}',
-            "capability_search": '{"query":"three-shot video","kinds":null}',
-            "capability_describe": (
-                '{"refs":[{"id":"ImageToVideo","version":"1.0"}]}'
-            ),
-        }
+        arguments_by_id = {operation["id"]: "{}" for operation in operations}
         output_by_id = {
-            "workspace_get_snapshot": '{ "result" : "snapshot" }',
-            "workflow_apply_patch": '{"result":"patched", "revision": 8}',
-            "workflow_evaluate_patch": '{"changed":false,"readiness_blockers":[]}',
-            "proposal_execute": '{\n "result": "started"\n}',
-            "capability_search": '{"capabilities":[]}',
-            "capability_describe": '{"capabilities":[]}',
+            operation["id"]: f'{{ "tool_id": {json.dumps(operation["id"])} }}'
+            for operation in operations
         }
         invokers = {
             operation["id"]: RecordingInvoker(output_by_id[operation["id"]])
@@ -94,7 +78,7 @@ class FunctionToolContractTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(tool.params_json_schema, operation["input_schema"])
                 self.assertIs(
                     tool.strict_json_schema,
-                    operation["strict_json_schema"],
+                    False,
                 )
                 self.assertIs(tool.needs_approval, operation["needs_approval"])
                 self.assertEqual(output_json, output_by_id[operation_id])

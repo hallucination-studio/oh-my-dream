@@ -198,16 +198,16 @@ class ToolThenMessageModel(Model):
 
 
 class SequencedDiscoveryModel(Model):
-    """Call capability search, describe its result, then finish."""
+    """List capabilities, describe one exact contract, then finish."""
 
     def __init__(self) -> None:
         self.inputs: list[str | list[TResponseInputItem]] = []
         self.tool_names: list[str] = []
         self.calls = [
-            ("capability_search", '{"query":"video","kinds":null}', "search-call"),
+            ("assistant.node_capability.list@1", "{}", "list-call"),
             (
-                "capability_describe",
-                '{"refs":[{"id":"ImageToVideo","version":"1.0"}]}',
+                "assistant.node_capability.describe@1",
+                '{"contract_refs":["video.generate_from_image@1.0"]}',
                 "describe-call",
             ),
         ]

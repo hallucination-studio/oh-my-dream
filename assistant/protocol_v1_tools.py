@@ -81,7 +81,7 @@ def _build_tool(
         description=cast(str, contract["description"]),
         params_json_schema=cast(dict[str, Any], contract["input_schema"]),
         on_invoke_tool=invoke,
-        strict_json_schema=True,
+        strict_json_schema=False,
         needs_approval=(
             needs_approval
             if tool_id == REQUEST_APPLY_TOOL_ID and resume_result[0] is None
