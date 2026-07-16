@@ -46,9 +46,16 @@ domain node kind.
 request ID. `WorkflowAggregateRepositoryInterface` atomically creates the first Workflow for that
 Project or returns `WorkflowAlreadyExistsForProject`; concurrent requests cannot create two.
 
-`WorkflowGetCurrentUseCase::get_current_workflow` loads by `ProjectId`. It is used by
+`WorkflowGetCurrentUseCase::get_current_workflow` loads by `ProjectId` and returns
+`Result<Option<WorkflowCurrentView>, WorkflowGetCurrentError>`, containing the exact loaded `WorkflowAggregate` and the structured
+readiness issues evaluated from that same immutable snapshot. It is used by
 `workflow_get_current` and by `DesktopProjectWorkflowBridgeAdapterImpl` when opening a Project. Neither
-Project nor Desktop reads Workflow rows directly.
+Project nor Desktop reads Workflow rows directly. The bridge maps an empty issue set to `Ready` and
+any non-empty set to `Blocked`; it never performs a second load or a second readiness evaluation.
+External timeout or unavailable evidence is represented by the existing structured indeterminate
+or unavailable readiness issue and does not fail Project open. Only repository failure or an
+invalid persisted Workflow returns `WorkflowGetCurrentError`, which `ProjectOpenUseCase` propagates
+as its existing Workflow-summary read failure without creating a partial workspace view.
 
 `WorkflowCreateRequestId` is a distinct RFC 9562 UUIDv4. Its command hash is SHA-256 over
 length-prefixed domain `oh-my-dream/workflow-create/v1` plus Project UUID bytes; request ID is
@@ -329,6 +336,14 @@ implementations, and calls them outside database transactions. It owns no provid
 
 The effect remains associated until terminal. It is not replayed after restart: startup marks the
 Run Failed with `InterruptedByRestart`, abandons the effect, and retains events. Retry creates a new Run.
+
+`WorkflowInterruptRunsAfterRestartUseCase::interrupt_workflow_runs_after_restart` is the sole owner
+of that Run transition. It reads non-terminal Runs in stable Run-ID pages of at most 100 and, for
+each Run, atomically applies the aggregate-owned `InterruptedByRestart` failure and appends its one
+terminal event. Each page returns an opaque cursor and interrupted Run IDs. Repeating a page or the
+whole operation skips already-terminal Runs and produces no duplicate event. A repository failure
+stops before the next Run and is safe to repeat. This use case neither reads nor changes Desktop
+effects; Desktop invokes it to completion before recovering prior-instance Workflow effect claims.
 
 ## Output And Preview Association
 

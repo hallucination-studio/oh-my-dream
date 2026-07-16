@@ -365,7 +365,23 @@ cancellation. It contains no provider name, native model ID, credential, endpoin
 provider task, wire DTO, or generic options map.
 
 The five C2 interfaces and their boundary values are exact. All fields are private with
-noun-specific accessors and fallible constructors where invariants exist:
+noun-specific accessors and fallible constructors where invariants exist.
+
+`NodeCapabilityParameterSet::try_from_canonical_bytes` is the only inverse of its canonical byte
+encoding. Before reading a length prefix it rejects an input larger than 1 MiB; every key and
+variable value is additionally bounded by the global maximum of 64 KiB before allocation. It
+consumes the entire slice and rejects unknown value tags, invalid UTF-8, truncation, trailing bytes,
+duplicate or non-strictly-sorted keys, more than 64 entries, and violations of global value shape
+such as an invalid typed profile/Asset boundary value. Every decoded key is constructed through its
+authoritative 1..=64-byte grammar-valid `NodeCapabilityParameterKey` constructor. It does not know a capability contract and
+therefore does not decide declared keys, Text bounds, Choice members, or numeric constraints. It
+re-encodes the decoded shape and requires byte-for-byte equality before returning it. Its concrete
+`NodeCapabilityParameterCanonicalDecodeError` reports only bounded
+decode categories and offsets; it is not a Workflow readiness category. Capability normalization
+still owns declared-key, required-value, and operation-specific validation, so decoding never
+becomes a second capability contract or an iterator over parameters.
+
+The exact boundaries are:
 
 ### Managed-Media Read Boundary
 

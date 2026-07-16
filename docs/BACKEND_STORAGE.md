@@ -218,7 +218,7 @@ mechanically encodes it in the same transaction as the owning state.
 | `AssistantWorkflowChangeRepositoryInterface` | transition changes and query one pending approval per Session |
 | `AssistantRepairActivationRepositoryInterface` | record-or-get one factual activation per failed Run |
 | `AssistantModelContinuationStoreInterface` | store/load/consume versioned opaque continuation state |
-| `DesktopPostCommitEffectOutboxInterface` | claim and finish one of the three closed effect kinds |
+| `DesktopPostCommitEffectOutboxInterface` | claim/finish one closed effect and page/CAS prior-instance claims plus Ready Workflow effects for startup recovery |
 | `GenerationProviderCredentialVaultInterface` | save/load/delete generation-provider secrets in OS storage |
 | `AssistantModelCredentialVaultInterface` | save/load/delete Assistant model secrets in OS storage |
 | `DesktopBackendConfigReaderInterface` | read and validate non-secret startup configuration |
@@ -332,6 +332,8 @@ ordering is defined by the owning application contract.
 `AssetManagedContentLease` owns an opaque read handle. Preview uses a short-lived process-signed
 token rather than a database row or memory registry. Every protocol request validates signature,
 expiry, Project, Asset state, and current descriptor. Restart invalidates all preview tokens.
+The exact v1 token wire and signing rules are owned by `BACKEND_APPLICATION.md`; Storage owns only
+the process-secret lifetime and the opaque managed-content read used after validation.
 
 ## Startup And Restart
 

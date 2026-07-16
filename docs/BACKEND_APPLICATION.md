@@ -87,7 +87,8 @@ target use case; there is no process-global active Project.
 
 `ProjectOpenUseCase` calls `ProjectWorkflowSummaryReaderInterface`, implemented by
 `DesktopProjectWorkflowBridgeAdapterImpl` over `WorkflowGetCurrentUseCase`. The bridge returns only a
-Project-owned summary. If none exists, `workflow_create` creates the Project's single current
+Project-owned summary from the returned same-snapshot Workflow and readiness issues. It performs no
+second Workflow load or readiness call. If none exists, `workflow_create` creates the Project's single current
 Workflow; Workflow persistence atomically rejects a second one.
 
 ## Workflow Editing Boundary
@@ -208,7 +209,31 @@ Assistant effects to Ready, but abandons a claimed Workflow effect after marking
 waits one second before another claim. There is no lease, priority, configurable retry policy,
 poison state, or fourth effect kind.
 
-Workflow Run effects are abandoned after restart if their Run was non-terminal. Asset effects are
+`DesktopPostCommitEffectOutboxInterface`, owned by this worker, has exactly
+`claim_next_post_commit_effect`, `complete_claimed_post_commit_effect`,
+`release_claimed_post_commit_effect`, `abandon_claimed_post_commit_effect`, and
+`list_recoverable_post_commit_effects`, plus `recover_replayable_post_commit_effect` and
+`recover_abandoned_post_commit_effect`. Every normal worker
+transition is an atomic compare-and-swap over effect ID, `Claimed`, and the current claiming instance.
+Claim returns at most one complete typed effect. The bounded recovery list returns every
+prior-instance Claimed effect and every Ready Workflow effect, at most 100 per page, ordered by
+creation time then effect ID. It includes the complete expected state required for recovery CAS;
+its opaque cursor encodes that exact `(created_at, effect_id)` tuple.
+
+Startup first invokes `WorkflowInterruptRunsAfterRestartUseCase`, which idempotently marks every
+non-terminal Run `InterruptedByRestart`. It then pages all recoverable effects. Asset and Assistant
+claims use `recover_replayable_post_commit_effect` to CAS directly from the observed prior claim to
+Ready. A Workflow effect uses `recover_abandoned_post_commit_effect` to CAS from its observed Ready
+or prior-instance Claimed state to Abandoned only after its Run is observed terminal; the reason is
+`WorkflowInterruptedByRestart` when that is its terminal cause and
+`OwningStateAlreadyTerminal` otherwise. Each item commits independently; on failure startup stops
+before accepting commands, and the next startup repeats the same ordered recovery. Thus a crash
+between Run interruption and effect abandonment is closed by idempotent replay without putting
+Workflow mutation inside the outbox adapter. The interface exposes no generic payload, handler
+registration, unbounded list, delete, or arbitrary state setter.
+
+Every Ready or prior-instance Claimed Workflow effect is abandoned after restart once its Run is
+confirmed terminal, using the terminal-cause reason above. Asset effects are
 idempotently replayed by exact finalization ID. Assistant effects are replayed through mutation and
 Run request receipts. No arbitrary kind, payload, handler registration, or public task API exists.
 
@@ -227,6 +252,31 @@ projection and is never valid input to `workflow_apply_mutation`.
 `DesktopAssetPreviewProtocolAdapterImpl` validates each `AssetPreviewLease`, signature, expiry, Project,
 current Asset state, and descriptor. Video and Audio support one bounded Range. Managed paths never
 leave the adapter. React owns rendering and playback state.
+
+The adapter issues `desktop-asset://v1/<token>`. The unpadded base64url token is canonical bytes:
+version byte `1`, lease UUID (16), Project UUID (16), Asset UUID (16), managed-content ID canonical
+bytes (33), issued-at signed i64 Unix milliseconds (8, big-endian), expires-at signed i64 Unix
+milliseconds (8, big-endian), then HMAC-SHA-256 (32) over every preceding byte. A fresh 32-byte
+process secret is obtained from the operating-system CSPRNG at startup and is never persisted.
+Issuance fails if entropy or time is unavailable; restart deliberately invalidates every token.
+
+Protocol handling decodes the exact length and version, verifies the MAC in constant time before
+using any embedded identifier, rejects expiry, then loads the Asset through `AssetGetUseCase` to
+obtain its authoritative media kind and calls `AssetResolveContentUseCase` with that kind and a
+protocol deadline. The resolved Available descriptor must have the same managed-content ID before
+its opaque lease is read.
+Only `GET` and `HEAD` are allowed. Image rejects Range; Video and Audio accept one satisfiable byte
+range and return `206`, otherwise `416`. No signing interface, key rotation, token row, revocation
+list, refresh token, path, or multi-version negotiation exists in MVP.
+
+The decoder accepts only unpadded canonical base64url and rejects invalid alphabet, padding,
+non-canonical encodings, wrong byte length, unknown version, a negative or future issued-at, expiry
+other than exactly issued-at plus 300,000 milliseconds, or an expired token. Invalid token,
+signature, Project visibility, or stale descriptor returns the same protocol `404`; expired returns
+`410`, unsupported method `405`, invalid/unsatisfiable Range `416`, and internal storage failure
+`500`. Successful responses set the verified `Content-Type`, `Content-Length`, descriptor digest as
+ETag, `Cache-Control: private, no-store`, `Accept-Ranges: bytes` only for Video/Audio, and
+`X-Content-Type-Options: nosniff`. `HEAD` returns identical status and headers without a body.
 
 ## Event Delivery
 

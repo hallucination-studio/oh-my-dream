@@ -148,8 +148,9 @@ copies issue categories, counts, severity, or readiness rules. The view contains
 aggregate, nodes, parameters, outputs, Asset rows, or preview URLs.
 
 `DesktopProjectWorkflowBridgeAdapterImpl` implements `ProjectWorkflowSummaryReaderInterface` by calling
-`WorkflowGetCurrentUseCase`. It translates Workflow values to `ProjectWorkflowSummary`; Project
-never imports Workflow types or reconstructs readiness.
+`WorkflowGetCurrentUseCase`. It translates the returned same-snapshot Workflow and readiness issues
+to `ProjectWorkflowSummary`; it never performs a second Workflow read or readiness evaluation.
+Project never imports Workflow types or reconstructs readiness.
 
 If no Workflow exists, the UI calls `workflow_create` with the opened `ProjectId`. Workflow
 atomically enforces at most one current Workflow for that Project. Concurrent creation returns the

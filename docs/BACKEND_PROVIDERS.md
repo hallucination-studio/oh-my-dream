@@ -122,6 +122,10 @@ frozen catalog and is not configuration.
 
 A profile is an immutable product promise, not an alias for today's native model.
 
+For `video.cinematic_image_animation@1`, an absent semantic prompt means the profile-owned exact
+default `"Animate the source image with coherent natural motion."`. This is part of profile version
+1 behavior, not vendor configuration; changing it requires a new profile version.
+
 - compatibility names exact capability versions;
 - a route must satisfy the complete capability contract;
 - a changed observable semantic requires a new profile or capability version;
@@ -282,17 +286,67 @@ struct FalImageToVideoProviderRouteImpl {
 }
 ```
 
-The frozen composition map is exact:
+The frozen composition map is exact. Endpoint IDs are product configuration constants, not
+user-editable values:
 
 | Profile ref | Production route implementation | Native operation |
 | --- | --- | --- |
-| `image.high_quality_general@1` | `FalTextToImageProviderRouteImpl` | configured fal FLUX Pro Kontext text-to-image endpoint |
-| `video.cinematic_image_animation@1` | `FalImageToVideoProviderRouteImpl` | configured fal Kling image-to-video endpoint |
-| `speech.multilingual_narration@1` | `ElevenLabsTextToSpeechProviderRouteImpl` | configured ElevenLabs text-to-speech endpoint |
+| `image.high_quality_general@1` | `FalTextToImageProviderRouteImpl` | `fal-ai/flux-pro/kontext/text-to-image` |
+| `video.cinematic_image_animation@1` | `FalImageToVideoProviderRouteImpl` | `fal-ai/kling-video/v3/standard/image-to-video` |
+| `speech.multilingual_narration@1` | `ElevenLabsTextToSpeechProviderRouteImpl` | `POST /v1/text-to-speech/{voice_id}?output_format=mp3_44100_128`, model `eleven_multilingual_v2` |
 
-Native endpoint and model identifiers are private typed configuration. Tests replace each production
+Native endpoint and model identifiers are private typed constants owned by each concrete route. Tests replace each production
 route with its matching `Deterministic<Input>To<Output>ProviderRouteImpl`; they do not add catalog
 profiles or routes.
+
+### Frozen Native Wires
+
+Both fal routes use the authenticated fal queue protocol for their exact endpoint ID: submit one
+JSON request, poll only the returned request ID until `COMPLETED` or a terminal failure, then fetch
+that request's result. `IN_QUEUE` and `IN_PROGRESS` are the only non-terminal states. The
+`Authorization: Key <secret>` header is attached by the transport. The request ID and returned media
+URL remain private route values and are never persisted. The image-to-video route encodes the exact
+readable input bytes as a `data:<verified MIME>;base64,<canonical base64>` URL accepted by the fal
+file-input contract; it performs no public upload and creates no separately recoverable remote file.
+
+For endpoint ID `<endpoint>`, the native HTTP operations are exactly
+`POST https://queue.fal.run/<endpoint>`,
+`GET https://queue.fal.run/<endpoint>/requests/<request_id>/status`, and
+`GET https://queue.fal.run/<endpoint>/requests/<request_id>`. Submission sends the route request as
+the JSON body and requires one non-empty `request_id`; status and result requests have no body.
+Redirects are rejected for queue operations. Non-success HTTP status or an unknown/malformed queue
+state is translated once through the frozen provider-failure categories, never retried as a new
+submission.
+
+The text-to-image request is exactly `prompt`, the semantic `aspect_ratio`, `num_images: 1`,
+`output_format: "png"`, `safety_tolerance: "2"`, and `enhance_prompt: false`. It omits `seed` and
+`guidance_scale` because neither is part of profile semantics. The result must contain exactly one
+image with `content_type: "image/png"`, a non-empty HTTPS URL, and no positive
+`has_nsfw_concepts` entry. Timing, seed, and echoed prompt are observational and discarded.
+
+The image-to-video request is exactly `start_image_url`, optional non-empty `prompt`, semantic
+`duration` encoded as `"5"` or `"10"`, and `generate_audio: false`. An absent semantic prompt sends
+the profile-owned version-1 default above. It never sends `multi_prompt`,
+elements, voices, or an end image. The result must contain exactly one `video` with
+`content_type: "video/mp4"`, a non-empty HTTPS URL, and a positive bounded file size when supplied.
+The profile promises silent image animation; adding native audio requires a new profile version.
+
+The ElevenLabs route sends `xi-api-key`, `Content-Type: application/json`, and body
+`{ "text": <semantic text>, "model_id": "eleven_multilingual_v2" }` to exactly
+`POST https://api.elevenlabs.io/v1/text-to-speech/<voice_id>?output_format=mp3_44100_128`.
+`voice_id` is one required,
+validated `ElevenLabsVoiceId` in non-secret route configuration; it is not a node parameter or
+model-selected value. A successful response is raw `audio/mpeg` bytes bounded by the route download
+limit. Redirects, JSON success bodies, empty bodies, and other content types are invalid responses.
+The route sends no voice-setting override, pronunciation dictionary, continuity request ID, or
+latency option.
+
+These wires are supported by the vendor contracts published at
+<https://fal.ai/models/fal-ai/flux-pro/kontext/text-to-image/api>,
+<https://fal.ai/models/fal-ai/kling-video/v3/standard/image-to-video/api>, and
+<https://elevenlabs.io/docs/api-reference/text-to-speech/convert/>. A vendor wire change that cannot
+preserve these exact semantics makes the route unavailable until a reviewed profile/route update;
+it never silently changes the profile promise.
 
 Router construction rejects unknown or incompatible profiles, duplicate profile mappings,
 duplicate route IDs, and incomplete credentials. A missing mapping is represented by
@@ -332,7 +386,8 @@ Each concrete route:
 - maps every semantic field to one private vendor DTO;
 - uses a typed native model ID rather than parsing profile/display names;
 - sends explicit values when native defaults could change promised behavior;
-- validates response shape, reported model, media kind, size, MIME, and checksums;
+- validates the frozen response shape, media kind, size, and MIME, plus reported model or checksum
+  only when that exact vendor response contract supplies the field;
 - bounds submission, polling, redirects, downloads, deadlines, and response sizes;
 - maps provider status exactly once into `NodeCapabilityProviderFailure`;
 - keeps credentials, raw bodies, signed URLs, remote handles, and route details private.
@@ -349,16 +404,25 @@ never creates an Asset; the capability owns the call to the Asset-write boundary
 
 ## Credentials And Configuration
 
-Non-secret configuration declares enabled accounts, profile-to-route entries, route endpoints,
-timeouts, and polling bounds. It contains only `GenerationProviderCredentialId` references.
+Non-secret MVP configuration declares only enabled accounts, exact profile-to-shipped-route
+selection, `GenerationProviderCredentialId` references, and the required `ElevenLabsVoiceId`.
+Endpoint IDs/hosts, operation deadlines, polling bounds, response limits, and native model IDs are
+constants owned by each shipped concrete route; configuration cannot override them or create a new
+route/profile mapping.
 
 `GenerationProviderCredentialVaultInterface` is owned by the Desktop provider-configuration consumer.
 Production adapters use the operating-system credential facility. Plaintext exists only in one
 short-lived `GenerationProviderCredentialSecret` and never enters SQLite, config files, DTOs,
 domain objects, errors, or logs. There is no plaintext or embedded-key fallback.
 
-Only `DesktopCompositionRoot` loads credentials and constructs routes. A missing or inaccessible
+Only `DesktopCompositionRoot` resolves credential IDs to opaque vault handles and constructs routes;
+only an authenticated route request materializes the handle's secret. A missing or inaccessible
 credential makes affected profiles unavailable without preventing application startup.
+Each constructed provider account retains only an opaque OS-vault credential handle and typed
+credential ID. Immediately before an authenticated HTTP request the handle materializes one
+`GenerationProviderCredentialSecret`, the transport attaches its vendor header, and the temporary
+buffer is zeroized where supported when that request is built. Route structs, clients, availability
+observations, and retry/poll state never retain or clone plaintext credentials.
 
 ## Failure Semantics
 

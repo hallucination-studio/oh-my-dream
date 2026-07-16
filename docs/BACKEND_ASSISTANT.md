@@ -105,8 +105,11 @@ pub struct AssistantWorkflowChangeAggregate {
     pub session_id: AssistantSessionId,
     pub base_workflow_revision: WorkflowRevisionBoundaryValue,
     pub ordered_mutations: NonEmptyVec<AssistantWorkflowMutation>,
+    pub stable_aliases: AssistantWorkflowStableAliasSet,
+    pub readiness_issues: Vec<AssistantWorkflowReadinessIssueBoundaryValue>,
     pub mutation_digest: AssistantWorkflowMutationDigest,
     pub resulting_workflow_fingerprint: AssistantWorkflowFingerprint,
+    pub lineage: AssistantWorkflowChangeLineage,
     pub review: Option<AssistantReviewReceipt>,
     pub approval_scope_id: AssistantApprovalScopeId,
     pub continuation_ref: Option<AssistantModelContinuationRef>,
@@ -114,6 +117,50 @@ pub struct AssistantWorkflowChangeAggregate {
     pub expires_at: AssistantWorkflowChangeExpiry,
 }
 ```
+
+`AssistantWorkflowChangeLineage` is the closed union
+`UserMessage { invocation_id, intent } | ReviewedRepair { activation_id, failed_workflow_run_id }`.
+`AssistantUserIntent` is the exact trimmed 1..=16 KiB UTF-8 user message that authorized a
+user-message candidate; it is immutable evidence, not a regenerated summary. A repair candidate
+uses only the persisted factual activation and failed Run ID and never synthesizes user text.
+`AssistantWorkflowStableAliasSet`
+contains at most 128 unique alias-to-resulting-node-ID entries, sorted by alias. An alias is
+1..=64 ASCII characters matching `[a-z][a-z0-9_]*`, exists only to let mutations in this candidate
+refer to a node created earlier in the same ordered list, and is resolved by the Workflow evaluator.
+Aliases never enter the canonical Workflow or become a second node identity.
+
+Readiness issues are the evaluator's already-structured, deterministically ordered boundary
+projection for the resulting fingerprint. Assistant may present them but cannot construct,
+reclassify, or repair them. There is no generic ancestry graph, free-form lineage string, or
+candidate chaining in MVP.
+
+```rust
+pub struct AssistantReviewReceipt {
+    pub change_id: AssistantWorkflowChangeId,
+    pub mutation_digest: AssistantWorkflowMutationDigest,
+    pub reviewer_contract_epoch: AssistantContractEpoch,
+    pub reviewer_model: AssistantModelIdentity,
+    pub reviewer_invocation_id: AssistantModelInvocationId,
+    pub reviewer_tool_call_id: AssistantToolCallId,
+    pub verdict: AssistantReviewVerdict,
+    pub reviewed_at: AssistantReviewedAt,
+}
+
+pub enum AssistantReviewVerdict {
+    Pass,
+    Reject,
+}
+```
+
+When the Reviewer calls `assistant.workflow.get_change@1`, Rust records one single-invocation fetch
+fact containing invocation ID, tool-call ID, change ID, and mutation digest. The typed Reviewer
+result must echo the change ID, digest, and verdict. Rust accepts it only while the invocation is
+active and those fields match the recorded fetch, then persists the complete fetch tuple in the
+receipt above. `reviewer_contract_epoch` and `reviewer_model` come only from the trusted Runner
+configuration, and `reviewed_at` comes only from `AssistantClockInterface`; the model cannot supply
+them. The fetch fact is consumed by the first accepted verdict. Reviewer prose is bounded
+presentation text and never authority. A rejection stores the receipt before transitioning to
+`ReviewRejected`; only `Pass` may transition to `AwaitingApproval`.
 
 Assistant-owned boundary values are translated to Workflow types by a bridge; the Assistant module
 does not copy Workflow validation or import a persistence row.
@@ -214,7 +261,7 @@ orchestrator can use the apply and Run starter interfaces after verifying the ex
 `AssistantWorkflowMutationEvaluatorInterface` evaluates a bounded ordered mutation list against the
 authoritative base revision. Candidate creation stores:
 
-- Project, Session, user intent, and base revision;
+- Project, Session, exact user-message or repair-activation authorization, and base revision;
 - exact ordered mutations and stable aliases;
 - engine-derived readiness issues;
 - mutation digest and resulting Workflow fingerprint;
@@ -306,7 +353,7 @@ independently in each direction. Rust sends exactly `InvocationStart`, `ToolResu
 `InvocationCompleted`, or `InvocationFailed`. Typed payloads are respectively: start kind plus exact
 trusted context/tool contracts/budgets; call ID/tool ID/typed result; envelope plus trusted resume
 result; cancel reason; Agent ID; bounded text delta; call ID/tool ID/typed arguments; change
-ID/digest/fetch receipt/verdict/prose; opaque envelope; bounded final text; or failure category and
+ID/digest/verdict/prose; opaque envelope; bounded final text; or failure category and
 safe message. Start requires exactly one bounded user message or repair activation. Cancel reason is
 `Deadline` or `ProcessShutdown`. No payload accepts an arbitrary extension map.
 
