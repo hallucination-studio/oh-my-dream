@@ -1,6 +1,6 @@
-use engine::{NodeExecutionState, NodeProgressEvent, PortType, RunOutputs, Value, ValueMap};
+use engine::{NodeExecutionState, NodeProgressEvent, PortType};
 use oh_my_dream_tauri::dto::{
-    AssetDto, AssistantConfigDto, CapabilityCatalogDto, NodeProgressEventDto, RunWorkflowResultDto,
+    AssetDto, AssistantConfigDto, CapabilityCatalogDto, NodeProgressEventDto,
 };
 use oh_my_dream_tauri::project_commands::{
     ProjectDto, ProjectWorkflowReadinessDto, ProjectWorkflowSummaryDto, ProjectWorkspaceDto,
@@ -11,11 +11,18 @@ use oh_my_dream_tauri::{
         GenerationProfileListForCapabilityRequestDto, generation_profile_list_with_dependencies,
         node_capability_list_with_dependencies,
     },
+    workflow_command_dto::{
+        WorkflowCanvasPositionDto, WorkflowDto, WorkflowNodeDto, WorkflowParameterDto,
+        WorkflowRunDto, WorkflowRunEventPageDto, WorkflowRunNodeExecutionDto,
+    },
+    workflow_readiness_dto::{WorkflowReadinessDto, WorkflowWithReadinessDto},
+    workflow_run_event_publisher::{DesktopEventEmissionError, DesktopEventEmitterInterface},
 };
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tempfile::tempdir;
 
 #[path = "contract/assistant_approval_contract.rs"]
@@ -25,7 +32,9 @@ mod assistant_operation_contract;
 
 #[test]
 fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
-    let run_result = run_workflow_fixture();
+    let workflow = workflow_fixture();
+    let workflow_run = workflow_run_fixture();
+    let workflow_events = workflow_event_fixture();
     let asset = asset_fixture();
     let project = project_fixture();
     let open_project = open_project_fixture();
@@ -37,19 +46,9 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let assistant_approval = assistant_approval_contract::fixture();
     let (node_capabilities, generation_profiles) = node_capability_fixtures();
 
-    assert_eq!(
-        serde_json::to_value(&run_result).expect("serialize run workflow result"),
-        json!({
-            "outputs": {
-                "video": {
-                    "video": {
-                        "kind": "video",
-                        "value": "mock://mock/image-to-video/task-2"
-                    }
-                }
-            }
-        })
-    );
+    assert_eq!(workflow.workflow.workflow_id, "123e4567-e89b-42d3-a456-426600000010");
+    assert_eq!(workflow_run.workflow_revision, "1");
+    assert_eq!(workflow_events.next_sequence, None);
     assert_eq!(
         serde_json::to_value(&asset).expect("serialize asset"),
         json!({
@@ -116,7 +115,9 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
         })
     );
     assistant_operation_contract::assert_fixture(&assistant_operations);
-    write_fixture("run_workflow_result.json", &run_result);
+    write_fixture("workflow.json", &workflow);
+    write_fixture("workflow_run.json", &workflow_run);
+    write_fixture("workflow_run_events.json", &workflow_events);
     write_fixture("asset.json", &asset);
     write_fixture("project.json", &project);
     write_fixture("open_project.json", &open_project);
@@ -133,8 +134,9 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
 fn node_capability_fixtures() -> (serde_json::Value, serde_json::Value) {
     let directory = tempdir().expect("node capability fixture root");
     tauri::async_runtime::block_on(async {
-        let dependencies = DesktopCompositionRoot::compose_activated_commands(
+        let dependencies = DesktopCompositionRoot::compose_activated_commands_with_emitter(
             DesktopApplicationPaths::from_application_data_root(directory.path()),
+            Arc::new(ContractEventEmitter),
         )
         .await
         .expect("compose activated commands");
@@ -148,11 +150,25 @@ fn node_capability_fixtures() -> (serde_json::Value, serde_json::Value) {
         )
         .await
         .expect("list profiles");
-        (
-            serde_json::to_value(contracts).expect("serialize contracts"),
-            serde_json::to_value(profiles).expect("serialize profiles"),
-        )
+        let mut profiles = serde_json::to_value(profiles).expect("serialize profiles");
+        for item in profiles.as_array_mut().expect("profile fixture array") {
+            item["availability"]["observed_at_epoch_ms"] = json!("0");
+            item["availability"]["expires_at_epoch_ms"] = json!("30000");
+        }
+        (serde_json::to_value(contracts).expect("serialize contracts"), profiles)
     })
+}
+
+struct ContractEventEmitter;
+
+impl DesktopEventEmitterInterface for ContractEventEmitter {
+    fn emit_desktop_event(
+        &self,
+        _event_name: &str,
+        _payload: serde_json::Value,
+    ) -> Result<(), DesktopEventEmissionError> {
+        Ok(())
+    }
 }
 
 fn capability_catalog_fixture() -> CapabilityCatalogDto {
@@ -235,15 +251,60 @@ fn node_contract_fixture() -> NodeContractsFixture {
     NodeContractsFixture { port_types: PortType::ALL.to_vec(), compatible, nodes }
 }
 
-fn run_workflow_fixture() -> RunWorkflowResultDto {
-    let outputs = RunOutputs::from([(
-        "video".to_owned(),
-        ValueMap::from([(
-            "video".to_owned(),
-            Value::Video("mock://mock/image-to-video/task-2".to_owned()),
-        )]),
-    )]);
-    RunWorkflowResultDto::from_outputs(&outputs)
+fn workflow_fixture() -> WorkflowWithReadinessDto {
+    WorkflowWithReadinessDto {
+        workflow: WorkflowDto {
+            schema_version: 1,
+            workflow_id: "123e4567-e89b-42d3-a456-426600000010".to_owned(),
+            project_id: "123e4567-e89b-42d3-a456-426600000001".to_owned(),
+            revision: "1".to_owned(),
+            created_at_epoch_ms: "0".to_owned(),
+            updated_at_epoch_ms: "0".to_owned(),
+            nodes: vec![WorkflowNodeDto {
+                node_id: "123e4567-e89b-42d3-a456-426600000011".to_owned(),
+                capability_id: "text.provide_literal".to_owned(),
+                capability_version: "1.0".to_owned(),
+                parameters: vec![WorkflowParameterDto {
+                    key: "text".to_owned(),
+                    value: json!({"kind":"text","value":"hello"}),
+                }],
+                canvas_position: WorkflowCanvasPositionDto { x: 100.0, y: 120.0 },
+            }],
+            input_bindings: Vec::new(),
+        },
+        readiness: WorkflowReadinessDto::Ready,
+    }
+}
+
+fn workflow_run_fixture() -> WorkflowRunDto {
+    WorkflowRunDto {
+        workflow_run_id: "123e4567-e89b-42d3-a456-426600000012".to_owned(),
+        project_id: "123e4567-e89b-42d3-a456-426600000001".to_owned(),
+        workflow_id: "123e4567-e89b-42d3-a456-426600000010".to_owned(),
+        workflow_revision: "1".to_owned(),
+        scope: json!({"kind":"whole_workflow"}),
+        state: "queued".to_owned(),
+        created_at_epoch_ms: "1".to_owned(),
+        updated_at_epoch_ms: "1".to_owned(),
+        node_executions: vec![WorkflowRunNodeExecutionDto {
+            node_id: "123e4567-e89b-42d3-a456-426600000011".to_owned(),
+            node_execution_id: "123e4567-e89b-42d3-a456-426600000013".to_owned(),
+            state: "pending".to_owned(),
+            progress_basis_points: None,
+        }],
+    }
+}
+
+fn workflow_event_fixture() -> WorkflowRunEventPageDto {
+    WorkflowRunEventPageDto {
+        events: vec![json!({
+            "workflow_run_id":"123e4567-e89b-42d3-a456-426600000012",
+            "sequence":"1",
+            "occurred_at_epoch_ms":"1",
+            "payload":{"type":"run_queued"},
+        })],
+        next_sequence: None,
+    }
 }
 
 fn asset_fixture() -> AssetDto {

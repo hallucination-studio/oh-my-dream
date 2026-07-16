@@ -17,6 +17,7 @@ export function deferred<T>() {
 }
 
 export function workspace(id: string, name: string, text: string): ProjectWorkspace {
+  void text;
   return {
     project: {
       id,
@@ -26,22 +27,5 @@ export function workspace(id: string, name: string, text: string): ProjectWorksp
       updated_at_epoch_ms: "0",
     },
     current_workflow_summary: null,
-    workflow_head: {
-      project_id: id,
-      revision: 1,
-      workflow: {
-        version: "1.0",
-        project_id: id,
-        nodes: [
-          {
-            id: `${id}-prompt`,
-            type: "TextPrompt",
-            params: { text },
-            inputs: {},
-            position: [100, 100],
-          },
-        ],
-      },
-    },
   };
 }

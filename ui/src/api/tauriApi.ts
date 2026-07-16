@@ -5,8 +5,7 @@
 // that result reports cancelled, succeeded, or failed.
 
 import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
-import type { Workflow } from "../workflow/types.ts";
-import { createRunId } from "./runId.ts";
+import { listen } from "@tauri-apps/api/event";
 import type {
   AssetDto,
   AssistantConfig,
@@ -15,10 +14,6 @@ import type {
   AssistantPendingApproval,
   AssistantSendInput,
   ResponsesStreamEvent,
-  CancelWorkflowRunResult,
-  CapabilityBundles,
-  CapabilitySearchPage,
-  CapabilitySearchRequest,
   CapabilityRef,
   GenerationProfileForCapability,
   ListAssetsOptions,
@@ -26,127 +21,17 @@ import type {
   Project,
   ProjectWorkspace,
   Provider,
-  RunHandle,
-  RunObserver,
   WorkflowApi,
-  WorkflowApplyPatchInput,
-  WorkflowApplyPatchOutput,
-  WorkflowRunEvent,
-  WorkflowRunResult,
   WorkflowHead,
+  WorkflowDto,
+  WorkflowMutationActionDto,
+  WorkflowNodePresentationDto,
+  WorkflowReadinessDto,
+  WorkflowRunDto,
+  WorkflowRunEventPageDto,
+  WorkflowRunScopeDto,
+  WorkflowWithReadinessDto,
 } from "./types.ts";
-
-function runWorkflow(workflow: Workflow, observe: RunObserver): RunHandle {
-  return new TauriWorkflowRun(workflow, observe).handle();
-}
-
-class TauriWorkflowRun {
-  private readonly runId = createRunId();
-  private readonly channel = new Channel<WorkflowRunEvent>();
-  private started = false;
-  private cancelRequested = false;
-  private cancelSent = false;
-  private terminal = false;
-  private cancelFailure: string | null = null;
-
-  constructor(
-    private readonly workflow: Workflow,
-    private readonly observe: RunObserver,
-  ) {
-    this.channel.onmessage = (event) => this.handleEvent(event);
-    this.start();
-  }
-
-  handle(): RunHandle {
-    return { runId: this.runId, cancel: () => this.cancel() };
-  }
-
-  private start(): void {
-    void invoke<WorkflowRunResult>("start_workflow_run", {
-      run_id: this.runId,
-      workflow_json: JSON.stringify(this.workflow),
-      on_event: this.channel,
-    })
-      .then((result) => this.settle(result))
-      .catch((error: unknown) => this.fail(this.failureReason(error)));
-  }
-
-  private handleEvent(event: WorkflowRunEvent): void {
-    if (this.terminal || event.run_id !== this.runId) return;
-    if (event.event === "started") {
-      this.started = true;
-      this.requestCancellation();
-      return;
-    }
-    const committed = event.node.state === "done" || event.node.state === "cached";
-    if (this.cancelRequested && !committed) return;
-    this.observe.onProgress({
-      nodeId: event.node.node_id,
-      progress: event.node.progress ?? (committed ? 1 : 0),
-      nodeState: event.node.state,
-      cost: event.node.cost ?? undefined,
-    });
-  }
-
-  private cancel(): void {
-    if (this.terminal || this.cancelRequested) return;
-    this.cancelRequested = true;
-    this.observe.onStatus({ state: "cancelling" });
-    this.requestCancellation();
-  }
-
-  private requestCancellation(): void {
-    if (!this.started || !this.cancelRequested || this.cancelSent || this.terminal) return;
-    this.cancelSent = true;
-    void invoke<CancelWorkflowRunResult>("cancel_workflow_run", { run_id: this.runId })
-      .then((result) => {
-        if (result.run_id !== this.runId) {
-          this.handleCancellationFailure("cancel_workflow_run returned a different run_id");
-        } else {
-          this.cancelFailure = null;
-        }
-      })
-      .catch((error: unknown) => {
-        this.handleCancellationFailure(String(error));
-      });
-  }
-
-  private handleCancellationFailure(reason: string): void {
-    if (this.terminal || !this.cancelRequested) return;
-    this.cancelFailure = reason;
-    this.cancelRequested = false;
-    this.cancelSent = false;
-    this.observe.onStatus({ state: "cancel_failed", reason });
-  }
-
-  private settle(result: WorkflowRunResult): void {
-    if (this.terminal) return;
-    if (result.run_id !== this.runId) {
-      this.fail(`Workflow run identity mismatch: expected ${this.runId}, received ${result.run_id}`);
-      return;
-    }
-    this.terminal = true;
-    if (result.status === "succeeded") {
-      this.observe.onStatus({ state: "succeeded", outputs: result.outputs });
-    } else if (result.status === "cancelled") {
-      this.observe.onStatus({ state: "cancelled" });
-    } else {
-      this.observe.onStatus({ state: "failed", reason: result.reason });
-    }
-  }
-
-  private fail(reason: string): void {
-    if (this.terminal) return;
-    this.terminal = true;
-    this.observe.onStatus({ state: "failed", reason });
-  }
-
-  private failureReason(error: unknown): string {
-    return this.cancelFailure === null
-      ? String(error)
-      : `Run failed after cancellation request (${this.cancelFailure}): ${String(error)}`;
-  }
-}
 
 async function listAssets(options: ListAssetsOptions = {}): Promise<AssetDto[]> {
   const root = await assetsRoot();
@@ -206,10 +91,9 @@ async function renameProject(project: Project, name: string): Promise<Project> {
 }
 
 async function openProject(id: string): Promise<ProjectWorkspace> {
-  const workspace = await invoke<Omit<ProjectWorkspace, "workflow_head">>("project_open", {
+  return invoke<ProjectWorkspace>("project_open", {
     request: { project_id: id },
   });
-  return { ...workspace, workflow_head: null };
 }
 
 async function nodeCapabilityList(): Promise<NodeCapabilityContractDto[]> {
@@ -227,31 +111,112 @@ async function generationProfileListForCapability(
   });
 }
 
-async function searchCapabilities(
-  request: CapabilitySearchRequest,
-): Promise<CapabilitySearchPage> {
-  return invoke<CapabilitySearchPage>("search_capabilities", {
-    query: request.query,
-    category: request.category ?? null,
-    type_id: request.type_id ?? null,
-    cursor: request.cursor ?? null,
-    limit: request.limit ?? null,
+async function workflowCreate(projectId: string): Promise<WorkflowDto> {
+  return invoke("workflow_create", {
+    request: { request_id: crypto.randomUUID(), project_id: projectId },
   });
 }
 
-async function getCapabilityBundles(refs: CapabilityRef[]): Promise<CapabilityBundles> {
-  return invoke<CapabilityBundles>("get_capability_bundles", { refs });
+async function workflowGetCurrent(projectId: string): Promise<WorkflowWithReadinessDto> {
+  return invoke("workflow_get_current", { request: { project_id: projectId } });
 }
 
-async function applyWorkflowPatch(
+async function workflowApplyMutation(
   projectId: string,
-  requestId: string,
-  input: WorkflowApplyPatchInput,
-): Promise<WorkflowApplyPatchOutput> {
-  return invoke<WorkflowApplyPatchOutput>("workflow_apply_patch", {
-    project_id: projectId,
-    request_id: requestId,
-    input,
+  workflowId: string,
+  baseRevision: string,
+  actions: WorkflowMutationActionDto[],
+): Promise<WorkflowWithReadinessDto> {
+  return invoke("workflow_apply_mutation", {
+    request: {
+      project_id: projectId,
+      request_id: crypto.randomUUID(),
+      workflow_id: workflowId,
+      base_revision: baseRevision,
+      actions,
+    },
+  });
+}
+
+async function workflowCheckReadiness(
+  projectId: string,
+  workflowId: string,
+): Promise<WorkflowReadinessDto> {
+  return invoke("workflow_check_readiness", {
+    request: { project_id: projectId, workflow_id: workflowId },
+  });
+}
+
+async function workflowStartRun(
+  projectId: string,
+  workflowId: string,
+  workflowRevision: string,
+  scope: WorkflowRunScopeDto,
+): Promise<WorkflowRunDto> {
+  return invoke("workflow_start_run", {
+    request: {
+      request_id: crypto.randomUUID(),
+      project_id: projectId,
+      workflow_id: workflowId,
+      workflow_revision: workflowRevision,
+      scope,
+    },
+  });
+}
+
+async function workflowCancelRun(
+  projectId: string,
+  workflowRunId: string,
+): Promise<WorkflowRunDto> {
+  return invoke("workflow_cancel_run", {
+    request: { project_id: projectId, workflow_run_id: workflowRunId },
+  });
+}
+
+async function workflowGetRun(
+  projectId: string,
+  workflowRunId: string,
+): Promise<WorkflowRunDto> {
+  return invoke("workflow_get_run", {
+    request: { project_id: projectId, workflow_run_id: workflowRunId },
+  });
+}
+
+async function workflowListRunEvents(
+  projectId: string,
+  workflowRunId: string,
+  afterSequence: string | null = null,
+  limit = 500,
+): Promise<WorkflowRunEventPageDto> {
+  return invoke("workflow_list_run_events", {
+    request: {
+      project_id: projectId,
+      workflow_run_id: workflowRunId,
+      after_sequence: afterSequence,
+      limit,
+    },
+  });
+}
+
+async function observeWorkflowRunEvents(
+  onEvent: (event: import("./types.ts").DurableWorkflowRunEventDto) => void,
+): Promise<() => void> {
+  return listen("workflow-run-event-v1", ({ payload }) => onEvent(
+    payload as import("./types.ts").DurableWorkflowRunEventDto,
+  ));
+}
+
+async function workflowGetNodePresentation(
+  projectId: string,
+  workflowId: string,
+  nodeId: string,
+): Promise<WorkflowNodePresentationDto> {
+  return invoke("workflow_get_node_presentation", {
+    request: {
+      project_id: projectId,
+      workflow_id: workflowId,
+      node_id: nodeId,
+    },
   });
 }
 
@@ -330,7 +295,6 @@ function isPathUnderRoot(path: string, root: string): boolean {
 }
 
 export const tauriApi: WorkflowApi = {
-  runWorkflow,
   assetsRoot,
   listAssets,
   getAsset,
@@ -341,9 +305,16 @@ export const tauriApi: WorkflowApi = {
   openProject,
   nodeCapabilityList,
   generationProfileListForCapability,
-  searchCapabilities,
-  getCapabilityBundles,
-  applyWorkflowPatch,
+  workflowCreate,
+  workflowGetCurrent,
+  workflowApplyMutation,
+  workflowCheckReadiness,
+  workflowStartRun,
+  workflowCancelRun,
+  workflowGetRun,
+  workflowListRunEvents,
+  observeWorkflowRunEvents,
+  workflowGetNodePresentation,
   getProviders,
   setActiveProvider,
   setProviderKey,

@@ -66,8 +66,7 @@ impl WorkflowRunEventPublisherInterface for TauriWorkflowRunEventPublisherAdapte
         &self,
         event: WorkflowRunEvent,
     ) -> Result<(), WorkflowApplicationError> {
-        let payload =
-            crate::assistant_workflow_bridge::run_projection::workflow_run_event_value(&event);
+        let payload = crate::workflow_command_dto::event_dto(&event);
         self.emitter
             .emit_desktop_event("workflow-run-event-v1", payload)
             .map_err(|_| WorkflowApplicationError::WorkflowRunEventPublishFailure)
@@ -118,7 +117,11 @@ mod tests {
         {
             let emitted = emitter.events.lock().unwrap();
             assert_eq!(emitted[0].0, "workflow-run-event-v1");
-            assert_eq!(emitted[0].1["sequence"], 7);
+            assert_eq!(emitted[0].1["sequence"], "7");
+            assert_eq!(
+                emitted[0].1["workflow_run_id"],
+                event.run_id().as_uuid().hyphenated().to_string()
+            );
             assert_eq!(emitted[0].1["payload"]["type"], "run_started");
         }
 

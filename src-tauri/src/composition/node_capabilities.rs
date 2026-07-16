@@ -5,7 +5,8 @@ use std::{
 
 use assets::asset::{
     application::{
-        AssetFinalizeContentUseCase, AssetRecordNodeOutputUseCase, AssetResolveContentUseCase,
+        AssetFinalizeContentUseCase, AssetGetUseCase, AssetIssuePreviewUseCase,
+        AssetRecordNodeOutputUseCase, AssetResolveContentUseCase,
     },
     interfaces::{
         AssetClockInterface, AssetIdentityGeneratorInterface, AssetIngestTransactionInterface,
@@ -33,6 +34,7 @@ use crate::{
         ImageAndFfprobeAssetMediaInspectorAdapterImpl, SystemAssetClockAdapterImpl,
         UuidV4AssetIdentityGeneratorAdapterImpl,
     },
+    asset_preview_protocol::DesktopAssetPreviewProtocolAdapterImpl,
     asset_storage_adapters::{
         LocalFilesystemAssetManagedContentStoreAdapterImpl,
         SqliteAssetIngestTransactionAdapterImpl, SqliteAssetRepositoryAdapterImpl,
@@ -41,6 +43,7 @@ use crate::{
         GenerationProviderCredentialId, GenerationProviderCredentialRepositoryInterface,
     },
     desktop_backend_config::{DesktopBackendConfig, GenerationProviderRouteConfig},
+    desktop_bridges::DesktopWorkflowMediaPreviewAdapterImpl,
     desktop_node_capability_asset_bridge::DesktopNodeCapabilityAssetBridgeAdapterImpl,
     provider_adapters::{
         ElevenLabsTextToSpeechProviderRouteImpl, ElevenLabsVoiceId,
@@ -52,6 +55,7 @@ pub(super) struct DesktopNodeCapabilityComposition {
     pub(super) registry: Arc<WorkflowNodeCapabilityRegistry>,
     pub(super) catalog: Arc<GenerationProfileCatalog>,
     pub(super) availability_reader: Arc<dyn GenerationProfileAvailabilityReaderInterface>,
+    pub(super) preview_issuer: Arc<DesktopWorkflowMediaPreviewAdapterImpl>,
 }
 
 pub(super) fn compose_node_capabilities(
@@ -61,7 +65,7 @@ pub(super) fn compose_node_capabilities(
     settings: Arc<SqliteDesktopBackendSettingsAdapterImpl>,
     config: &DesktopBackendConfig,
 ) -> Result<DesktopNodeCapabilityComposition, DesktopCompositionError> {
-    let bridge =
+    let assets =
         compose_asset_bridge(connection, managed_content_root, media_inspector_executable)?;
     let (text_to_image, image_to_video, text_to_speech) =
         compose_provider_routers(settings, &config.generation_provider_routes)?;
@@ -79,15 +83,15 @@ pub(super) fn compose_node_capabilities(
                 .map_err(|_| DesktopCompositionError::Business)?,
         ),
         Arc::new(
-            ReadImageAssetCapabilityImpl::try_new(bridge.clone())
+            ReadImageAssetCapabilityImpl::try_new(assets.bridge.clone())
                 .map_err(|_| DesktopCompositionError::Business)?,
         ),
         Arc::new(
-            ReadVideoAssetCapabilityImpl::try_new(bridge.clone())
+            ReadVideoAssetCapabilityImpl::try_new(assets.bridge.clone())
                 .map_err(|_| DesktopCompositionError::Business)?,
         ),
         Arc::new(
-            ReadAudioAssetCapabilityImpl::try_new(bridge.clone())
+            ReadAudioAssetCapabilityImpl::try_new(assets.bridge.clone())
                 .map_err(|_| DesktopCompositionError::Business)?,
         ),
         Arc::new(
@@ -95,7 +99,7 @@ pub(super) fn compose_node_capabilities(
                 catalog.clone(),
                 availability.clone(),
                 text_to_image,
-                bridge.clone(),
+                assets.bridge.clone(),
             )
             .map_err(|_| DesktopCompositionError::Business)?,
         ),
@@ -103,9 +107,9 @@ pub(super) fn compose_node_capabilities(
             ImageToVideoCapabilityImpl::try_new(
                 catalog.clone(),
                 availability.clone(),
-                bridge.clone(),
+                assets.bridge.clone(),
                 image_to_video,
-                bridge.clone(),
+                assets.bridge.clone(),
             )
             .map_err(|_| DesktopCompositionError::Business)?,
         ),
@@ -114,7 +118,7 @@ pub(super) fn compose_node_capabilities(
                 catalog.clone(),
                 availability.clone(),
                 text_to_speech,
-                bridge,
+                assets.bridge,
             )
             .map_err(|_| DesktopCompositionError::Business)?,
         ),
@@ -123,14 +127,24 @@ pub(super) fn compose_node_capabilities(
         WorkflowNodeCapabilityRegistry::try_new(implementations)
             .map_err(|_| DesktopCompositionError::Business)?,
     );
-    Ok(DesktopNodeCapabilityComposition { registry, catalog, availability_reader: availability })
+    Ok(DesktopNodeCapabilityComposition {
+        registry,
+        catalog,
+        availability_reader: availability,
+        preview_issuer: assets.preview_issuer,
+    })
+}
+
+struct DesktopAssetComposition {
+    bridge: Arc<DesktopNodeCapabilityAssetBridgeAdapterImpl>,
+    preview_issuer: Arc<DesktopWorkflowMediaPreviewAdapterImpl>,
 }
 
 fn compose_asset_bridge(
     connection: Arc<Mutex<Connection>>,
     managed_content_root: PathBuf,
     media_inspector_executable: PathBuf,
-) -> Result<Arc<DesktopNodeCapabilityAssetBridgeAdapterImpl>, DesktopCompositionError> {
+) -> Result<DesktopAssetComposition, DesktopCompositionError> {
     let repository: Arc<dyn AssetRepositoryInterface> = Arc::new(
         SqliteAssetRepositoryAdapterImpl::try_new(connection.clone())
             .map_err(|_| DesktopCompositionError::Business)?,
@@ -154,10 +168,26 @@ fn compose_asset_bridge(
         managed.clone(),
     ));
     let resolve = Arc::new(AssetResolveContentUseCase::new(repository.clone(), managed.clone()));
+    let get = Arc::new(AssetGetUseCase::new(repository.clone()));
+    let issue_preview = Arc::new(AssetIssuePreviewUseCase::new(
+        repository.clone(),
+        clock.clone(),
+        identities.clone(),
+    ));
+    let preview_protocol = Arc::new(
+        DesktopAssetPreviewProtocolAdapterImpl::try_new(get, resolve.clone(), clock.clone())
+            .map_err(|_| DesktopCompositionError::Business)?,
+    );
     let record = Arc::new(AssetRecordNodeOutputUseCase::new(
         repository, ingest, managed, inspector, clock, identities, finalizer,
     ));
-    Ok(Arc::new(DesktopNodeCapabilityAssetBridgeAdapterImpl::new(resolve, record)))
+    Ok(DesktopAssetComposition {
+        bridge: Arc::new(DesktopNodeCapabilityAssetBridgeAdapterImpl::new(resolve, record)),
+        preview_issuer: Arc::new(DesktopWorkflowMediaPreviewAdapterImpl::new(
+            issue_preview,
+            preview_protocol,
+        )),
+    })
 }
 
 type ProviderRouters = (

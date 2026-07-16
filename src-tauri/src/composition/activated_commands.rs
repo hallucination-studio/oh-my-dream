@@ -1,6 +1,12 @@
 use std::sync::{Arc, Mutex};
 
-use engine::workflow::WorkflowGetCurrentUseCase;
+use engine::node_capability::WorkflowNodeCapabilityRegistry;
+use engine::workflow::{
+    WorkflowApplyMutationUseCase, WorkflowCancelRunUseCase, WorkflowCheckReadinessUseCase,
+    WorkflowCreateUseCase, WorkflowExecutionCancellationRegistry, WorkflowGetCurrentUseCase,
+    WorkflowGetNodePresentationUseCase, WorkflowGetRunUseCase, WorkflowListRunEventsUseCase,
+    WorkflowStartRunUseCase,
+};
 use nodes::{GenerationProfileListForCapabilityUseCase, NodeCapabilityListUseCase};
 use projects::project::{
     application::{
@@ -15,15 +21,28 @@ use super::{DesktopApplicationPaths, DesktopCompositionError, node_capabilities}
 use crate::{
     backend_settings_adapter::SqliteDesktopBackendSettingsAdapterImpl,
     desktop_backend_config::DesktopBackendConfigRepositoryInterface,
-    desktop_bridges::DesktopProjectWorkflowBridgeAdapterImpl,
+    desktop_bridges::{
+        DesktopProjectWorkflowBridgeAdapterImpl, DesktopWorkflowMediaPreviewAdapterImpl,
+    },
     metadata_sqlite::{metadata_sqlite_path, open_metadata_sqlite},
     post_commit_effect::SqliteDesktopPostCommitEffectOutboxAdapterImpl,
     project_adapters::{
         SqliteProjectRepositoryAdapterImpl, SystemProjectClockAdapterImpl,
         UuidProjectIdentityGeneratorAdapterImpl,
     },
+    workflow_adapters::{
+        SystemWorkflowClockAdapterImpl, UuidV4WorkflowIdentityGeneratorAdapterImpl,
+    },
+    workflow_run_event_publisher::{
+        DesktopEventEmitterInterface, TauriWorkflowRunEventPublisherAdapterImpl,
+    },
     workflow_storage_adapters::SqliteWorkflowRunRepositoryAdapterImpl,
 };
+
+type WorkflowRepository = SqliteWorkflowRunRepositoryAdapterImpl;
+type WorkflowClock = SystemWorkflowClockAdapterImpl;
+type WorkflowIdentities = UuidV4WorkflowIdentityGeneratorAdapterImpl;
+type WorkflowPublisher = TauriWorkflowRunEventPublisherAdapterImpl;
 
 /// Typed dependencies for the currently activated command entry points.
 pub struct DesktopActivatedCommandDependencies {
@@ -39,13 +58,50 @@ pub struct DesktopActivatedCommandDependencies {
     pub open: Arc<ProjectOpenUseCase>,
     /// Exact-seven Node Capability list boundary.
     pub node_capability_list: Arc<NodeCapabilityListUseCase>,
+    /// Same immutable registry used for same-snapshot Workflow readiness projections.
+    pub node_capabilities: Arc<WorkflowNodeCapabilityRegistry>,
     /// Compatible Generation Profile list and availability boundary.
     pub generation_profile_list: Arc<GenerationProfileListForCapabilityUseCase>,
+    /// Idempotent current Workflow creation boundary.
+    pub workflow_create:
+        Arc<WorkflowCreateUseCase<WorkflowRepository, WorkflowClock, WorkflowIdentities>>,
+    /// Current Workflow query boundary.
+    pub workflow_get_current: Arc<WorkflowGetCurrentUseCase<WorkflowRepository>>,
+    /// Canonical ten-action mutation boundary.
+    pub workflow_apply_mutation:
+        Arc<WorkflowApplyMutationUseCase<WorkflowRepository, WorkflowClock>>,
+    /// Authoritative readiness boundary.
+    pub workflow_check_readiness: Arc<WorkflowCheckReadinessUseCase<WorkflowRepository>>,
+    /// Durable Run admission boundary.
+    pub workflow_start_run: Arc<
+        WorkflowStartRunUseCase<
+            WorkflowRepository,
+            WorkflowRepository,
+            WorkflowClock,
+            WorkflowIdentities,
+        >,
+    >,
+    /// Durable Run cancellation boundary.
+    pub workflow_cancel_run:
+        Arc<WorkflowCancelRunUseCase<WorkflowRepository, WorkflowClock, WorkflowPublisher>>,
+    /// Project-scoped Run query boundary.
+    pub workflow_get_run: Arc<WorkflowGetRunUseCase<WorkflowRepository>>,
+    /// Bounded durable Run event query boundary.
+    pub workflow_list_run_events: Arc<WorkflowListRunEventsUseCase<WorkflowRepository>>,
+    /// Current four-shell node presentation boundary.
+    pub workflow_get_node_presentation: Arc<
+        WorkflowGetNodePresentationUseCase<
+            WorkflowRepository,
+            WorkflowRepository,
+            DesktopWorkflowMediaPreviewAdapterImpl,
+        >,
+    >,
     _metadata_connection: Arc<Mutex<Connection>>,
 }
 
 pub(super) async fn compose(
     paths: DesktopApplicationPaths,
+    emitter: Arc<dyn DesktopEventEmitterInterface>,
 ) -> Result<DesktopActivatedCommandDependencies, DesktopCompositionError> {
     std::fs::create_dir_all(&paths.config_root).map_err(|_| DesktopCompositionError::Metadata)?;
     let connection = Arc::new(Mutex::new(
@@ -80,7 +136,7 @@ pub(super) async fn compose(
         SqliteProjectRepositoryAdapterImpl::try_new(connection.clone())
             .map_err(|_| DesktopCompositionError::Metadata)?,
     );
-    Ok(dependencies(connection, project_repository, workflow_repository, node_composition))
+    Ok(dependencies(connection, project_repository, workflow_repository, node_composition, emitter))
 }
 
 fn dependencies(
@@ -88,15 +144,20 @@ fn dependencies(
     repository: Arc<SqliteProjectRepositoryAdapterImpl>,
     workflow_repository: Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
     node_composition: node_capabilities::DesktopNodeCapabilityComposition,
+    emitter: Arc<dyn DesktopEventEmitterInterface>,
 ) -> DesktopActivatedCommandDependencies {
     let repository_interface: Arc<dyn ProjectRepositoryInterface> = repository;
     let clock = Arc::new(SystemProjectClockAdapterImpl);
-    let get_current = Arc::new(WorkflowGetCurrentUseCase::new(workflow_repository));
+    let get_current = Arc::new(WorkflowGetCurrentUseCase::new(workflow_repository.clone()));
     let summary: Arc<dyn ProjectWorkflowSummaryReaderInterface> =
         Arc::new(DesktopProjectWorkflowBridgeAdapterImpl::new(
             get_current,
             node_composition.registry.clone(),
         ));
+    let workflow_clock = Arc::new(SystemWorkflowClockAdapterImpl);
+    let workflow_identities = Arc::new(UuidV4WorkflowIdentityGeneratorAdapterImpl);
+    let workflow_publisher = Arc::new(TauriWorkflowRunEventPublisherAdapterImpl::new(emitter));
+    let cancellations = Arc::new(WorkflowExecutionCancellationRegistry::default());
     DesktopActivatedCommandDependencies {
         create: Arc::new(ProjectCreateUseCase::new(
             repository_interface.clone(),
@@ -110,10 +171,50 @@ fn dependencies(
         node_capability_list: Arc::new(NodeCapabilityListUseCase::new(
             node_composition.registry.clone(),
         )),
+        node_capabilities: node_composition.registry.clone(),
         generation_profile_list: Arc::new(GenerationProfileListForCapabilityUseCase::new(
-            node_composition.registry,
+            node_composition.registry.clone(),
             node_composition.catalog,
             node_composition.availability_reader,
+        )),
+        workflow_create: Arc::new(WorkflowCreateUseCase::new(
+            workflow_repository.clone(),
+            workflow_clock.clone(),
+            workflow_identities.clone(),
+            node_composition.registry.clone(),
+        )),
+        workflow_get_current: Arc::new(WorkflowGetCurrentUseCase::new(workflow_repository.clone())),
+        workflow_apply_mutation: Arc::new(WorkflowApplyMutationUseCase::new(
+            workflow_repository.clone(),
+            workflow_clock.clone(),
+            node_composition.registry.clone(),
+        )),
+        workflow_check_readiness: Arc::new(WorkflowCheckReadinessUseCase::new(
+            workflow_repository.clone(),
+            node_composition.registry.clone(),
+        )),
+        workflow_start_run: Arc::new(WorkflowStartRunUseCase::new(
+            workflow_repository.clone(),
+            workflow_repository.clone(),
+            workflow_clock.clone(),
+            workflow_identities,
+            node_composition.registry.clone(),
+        )),
+        workflow_cancel_run: Arc::new(WorkflowCancelRunUseCase::new(
+            workflow_repository.clone(),
+            workflow_clock,
+            workflow_publisher,
+            cancellations,
+        )),
+        workflow_get_run: Arc::new(WorkflowGetRunUseCase::new(workflow_repository.clone())),
+        workflow_list_run_events: Arc::new(WorkflowListRunEventsUseCase::new(
+            workflow_repository.clone(),
+        )),
+        workflow_get_node_presentation: Arc::new(WorkflowGetNodePresentationUseCase::new(
+            workflow_repository.clone(),
+            workflow_repository,
+            node_composition.preview_issuer,
+            node_composition.registry,
         )),
         _metadata_connection: connection,
     }

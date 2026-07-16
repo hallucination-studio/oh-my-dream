@@ -41,9 +41,13 @@ pub mod reviewed_change;
 pub mod state;
 pub mod workflow_adapters;
 pub mod workflow_authority;
+pub mod workflow_command_dto;
+pub mod workflow_commands;
+pub mod workflow_mutation_commands;
 pub mod workflow_patch_operation;
+pub mod workflow_presentation_dto;
+pub mod workflow_readiness_dto;
 mod workflow_repository;
-pub mod workflow_run_commands;
 pub mod workflow_run_dto;
 pub mod workflow_run_event_publisher;
 pub mod workflow_runs;
@@ -52,14 +56,17 @@ pub mod workspace_snapshot;
 
 use commands::{
     assets_root, assistant_decide_approval, assistant_get_pending_approval, assistant_send,
-    cancel_workflow_run, get_asset, get_assistant_config, get_capability_bundles,
-    get_capability_catalog, get_providers, list_assets, run_workflow, search_capabilities,
-    set_active_provider, set_assistant_config, set_provider_key, start_workflow_run,
-    workflow_apply_patch,
+    get_asset, get_assistant_config, get_capability_catalog, get_providers, list_assets,
+    set_active_provider, set_assistant_config, set_provider_key,
 };
 use node_capability_commands::{generation_profile_list_for_capability, node_capability_list};
 use project_commands::{project_create, project_get, project_list, project_open, project_rename};
 use tauri::Manager;
+use workflow_commands::{
+    workflow_cancel_run, workflow_check_readiness, workflow_create, workflow_get_current,
+    workflow_get_node_presentation, workflow_get_run, workflow_list_run_events, workflow_start_run,
+};
+use workflow_mutation_commands::workflow_apply_mutation;
 
 /// Runs the Tauri application.
 pub fn run() -> tauri::Result<()> {
@@ -72,9 +79,14 @@ pub fn run() -> tauri::Result<()> {
                 .app_data_dir()
                 .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
             let project_commands = tauri::async_runtime::block_on(
-                composition::DesktopCompositionRoot::compose_activated_commands(
+                composition::DesktopCompositionRoot::compose_activated_commands_with_emitter(
                     composition::DesktopApplicationPaths::from_application_data_root(
                         &app_data_root,
+                    ),
+                    std::sync::Arc::new(
+                        workflow_run_event_publisher::TauriAppHandleEventEmitterAdapterImpl::new(
+                            app.handle().clone(),
+                        ),
                     ),
                 ),
             )
@@ -86,12 +98,9 @@ pub fn run() -> tauri::Result<()> {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            run_workflow,
             assistant_send,
             assistant_get_pending_approval,
             assistant_decide_approval,
-            start_workflow_run,
-            cancel_workflow_run,
             list_assets,
             get_asset,
             assets_root,
@@ -102,13 +111,19 @@ pub fn run() -> tauri::Result<()> {
             project_open,
             node_capability_list,
             generation_profile_list_for_capability,
-            workflow_apply_patch,
+            workflow_create,
+            workflow_get_current,
+            workflow_apply_mutation,
+            workflow_check_readiness,
+            workflow_start_run,
+            workflow_cancel_run,
+            workflow_get_run,
+            workflow_list_run_events,
+            workflow_get_node_presentation,
             get_providers,
             set_active_provider,
             set_provider_key,
             get_capability_catalog,
-            search_capabilities,
-            get_capability_bundles,
             get_assistant_config,
             set_assistant_config,
         ])

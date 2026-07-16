@@ -2,16 +2,24 @@
 //
 // The App talks only to this interface, so switching backends is a one-line
 // change in `selectApi`. Method shapes mirror the src-tauri commands:
-// run_workflow / list_assets / get_asset / assets_root.
+// Canonical command slices plus the Asset and Assistant surfaces pending hard cut.
 
 import type {
-  NodeProgressEvent,
   PortType,
-  RunLifecycleStatus,
-  RunOutputs,
-  RunProgress,
   Workflow,
 } from "../workflow/types.ts";
+import type {
+  DurableWorkflowRunEventDto,
+  WorkflowDto,
+  WorkflowMutationActionDto,
+  WorkflowNodePresentationDto,
+  WorkflowReadinessDto,
+  WorkflowRunDto,
+  WorkflowRunEventPageDto,
+  WorkflowRunScopeDto,
+  WorkflowWithReadinessDto,
+} from "./workflowTypes.ts";
+export type * from "./workflowTypes.ts";
 
 export type AssetKind = "image" | "video" | "audio";
 export type AssetSort = "newest" | "oldest" | "cost_desc" | "cost_asc";
@@ -78,44 +86,6 @@ export interface WorkflowHead {
   project_id: string;
   revision: number;
   workflow: Workflow;
-}
-
-export type WorkflowNodeRef =
-  | { kind: "id"; id: string }
-  | { kind: "alias"; alias: string };
-
-export interface WorkflowPatchOutputRef {
-  node: WorkflowNodeRef;
-  output: string;
-}
-
-export type WorkflowPatchBinding =
-  | { kind: "single"; source: WorkflowPatchOutputRef }
-  | { kind: "ordered_many"; sources: WorkflowPatchOutputRef[] };
-
-export type WorkflowPatchOperation =
-  | {
-      op: "add_node";
-      alias: string;
-      capability: { id: string; version: string };
-      params: Record<string, unknown>;
-      position: [number, number] | null;
-    }
-  | { op: "replace_params"; node: WorkflowNodeRef; params: Record<string, unknown> }
-  | { op: "set_input"; node: WorkflowNodeRef; input: string; binding: WorkflowPatchBinding }
-  | { op: "clear_input"; node: WorkflowNodeRef; input: string }
-  | { op: "remove_node"; node: WorkflowNodeRef }
-  | { op: "set_position"; node: WorkflowNodeRef; position: [number, number] };
-
-export interface WorkflowApplyPatchInput {
-  expected_revision: number | null;
-  operations: WorkflowPatchOperation[];
-}
-
-export interface WorkflowReadinessBlocker {
-  code: string;
-  pointer: string;
-  constraint: string;
 }
 
 export type CapabilityRef = { id: string; version: string };
@@ -208,20 +178,9 @@ export interface CapabilityBundles {
   capabilities: CapabilityBundle[];
 }
 
-export interface WorkflowApplyPatchOutput {
-  workflow_head: WorkflowHead | null;
-  aliases: Array<{ alias: string; node_id: string }>;
-  readiness_blockers: WorkflowReadinessBlocker[];
-  changed: boolean;
-  deduplicated: boolean;
-  undo_id: string | null;
-}
-
 export interface ProjectWorkspace {
   project: Project;
   current_workflow_summary: ProjectWorkflowSummary | null;
-  /** Removed by V3 when the canonical Workflow command slice activates. */
-  workflow_head: WorkflowHead | null;
 }
 
 export type OpenProjectResult = ProjectWorkspace;
@@ -329,37 +288,7 @@ export interface ListAssetsOptions {
   sort?: AssetSort;
 }
 
-export type WorkflowRunEvent =
-  | { event: "started"; run_id: string; project_id: string }
-  | { event: "progress"; run_id: string; node: NodeProgressEvent };
-
-export type WorkflowRunResult =
-  | { status: "succeeded"; run_id: string; outputs: RunOutputs }
-  | { status: "cancelled"; run_id: string }
-  | { status: "failed"; run_id: string; reason: string };
-
-export type CancelWorkflowRunResult =
-  | { status: "requested"; run_id: string }
-  | { status: "not_active"; run_id: string };
-
-/** A handle allowing the caller to cancel an in-flight run. */
-export interface RunHandle {
-  runId: string;
-  cancel: () => void;
-}
-
-/**
- * Separates node progress from workflow lifecycle transitions.
- * Committed `done` or `cached` progress may arrive while cancellation is pending.
- */
-export interface RunObserver {
-  onProgress: (progress: RunProgress) => void;
-  onStatus: (status: RunLifecycleStatus) => void;
-}
-
 export interface WorkflowApi {
-  /** Runs a workflow, streaming node progress and lifecycle transitions to `observe`. */
-  runWorkflow: (workflow: Workflow, observe: RunObserver) => RunHandle;
   /** Returns the backend asset root when one exists. */
   assetsRoot: () => Promise<string | null>;
   /** Lists stored assets, optionally filtered by kind. */
@@ -375,13 +304,40 @@ export interface WorkflowApi {
   generationProfileListForCapability: (
     reference: CapabilityRef,
   ) => Promise<GenerationProfileForCapability[]>;
-  searchCapabilities: (request: CapabilitySearchRequest) => Promise<CapabilitySearchPage>;
-  getCapabilityBundles: (refs: CapabilityRef[]) => Promise<CapabilityBundles>;
-  applyWorkflowPatch: (
+  workflowCreate: (projectId: string) => Promise<WorkflowDto>;
+  workflowGetCurrent: (projectId: string) => Promise<WorkflowWithReadinessDto>;
+  workflowApplyMutation: (
     projectId: string,
-    requestId: string,
-    input: WorkflowApplyPatchInput,
-  ) => Promise<WorkflowApplyPatchOutput>;
+    workflowId: string,
+    baseRevision: string,
+    actions: WorkflowMutationActionDto[],
+  ) => Promise<WorkflowWithReadinessDto>;
+  workflowCheckReadiness: (
+    projectId: string,
+    workflowId: string,
+  ) => Promise<WorkflowReadinessDto>;
+  workflowStartRun: (
+    projectId: string,
+    workflowId: string,
+    workflowRevision: string,
+    scope: WorkflowRunScopeDto,
+  ) => Promise<WorkflowRunDto>;
+  workflowCancelRun: (projectId: string, workflowRunId: string) => Promise<WorkflowRunDto>;
+  workflowGetRun: (projectId: string, workflowRunId: string) => Promise<WorkflowRunDto>;
+  workflowListRunEvents: (
+    projectId: string,
+    workflowRunId: string,
+    afterSequence?: string | null,
+    limit?: number,
+  ) => Promise<WorkflowRunEventPageDto>;
+  observeWorkflowRunEvents: (
+    onEvent: (event: DurableWorkflowRunEventDto) => void,
+  ) => Promise<() => void>;
+  workflowGetNodePresentation: (
+    projectId: string,
+    workflowId: string,
+    nodeId: string,
+  ) => Promise<WorkflowNodePresentationDto>;
   getProviders: () => Promise<Provider[]>;
   setActiveProvider: (providerId: string) => Promise<void>;
   setProviderKey: (providerId: string, key: string) => Promise<void>;

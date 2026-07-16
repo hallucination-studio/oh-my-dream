@@ -8,7 +8,12 @@ pub enum DesktopErrorCode {
     ProjectRevisionConflict,
     ProjectMutationConflict,
     NodeCapabilityInvalidRequest,
+    WorkflowInvalidRequest,
+    WorkflowNotFound,
     WorkflowRevisionConflict,
+    WorkflowRunNotFound,
+    WorkflowNotReady,
+    WorkflowMutationConflict,
     ProviderUnavailable,
     AssistantProtocolViolation,
     StorageUnavailable,
@@ -43,7 +48,7 @@ pub struct DesktopErrorDto {
     pub code: &'static str,
     pub message: &'static str,
     pub retryable: bool,
-    pub retry_after_epoch_ms: Option<i64>,
+    pub retry_after_epoch_ms: Option<String>,
     pub target: Option<DesktopErrorTarget>,
     pub correlation_id: Option<String>,
 }
@@ -56,7 +61,10 @@ impl DesktopErrorDto {
             code,
             message,
             retryable: context.retryable,
-            retry_after_epoch_ms: context.retry_after_epoch_ms.filter(|value| *value >= 0),
+            retry_after_epoch_ms: context
+                .retry_after_epoch_ms
+                .filter(|value| *value >= 0)
+                .map(|value| value.to_string()),
             target: context.target,
             correlation_id: context.correlation_id.map(|value| value.to_string()),
         }
@@ -90,8 +98,21 @@ fn safe_error(code: DesktopErrorCode) -> (&'static str, &'static str) {
         DesktopErrorCode::NodeCapabilityInvalidRequest => {
             ("node_capability.invalid_request", "The Node Capability request was invalid.")
         }
+        DesktopErrorCode::WorkflowInvalidRequest => {
+            ("workflow.invalid_request", "The Workflow request was invalid.")
+        }
+        DesktopErrorCode::WorkflowNotFound => ("workflow.not_found", "The Workflow was not found."),
         DesktopErrorCode::WorkflowRevisionConflict => {
             ("workflow.revision_conflict", "The Workflow changed. Reload and try again.")
+        }
+        DesktopErrorCode::WorkflowRunNotFound => {
+            ("workflow_run.not_found", "The Workflow Run was not found.")
+        }
+        DesktopErrorCode::WorkflowNotReady => {
+            ("workflow.not_ready", "The Workflow is not ready to run.")
+        }
+        DesktopErrorCode::WorkflowMutationConflict => {
+            ("workflow.mutation_conflict", "The Workflow request conflicts with a prior request.")
         }
         DesktopErrorCode::ProviderUnavailable => {
             ("provider.unavailable", "The selected generation provider is unavailable.")

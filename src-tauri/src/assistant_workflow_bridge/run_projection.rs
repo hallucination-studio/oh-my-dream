@@ -105,7 +105,7 @@ fn run_failure(value: &WorkflowRunFailure) -> Value {
     }
 }
 
-fn block_reason(value: &WorkflowNodeExecutionBlockReason) -> Value {
+pub(crate) fn block_reason(value: &WorkflowNodeExecutionBlockReason) -> Value {
     match value {
         WorkflowNodeExecutionBlockReason::UpstreamNodeFailed { sorted_upstream_node_ids } => {
             json!({
@@ -119,7 +119,9 @@ fn block_reason(value: &WorkflowNodeExecutionBlockReason) -> Value {
     }
 }
 
-fn execution_failure(value: &engine::node_capability::NodeCapabilityExecutionError) -> Value {
+pub(crate) fn execution_failure(
+    value: &engine::node_capability::NodeCapabilityExecutionError,
+) -> Value {
     json!({
         "contract_ref": {
             "id": value.contract_ref().id().as_str(),

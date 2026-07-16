@@ -9,13 +9,16 @@ import openProjectFixture from "../__fixtures__/open_project.json";
 import nodeCapabilitiesFixture from "../__fixtures__/node_capabilities.json";
 import generationProfilesFixture from "../__fixtures__/generation_profiles.json";
 import projectFixture from "../__fixtures__/project.json";
-import runWorkflowFixture from "../__fixtures__/run_workflow_result.json";
+import workflowFixture from "../__fixtures__/workflow.json";
+import workflowRunFixture from "../__fixtures__/workflow_run.json";
+import workflowRunEventsFixture from "../__fixtures__/workflow_run_events.json";
 import {
   fixtureFingerprint,
   hasAssistantOperationsShape,
   hasTrustedContextInModelInputs,
   isAssistantOperationsFixture,
 } from "./assistantOperationContract.testHelpers.ts";
+import { isCatalogEntry } from "./capabilityContractValidators.ts";
 import type {
   AssetDto,
   AssistantConfig,
@@ -26,11 +29,13 @@ import type {
   OpenProjectResult,
   Project,
 } from "./types.ts";
-import type { NodeProgressEvent, RunOutput, RunOutputs } from "../workflow/types.ts";
+import type { NodeProgressEvent } from "../workflow/types.ts";
 
 describe("backend DTO fixtures", () => {
   it("match the frontend DTO contracts", () => {
-    expect(isRunOutputs(runWorkflowFixture.outputs)).toBe(true);
+    expect(workflowFixture.workflow.revision).toBe("1");
+    expect(workflowRunFixture.node_executions[0]?.state).toBe("pending");
+    expect(workflowRunEventsFixture.events[0]?.sequence).toBe("1");
     expect(isAsset(assetFixture)).toBe(true);
     expect(isProject(projectFixture)).toBe(true);
     expect(isOpenProject(openProjectFixture)).toBe(true);
@@ -284,22 +289,6 @@ function requiredRecord(value: unknown): Record<string, unknown> {
   return value;
 }
 
-function isRunOutputs(value: unknown): value is RunOutputs {
-  return isRecord(value) && Object.values(value).every(isNodeOutputs);
-}
-
-function isNodeOutputs(value: unknown): value is Record<string, RunOutput> {
-  return isRecord(value) && Object.values(value).every(isRunOutput);
-}
-
-function isRunOutput(value: unknown): value is RunOutput {
-  return (
-    isRecord(value) &&
-    isRunOutputKind(value.kind) &&
-    typeof value.value === "string"
-  );
-}
-
 function isAsset(value: unknown): value is AssetDto {
   return (
     isRecord(value) &&
@@ -361,75 +350,6 @@ function isCapabilityCatalog(value: unknown): value is CapabilityCatalog {
   return isRecord(value) && Array.isArray(value.capabilities) && value.capabilities.every(isCatalogEntry);
 }
 
-function isCatalogEntry(value: unknown): boolean {
-  if (!isRecord(value) || !isCapabilityContract(value.contract)) return false;
-  return isCapabilitySelector(value.selector) &&
-    isPresentation(value.presentation) &&
-    isCapabilityStatus(value.status);
-}
-
-function isCapabilitySelector(value: unknown): boolean {
-  return isRecord(value) && typeof value.type_id === "string" && typeof value.mode === "string";
-}
-
-function isCapabilityContract(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    isCapabilityRef(value.reference) &&
-    Array.isArray(value.inputs) &&
-    value.inputs.every(isCapabilityPort) &&
-    Array.isArray(value.outputs) &&
-    value.outputs.every(isCapabilityPort) &&
-    isRecord(value.params_schema) &&
-    (value.default_params === null || isRecord(value.default_params)) &&
-    (value.contextual_creation === null || isContextualCreation(value.contextual_creation)) &&
-    Array.isArray(value.effects) &&
-    value.effects.every(
-      (effect) => effect === "pure" || effect === "local_read" || effect === "external",
-    )
-  );
-}
-
-function isContextualCreation(value: unknown): boolean {
-  return isRecord(value) && typeof value.route === "string";
-}
-
-function isCapabilityRef(value: unknown): boolean {
-  return isRecord(value) && typeof value.id === "string" && typeof value.version === "string";
-}
-
-function isCapabilityPort(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.name === "string" &&
-    typeof value.port_type === "string" &&
-    (value.cardinality === "one" || isRecord(value.cardinality)) &&
-    typeof value.required === "boolean"
-  );
-}
-
-function isPresentation(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    typeof value.label === "string" &&
-    typeof value.description === "string" &&
-    typeof value.category === "string" &&
-    isStringArray(value.search_terms)
-  );
-}
-
-function isCapabilityStatus(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    (value.availability === "available" ||
-      value.availability === "unavailable" ||
-      value.availability === "degraded") &&
-    (value.reason === null || typeof value.reason === "string") &&
-    (value.provider_health === null || typeof value.provider_health === "string") &&
-    typeof value.status_revision === "number"
-  );
-}
-
 function isNodeProgressEvent(value: unknown): value is NodeProgressEvent {
   return (
     isRecord(value) &&
@@ -437,18 +357,6 @@ function isNodeProgressEvent(value: unknown): value is NodeProgressEvent {
     isNodeState(value.state) &&
     (value.progress === null || typeof value.progress === "number") &&
     (value.cost === null || typeof value.cost === "number")
-  );
-}
-
-function isRunOutputKind(value: unknown): value is RunOutput["kind"] {
-  return (
-    value === "image" ||
-    value === "video" ||
-    value === "audio" ||
-    value === "string" ||
-    value === "model" ||
-    value === "int" ||
-    value === "float"
   );
 }
 

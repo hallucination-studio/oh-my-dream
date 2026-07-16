@@ -1,28 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Background,
-  BackgroundVariant,
-  Controls,
-  MiniMap,
-  ReactFlow,
   useEdgesState,
   useNodesState,
   type Connection,
   type Edge,
   type Node,
 } from "@xyflow/react";
-import {
-  nodeSpecFromBundle,
-  nodeSpecsFromSnapshot,
-  paramsForMode,
-  recoveryNodeSpec,
-} from "./nodes/catalog.ts";
-import { WorkflowFlowNode, type FlowNodeData } from "./nodes/WorkflowFlowNode.tsx";
-import { WorkflowEdge } from "./nodes/WorkflowEdge.tsx";
+import { nodeSpecFromExactContract } from "./nodes/exactCapability.ts";
+import type { FlowNodeData } from "./nodes/WorkflowFlowNode.tsx";
 import { typeColor } from "./nodes/typeColor.ts";
 import { nextNodeId, upsertIncomingEdge } from "./workflow/editor.ts";
 import { isValidConnection } from "./workflow/validate.ts";
-import { api, type CapabilityRef, type Project } from "./api/index.ts";
+import {
+  api,
+  type CapabilityRef,
+  type NodeCapabilityContractDto,
+  type Project,
+} from "./api/index.ts";
 import type { RunStatus } from "./workflow/types.ts";
 import { TopBar } from "./components/TopBar.tsx";
 import { IconRail, type RailTab } from "./components/IconRail.tsx";
@@ -33,15 +27,14 @@ import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { AssetLibrary } from "./assets/AssetLibrary.tsx";
 import { useAssets } from "./assets/useAssets.ts";
 import { useRunProjection } from "./canvas/useRunProjection.ts";
+import { WorkflowCanvas } from "./canvas/WorkflowCanvas.tsx";
 import { useProjectWorkspace } from "./workflow/useProjectWorkspace.ts";
 import { useRunController } from "./workflow/useRunController.ts";
 import { AssistantDock } from "./assistant/AssistantDock.tsx";
+import { useAssistantAvailability } from "./assistant/useAssistantAvailability.ts";
 import { CloseFailureDialog } from "./components/CloseFailureDialog.tsx";
-import { CapabilityContractCache, useCapabilityCache } from "./workflow/contractCache.ts";
-import type { CapabilityCacheSnapshot } from "./workflow/contractCache.ts";
-
-const nodeTypes = { workflow: WorkflowFlowNode };
-const edgeTypes = { workflow: WorkflowEdge };
+import { parseCapabilityRef } from "./workflow/capabilitySelection.ts";
+import { useNodePresentation } from "./workflow/useNodePresentation.ts";
 
 function isGraphMutation(change: { type: string }): boolean {
   return change.type === "add" || change.type === "remove" || change.type === "replace" || change.type === "position";
@@ -56,21 +49,32 @@ export function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
-  const [assistantEnabled, setAssistantEnabled] = useState(false);
+  const {
+    assistantEnabled,
+    assistantOpen,
+    setAssistantOpen,
+    refreshAssistantEnabled,
+  } = useAssistantAvailability();
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
-  const capabilityCacheRef = useRef<CapabilityContractCache | null>(null);
-  if (capabilityCacheRef.current === null) {
-    capabilityCacheRef.current = new CapabilityContractCache(api);
-  }
-  const capabilityCache = capabilityCacheRef.current;
-  const capabilitySnapshot = useCapabilityCache(capabilityCache);
+  const [exactContracts, setExactContracts] = useState<NodeCapabilityContractDto[]>([]);
+  const exactSpecs = useMemo(
+    () => exactContracts.map(nodeSpecFromExactContract),
+    [exactContracts],
+  );
+  useEffect(() => {
+    let active = true;
+    void api.nodeCapabilityList().then((contracts) => {
+      if (active) setExactContracts(contracts);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const workflowForRunRef = useRef<import("./api/types.ts").WorkflowDto | null>(null);
   const { assets, error: assetError, refresh } = useAssets();
   const { applyProgress, reset: resetRun, settle } = useRunProjection(setNodes, setEdges);
-  const { cancel, invalidateRun, run: runWorkflow } = useRunController({
-    nodes,
-    edges,
-    projectId: project?.id ?? null,
+  const { cancel, invalidateRun, run: runCanonicalWorkflow } = useRunController({
+    getWorkflow: () => workflowForRunRef.current,
     setStatus,
     resetProjection: resetRun,
     applyProgress,
@@ -86,8 +90,6 @@ export function App() {
     discardAndClose,
     keepEditing,
     setParam,
-    replaceParams,
-    adoptWorkflowHead,
     workspaceState,
   } = useProjectWorkspace({
     project,
@@ -100,44 +102,34 @@ export function App() {
     setProjectsOpen,
     setStatus,
     invalidateRun,
-    capabilityCache,
   });
+  workflowForRunRef.current =
+    workspaceState.state === "ready" ? workspaceState.workflowHead : null;
+  useNodePresentation(workflowForRunRef.current, selectedId, setNodes);
   const run = useCallback(() => {
-    void runAfterBarrier("prepare_run", runWorkflow).catch((error: unknown) => {
+    void runAfterBarrier("prepare_run", runCanonicalWorkflow).catch((error: unknown) => {
       setStatus({ state: "failed", reason: String(error) });
     });
-  }, [runAfterBarrier, runWorkflow]);
-
-  // Reflect the assistant enable flag: the rail button and dock only appear
-  // when the assistant is enabled in settings. Re-read after settings closes.
-  const refreshAssistantEnabled = useCallback(() => {
-    void api
-      .getAssistantConfig()
-      .then((config) => setAssistantEnabled(config.enabled))
-      .catch(() => setAssistantEnabled(false));
-  }, []);
-  useEffect(refreshAssistantEnabled, [refreshAssistantEnabled]);
-  useEffect(() => {
-    if (!assistantEnabled && assistantOpen) {
-      setAssistantOpen(false);
-    }
-  }, [assistantEnabled, assistantOpen]);
+  }, [runAfterBarrier, runCanonicalWorkflow]);
 
   const addNode = useCallback(
     (requested: string | CapabilityRef, position?: { x: number; y: number }, contextualParams?: Record<string, unknown>) => {
       if (!canEdit) {
         return;
       }
-      const reference = resolveRequestedRef(requested, capabilitySnapshot);
-      void capabilityCache.load([reference]).then(() => {
-        if (!canEdit) return;
-        const bundle = capabilityCache.get(reference);
-        const spec = bundle
-          ? nodeSpecFromBundle(bundle)
-          : recoveryNodeSpec(reference, "exact capability bundle is unavailable");
-        if (spec.contract === null || spec.status.availability !== "available") return;
+      const reference = typeof requested === "string"
+        ? { id: requested, version: "1.0" }
+        : requested;
+      const spec = exactSpecs.find((candidate) =>
+        candidate.ref.id === reference.id && candidate.ref.version === reference.version
+      );
+      if (!spec || spec.status.availability !== "available") return;
         if (spec.contextualCreationRoute !== null && contextualParams === undefined) return;
-        const params = contextualParams ?? Object.fromEntries(spec.params.map((param) => [param.name, param.default]));
+        const params = contextualParams ?? Object.fromEntries(
+          spec.params.flatMap((param) =>
+            param.default === undefined ? [] : [[param.name, param.default]],
+          ),
+        );
         markWorkflowMutation();
         setNodes((current) => {
           const id = nextNodeId(current);
@@ -157,11 +149,8 @@ export function App() {
             },
           ];
         });
-      }).catch((error: unknown) => {
-        setStatus({ state: "failed", reason: String(error) });
-      });
     },
-    [canEdit, capabilityCache, capabilitySnapshot, markWorkflowMutation, setNodes, setParam, setStatus],
+    [canEdit, exactSpecs, markWorkflowMutation, setNodes, setParam],
   );
 
   const addAssetSource = useCallback((assetId: string, position?: { x: number; y: number }) => {
@@ -170,25 +159,25 @@ export function App() {
       setStatus({ state: "failed", reason: "Asset is unavailable in the current workspace" });
       return;
     }
-    const summary = capabilitySnapshot.summaries.find((candidate) =>
-      candidate.selector.type_id.toLowerCase() === asset.kind && candidate.selector.mode === "asset"
+    const contract = exactContracts.find(
+      (candidate) => candidate.capability_ref.id === `${asset.kind}.read_asset`,
     );
-    if (!summary) {
+    if (!contract) {
       setStatus({ state: "failed", reason: `This ${asset.kind} asset cannot be added right now` });
       return;
     }
-    addNode(summary.reference, position, { mode: "asset", asset_id: asset.id });
+    addNode(contract.capability_ref, position, { asset_id: asset.id });
     setSelectedAssetId(asset.id);
-  }, [addNode, assets, capabilitySnapshot.summaries]);
+  }, [addNode, assets, exactContracts]);
 
   useEffect(() => {
     const assetIndex = new Map(assets.map((asset) => [asset.id, asset]));
     setNodes((current) => current.map((node) => {
       const data = node.data as FlowNodeData;
-      if (data.capability?.selector?.mode !== "asset") return node;
+      if (!data.capability?.ref.id.endsWith(".read_asset")) return node;
       const assetId = typeof data.params.asset_id === "string" ? data.params.asset_id : "";
       const asset = assetIndex.get(assetId);
-      const kind = data.capability.selector?.type_id.toLowerCase() ?? "asset";
+      const kind = data.capability.ref.id.split(".")[0] ?? "asset";
       return {
         ...node,
         data: {
@@ -274,43 +263,14 @@ export function App() {
       assetPresentation: data.assetPresentation,
     };
   }, [nodes, selectedId]);
-  const [modeOptions, setModeOptions] = useState<ReturnType<typeof nodeSpecFromBundle>[]>([]);
-  useEffect(() => {
-    const typeId = selected?.capability?.selector?.type_id;
-    if (!typeId) {
-      setModeOptions([]);
-      return;
-    }
-    let cancelled = false;
-    void capabilityCache.loadModes(typeId).then((summaries) => {
-      if (cancelled) return;
-      setModeOptions(summaries.flatMap((summary) => {
-        const bundle = capabilityCache.get(summary.reference);
-        return bundle ? [nodeSpecFromBundle(bundle)] : [];
-      }));
-    }).catch((error: unknown) => {
-      if (!cancelled) setStatus({ state: "failed", reason: String(error) });
-    });
-    return () => { cancelled = true; };
-  }, [capabilityCache, selected?.capability?.selector?.type_id, setStatus]);
-
-  const changeMode = useCallback(async (mode: string) => {
-    if (!selected) return;
-    const spec = modeOptions.find((candidate) => candidate.selector?.mode === mode);
-    if (!spec) return;
-    try {
-      await replaceParams(selected.id, paramsForMode(spec, selected.params));
-    } catch (error: unknown) {
-      setStatus({ state: "failed", reason: String(error) });
-    }
-  }, [modeOptions, replaceParams, selected, setStatus]);
-
   const assistantContext = useCallback(
     () => ({
       project_id: project?.id ?? null,
       workflow_present: workspaceState.state === "ready" && workspaceState.workflowHead !== null,
       workflow_revision:
-        workspaceState.state === "ready" ? workspaceState.workflowHead?.revision ?? null : null,
+        workspaceState.state === "ready" && workspaceState.workflowHead
+          ? Number(workspaceState.workflowHead.revision)
+          : null,
       selected_node_ids: selected ? [selected.id] : [],
       selected_asset_ids: selectedAssetId ? [selectedAssetId] : [],
     }),
@@ -330,11 +290,6 @@ export function App() {
     },
     [addAssetSource, addNode],
   );
-  const searchCapabilities = useCallback(
-    (request: Parameters<CapabilityContractCache["search"]>[0]) => capabilityCache.search(request),
-    [capabilityCache],
-  );
-
   return (
     <div className="bench">
       <TopBar
@@ -368,9 +323,8 @@ export function App() {
         />
         {tab === "nodes" ? (
           <NodeLibrary
-            summaries={capabilitySnapshot.summaries}
-            loadedSpecs={nodeSpecsFromSnapshot(capabilitySnapshot)}
-            onSearch={searchCapabilities}
+            contracts={exactContracts}
+            loadedSpecs={exactSpecs}
             onAdd={(reference) => addNode(reference)}
             onOpenAssets={() => setTab("assets")}
           />
@@ -386,37 +340,22 @@ export function App() {
         )}
 
           <>
-            <div className="bench__canvas" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
-              <ReactFlow
+            <WorkflowCanvas
                 nodes={nodes}
                 edges={edges}
-                nodeTypes={nodeTypes}
-                edgeTypes={edgeTypes}
                 onNodesChange={handleNodesChange}
                 onEdgesChange={handleEdgesChange}
                 onConnect={onConnect}
-                onNodeClick={(_, node) => setSelectedId(node.id)}
-                onPaneClick={() => setSelectedId(null)}
-                defaultEdgeOptions={{ type: "workflow" }}
-                fitView
-              >
-                <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="transparent" />
-                <Controls showInteractive={false} />
-                <MiniMap
-                  pannable
-                  className="bench__minimap"
-                  bgColor="#f5f6fa"
-                  maskColor="rgba(20,22,29,0.06)"
-                  nodeColor="#c3c7d2"
-                  nodeStrokeWidth={0}
-                />
-              </ReactFlow>
-            </div>
+                onSelectNode={setSelectedId}
+                onDrop={onDrop}
+            />
             <InspectorPanel
               node={selected}
-              modeOptions={modeOptions}
-              onModeChange={changeMode}
+              modeOptions={[]}
               onParamChange={setParam}
+              onRunThroughNode={(nodeId) =>
+                void runAfterBarrier("prepare_run", () => runCanonicalWorkflow(nodeId))
+                  .catch((error: unknown) => setStatus({ state: "failed", reason: String(error) }))}
               onOpenAssets={() => {
                 const assetId = selected?.params.asset_id;
                 if (typeof assetId === "string") setSelectedAssetId(assetId);
@@ -429,7 +368,6 @@ export function App() {
             key={project?.id ?? "no-project"}
             onClose={() => setAssistantOpen(false)}
             getContext={assistantContext}
-            onWorkflowHead={adoptWorkflowHead}
             beforeSend={(restoreFocus) =>
               runAfterBarrier("assistant_turn", () => undefined, restoreFocus)
             }
@@ -453,31 +391,4 @@ export function App() {
       )}
     </div>
   );
-}
-
-function resolveRequestedRef(requested: string | CapabilityRef, snapshot: CapabilityCacheSnapshot): CapabilityRef {
-  if (typeof requested !== "string") return requested;
-  const summary = snapshot.summaries.find((candidate) => candidate.reference.id === requested);
-  if (summary) return summary.reference;
-  const loaded = [...snapshot.bundles.values()].find((bundle) => bundle.reference.id === requested);
-  return loaded?.reference ?? { id: requested, version: "1.0" };
-}
-
-function parseCapabilityRef(encoded: string): string | CapabilityRef {
-  try {
-    const value: unknown = JSON.parse(encoded);
-    if (
-      typeof value === "object" &&
-      value !== null &&
-      "id" in value &&
-      "version" in value &&
-      typeof value.id === "string" &&
-      typeof value.version === "string"
-    ) {
-      return { id: value.id, version: value.version };
-    }
-  } catch {
-    // Older drag payloads contained only the type id.
-  }
-  return encoded;
 }

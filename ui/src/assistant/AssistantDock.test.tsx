@@ -249,7 +249,6 @@ describe("AssistantDock", () => {
 
 function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
   return {
-    runWorkflow: vi.fn(),
     assetsRoot: vi.fn(),
     listAssets: vi.fn(),
     getAsset: vi.fn(),
@@ -260,9 +259,16 @@ function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
     openProject: vi.fn(),
     nodeCapabilityList: vi.fn(),
     generationProfileListForCapability: vi.fn(),
-    searchCapabilities: vi.fn(),
-    getCapabilityBundles: vi.fn(),
-    applyWorkflowPatch: vi.fn(),
+    workflowCreate: vi.fn(),
+    workflowGetCurrent: vi.fn(),
+    workflowApplyMutation: vi.fn(),
+    workflowCheckReadiness: vi.fn(),
+    workflowStartRun: vi.fn(),
+    workflowCancelRun: vi.fn(),
+    workflowGetRun: vi.fn(),
+    workflowListRunEvents: vi.fn(),
+    observeWorkflowRunEvents: vi.fn(),
+    workflowGetNodePresentation: vi.fn(),
     getProviders: vi.fn(),
     setActiveProvider: vi.fn(),
     setProviderKey: vi.fn(),

@@ -11,8 +11,7 @@ use crate::node_capability::{
 };
 use crate::workflow_graph::{
     WorkflowAggregate, WorkflowAggregateRestoreData, WorkflowApplyMutationCommand,
-    WorkflowCreatedAt, WorkflowId, WorkflowMutationReceipt, WorkflowSchemaVersion,
-    WorkflowUpdatedAt,
+    WorkflowCreatedAt, WorkflowMutationReceipt, WorkflowSchemaVersion, WorkflowUpdatedAt,
 };
 
 use super::{
@@ -186,33 +185,6 @@ impl<R: WorkflowAggregateRepositoryInterface> WorkflowGetCurrentUseCase<R> {
     }
 }
 
-/// Computes structural and capability-owned external readiness.
-pub struct WorkflowCheckReadinessUseCase<R> {
-    repository: Arc<R>,
-    capabilities: Arc<WorkflowNodeCapabilityRegistry>,
-}
-
-impl<R: WorkflowAggregateRepositoryInterface> WorkflowCheckReadinessUseCase<R> {
-    /// Wires the Workflow repository and immutable exact capability registry.
-    #[must_use]
-    pub fn new(repository: Arc<R>, capabilities: Arc<WorkflowNodeCapabilityRegistry>) -> Self {
-        Self { repository, capabilities }
-    }
-    /// Loads one Workflow and evaluates all nodes against one shared five-second deadline.
-    pub async fn check_workflow_readiness(
-        &self,
-        workflow_id: WorkflowId,
-    ) -> Result<WorkflowReadinessResult, WorkflowApplicationError> {
-        let key = WorkflowLoadKey::Workflow(workflow_id);
-        let workflow = self
-            .repository
-            .load_workflow(key)
-            .await?
-            .ok_or(WorkflowApplicationError::WorkflowNotFound { key })?;
-        check_readiness(&workflow, &self.capabilities).await
-    }
-}
-
 /// Applies all ten-action mutations through one idempotent revision compare-and-swap.
 pub struct WorkflowApplyMutationUseCase<R, C> {
     repository: Arc<R>,
@@ -239,6 +211,23 @@ where
         &self,
         command: WorkflowApplyMutationCommand,
     ) -> Result<WorkflowMutationResult, WorkflowApplicationError> {
+        self.apply_workflow_mutation_internal(None, command).await
+    }
+
+    /// Applies a mutation only when its Workflow belongs to the trusted Project.
+    pub async fn apply_project_workflow_mutation(
+        &self,
+        project_id: ProjectId,
+        command: WorkflowApplyMutationCommand,
+    ) -> Result<WorkflowMutationResult, WorkflowApplicationError> {
+        self.apply_workflow_mutation_internal(Some(project_id), command).await
+    }
+
+    async fn apply_workflow_mutation_internal(
+        &self,
+        project_id: Option<ProjectId>,
+        command: WorkflowApplyMutationCommand,
+    ) -> Result<WorkflowMutationResult, WorkflowApplicationError> {
         if let Some(receipt) =
             self.repository.load_workflow_mutation_receipt(command.request_id()).await?
         {
@@ -251,6 +240,11 @@ where
                     other => WorkflowApplicationError::WorkflowGraph(other),
                 })?
                 .clone();
+            if project_id.is_some_and(|id| workflow.project_id != id) {
+                return Err(WorkflowApplicationError::WorkflowNotFound {
+                    key: WorkflowLoadKey::Workflow(command.workflow_id()),
+                });
+            }
             let readiness = check_readiness(&workflow, &self.capabilities).await?;
             return Ok(WorkflowMutationResult { workflow, readiness });
         }
@@ -259,6 +253,7 @@ where
             .repository
             .load_workflow(key)
             .await?
+            .filter(|workflow| project_id.is_none_or(|id| workflow.project_id == id))
             .ok_or(WorkflowApplicationError::WorkflowNotFound { key })?;
         if current.revision != command.base_revision() {
             return Err(WorkflowApplicationError::WorkflowRevisionConflict);

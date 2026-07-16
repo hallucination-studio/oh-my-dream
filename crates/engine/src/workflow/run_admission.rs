@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use projects::project::domain::ProjectId;
 use sha2::{Digest, Sha256};
 
 use crate::node_capability::{WorkflowNodeCapabilityRegistry, WorkflowRunId};
@@ -147,7 +148,24 @@ where
         &self,
         command: WorkflowStartRunCommand,
     ) -> Result<WorkflowRunAggregate, WorkflowApplicationError> {
-        let workflow = self.load_workflow(command.workflow_id()).await?;
+        self.start_workflow_run_internal(None, command).await
+    }
+
+    /// Admits a Run only when its Workflow belongs to the trusted Project.
+    pub async fn start_project_workflow_run(
+        &self,
+        project_id: ProjectId,
+        command: WorkflowStartRunCommand,
+    ) -> Result<WorkflowRunAggregate, WorkflowApplicationError> {
+        self.start_workflow_run_internal(Some(project_id), command).await
+    }
+
+    async fn start_workflow_run_internal(
+        &self,
+        project_id: Option<ProjectId>,
+        command: WorkflowStartRunCommand,
+    ) -> Result<WorkflowRunAggregate, WorkflowApplicationError> {
+        let workflow = self.load_workflow(project_id, command.workflow_id()).await?;
         if let Some(receipt) = self
             .run_repository
             .load_workflow_run_admission_receipt(command.run_request_id())
@@ -193,6 +211,7 @@ where
 
     async fn load_workflow(
         &self,
+        project_id: Option<ProjectId>,
         workflow_id: WorkflowId,
     ) -> Result<WorkflowAggregate, WorkflowApplicationError> {
         let key = WorkflowLoadKey::Workflow(workflow_id);
@@ -200,6 +219,7 @@ where
             .workflow_repository
             .load_workflow(key)
             .await?
+            .filter(|workflow| project_id.is_none_or(|id| workflow.project_id == id))
             .ok_or(WorkflowApplicationError::WorkflowNotFound { key })?;
         Ok(workflow)
     }

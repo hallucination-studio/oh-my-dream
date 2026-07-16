@@ -308,9 +308,30 @@ where
         &self,
         run_id: WorkflowRunId,
     ) -> Result<WorkflowRunAggregate, WorkflowApplicationError> {
+        self.cancel_workflow_run_internal(WorkflowRunLoadKey::Run(run_id), run_id).await
+    }
+
+    /// Cancels a Run only through its trusted owning Project.
+    pub async fn cancel_project_workflow_run(
+        &self,
+        project_id: projects::project::domain::ProjectId,
+        run_id: WorkflowRunId,
+    ) -> Result<WorkflowRunAggregate, WorkflowApplicationError> {
+        self.cancel_workflow_run_internal(
+            WorkflowRunLoadKey::ProjectScoped { project_id, workflow_run_id: run_id },
+            run_id,
+        )
+        .await
+    }
+
+    async fn cancel_workflow_run_internal(
+        &self,
+        key: WorkflowRunLoadKey,
+        run_id: WorkflowRunId,
+    ) -> Result<WorkflowRunAggregate, WorkflowApplicationError> {
         let mut run = self
             .repository
-            .load_workflow_run(WorkflowRunLoadKey::Run(run_id))
+            .load_workflow_run(key)
             .await?
             .ok_or(WorkflowApplicationError::WorkflowRunNotFound)?;
         if run.state() == WorkflowRunState::Cancelled {

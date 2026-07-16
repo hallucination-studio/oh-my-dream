@@ -1,207 +1,92 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api/index.ts";
-import type { RunObserver } from "./api/types.ts";
-import { App } from "./App.tsx";
-import { selectProject, workspace } from "./test/appFixtures.ts";
+import type { DurableWorkflowRunEventDto, WorkflowDto } from "./api/types.ts";
+import { useRunController } from "./workflow/useRunController.ts";
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+const PROJECT_ID = "10000000-0000-4000-8000-000000000001";
+const WORKFLOW_ID = "20000000-0000-4000-8000-000000000001";
+const NODE_ID = "30000000-0000-4000-8000-000000000001";
+const RUN_ID = "40000000-0000-4000-8000-000000000001";
+const EXECUTION_ID = "50000000-0000-4000-8000-000000000001";
 
-it("keeps a new project run active when the previous run reports a late terminal state", async () => {
-  const alpha = workspace("alpha", "Alpha", "alpha prompt");
-  const beta = workspace("beta", "Beta", "beta prompt");
-  vi.spyOn(api, "listProjects").mockResolvedValue([alpha.project, beta.project]);
-  vi.spyOn(api, "openProject").mockImplementation(async (id) => (id === "beta" ? beta : alpha));
-  const alphaCancel = vi.fn();
-  const betaCancel = vi.fn();
-  const observers: RunObserver[] = [];
-  vi.spyOn(api, "runWorkflow").mockImplementation((_workflow, next) => {
-    observers.push(next);
-    const alphaRun = observers.length === 1;
-    return {
-      runId: alphaRun ? "alpha-run" : "beta-run",
-      cancel: alphaRun ? alphaCancel : betaCancel,
-    };
-  });
+afterEach(() => vi.restoreAllMocks());
 
-  render(<App />);
-  await selectProject("No project", "Alpha");
-  await screen.findByDisplayValue("alpha prompt");
-  await startRun();
-  await selectProject("Alpha", "Beta");
-  await waitFor(() => expect(screen.getByDisplayValue("beta prompt")).toBeTruthy());
-
-  expect(alphaCancel).toHaveBeenCalledTimes(1);
-  await startRun();
-  act(() => observers[0]?.onStatus({ state: "cancelled" }));
-
-  expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
-  expect(runState()).toContain("Running");
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  expect(betaCancel).toHaveBeenCalledTimes(1);
-});
-
-it("cancels the active run and clears its projection when the workflow is edited", async () => {
-  const alpha = workspace("alpha", "Alpha", "alpha prompt");
-  vi.spyOn(api, "listProjects").mockResolvedValue([alpha.project]);
-  vi.spyOn(api, "openProject").mockResolvedValue(alpha);
-  const cancel = vi.fn();
-  let observe: RunObserver | null = null;
-  vi.spyOn(api, "runWorkflow").mockImplementation((_workflow, next) => {
-    observe = next;
-    return { runId: "alpha-run", cancel };
-  });
-
-  render(<App />);
-  await selectProject("No project", "Alpha");
-  const prompt = await screen.findByDisplayValue("alpha prompt");
-  await startRun();
-  act(() => {
-    const runObserver = observe as RunObserver | null;
-    runObserver?.onProgress({
-      nodeId: "alpha-prompt",
-      progress: 0.5,
-      nodeState: "running",
+describe("canonical Workflow Run event repair", () => {
+  it("deduplicates events and repairs a sequence gap through the bounded query", async () => {
+    let observe: ((event: DurableWorkflowRunEventDto) => void) | null = null;
+    vi.spyOn(api, "observeWorkflowRunEvents").mockImplementation(async (next) => {
+      observe = next;
+      return () => undefined;
     });
-  });
-  expect(document.querySelector(".wf-node.is-running")).not.toBeNull();
-
-  fireEvent.change(prompt, { target: { value: "edited during run" } });
-
-  expect(cancel).toHaveBeenCalledTimes(1);
-  expect(document.querySelector(".wf-node.is-idle")).not.toBeNull();
-  expect(runState()).not.toContain("Running");
-
-  act(() => observe?.onStatus({
-    state: "succeeded",
-    outputs: { "alpha-prompt": { text: { kind: "string", value: "stale" } } },
-  }));
-  expect(document.querySelector(".wf-node.is-done")).toBeNull();
-  expect(runState()).not.toContain("Done");
-});
-
-it("clears a completed run projection when the workflow is edited", async () => {
-  const alpha = workspace("alpha", "Alpha", "alpha prompt");
-  vi.spyOn(api, "listProjects").mockResolvedValue([alpha.project]);
-  vi.spyOn(api, "openProject").mockResolvedValue(alpha);
-  const cancel = vi.fn();
-  let observe: RunObserver | null = null;
-  vi.spyOn(api, "runWorkflow").mockImplementation((_workflow, next) => {
-    observe = next;
-    return { runId: "alpha-run", cancel };
-  });
-
-  render(<App />);
-  await selectProject("No project", "Alpha");
-  const prompt = await screen.findByDisplayValue("alpha prompt");
-  await startRun();
-  act(() => {
-    const runObserver = observe as RunObserver | null;
-    runObserver?.onStatus({
-      state: "succeeded",
-      outputs: { "alpha-prompt": { text: { kind: "string", value: "result" } } },
+    vi.spyOn(api, "workflowStartRun").mockResolvedValue({
+      workflow_run_id: RUN_ID,
+      project_id: PROJECT_ID,
+      workflow_id: WORKFLOW_ID,
+      workflow_revision: "1",
+      scope: { kind: "whole_workflow" },
+      state: "queued",
+      created_at_epoch_ms: "1",
+      updated_at_epoch_ms: "1",
+      node_executions: [{
+        node_id: NODE_ID,
+        node_execution_id: EXECUTION_ID,
+        state: "pending",
+        progress_basis_points: null,
+      }],
     });
+    const list = vi.spyOn(api, "workflowListRunEvents")
+      .mockResolvedValueOnce({ events: [], next_sequence: null })
+      .mockResolvedValueOnce({ events: [event("2", "node_started")], next_sequence: null });
+    const applyProgress = vi.fn();
+    const setStatus = vi.fn();
+    const view = renderHook(() => useRunController({
+      getWorkflow: () => workflow(),
+      setStatus,
+      resetProjection: vi.fn(),
+      applyProgress,
+      settleProjection: vi.fn(),
+      onSucceeded: vi.fn(),
+    }));
+
+    await act(() => view.result.current.run());
+    act(() => {
+      observe?.(event("1", "run_queued"));
+      observe?.(event("3", "node_progressed", 5000));
+      observe?.(event("3", "node_progressed", 5000));
+    });
+
+    await waitFor(() => expect(list).toHaveBeenCalledWith(PROJECT_ID, RUN_ID, "1", 500));
+    await waitFor(() => expect(applyProgress).toHaveBeenCalledTimes(2));
   });
-  expect(document.querySelector(".wf-node.is-done")).not.toBeNull();
-
-  fireEvent.change(prompt, { target: { value: "edited after run" } });
-
-  expect(cancel).not.toHaveBeenCalled();
-  expect(document.querySelector(".wf-node.is-idle")).not.toBeNull();
-  expect(runState()).not.toContain("Done");
 });
 
-it("cancels the active run before unmounting", async () => {
-  const alpha = workspace("alpha", "Alpha", "alpha prompt");
-  vi.spyOn(api, "listProjects").mockResolvedValue([alpha.project]);
-  vi.spyOn(api, "openProject").mockResolvedValue(alpha);
-  const cancel = vi.fn();
-  vi.spyOn(api, "runWorkflow").mockReturnValue({ runId: "alpha-run", cancel });
-  const view = render(<App />);
-  await selectProject("No project", "Alpha");
-  await screen.findByDisplayValue("alpha prompt");
-  await startRun();
-
-  view.unmount();
-
-  expect(cancel).toHaveBeenCalledTimes(1);
-});
-
-it("shows cancelling until the run reports an authoritative terminal state", async () => {
-  const alpha = workspace("alpha", "Alpha", "alpha prompt");
-  vi.spyOn(api, "listProjects").mockResolvedValue([alpha.project]);
-  vi.spyOn(api, "openProject").mockResolvedValue(alpha);
-  let observe: RunObserver | null = null;
-  const cancel = vi.fn(() => observe?.onStatus({ state: "cancelling" }));
-  vi.spyOn(api, "runWorkflow").mockImplementation((_workflow, next) => {
-    observe = next;
-    return { runId: "alpha-run", cancel };
-  });
-
-  render(<App />);
-  await selectProject("No project", "Alpha");
-  await screen.findByDisplayValue("alpha prompt");
-  await startRun();
-  act(() => observe?.onProgress({
-    nodeId: "alpha-prompt",
-    progress: 0.5,
-    nodeState: "running",
-  }));
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-  expect(cancel).toHaveBeenCalledTimes(1);
-  expect(document.querySelector(".wf-node.is-running")).not.toBeNull();
-  expect((screen.getByRole("button", { name: "Cancelling…" }) as HTMLButtonElement).disabled)
-    .toBe(true);
-  expect(runState()).toContain("Cancelling");
-
-  act(() => observe?.onProgress({
-    nodeId: "alpha-prompt",
-    progress: 1,
-    nodeState: "done",
-    cost: 7,
-  }));
-  expect(document.querySelector(".wf-node.is-done")).not.toBeNull();
-  expect(runState()).toContain("Cancelling");
-
-  act(() => observe?.onStatus({ state: "cancelled" }));
-
-  expect(screen.getByRole("button", { name: "Run" })).toBeTruthy();
-  expect(document.querySelector(".wf-node.is-done")).not.toBeNull();
-  expect(screen.getByRole("status").textContent).toContain("Cancelled");
-});
-
-it("keeps the active run cancellable after a cancellation request fails", async () => {
-  const alpha = workspace("alpha", "Alpha", "alpha prompt");
-  vi.spyOn(api, "listProjects").mockResolvedValue([alpha.project]);
-  vi.spyOn(api, "openProject").mockResolvedValue(alpha);
-  let observe: RunObserver | null = null;
-  const cancel = vi.fn(() => {
-    observe?.onStatus({ state: "cancel_failed", reason: "cancel transport failed" });
-  });
-  vi.spyOn(api, "runWorkflow").mockImplementation((_workflow, next) => {
-    observe = next;
-    return { runId: "alpha-run", cancel };
-  });
-
-  render(<App />);
-  await selectProject("No project", "Alpha");
-  await screen.findByDisplayValue("alpha prompt");
-  await startRun();
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-  expect(screen.getByRole("status").textContent).toContain("Cancel request failed");
-  fireEvent.click(screen.getByRole("button", { name: "Retry Cancel" }));
-  expect(cancel).toHaveBeenCalledTimes(2);
-});
-
-function runState(): string {
-  return document.querySelector(".topbar__state")?.textContent ?? "";
+function event(
+  sequence: string,
+  type: string,
+  progress_basis_points?: number,
+): DurableWorkflowRunEventDto {
+  return {
+    workflow_run_id: RUN_ID,
+    sequence,
+    occurred_at_epoch_ms: sequence,
+    payload: {
+      type,
+      ...(type.startsWith("node_") ? { node_execution_id: EXECUTION_ID } : {}),
+      ...(progress_basis_points === undefined ? {} : { progress_basis_points }),
+    },
+  };
 }
 
-async function startRun(): Promise<void> {
-  fireEvent.click(screen.getByRole("button", { name: "Run" }));
-  await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy());
+function workflow(): WorkflowDto {
+  return {
+    schema_version: 1,
+    workflow_id: WORKFLOW_ID,
+    project_id: PROJECT_ID,
+    revision: "1",
+    created_at_epoch_ms: "1",
+    updated_at_epoch_ms: "1",
+    nodes: [],
+    input_bindings: [],
+  };
 }

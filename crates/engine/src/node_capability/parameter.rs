@@ -246,7 +246,8 @@ impl NodeCapabilityParameterSet {
         bytes
     }
 
-    pub(crate) fn iter(
+    /// Iterates parameter entries in ascending capability-owned key order.
+    pub fn iter(
         &self,
     ) -> impl Iterator<Item = (&NodeCapabilityParameterKey, &NodeCapabilityParameterValue)> {
         self.0.iter()

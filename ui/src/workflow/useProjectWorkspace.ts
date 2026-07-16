@@ -5,28 +5,30 @@ import {
   api,
   type Project,
   type ProjectWorkspace,
-  type WorkflowHead,
+  type NodeCapabilityContractDto,
+  type WorkflowDto,
 } from "../api/index.ts";
 import type { FlowNodeData } from "../nodes/WorkflowFlowNode.tsx";
 import { fromWorkflow } from "./editor.ts";
-import { CapabilityContractCache } from "./contractCache.ts";
+import { canonicalToEditorWorkflow } from "./canonical.ts";
+import { nodeSpecFromExactContract } from "../nodes/exactCapability.ts";
 import { toWorkflow } from "./serialize.ts";
 import type { RunStatus } from "./types.ts";
 import { useWorkflowPersistence } from "./useWorkflowPersistence.ts";
 import {
-  WorkspaceController,
+  CanonicalWorkspaceController,
   type WorkspaceBarrierReason,
-} from "./workspaceController.ts";
+} from "./canonicalWorkspaceController.ts";
 
 export type ProjectWorkspaceState =
   | { state: "booting" }
   | { state: "no_project" }
-  | { state: "opening"; project: Project | null; workflowHead: WorkflowHead | null }
-  | { state: "ready"; project: Project; workflowHead: WorkflowHead | null }
+  | { state: "opening"; project: Project | null; workflowHead: WorkflowDto | null }
+  | { state: "ready"; project: Project; workflowHead: WorkflowDto | null }
   | {
       state: "blocked";
       project: Project | null;
-      workflowHead: WorkflowHead | null;
+      workflowHead: WorkflowDto | null;
       reason: string;
     };
 
@@ -41,11 +43,10 @@ export interface ProjectWorkspaceOptions {
   setProjectsOpen: Dispatch<SetStateAction<boolean>>;
   setStatus: Dispatch<SetStateAction<RunStatus>>;
   invalidateRun: () => void;
-  capabilityCache: CapabilityContractCache;
 }
 
 export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
-  const { project, nodes, edges, setNodes, setStatus, invalidateRun, capabilityCache } = options;
+  const { project, nodes, edges, setNodes, setStatus, invalidateRun } = options;
   const [workspaceState, setWorkspaceState] = useState<ProjectWorkspaceState>({
     state: "booting",
   });
@@ -53,28 +54,22 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
   const projectRef = useRef(project);
   const workspaceStateRef = useRef(workspaceState);
   const unassignedDraft = useRef(false);
-  const projectHeadRef = useRef<(head: WorkflowHead) => void>(() => undefined);
+  const workflowChangedRef = useRef<(workflow: WorkflowDto) => void>(() => undefined);
+  const contractsRef = useRef<NodeCapabilityContractDto[]>([]);
   const markPersistedRef = useRef<(workflow: ReturnType<typeof toWorkflow>) => void>(
     () => undefined,
   );
-  const controllerRef = useRef<WorkspaceController | null>(null);
+  const controllerRef = useRef<CanonicalWorkspaceController | null>(null);
   if (controllerRef.current === null) {
-    controllerRef.current = new WorkspaceController({
-      applyPatch: api.applyWorkflowPatch,
-      projectHead: (head) => projectHeadRef.current(head),
+    controllerRef.current = new CanonicalWorkspaceController({
+      applyMutation: api.workflowApplyMutation,
+      workflowChanged: (workflow) => workflowChangedRef.current(workflow),
+      contracts: () => contractsRef.current,
     });
   }
   const controller = controllerRef.current;
   projectRef.current = project;
   workspaceStateRef.current = workspaceState;
-
-  const adoptWorkflowHead = useCallback(
-    async (head: WorkflowHead) => {
-      await capabilityCache.loadWorkflow(head.workflow.nodes);
-      controller.adoptHead(head);
-    },
-    [capabilityCache, controller],
-  );
 
   const markWorkflowMutation = useCallback(() => {
     if (!projectRef.current) {
@@ -112,19 +107,15 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
     [setStatus],
   );
   const persistence = useWorkflowPersistence(activeWorkflow, controller, onPersistenceError);
-  const replaceParams = useCallback(
-    async (nodeId: string, params: Record<string, unknown>) => {
-      await persistence.saveCurrent();
-      await controller.enqueue([
-        { op: "replace_params", node: { kind: "id", id: nodeId }, params },
-      ]);
-    },
-    [controller, persistence],
-  );
   markPersistedRef.current = persistence.markPersisted;
-  projectHeadRef.current = (head) => {
-    const graph = fromWorkflow(head.workflow, setParam, capabilityCache.snapshot());
-    const normalized = toWorkflow(graph.nodes, graph.edges, head.project_id);
+  workflowChangedRef.current = (workflow) => {
+    const editorWorkflow = canonicalToEditorWorkflow(workflow);
+    const graph = fromWorkflow(
+      editorWorkflow,
+      setParam,
+      contractsRef.current.map(nodeSpecFromExactContract),
+    );
+    const normalized = toWorkflow(graph.nodes, graph.edges, workflow.project_id);
     markPersistedRef.current(normalized);
     setNodes(graph.nodes);
     options.setEdges(graph.edges);
@@ -133,8 +124,8 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
     );
     setWorkspaceState((current) => {
       const currentProject = projectOf(current);
-      return currentProject?.id === head.project_id
-        ? { state: "ready", project: currentProject, workflowHead: head }
+      return currentProject?.id === workflow.project_id
+        ? { state: "ready", project: currentProject, workflowHead: workflow }
         : current;
     });
   };
@@ -146,7 +137,7 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
     controller,
     persistence.markPersisted,
     setWorkspaceState,
-    capabilityCache,
+    contractsRef,
   );
 
   useInitialWorkspace(requestRef, setWorkspaceState, setStatus);
@@ -170,12 +161,10 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
       runAfterBarrier("undo", action, restoreFocus),
     runRedo: <T>(action: () => T | Promise<T>, restoreFocus?: () => void) =>
       runAfterBarrier("redo", action, restoreFocus),
-    adoptWorkflowHead,
     closeError: persistence.closeError,
     discardAndClose: persistence.discardAndClose,
     keepEditing: persistence.keepEditing,
     setParam,
-    replaceParams,
     workspaceState,
   };
 
@@ -199,21 +188,27 @@ function useHydrateWorkspace(
   projectRef: { current: Project | null },
   unassignedDraft: { current: boolean },
   setParam: (nodeId: string, name: string, value: unknown) => void,
-  controller: WorkspaceController,
+  controller: CanonicalWorkspaceController,
   markPersisted: (workflow: ReturnType<typeof toWorkflow>) => void,
   setWorkspaceState: Dispatch<SetStateAction<ProjectWorkspaceState>>,
-  capabilityCache: CapabilityContractCache,
+  contractsRef: { current: NodeCapabilityContractDto[] },
 ) {
   const { invalidateRun, setProject, setNodes, setEdges, setSelectedId, setStatus } = options;
   return useCallback(
     async (workspace: ProjectWorkspace, preserveDraft = false) => {
-      const source =
-        workspace.workflow_head?.workflow ?? emptyWorkflow(workspace.project.id);
-      await capabilityCache.loadWorkflow(source.nodes);
-      const graph = fromWorkflow(source, setParam, capabilityCache.snapshot());
+      contractsRef.current = await api.nodeCapabilityList();
+      const current = workspace.current_workflow_summary === null
+        ? { workflow: await api.workflowCreate(workspace.project.id), readiness: { state: "ready" as const } }
+        : await api.workflowGetCurrent(workspace.project.id);
+      const source = canonicalToEditorWorkflow(current.workflow);
+      const graph = fromWorkflow(
+        source,
+        setParam,
+        contractsRef.current.map(nodeSpecFromExactContract),
+      );
       const normalized = toWorkflow(graph.nodes, graph.edges, workspace.project.id);
       invalidateRun();
-      controller.activate(workspace.project.id, workspace.workflow_head);
+      controller.activate(workspace.project.id, current.workflow);
       markPersisted(normalized);
       projectRef.current = workspace.project;
       setProject(workspace.project);
@@ -226,7 +221,7 @@ function useHydrateWorkspace(
       setWorkspaceState({
         state: "ready",
         project: workspace.project,
-        workflowHead: workspace.workflow_head,
+        workflowHead: current.workflow,
       });
       setStatus({ state: "idle" });
     },
@@ -243,10 +238,10 @@ function useHydrateWorkspace(
       setStatus,
       setWorkspaceState,
       unassignedDraft,
-      capabilityCache,
     ],
   );
 }
+
 
 function useInitialWorkspace(
   requestRef: { current: number },
@@ -358,7 +353,7 @@ function useOpenProject(
 function preserveWorkspaceAfterFlushFailure(
   error: unknown,
   project: Project | null,
-  workflowHead: WorkflowHead | null,
+  workflowHead: WorkflowDto | null,
   setWorkspaceState: Dispatch<SetStateAction<ProjectWorkspaceState>>,
   setStatus: Dispatch<SetStateAction<RunStatus>>,
 ) {
@@ -370,11 +365,7 @@ function preserveWorkspaceAfterFlushFailure(
   setStatus({ state: "failed", reason: String(error) });
 }
 
-function emptyWorkflow(projectId: string) {
-  return { version: "1.0", project_id: projectId, nodes: [] };
-}
-
-function workflowHeadOf(state: ProjectWorkspaceState): WorkflowHead | null {
+function workflowHeadOf(state: ProjectWorkspaceState): WorkflowDto | null {
   return state.state === "opening" || state.state === "ready" || state.state === "blocked"
     ? state.workflowHead
     : null;
@@ -389,7 +380,7 @@ function projectOf(state: ProjectWorkspaceState): Project | null {
 function blockWorkspace(
   error: unknown,
   project: Project | null,
-  workflowHead: WorkflowHead | null,
+  workflowHead: WorkflowDto | null,
   setWorkspaceState: Dispatch<SetStateAction<ProjectWorkspaceState>>,
   setStatus: Dispatch<SetStateAction<RunStatus>>,
 ) {

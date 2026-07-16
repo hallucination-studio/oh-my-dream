@@ -1,71 +1,31 @@
-import { useEffect, useMemo, useState } from "react";
-import type {
-  CapabilityRef,
-  CapabilitySearchRequest,
-  CapabilitySearchPage,
-  CapabilitySummary,
-} from "../api/types.ts";
-import { api, type NodeCapabilityContractDto } from "../api/index.ts";
+import { useMemo, useState } from "react";
+import type { CapabilityRef, CapabilitySummary, NodeCapabilityContractDto } from "../api/types.ts";
 import type { NodeTypeSpec } from "../nodes/catalog.ts";
 import { isPaletteVisible, paletteCreation } from "../nodes/catalog.ts";
+import { presentationFor } from "../nodes/exactCapability.ts";
 import { nodeAccent } from "../nodes/typeColor.ts";
 import "./nodeLibrary.css";
 
 interface NodeLibraryProps {
-  summaries: readonly CapabilitySummary[];
+  contracts: readonly NodeCapabilityContractDto[];
   loadedSpecs: readonly NodeTypeSpec[];
-  onSearch: (request: CapabilitySearchRequest) => Promise<CapabilitySearchPage>;
   onAdd: (reference: CapabilityRef) => void;
   onOpenAssets: () => void;
 }
 
 /** Paged presentation/status palette; exact contracts load only on addition. */
-export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd, onOpenAssets }: NodeLibraryProps) {
+export function NodeLibrary({ contracts, loadedSpecs, onAdd, onOpenAssets }: NodeLibraryProps) {
   const [query, setQuery] = useState("");
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [contracts, setContracts] = useState<NodeCapabilityContractDto[] | null>();
   const offersAssetRoute = query.toLowerCase().includes("asset");
-
-  useEffect(() => {
-    if (contracts !== null) return;
-    let active = true;
-    void api
-      .nodeCapabilityList()
-      .then((items) => {
-        if (active) setContracts(items.length > 0 ? items : null);
-      })
-      .catch(() => {
-        if (active) setContracts(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    void onSearch({ query, cursor: null, limit: 24 })
-      .then((page) => {
-        if (active) setNextCursor(page.next_cursor);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [contracts, onSearch, query]);
 
   const groups = useMemo(() => {
     const grouped: { category: string; nodes: CapabilitySummary[] }[] = [];
-    const visibleSummaries = Array.isArray(contracts)
-      ? contracts.map(contractSummary).filter((summary) =>
-          summary.presentation.label.toLowerCase().includes(query.toLowerCase())
-          || summary.reference.id.includes(query.toLowerCase()))
-      : summaries.filter(isPaletteVisible);
+    const visibleSummaries = contracts.map(contractSummary).filter((summary) =>
+      isPaletteVisible(summary) && (
+        summary.presentation.label.toLowerCase().includes(query.toLowerCase())
+        || summary.reference.id.includes(query.toLowerCase())
+      ));
     for (const summary of visibleSummaries) {
       let group = grouped.find((candidate) => candidate.category === summary.presentation.category);
       if (!group) {
@@ -75,15 +35,7 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd, onOpenAss
       group.nodes.push(summary);
     }
     return grouped;
-  }, [contracts, query, summaries]);
-
-  const loadMore = () => {
-    if (!nextCursor || loading) return;
-    setLoading(true);
-    void onSearch({ query, cursor: nextCursor, limit: 24 })
-      .then((page) => setNextCursor(page.next_cursor))
-      .finally(() => setLoading(false));
-  };
+  }, [contracts, query]);
 
   return (
     <aside className="nlib">
@@ -162,11 +114,6 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd, onOpenAss
         {groups.length === 0 && !offersAssetRoute && (
           <p className="nlib__empty">No nodes match "{query}".</p>
         )}
-        {nextCursor && (
-          <button className="nlib__load-more" disabled={loading} onClick={loadMore}>
-            {loading ? "Loading..." : "Load more"}
-          </button>
-        )}
       </div>
 
       <p className="nlib__foot">Drag onto the canvas, or select a node to load its exact contract.</p>
@@ -176,28 +123,18 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd, onOpenAss
 
 function contractSummary(contract: NodeCapabilityContractDto): CapabilitySummary {
   const presentation = presentationFor(contract.capability_ref.id);
+  const contextual_creation = contract.capability_ref.id.endsWith(".read_asset")
+    ? { route: "asset_library" }
+    : null;
   return {
     selector: { type_id: contract.capability_ref.id, mode: "" },
     reference: contract.capability_ref,
     presentation,
-    contextual_creation: null,
+    contextual_creation,
     status: { availability: "available", reason: null, provider_health: null, status_revision: 0 },
   };
 }
 
-function presentationFor(id: string) {
-  const values: Record<string, { label: string; category: string }> = {
-    "text.provide_literal": { label: "Text", category: "Text" },
-    "image.read_asset": { label: "Image Asset", category: "Assets" },
-    "video.read_asset": { label: "Video Asset", category: "Assets" },
-    "audio.read_asset": { label: "Audio Asset", category: "Assets" },
-    "image.generate_from_text": { label: "Text to Image", category: "Generation" },
-    "video.generate_from_image": { label: "Image to Video", category: "Generation" },
-    "audio.synthesize_speech_from_text": { label: "Text to Speech", category: "Generation" },
-  };
-  const value = values[id] ?? { label: id, category: "Other" };
-  return { ...value, description: value.label, search_terms: [id] };
-}
 
 function categoryColor(summary: CapabilitySummary | undefined, specs: readonly NodeTypeSpec[]): string {
   if (!summary) return "var(--ink-3)";

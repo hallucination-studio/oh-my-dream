@@ -204,14 +204,25 @@ impl<R: WorkflowRunRepositoryInterface> WorkflowListRunEventsUseCase<R> {
             .await?
             .ok_or(WorkflowApplicationError::WorkflowRunNotFound)?;
         let limit = usize::from(limit);
-        let mut events = self
-            .repository
-            .list_workflow_run_events_after(run_id, after_sequence, limit + 1)
-            .await?;
-        let has_more = events.len() > limit;
-        events.truncate(limit);
-        let next_sequence =
-            has_more.then(|| events.last().map(WorkflowRunEvent::sequence)).flatten();
+        let events =
+            self.repository.list_workflow_run_events_after(run_id, after_sequence, limit).await?;
+        let next_sequence = if events.len() == limit {
+            let last = events.last().map(WorkflowRunEvent::sequence);
+            match last {
+                Some(sequence)
+                    if !self
+                        .repository
+                        .list_workflow_run_events_after(run_id, Some(sequence), 1)
+                        .await?
+                        .is_empty() =>
+                {
+                    Some(sequence)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
         Ok(WorkflowRunEventPage { events, next_sequence })
     }
 }

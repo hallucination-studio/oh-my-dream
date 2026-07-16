@@ -30,8 +30,6 @@ mod contract;
 mod credential_repository;
 #[path = "dto.rs"]
 mod dto;
-#[path = "e2e.rs"]
-mod e2e;
 #[path = "post_commit_effect_outbox.rs"]
 mod post_commit_effect_outbox;
 #[path = "post_commit_effect_values.rs"]
@@ -46,12 +44,10 @@ mod reviewed_change_candidate;
 mod reviewed_change_receipt;
 #[path = "workflow_authority.rs"]
 mod workflow_authority;
+#[path = "workflow_commands_v3.rs"]
+mod workflow_commands_v3;
 #[path = "workflow_patch.rs"]
 mod workflow_patch;
-#[path = "workflow_run_commands.rs"]
-mod workflow_run_commands;
-#[path = "workflow_run_contract.rs"]
-mod workflow_run_contract;
 #[path = "workflow_run_dto.rs"]
 mod workflow_run_dto;
 #[path = "workspace_snapshot.rs"]

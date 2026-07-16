@@ -148,10 +148,19 @@ const EXACT_NODE_CAPABILITY_REFS: [&str; 7] = [
 
 impl DesktopCompositionRoot {
     /// Composes the command slices activated through the current V leaf.
+    pub async fn compose_activated_commands_with_emitter(
+        paths: DesktopApplicationPaths,
+        emitter: Arc<dyn DesktopEventEmitterInterface>,
+    ) -> Result<DesktopActivatedCommandDependencies, DesktopCompositionError> {
+        activated_commands::compose(paths, emitter).await
+    }
+
+    /// Composes activated commands with a test-only event sink.
+    #[cfg(test)]
     pub async fn compose_activated_commands(
         paths: DesktopApplicationPaths,
     ) -> Result<DesktopActivatedCommandDependencies, DesktopCompositionError> {
-        activated_commands::compose(paths).await
+        activated_commands::compose(paths, Arc::new(TestDesktopEventEmitterAdapterImpl)).await
     }
 
     /// Builds the host while allowing tests to substitute a deterministic business graph.
@@ -269,6 +278,20 @@ impl DesktopCompositionRoot {
         };
         host.recover_before_accepting_commands().await?;
         Ok(host)
+    }
+}
+
+#[cfg(test)]
+struct TestDesktopEventEmitterAdapterImpl;
+
+#[cfg(test)]
+impl DesktopEventEmitterInterface for TestDesktopEventEmitterAdapterImpl {
+    fn emit_desktop_event(
+        &self,
+        _event_name: &str,
+        _payload: serde_json::Value,
+    ) -> Result<(), crate::workflow_run_event_publisher::DesktopEventEmissionError> {
+        Ok(())
     }
 }
 

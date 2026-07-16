@@ -1,11 +1,6 @@
-use crate::assistant_operations::RequestContext;
 use crate::command_error::command_error;
-use crate::dto::{AssetDto, OpenProjectResultDto, ProjectDto, ProviderDto, WorkflowHeadDto};
+use crate::dto::{AssetDto, ProviderDto};
 use crate::state::AppState;
-use crate::workflow_patch_operation::{
-    WorkflowApplyPatchError, WorkflowApplyPatchInput, WorkflowApplyPatchOutput,
-    WorkflowPatchService,
-};
 use assets::{AssetKind, AssetQuery, AssetSort};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -23,10 +18,6 @@ pub use crate::assistant_commands::{
 pub use crate::capability_catalog::{
     get_capability_bundles, get_capability_bundles_with_state, get_capability_catalog,
     get_capability_catalog_with_state, search_capabilities, search_capabilities_with_state,
-};
-pub use crate::workflow_run_commands::{
-    cancel_workflow_run, cancel_workflow_run_with_state, run_workflow, run_workflow_with_state,
-    run_workflow_with_state_and_observer, start_workflow_run, start_workflow_run_with_state,
 };
 
 /// Lists assets using optional library filters.
@@ -92,71 +83,6 @@ pub fn assets_root_with_state(state: &AppState) -> Result<String, String> {
         .to_str()
         .map(str::to_owned)
         .ok_or_else(|| command_error("resolve asset root", "asset root path is not valid UTF-8"))
-}
-
-/// Legacy integration helper retained until V3 deletes the old Workflow authority.
-pub fn list_projects_with_state(state: &AppState) -> Result<Vec<ProjectDto>, String> {
-    let projects = state
-        .store
-        .lock()
-        .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?
-        .list_projects()
-        .map_err(|source| command_error("list projects", source))?;
-    Ok(projects.into_iter().map(ProjectDto::from).collect())
-}
-
-/// Legacy integration helper retained until V3 deletes the old Workflow authority.
-pub fn create_project_with_state(name: String, state: &AppState) -> Result<ProjectDto, String> {
-    let project = state
-        .store
-        .lock()
-        .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?
-        .create_project(&name)
-        .map_err(|source| command_error("create project", source))?;
-    Ok(ProjectDto::from(project))
-}
-
-/// Legacy integration helper retained until V3 deletes the old Workflow authority.
-pub fn open_project_with_state(
-    id: String,
-    state: &AppState,
-) -> Result<OpenProjectResultDto, String> {
-    let project = state
-        .store
-        .lock()
-        .map_err(|_| command_error("lock asset store", "asset store lock was poisoned"))?
-        .get_project(&id)
-        .map_err(|source| command_error("open project", source))?;
-    let workflow_head = state
-        .workflow_authority
-        .load_head(&id)
-        .map_err(|source| command_error("load Workflow head", source))?
-        .map(WorkflowHeadDto::try_from)
-        .transpose()
-        .map_err(|source| command_error("serialize Workflow head", source))?;
-    Ok(OpenProjectResultDto { project: ProjectDto::from(project), workflow_head })
-}
-
-/// Applies one UI Workflow patch through the shared authoritative service.
-#[tauri::command(rename_all = "snake_case")]
-pub fn workflow_apply_patch(
-    project_id: String,
-    request_id: String,
-    input: WorkflowApplyPatchInput,
-    state: State<'_, AppState>,
-) -> Result<WorkflowApplyPatchOutput, WorkflowApplyPatchError> {
-    workflow_apply_patch_with_state(project_id, request_id, input, &state)
-}
-
-/// Applies one UI Workflow patch against explicit managed state.
-pub fn workflow_apply_patch_with_state(
-    project_id: String,
-    request_id: String,
-    input: WorkflowApplyPatchInput,
-    state: &AppState,
-) -> Result<WorkflowApplyPatchOutput, WorkflowApplyPatchError> {
-    let context = RequestContext::new(project_id, "ui", request_id, 1, None);
-    WorkflowPatchService::from_state(state).apply(&context, input)
 }
 
 /// Returns provider summaries without raw keys.

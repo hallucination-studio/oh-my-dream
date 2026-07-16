@@ -21,12 +21,14 @@ export function InspectorPanel({
   onModeChange = () => undefined,
   onParamChange,
   onOpenAssets = () => undefined,
+  onRunThroughNode = () => undefined,
 }: {
   node: SelectedNode | null;
   modeOptions?: NodeTypeSpec[];
   onModeChange?: (mode: string) => void;
   onParamChange: (nodeId: string, name: string, value: unknown) => void;
   onOpenAssets?: () => void;
+  onRunThroughNode?: (nodeId: string) => void;
 }) {
   if (!node) {
     return (
@@ -112,7 +114,9 @@ export function InspectorPanel({
         <>
           <p className="insp__grp">Parameters</p>
           <div className="insp__fields">
-            {spec.params.map((param) => (
+            {spec.params
+              .filter((param) => !isGeneration || param.name !== "generation_profile_ref")
+              .map((param) => (
               <label key={param.name} className="insp__field">
                 <span className="insp__label">{param.label}</span>
                 <ParameterInput
@@ -122,7 +126,7 @@ export function InspectorPanel({
                   onChange={(value) => onParamChange(node.id, param.name, value)}
                 />
               </label>
-            ))}
+              ))}
           </div>
         </>
       ) : !isAsset ? (
@@ -134,6 +138,9 @@ export function InspectorPanel({
           Generated media saves to the Library automatically, tagged with this project and prompt.
         </div>
       )}
+      <button className="insp__asset-action" onClick={() => onRunThroughNode(node.id)}>
+        Run through this node
+      </button>
     </aside>
   );
 }
