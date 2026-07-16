@@ -134,6 +134,8 @@ pub struct AssistantWorkflowChangeAggregate {
     pub continuation_ref: Option<AssistantModelContinuationRef>,
     pub state: AssistantWorkflowChangeState,
     pub expires_at: AssistantWorkflowChangeExpiry,
+    pub applied_workflow_receipt: Option<AssistantWorkflowApplyReceiptBoundaryValue>,
+    pub admitted_workflow_run: Option<AssistantWorkflowRunBoundaryValue>,
 }
 ```
 
@@ -208,6 +210,13 @@ stale-revision, fingerprint, or authority failure; transient storage failures le
 `Applying` for recovery. The stable Workflow mutation request
 ID is derived from `(change ID, mutation digest)`, so retrying the canonical apply returns the same
 `WorkflowMutationReceipt` after an uncertain result.
+
+The two outcome carriers are non-empty canonical bridge bytes of at most 1 MiB and remain opaque to
+Assistant. `applied_workflow_receipt` is absent before `Applied` and required from `Applied` onward.
+`admitted_workflow_run` is absent before `Applied`, may be absent while the post-commit effect is
+still resuming the model/admitting the Run, and becomes immutable once linked. Replaying the same
+receipt or Run bytes is success; different bytes are `InvalidTransition`. No additional apply/Run
+state, scheduler record, or Workflow semantics are introduced.
 
 Candidate content and digest are immutable. Revision, Project, Session, review identity, approval
 scope, and expiry must all match before each transition. A stale Workflow revision fails closed;
