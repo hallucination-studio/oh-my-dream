@@ -24,6 +24,10 @@ path = "tests/capability_discovery.rs"
 name = "contract"
 path = "tests/contract.rs"
 
+[[test]]
+name = "architecture"
+path = "tests/architecture.rs"
+
 # Repository-owned integration-test helper; Tauri runs and bundles the default app target.
 [[bin]]
 name = "assistant_transport_fixture"
