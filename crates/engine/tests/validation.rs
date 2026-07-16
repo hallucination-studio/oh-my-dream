@@ -1,7 +1,8 @@
 use engine::{
-    EngineError, Executor, InputBinding, InputPort, NodeExecutionState, NodeInputs, NodeInterface,
+    EngineError, InputBinding, InputPort, NodeExecutionState, NodeInputs, NodeInterface,
     NodeParams, NodeRegistry, NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort,
-    OutputRef, PortCardinality, PortType, ResultCache, Value, ValueMap, Workflow, WorkflowNode,
+    OutputRef, PortCardinality, PortType, ResultCache, ValueMap, Workflow, WorkflowGraphExecutor,
+    WorkflowNode, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -19,7 +20,7 @@ fn rejects_unsupported_workflow_version() {
         nodes: vec![workflow_node("source", "Source")],
     };
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow, &mut ResultCache::new())
         .expect_err("unsupported workflow version should fail");
 
@@ -40,7 +41,7 @@ fn rejects_duplicate_node_ids() {
         nodes: vec![workflow_node("duplicate", "Source"), workflow_node("duplicate", "Source")],
     };
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow, &mut ResultCache::new())
         .expect_err("duplicate node ids should fail");
 
@@ -70,7 +71,7 @@ fn rejects_wiring_to_undeclared_target_input() {
         nodes: vec![workflow_node("source", "Source"), target],
     };
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow, &mut ResultCache::new())
         .expect_err("undeclared target input should fail");
 
@@ -93,7 +94,7 @@ fn rejects_default_value_with_wrong_port_type() {
             port_type: PortType::String,
             cardinality: PortCardinality::One,
             required: true,
-            default: Some(Value::Image("asset://image".to_owned())),
+            default: Some(WorkflowNodeValue::Image("asset://image".to_owned())),
         }],
         outputs: vec![],
         result: ValueMap::new(),
@@ -102,7 +103,7 @@ fn rejects_default_value_with_wrong_port_type() {
     let registry = registry([definition]);
     let workflow = single_node_workflow("DefaultMismatch");
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow, &mut ResultCache::new())
         .expect_err("wrongly typed default should fail");
 
@@ -135,7 +136,7 @@ fn rejects_missing_declared_output_before_caching() {
 fn rejects_undeclared_extra_output_before_caching() {
     let definition = output_definition(
         vec![],
-        BTreeMap::from([("extra".to_owned(), Value::String("value".to_owned()))]),
+        BTreeMap::from([("extra".to_owned(), WorkflowNodeValue::String("value".to_owned()))]),
     );
 
     assert_invalid_output_is_not_cached(definition, |error| {
@@ -151,7 +152,7 @@ fn rejects_undeclared_extra_output_before_caching() {
 fn rejects_wrongly_typed_output_before_caching() {
     let definition = output_definition(
         vec![output("text", PortType::String)],
-        BTreeMap::from([("text".to_owned(), Value::Image("asset://image".to_owned()))]),
+        BTreeMap::from([("text".to_owned(), WorkflowNodeValue::Image("asset://image".to_owned()))]),
     );
 
     assert_invalid_output_is_not_cached(definition, |error| {
@@ -174,7 +175,7 @@ fn assert_invalid_output_is_not_cached(
     let runs = Arc::clone(&definition.runs);
     let registry = registry([definition]);
     let workflow = single_node_workflow("BrokenOutput");
-    let executor = Executor::new(&registry);
+    let executor = WorkflowGraphExecutor::new(&registry);
     let mut cache = ResultCache::new();
     let mut events = Vec::new();
 
@@ -206,7 +207,10 @@ fn valid_definition(type_id: &'static str, runs: Arc<AtomicUsize>) -> NodeDefini
         type_id,
         inputs: vec![],
         outputs: vec![output("text", PortType::String)],
-        result: BTreeMap::from([("text".to_owned(), Value::String("value".to_owned()))]),
+        result: BTreeMap::from([(
+            "text".to_owned(),
+            WorkflowNodeValue::String("value".to_owned()),
+        )]),
         runs,
     }
 }

@@ -11,7 +11,7 @@ use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -144,7 +144,7 @@ impl NodeInterface for TextToAudioNodeImpl {
         )
         .map_err(boxed)?;
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("audio".to_owned(), Value::Audio(asset.id))]),
+            outputs: BTreeMap::from([("audio".to_owned(), WorkflowNodeValue::Audio(asset.id))]),
             cost: output.cost,
         })
     }

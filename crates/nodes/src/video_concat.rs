@@ -4,7 +4,8 @@ use crate::ports::{output, required_many_input};
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputValue, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType,
+    WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 
@@ -98,7 +99,7 @@ impl NodeInterface for VideoConcatNodeImpl {
         let references = clips
             .iter()
             .map(|clip| match clip {
-                Value::Video(reference) => Ok(reference.as_str()),
+                WorkflowNodeValue::Video(reference) => Ok(reference.as_str()),
                 _ => Err(boxed(crate::error::NodesError::WrongInputType {
                     name: "clips".to_owned(),
                     expected: "video",
@@ -107,7 +108,7 @@ impl NodeInterface for VideoConcatNodeImpl {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(NodeRunResult::new(BTreeMap::from([(
             "video".to_owned(),
-            Value::Video(concat_reference(&references)),
+            WorkflowNodeValue::Video(concat_reference(&references)),
         )])))
     }
 }

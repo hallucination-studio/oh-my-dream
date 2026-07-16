@@ -54,7 +54,7 @@ impl CapabilitySelector {
 pub struct CapabilityPort {
     /// Stable named port.
     pub name: String,
-    /// Value type carried by the port.
+    /// WorkflowNodeValue type carried by the port.
     pub port_type: crate::PortType,
     /// Port cardinality.
     pub cardinality: PortCardinality,

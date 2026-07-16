@@ -10,7 +10,7 @@ pub(crate) use capability_effect::{capability_effect_registry, local_read_workfl
 use engine::{
     InputBinding, InputPort, InputValue, NodeExecutionState, NodeInputs, NodeInterface, NodeParams,
     NodeProgressEvent, NodeRegistry, NodeRunContextImpl, NodeRunResult, OutputPort, OutputRef,
-    PortCardinality, PortType, Value, Workflow, WorkflowNode,
+    PortCardinality, PortType, Workflow, WorkflowNode, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -246,7 +246,10 @@ impl NodeInterface for TextPromptNodeImpl {
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("text".to_owned(), Value::String(self.text.clone()))]),
+            outputs: BTreeMap::from([(
+                "text".to_owned(),
+                WorkflowNodeValue::String(self.text.clone()),
+            )]),
             cost: Some(7),
         })
     }
@@ -277,13 +280,16 @@ impl NodeInterface for UpperCaseNodeImpl {
         _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
-        let InputValue::Single(Value::String(text)) =
+        let InputValue::Single(WorkflowNodeValue::String(text)) =
             inputs.get("text").ok_or_else(|| TestNodeError("missing text input".to_owned()))?
         else {
             return Err(Box::new(TestNodeError("text input was not a string".to_owned())));
         };
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("text".to_owned(), Value::String(text.to_uppercase()))]),
+            outputs: BTreeMap::from([(
+                "text".to_owned(),
+                WorkflowNodeValue::String(text.to_uppercase()),
+            )]),
             cost: Some(7),
         })
     }
@@ -356,7 +362,7 @@ impl NodeInterface for VideoSourceNodeImpl {
         self.runs.fetch_add(1, Ordering::SeqCst);
         Ok(NodeRunResult::new(BTreeMap::from([(
             "video".to_owned(),
-            Value::Video(self.reference.clone()),
+            WorkflowNodeValue::Video(self.reference.clone()),
         )])))
     }
 }
@@ -391,7 +397,7 @@ impl NodeInterface for VideoConcatNodeImpl {
         };
         Ok(NodeRunResult::new(BTreeMap::from([(
             "video".to_owned(),
-            Value::Video(format!("{clips:?}")),
+            WorkflowNodeValue::Video(format!("{clips:?}")),
         )])))
     }
 }
@@ -417,7 +423,7 @@ impl NodeInterface for ImageSourceNodeImpl {
         Ok(NodeRunResult {
             outputs: BTreeMap::from([(
                 "image".to_owned(),
-                Value::Image("asset://image".to_owned()),
+                WorkflowNodeValue::Image("asset://image".to_owned()),
             )]),
             cost: None,
         })

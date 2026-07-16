@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 
-use crate::error::Result;
+use crate::error::BackendResult;
 use crate::request::{
     ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest,
     TextToAudioRequest, TextToImageRequest,
@@ -24,29 +24,29 @@ pub trait InferenceBackendInterface: Send + Sync {
     fn name(&self) -> &str;
 
     /// Submits a text-to-image task.
-    async fn text_to_image(&self, request: TextToImageRequest) -> Result<TaskHandle>;
+    async fn text_to_image(&self, request: TextToImageRequest) -> BackendResult<TaskHandle>;
 
     /// Submits an ordered-reference image generation task.
     async fn reference_image_generation(
         &self,
         request: ReferenceImageGenerationRequest,
-    ) -> Result<TaskHandle>;
+    ) -> BackendResult<TaskHandle>;
 
     /// Submits an image-to-video task.
-    async fn image_to_video(&self, request: ImageToVideoRequest) -> Result<TaskHandle>;
+    async fn image_to_video(&self, request: ImageToVideoRequest) -> BackendResult<TaskHandle>;
 
     /// Submits an ordered-reference video generation task.
     async fn reference_video_generation(
         &self,
         request: ReferenceVideoGenerationRequest,
-    ) -> Result<TaskHandle>;
+    ) -> BackendResult<TaskHandle>;
 
     /// Submits a text-to-audio task.
-    async fn text_to_audio(&self, request: TextToAudioRequest) -> Result<TaskHandle>;
+    async fn text_to_audio(&self, request: TextToAudioRequest) -> BackendResult<TaskHandle>;
 
     /// Returns the current status of a previously submitted task.
-    async fn poll(&self, handle: &TaskHandle) -> Result<TaskStatus>;
+    async fn poll(&self, handle: &TaskHandle) -> BackendResult<TaskStatus>;
 
     /// Requests cancellation of a running task.
-    async fn cancel(&self, handle: &TaskHandle) -> Result<()>;
+    async fn cancel(&self, handle: &TaskHandle) -> BackendResult<()>;
 }

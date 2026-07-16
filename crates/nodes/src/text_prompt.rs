@@ -4,7 +4,7 @@ use crate::ports::output;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use tracing::info;
@@ -90,7 +90,7 @@ impl NodeInterface for TextPromptNodeImpl {
         info!(type_id = TYPE_ID, "text prompt node produced text");
         Ok(NodeRunResult::new(BTreeMap::from([(
             "text".to_owned(),
-            Value::String(self.prompt.clone()),
+            WorkflowNodeValue::String(self.prompt.clone()),
         )])))
     }
 }

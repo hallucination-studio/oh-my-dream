@@ -2,7 +2,7 @@
 
 use crate::cache::{ResultCache, cache_fingerprint};
 use crate::capability::CapabilityEffect;
-use crate::error::{EngineError, Result};
+use crate::error::{EngineError, EngineResult};
 use crate::graph::{InputBinding, Workflow};
 use crate::node::{NodeRunContextImpl, NodeRunResult, is_cancelled_node_run};
 use crate::registry::NodeRegistry;
@@ -50,11 +50,11 @@ pub trait CancellationSignalInterface: Send + Sync {
 
 /// Builds an execution plan from a [`Workflow`], validating wiring and ordering
 /// nodes topologically, then runs nodes in order consulting the [`ResultCache`].
-pub struct Executor<'r> {
+pub struct WorkflowGraphExecutor<'r> {
     registry: &'r NodeRegistry,
 }
 
-impl<'r> Executor<'r> {
+impl<'r> WorkflowGraphExecutor<'r> {
     /// Creates an executor bound to a node registry.
     #[must_use]
     pub fn new(registry: &'r NodeRegistry) -> Self {
@@ -62,7 +62,11 @@ impl<'r> Executor<'r> {
     }
 
     /// Validates and executes `workflow`, returning each node's outputs.
-    pub fn execute(&self, workflow: &Workflow, cache: &mut ResultCache) -> Result<RunOutputs> {
+    pub fn execute(
+        &self,
+        workflow: &Workflow,
+        cache: &mut ResultCache,
+    ) -> EngineResult<RunOutputs> {
         let mut observer = |_event: &NodeProgressEvent| {};
         self.execute_interruptible(workflow, cache, &NeverCancelledImpl, &mut observer)
     }
@@ -73,7 +77,7 @@ impl<'r> Executor<'r> {
         workflow: &Workflow,
         cache: &mut ResultCache,
         observer: &mut impl FnMut(&NodeProgressEvent),
-    ) -> Result<RunOutputs> {
+    ) -> EngineResult<RunOutputs> {
         self.execute_interruptible(workflow, cache, &NeverCancelledImpl, observer)
     }
 
@@ -84,7 +88,7 @@ impl<'r> Executor<'r> {
         cache: &mut ResultCache,
         cancellation: &dyn CancellationSignalInterface,
         observer: &mut impl FnMut(&NodeProgressEvent),
-    ) -> Result<RunOutputs> {
+    ) -> EngineResult<RunOutputs> {
         ensure_not_cancelled(cancellation)?;
         let plan = build_plan(self.registry, workflow)?;
         let order = topological_order(&plan)?;
@@ -119,7 +123,7 @@ fn execute_plan_node(
     outputs: &mut RunOutputs,
     cancellation: &dyn CancellationSignalInterface,
     observer: &mut dyn FnMut(&NodeProgressEvent),
-) -> Result<()> {
+) -> EngineResult<()> {
     let inputs = resolve_inputs(node, outputs)?;
     let fingerprint = cache_fingerprint(project_id, &node.type_id, &node.params, &inputs);
     if !node.effects.contains(&CapabilityEffect::LocalRead)
@@ -163,7 +167,7 @@ fn run_plan_node(
     inputs: &NodeInputs,
     cancellation: &dyn CancellationSignalInterface,
     observer: &mut dyn FnMut(&NodeProgressEvent),
-) -> Result<NodeRunResult> {
+) -> EngineResult<NodeRunResult> {
     let run_result = {
         let mut context = NodeRunContextImpl::new(
             &node.id,
@@ -203,11 +207,11 @@ impl CancellationSignalInterface for NeverCancelledImpl {
     }
 }
 
-fn ensure_not_cancelled(cancellation: &dyn CancellationSignalInterface) -> Result<()> {
+fn ensure_not_cancelled(cancellation: &dyn CancellationSignalInterface) -> EngineResult<()> {
     if cancellation.is_cancelled() { Err(EngineError::Cancelled) } else { Ok(()) }
 }
 
-fn topological_order(plan: &ExecutionPlan) -> Result<Vec<usize>> {
+fn topological_order(plan: &ExecutionPlan) -> EngineResult<Vec<usize>> {
     let mut emitted = BTreeSet::new();
     let mut order = Vec::with_capacity(plan.nodes.len());
 
@@ -250,7 +254,7 @@ fn first_unemitted_node_id(plan: &ExecutionPlan, emitted: &BTreeSet<usize>) -> S
         .unwrap_or_default()
 }
 
-fn resolve_inputs(node: &PlanNode, outputs: &RunOutputs) -> Result<NodeInputs> {
+fn resolve_inputs(node: &PlanNode, outputs: &RunOutputs) -> EngineResult<NodeInputs> {
     let mut inputs = NodeInputs::new();
     for port in node.node.inputs() {
         if let Some(default) = &port.default {

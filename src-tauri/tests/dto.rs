@@ -1,4 +1,6 @@
-use engine::{NodeExecutionState, NodeProgressEvent, RunOutputs, Value, ValueMap, Workflow};
+use engine::{
+    NodeExecutionState, NodeProgressEvent, RunOutputs, ValueMap, Workflow, WorkflowNodeValue,
+};
 use oh_my_dream_tauri::dto::{
     NodeProgressEventDto, ProjectDto, RunOutputDto, RunWorkflowResultDto,
 };
@@ -7,7 +9,7 @@ use oh_my_dream_tauri::dto::{
 fn converts_engine_outputs_to_named_run_output_dto() {
     let outputs = RunOutputs::from([(
         "prompt".to_owned(),
-        ValueMap::from([("text".to_owned(), Value::String("hello".to_owned()))]),
+        ValueMap::from([("text".to_owned(), WorkflowNodeValue::String("hello".to_owned()))]),
     )]);
 
     let dto = RunWorkflowResultDto::from_outputs(&outputs);
@@ -21,13 +23,13 @@ fn converts_engine_outputs_to_named_run_output_dto() {
 #[test]
 fn preserves_every_engine_value_kind_in_run_output_dto() {
     let values = ValueMap::from([
-        ("audio".to_owned(), Value::Audio("audio-ref".to_owned())),
-        ("float".to_owned(), Value::Float(1.5)),
-        ("image".to_owned(), Value::Image("image-ref".to_owned())),
-        ("int".to_owned(), Value::Int(42)),
-        ("model".to_owned(), Value::Model("model-id".to_owned())),
-        ("string".to_owned(), Value::String("hello".to_owned())),
-        ("video".to_owned(), Value::Video("video-ref".to_owned())),
+        ("audio".to_owned(), WorkflowNodeValue::Audio("audio-ref".to_owned())),
+        ("float".to_owned(), WorkflowNodeValue::Float(1.5)),
+        ("image".to_owned(), WorkflowNodeValue::Image("image-ref".to_owned())),
+        ("int".to_owned(), WorkflowNodeValue::Int(42)),
+        ("model".to_owned(), WorkflowNodeValue::Model("model-id".to_owned())),
+        ("string".to_owned(), WorkflowNodeValue::String("hello".to_owned())),
+        ("video".to_owned(), WorkflowNodeValue::Video("video-ref".to_owned())),
     ]);
     let outputs = RunOutputs::from([("node".to_owned(), values)]);
 

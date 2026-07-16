@@ -23,4 +23,4 @@ pub enum BackendError {
 }
 
 /// Convenient result alias for backend operations.
-pub type Result<T> = std::result::Result<T, BackendError>;
+pub type BackendResult<T> = std::result::Result<T, BackendError>;

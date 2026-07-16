@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 /// other crates) rather than raw bytes: the engine is pure logic and never
 /// touches the filesystem or network.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Value {
+pub enum WorkflowNodeValue {
     /// UTF-8 text.
     String(String),
     /// Reference to an image (asset id / URL), resolved outside the engine.
@@ -26,18 +26,18 @@ pub enum Value {
     Float(f64),
 }
 
-impl Value {
+impl WorkflowNodeValue {
     /// The [`PortType`] this value satisfies.
     #[must_use]
     pub fn port_type(&self) -> PortType {
         match self {
-            Value::String(_) => PortType::String,
-            Value::Image(_) => PortType::Image,
-            Value::Video(_) => PortType::Video,
-            Value::Audio(_) => PortType::Audio,
-            Value::Model(_) => PortType::Model,
-            Value::Int(_) => PortType::Int,
-            Value::Float(_) => PortType::Float,
+            WorkflowNodeValue::String(_) => PortType::String,
+            WorkflowNodeValue::Image(_) => PortType::Image,
+            WorkflowNodeValue::Video(_) => PortType::Video,
+            WorkflowNodeValue::Audio(_) => PortType::Audio,
+            WorkflowNodeValue::Model(_) => PortType::Model,
+            WorkflowNodeValue::Int(_) => PortType::Int,
+            WorkflowNodeValue::Float(_) => PortType::Float,
         }
     }
 }
@@ -46,13 +46,13 @@ impl Value {
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputValue {
     /// Exactly one value.
-    Single(Value),
+    Single(WorkflowNodeValue),
     /// An ordered collection whose order is semantically significant.
-    OrderedMany(Vec<Value>),
+    OrderedMany(Vec<WorkflowNodeValue>),
 }
 
 /// Named runtime inputs, ordered for deterministic cache hashing.
 pub type NodeInputs = BTreeMap<String, InputValue>;
 
 /// Named scalar outputs, ordered for deterministic cache hashing.
-pub type ValueMap = BTreeMap<String, Value>;
+pub type ValueMap = BTreeMap<String, WorkflowNodeValue>;

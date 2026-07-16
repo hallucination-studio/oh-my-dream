@@ -14,7 +14,8 @@ use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType,
+    WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -217,7 +218,7 @@ impl NodeInterface for ReferenceImageNodeImpl {
         )
         .map_err(boxed)?;
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("image".to_owned(), Value::Image(asset.id))]),
+            outputs: BTreeMap::from([("image".to_owned(), WorkflowNodeValue::Image(asset.id))]),
             cost: output.cost,
         })
     }

@@ -28,9 +28,10 @@ pub use capability::{
     CapabilityRegistration, CapabilityRegistry, CapabilityRegistryError, CapabilitySelector,
     ContextualCreation, DEFAULT_CAPABILITY_VERSION,
 };
-pub use error::{EngineError, Result};
+pub use error::{EngineError, EngineResult};
 pub use executor::{
-    CancellationSignalInterface, Executor, NodeExecutionState, NodeProgressEvent, RunOutputs,
+    CancellationSignalInterface, NodeExecutionState, NodeProgressEvent, RunOutputs,
+    WorkflowGraphExecutor,
 };
 pub use graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
 pub use node::{
@@ -39,7 +40,7 @@ pub use node::{
 };
 pub use port::{PortCardinality, PortType};
 pub use registry::{NodeFactory, NodeParams, NodeRegistry};
-pub use value::{InputValue, NodeInputs, Value, ValueMap};
+pub use value::{InputValue, NodeInputs, ValueMap, WorkflowNodeValue};
 pub use workflow_patch::{
     MAX_WORKFLOW_PATCH_BYTES, MAX_WORKFLOW_PATCH_OPERATIONS, NodeRef, PatchOutputRef,
     WorkflowDiagnostic, WorkflowPatch, WorkflowPatchError, WorkflowPatchOperation,

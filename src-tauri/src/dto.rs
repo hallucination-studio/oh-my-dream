@@ -1,6 +1,6 @@
 use crate::workflow_authority::WorkflowHead;
 use assets::{AssetKind, Project};
-use engine::{NodeExecutionState, NodeProgressEvent, RunOutputs, Value, ValueMap};
+use engine::{NodeExecutionState, NodeProgressEvent, RunOutputs, ValueMap, WorkflowNodeValue};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -177,15 +177,15 @@ fn value_map_to_dto(values: &ValueMap) -> BTreeMap<String, RunOutputDto> {
     values.iter().map(|(name, value)| (name.clone(), run_output_to_dto(value))).collect()
 }
 
-fn run_output_to_dto(value: &Value) -> RunOutputDto {
+fn run_output_to_dto(value: &WorkflowNodeValue) -> RunOutputDto {
     match value {
-        Value::String(value) => output("string", value),
-        Value::Image(value) => output("image", value),
-        Value::Video(value) => output("video", value),
-        Value::Audio(value) => output("audio", value),
-        Value::Model(value) => output("model", value),
-        Value::Int(value) => output("int", &value.to_string()),
-        Value::Float(value) => output("float", &value.to_string()),
+        WorkflowNodeValue::String(value) => output("string", value),
+        WorkflowNodeValue::Image(value) => output("image", value),
+        WorkflowNodeValue::Video(value) => output("video", value),
+        WorkflowNodeValue::Audio(value) => output("audio", value),
+        WorkflowNodeValue::Model(value) => output("model", value),
+        WorkflowNodeValue::Int(value) => output("int", &value.to_string()),
+        WorkflowNodeValue::Float(value) => output("float", &value.to_string()),
     }
 }
 

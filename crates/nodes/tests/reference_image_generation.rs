@@ -1,8 +1,8 @@
 use assets::{AssetKind, AssetStore};
 use engine::{
-    Executor, InputBinding, InputPort, NodeInputs, NodeInterface, NodeParams, NodeRegistry,
+    InputBinding, InputPort, NodeInputs, NodeInterface, NodeParams, NodeRegistry,
     NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache,
-    Value, Workflow, WorkflowNode,
+    Workflow, WorkflowGraphExecutor, WorkflowNode, WorkflowNodeValue,
 };
 use nodes::{
     AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
@@ -47,7 +47,7 @@ fn execute_reference_workflow(count: usize) {
     );
     register_source(&mut registry);
 
-    Executor::new(&registry)
+    WorkflowGraphExecutor::new(&registry)
         .execute(&workflow(project.id.clone(), &asset_ids), &mut ResultCache::new())
         .expect("reference image workflow");
 
@@ -212,7 +212,7 @@ impl NodeInterface for TestImageSourceImpl {
     ) -> Result<NodeRunResult, NodeRunError> {
         Ok(NodeRunResult::new(BTreeMap::from([(
             "image".to_owned(),
-            Value::Image(self.asset_id.clone()),
+            WorkflowNodeValue::Image(self.asset_id.clone()),
         )])))
     }
 }

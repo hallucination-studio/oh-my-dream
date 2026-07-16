@@ -1,4 +1,6 @@
-use engine::{EngineError, NodeExecutionState, NodeProgressEvent, RunOutputs, Value, ValueMap};
+use engine::{
+    EngineError, NodeExecutionState, NodeProgressEvent, RunOutputs, ValueMap, WorkflowNodeValue,
+};
 use oh_my_dream_tauri::workflow_run_dto::{
     CancelWorkflowRunResultDto, WorkflowRunEventDto, WorkflowRunResultDto,
 };
@@ -50,7 +52,7 @@ fn serializes_scoped_run_events_as_discriminated_unions() {
 fn serializes_all_terminal_run_results() {
     let outputs = RunOutputs::from([(
         "image".to_owned(),
-        ValueMap::from([("image".to_owned(), Value::Image("asset-01".to_owned()))]),
+        ValueMap::from([("image".to_owned(), WorkflowNodeValue::Image("asset-01".to_owned()))]),
     )]);
 
     let succeeded =

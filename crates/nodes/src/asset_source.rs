@@ -5,7 +5,7 @@ use crate::{AssetMediaKind, AssetReferenceRequest, AssetReferenceResolverInterfa
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -144,9 +144,9 @@ impl NodeInterface for AssetSourceNodeImpl {
             })
             .map_err(|error| Box::new(error) as NodeRunError)?;
         let value = match self.kind {
-            AssetMediaKind::Image => Value::Image(self.asset_id.clone()),
-            AssetMediaKind::Video => Value::Video(self.asset_id.clone()),
-            AssetMediaKind::Audio => Value::Audio(self.asset_id.clone()),
+            AssetMediaKind::Image => WorkflowNodeValue::Image(self.asset_id.clone()),
+            AssetMediaKind::Video => WorkflowNodeValue::Video(self.asset_id.clone()),
+            AssetMediaKind::Audio => WorkflowNodeValue::Audio(self.asset_id.clone()),
         };
         Ok(NodeRunResult::new(BTreeMap::from([(output_name(self.kind).to_owned(), value)])))
     }
@@ -167,7 +167,10 @@ mod tests {
         AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
         ResolvedAssetReference,
     };
-    use engine::{Executor, NodeParams, NodeRegistry, ResultCache, Value, Workflow, WorkflowNode};
+    use engine::{
+        NodeParams, NodeRegistry, ResultCache, Workflow, WorkflowGraphExecutor, WorkflowNode,
+        WorkflowNodeValue,
+    };
     use std::collections::BTreeMap;
     use std::path::PathBuf;
     use std::sync::{
@@ -199,9 +202,9 @@ mod tests {
             registry.register_selector_capability(registration).expect("register Asset Source");
         }
         for (type_id, expected) in [
-            ("Image", Value::Image("asset-1".to_owned())),
-            ("Video", Value::Video("asset-1".to_owned())),
-            ("Audio", Value::Audio("asset-1".to_owned())),
+            ("Image", WorkflowNodeValue::Image("asset-1".to_owned())),
+            ("Video", WorkflowNodeValue::Video("asset-1".to_owned())),
+            ("Audio", WorkflowNodeValue::Audio("asset-1".to_owned())),
         ] {
             let workflow = Workflow {
                 version: "1.0".to_owned(),
@@ -219,10 +222,10 @@ mod tests {
                 }],
             };
             let mut cache = ResultCache::new();
-            let outputs = Executor::new(&registry)
+            let outputs = WorkflowGraphExecutor::new(&registry)
                 .execute(&workflow, &mut cache)
                 .expect("first Asset Source run");
-            Executor::new(&registry)
+            WorkflowGraphExecutor::new(&registry)
                 .execute(&workflow, &mut cache)
                 .expect("second Asset Source run");
             let output_name = type_id.to_lowercase();

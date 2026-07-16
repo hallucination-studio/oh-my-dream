@@ -129,4 +129,4 @@ pub enum EngineError {
 }
 
 /// Convenient result alias for engine operations.
-pub type Result<T> = std::result::Result<T, EngineError>;
+pub type EngineResult<T> = std::result::Result<T, EngineError>;

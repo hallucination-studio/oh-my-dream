@@ -29,4 +29,4 @@ pub enum AssetError {
 }
 
 /// Convenient result alias for asset operations.
-pub type Result<T> = std::result::Result<T, AssetError>;
+pub type AssetResult<T> = std::result::Result<T, AssetError>;

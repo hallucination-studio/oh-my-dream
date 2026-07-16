@@ -1,7 +1,7 @@
 use assets::{AssetKind, AssetStore};
 use engine::{
-    EngineError, Executor, InputBinding, NodeParams, NodeRegistry, OutputRef, ResultCache, Value,
-    Workflow, WorkflowNode,
+    EngineError, InputBinding, NodeParams, NodeRegistry, OutputRef, ResultCache, Workflow,
+    WorkflowGraphExecutor, WorkflowNode, WorkflowNodeValue,
 };
 use nodes::{
     GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGeneratorInterface,
@@ -30,7 +30,7 @@ fn executes_full_generation_workflow_and_persists_video_asset() {
     );
     let workflow = full_workflow();
 
-    let outputs = Executor::new(&registry)
+    let outputs = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow, &mut ResultCache::new())
         .expect("workflow should execute");
 
@@ -38,7 +38,7 @@ fn executes_full_generation_workflow_and_persists_video_asset() {
         .get("video")
         .and_then(|values| values.get("video"))
         .expect("video output should be produced");
-    assert!(matches!(video, Value::Video(value) if value.starts_with("asset-")));
+    assert!(matches!(video, WorkflowNodeValue::Video(value) if value.starts_with("asset-")));
 
     let saved_assets =
         store.lock().expect("store lock should succeed").list(None).expect("assets should list");
@@ -82,13 +82,13 @@ fn executes_text_to_audio_and_persists_audio_asset() {
         Arc::clone(&store),
     );
 
-    let outputs = Executor::new(&registry)
+    let outputs = WorkflowGraphExecutor::new(&registry)
         .execute(&audio_workflow(), &mut ResultCache::new())
         .expect("workflow should execute");
 
     assert!(matches!(
         outputs.get("audio").and_then(|values| values.get("audio")),
-        Some(Value::Audio(value)) if value.starts_with("asset-")
+        Some(WorkflowNodeValue::Audio(value)) if value.starts_with("asset-")
     ));
     let saved_assets = store
         .lock()
@@ -111,7 +111,7 @@ fn save_asset_node_is_not_registered() {
     let mut registry = NodeRegistry::new();
     register_test_generators(&mut registry, Arc::new(TestGeneratorsImpl::succeeds()), store);
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow_with_save_asset(), &mut ResultCache::new())
         .expect_err("SaveAsset should no longer be available");
 
@@ -129,7 +129,7 @@ fn failed_generation_task_surfaces_as_execution_error() {
         store,
     );
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&image_workflow(), &mut ResultCache::new())
         .expect_err("generation failure should fail workflow execution");
 

@@ -3,7 +3,7 @@ use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputBinding, InputPort, NodeInputs, NodeInterface,
     NodeParams, NodeRegistry, NodeRunContextImpl, NodeRunResult, OutputPort, OutputRef, PortType,
-    Value, Workflow, WorkflowNode,
+    Workflow, WorkflowNode, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -103,7 +103,7 @@ impl NodeInterface for ManagedTextNodeImpl {
         }
         Ok(NodeRunResult::new(BTreeMap::from([(
             "text".to_owned(),
-            Value::String("stable".to_owned()),
+            WorkflowNodeValue::String("stable".to_owned()),
         )])))
     }
 }

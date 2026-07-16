@@ -1,7 +1,7 @@
 //! Validation and preparation of executable workflow plans.
 
 use crate::capability::CapabilityEffect;
-use crate::error::{EngineError, Result};
+use crate::error::{EngineError, EngineResult};
 use crate::graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
 use crate::node::{InputPort, NodeInterface};
 use crate::registry::{NodeParams, NodeRegistry};
@@ -40,7 +40,10 @@ impl PlanNode {
     }
 }
 
-pub(crate) fn build_plan(registry: &NodeRegistry, workflow: &Workflow) -> Result<ExecutionPlan> {
+pub(crate) fn build_plan(
+    registry: &NodeRegistry,
+    workflow: &Workflow,
+) -> EngineResult<ExecutionPlan> {
     validate_workflow_identity(workflow)?;
     let nodes = instantiate_nodes(registry, workflow)?;
     let node_indexes = node_indexes(&nodes);
@@ -48,7 +51,7 @@ pub(crate) fn build_plan(registry: &NodeRegistry, workflow: &Workflow) -> Result
     Ok(ExecutionPlan { nodes })
 }
 
-pub(crate) fn validate_node_outputs(node: &PlanNode, outputs: &ValueMap) -> Result<()> {
+pub(crate) fn validate_node_outputs(node: &PlanNode, outputs: &ValueMap) -> EngineResult<()> {
     for output in node.node.outputs() {
         let value = outputs.get(&output.name).ok_or_else(|| EngineError::MissingNodeOutput {
             node_id: node.id.clone(),
@@ -76,7 +79,7 @@ pub(crate) fn validate_node_outputs(node: &PlanNode, outputs: &ValueMap) -> Resu
     Ok(())
 }
 
-fn validate_workflow_identity(workflow: &Workflow) -> Result<()> {
+fn validate_workflow_identity(workflow: &Workflow) -> EngineResult<()> {
     if workflow.version != SUPPORTED_WORKFLOW_VERSION {
         return Err(EngineError::UnsupportedWorkflowVersion { version: workflow.version.clone() });
     }
@@ -90,7 +93,7 @@ fn validate_workflow_identity(workflow: &Workflow) -> Result<()> {
     Ok(())
 }
 
-fn instantiate_nodes(registry: &NodeRegistry, workflow: &Workflow) -> Result<Vec<PlanNode>> {
+fn instantiate_nodes(registry: &NodeRegistry, workflow: &Workflow) -> EngineResult<Vec<PlanNode>> {
     workflow
         .nodes
         .iter()
@@ -125,7 +128,7 @@ fn node_indexes(nodes: &[PlanNode]) -> BTreeMap<String, usize> {
     nodes.iter().enumerate().map(|(index, node)| (node.id.clone(), index)).collect()
 }
 
-fn validate_wiring(nodes: &[PlanNode], node_indexes: &BTreeMap<String, usize>) -> Result<()> {
+fn validate_wiring(nodes: &[PlanNode], node_indexes: &BTreeMap<String, usize>) -> EngineResult<()> {
     for node in nodes {
         validate_input_defaults(node)?;
         for (input_name, binding) in &node.inputs {
@@ -171,7 +174,7 @@ fn validate_wiring(nodes: &[PlanNode], node_indexes: &BTreeMap<String, usize>) -
     Ok(())
 }
 
-fn validate_input_defaults(node: &PlanNode) -> Result<()> {
+fn validate_input_defaults(node: &PlanNode) -> EngineResult<()> {
     for input in node.node.inputs() {
         if let Some(default) = &input.default
             && default.port_type() != input.port_type
@@ -212,7 +215,7 @@ fn validate_source_output(
     input_port: &InputPort,
     source: &OutputRef,
     source_index: usize,
-) -> Result<()> {
+) -> EngineResult<()> {
     let source_node = &nodes[source_index];
     let source_output = source_node.node.output_port(source.output_name()).ok_or_else(|| {
         EngineError::UnknownSourceOutput {

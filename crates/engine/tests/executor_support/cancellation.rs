@@ -1,7 +1,7 @@
 use engine::{
     CancellationSignalInterface, InputPort, NodeInputs, NodeInterface, NodeParams, NodeRegistry,
-    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value, Workflow,
-    WorkflowNode,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Workflow, WorkflowNode,
+    WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -99,7 +99,7 @@ impl NodeInterface for CommitThenCancelNodeImpl {
         self.cancellation.cancel();
         Ok(NodeRunResult::new(BTreeMap::from([(
             "text".to_owned(),
-            Value::String("committed".to_owned()),
+            WorkflowNodeValue::String("committed".to_owned()),
         )])))
     }
 }

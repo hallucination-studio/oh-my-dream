@@ -17,6 +17,6 @@ mod persistence;
 pub mod store;
 pub mod thumbnail;
 
-pub use error::{AssetError, Result};
+pub use error::{AssetError, AssetResult};
 pub use model::{Asset, AssetKind, AssetQuery, AssetSort, NewAsset, Project};
 pub use store::AssetStore;

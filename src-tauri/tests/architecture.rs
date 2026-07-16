@@ -105,6 +105,15 @@ fn repository_interface_implementations_use_impl_suffixes() {
 }
 
 #[test]
+fn workspace_libraries_do_not_export_prohibited_standalone_names() {
+    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    let mut violations = Vec::new();
+    collect_prohibited_public_name_violations(&workspace_root.join("crates"), &mut violations);
+
+    assert_eq!(violations, Vec::<String>::new());
+}
+
+#[test]
 fn active_private_boundary_implementations_use_impl_suffixes() {
     assert!(FAL_TRANSPORT.contains("ReqwestFalHttpTransportAdapterImpl"));
     assert!(!FAL_TRANSPORT.contains("struct ReqwestFalHttpTransport {"));
@@ -238,4 +247,68 @@ fn collect_file_implementation_name_violations(
 fn implementation_type_name(declaration: &str) -> Option<&str> {
     let target = declaration.split(" for ").nth(1)?;
     target.split(['<', ' ', '{']).next().filter(|name| !name.is_empty())
+}
+
+fn collect_prohibited_public_name_violations(directory: &Path, violations: &mut Vec<String>) {
+    const PROHIBITED: [&str; 26] = [
+        "Task",
+        "Job",
+        "Item",
+        "Data",
+        "Value",
+        "Service",
+        "Manager",
+        "Handler",
+        "Processor",
+        "Executor",
+        "Store",
+        "Repository",
+        "Provider",
+        "Router",
+        "Client",
+        "Model",
+        "Config",
+        "Context",
+        "State",
+        "Result",
+        "Operation",
+        "Resource",
+        "Content",
+        "Media",
+        "Registry",
+        "TextToAudio",
+    ];
+    for entry in fs::read_dir(directory).expect("source directory should be readable") {
+        let path = entry.expect("source entry should be readable").path();
+        if path.is_dir() {
+            collect_prohibited_public_name_violations(&path, violations);
+            continue;
+        }
+        if path.extension().is_none_or(|extension| extension != "rs")
+            || !path.components().any(|component| component.as_os_str() == "src")
+        {
+            continue;
+        }
+        let source = fs::read_to_string(&path).expect("Rust source should be readable");
+        for (index, line) in source.lines().enumerate() {
+            let mut words = line.split_whitespace();
+            if words.next() != Some("pub") {
+                continue;
+            }
+            let Some(kind) = words.next() else { continue };
+            if !matches!(kind, "struct" | "enum" | "trait" | "type") {
+                continue;
+            }
+            let Some(name) = words.next().and_then(public_declaration_name) else {
+                continue;
+            };
+            if PROHIBITED.contains(&name) {
+                violations.push(format!("{}:{}:{name}", path.display(), index + 1));
+            }
+        }
+    }
+}
+
+fn public_declaration_name(value: &str) -> Option<&str> {
+    value.split(['<', ':', '=', '{']).next().filter(|name| !name.is_empty())
 }

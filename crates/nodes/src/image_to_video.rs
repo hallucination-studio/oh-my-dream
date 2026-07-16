@@ -13,7 +13,7 @@ use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -186,7 +186,7 @@ impl NodeInterface for ImageToVideoNodeImpl {
         )
         .map_err(boxed)?;
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("video".to_owned(), Value::Video(asset.id))]),
+            outputs: BTreeMap::from([("video".to_owned(), WorkflowNodeValue::Video(asset.id))]),
             cost: output.cost,
         })
     }

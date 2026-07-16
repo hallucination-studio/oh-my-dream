@@ -9,7 +9,7 @@
 use crate::error::EngineError;
 use crate::executor::{CancellationSignalInterface, NodeExecutionState, NodeProgressEvent};
 use crate::port::{PortCardinality, PortType};
-use crate::value::{NodeInputs, Value, ValueMap};
+use crate::value::{NodeInputs, ValueMap, WorkflowNodeValue};
 
 /// Declaration of a single input port on a node.
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub struct InputPort {
     /// Whether the port must be satisfied (by a wire or a default) to run.
     pub required: bool,
     /// Optional default value used when the port is left unconnected.
-    pub default: Option<Value>,
+    pub default: Option<WorkflowNodeValue>,
 }
 
 /// Declaration of a single output port on a node.

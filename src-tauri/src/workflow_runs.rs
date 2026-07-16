@@ -1,6 +1,6 @@
 use engine::{
-    CancellationSignalInterface, EngineError, Executor, NodeProgressEvent, NodeRegistry,
-    ResultCache, RunOutputs, Workflow,
+    CancellationSignalInterface, EngineError, NodeProgressEvent, NodeRegistry, ResultCache,
+    RunOutputs, Workflow, WorkflowGraphExecutor,
 };
 use std::collections::HashMap;
 use std::error::Error;
@@ -165,7 +165,7 @@ impl WorkflowRuns {
             .map_err(|_| WorkflowRunsError::ProjectCacheLock { project_id: project_id.clone() })?;
         let cancellation = Arc::clone(&registration.cancellation);
         let mut sink_available = true;
-        let result = Executor::new(&self.registry).execute_interruptible(
+        let result = WorkflowGraphExecutor::new(&self.registry).execute_interruptible(
             &workflow,
             &mut cache,
             cancellation.as_ref(),

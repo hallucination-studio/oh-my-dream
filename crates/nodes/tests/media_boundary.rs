@@ -1,8 +1,8 @@
 use assets::AssetStore;
 use engine::{
-    CancellationSignalInterface, EngineError, Executor, InputBinding, InputPort, NodeInterface,
-    NodeParams, NodeRegistry, NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort,
-    OutputRef, PortType, ResultCache, Value, Workflow, WorkflowNode,
+    CancellationSignalInterface, EngineError, InputBinding, InputPort, NodeInterface, NodeParams,
+    NodeRegistry, NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType,
+    ResultCache, Workflow, WorkflowGraphExecutor, WorkflowNode, WorkflowNodeValue,
 };
 use nodes::{
     AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
@@ -83,7 +83,7 @@ fn asset_prefixed_local_image_reaches_the_video_generator() {
     .expect("register workflow capabilities");
     register_local_image(&mut registry, reference);
 
-    Executor::new(&registry)
+    WorkflowGraphExecutor::new(&registry)
         .execute(&local_image_workflow(project.id), &mut ResultCache::new())
         .expect("asset-prefixed local image workflow");
 
@@ -127,7 +127,7 @@ fn cancellation_before_persistence_does_not_store_an_asset() {
     .expect("register workflow capabilities");
     let signal = AtomicCancellationImpl { cancelled };
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute_interruptible(
             &text_to_image_workflow(project.id),
             &mut ResultCache::new(),
@@ -142,7 +142,7 @@ fn cancellation_before_persistence_does_not_store_an_asset() {
 
 fn execute_text_to_image(
     output: GeneratedOutput,
-) -> (engine::Result<engine::RunOutputs>, nodes::SharedAssetStore, TempDir) {
+) -> (engine::EngineResult<engine::RunOutputs>, nodes::SharedAssetStore, TempDir) {
     let directory = TempDir::new().expect("temp directory");
     let store = Arc::new(Mutex::new(AssetStore::open(directory.path()).expect("asset store")));
     let project = store.lock().expect("store lock").create_project("Default").expect("project");
@@ -161,7 +161,7 @@ fn execute_text_to_image(
     )
     .expect("register workflow capabilities");
     let workflow = text_to_image_workflow(project.id);
-    let result = Executor::new(&registry).execute(&workflow, &mut ResultCache::new());
+    let result = WorkflowGraphExecutor::new(&registry).execute(&workflow, &mut ResultCache::new());
     (result, store, directory)
 }
 
@@ -302,7 +302,7 @@ impl NodeInterface for LocalImageNodeImpl {
     ) -> Result<NodeRunResult, NodeRunError> {
         Ok(NodeRunResult::new(BTreeMap::from([(
             "image".to_owned(),
-            Value::Image(self.reference.clone()),
+            WorkflowNodeValue::Image(self.reference.clone()),
         )])))
     }
 }
