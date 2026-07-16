@@ -11,10 +11,10 @@ use super::*;
 use crate::{application::AssistantApplyWorkflowChangeEffect, domain::*, interfaces::*};
 
 #[derive(Clone)]
-struct RepositoryFake(Arc<Mutex<AssistantWorkflowChangeAggregate>>);
+struct RepositoryFakeImpl(Arc<Mutex<AssistantWorkflowChangeAggregate>>);
 
 #[async_trait]
-impl AssistantWorkflowChangeRepositoryInterface for RepositoryFake {
+impl AssistantWorkflowChangeRepositoryInterface for RepositoryFakeImpl {
     async fn load_assistant_workflow_change(
         &self,
         change_id: AssistantWorkflowChangeId,
@@ -58,10 +58,10 @@ impl AssistantWorkflowChangeRepositoryInterface for RepositoryFake {
 }
 
 #[derive(Clone)]
-struct ApplierFake(Arc<AtomicUsize>);
+struct ApplierFakeImpl(Arc<AtomicUsize>);
 
 #[async_trait]
-impl AssistantWorkflowMutationApplierInterface for ApplierFake {
+impl AssistantWorkflowMutationApplierInterface for ApplierFakeImpl {
     async fn apply_assistant_workflow_change(
         &self,
         _request: AssistantWorkflowApplyRequest,
@@ -73,10 +73,10 @@ impl AssistantWorkflowMutationApplierInterface for ApplierFake {
 }
 
 #[derive(Clone)]
-struct ContinuationStoreFake(Arc<Mutex<Option<AssistantStoredContinuation>>>);
+struct ContinuationStoreFakeImpl(Arc<Mutex<Option<AssistantStoredContinuation>>>);
 
 #[async_trait]
-impl AssistantModelContinuationStoreInterface for ContinuationStoreFake {
+impl AssistantModelContinuationStoreInterface for ContinuationStoreFakeImpl {
     async fn store_assistant_model_continuation(
         &self,
         continuation: AssistantStoredContinuation,
@@ -99,10 +99,10 @@ impl AssistantModelContinuationStoreInterface for ContinuationStoreFake {
 }
 
 #[derive(Clone)]
-struct RunnerFake(Arc<AtomicUsize>);
+struct RunnerFakeImpl(Arc<AtomicUsize>);
 
 #[async_trait]
-impl AssistantModelRunnerInterface for RunnerFake {
+impl AssistantModelRunnerInterface for RunnerFakeImpl {
     async fn start_assistant_model_turn(
         &self,
         _request: AssistantModelTurnRequest,
@@ -119,10 +119,10 @@ impl AssistantModelRunnerInterface for RunnerFake {
 }
 
 #[derive(Clone)]
-struct RunStarterFake(Arc<AtomicUsize>);
+struct RunStarterFakeImpl(Arc<AtomicUsize>);
 
 #[async_trait]
-impl AssistantWorkflowRunStarterInterface for RunStarterFake {
+impl AssistantWorkflowRunStarterInterface for RunStarterFakeImpl {
     async fn start_assistant_workflow_run(
         &self,
         _request: AssistantWorkflowRunRequest,
@@ -137,7 +137,7 @@ impl AssistantWorkflowRunStarterInterface for RunStarterFake {
 async fn effect_recovers_apply_resume_and_run_link_without_repeating_completed_work() {
     let change = applying_change();
     let change_id = change.id();
-    let repository = RepositoryFake(Arc::new(Mutex::new(change.clone())));
+    let repository = RepositoryFakeImpl(Arc::new(Mutex::new(change.clone())));
     let apply_count = Arc::new(AtomicUsize::new(0));
     let resume_count = Arc::new(AtomicUsize::new(0));
     let run_count = Arc::new(AtomicUsize::new(0));
@@ -150,10 +150,10 @@ async fn effect_recovers_apply_resume_and_run_link_without_repeating_completed_w
     };
     let use_case = AssistantApplyWorkflowChangeEffectUseCase::new(
         repository,
-        ApplierFake(Arc::clone(&apply_count)),
-        ContinuationStoreFake(Arc::new(Mutex::new(Some(continuation)))),
-        RunnerFake(Arc::clone(&resume_count)),
-        RunStarterFake(Arc::clone(&run_count)),
+        ApplierFakeImpl(Arc::clone(&apply_count)),
+        ContinuationStoreFakeImpl(Arc::new(Mutex::new(Some(continuation)))),
+        RunnerFakeImpl(Arc::clone(&resume_count)),
+        RunStarterFakeImpl(Arc::clone(&run_count)),
     );
 
     let completed = use_case.apply_workflow_change_effect(change_id).await.unwrap();

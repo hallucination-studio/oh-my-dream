@@ -18,12 +18,12 @@ use crate::{
 };
 
 #[derive(Clone, Default)]
-struct RepositoryFake {
+struct RepositoryFakeImpl {
     values: Arc<Mutex<BTreeMap<AssistantWorkflowChangeId, AssistantWorkflowChangeAggregate>>>,
 }
 
 #[async_trait]
-impl AssistantWorkflowChangeRepositoryInterface for RepositoryFake {
+impl AssistantWorkflowChangeRepositoryInterface for RepositoryFakeImpl {
     async fn load_assistant_workflow_change(
         &self,
         change_id: AssistantWorkflowChangeId,
@@ -69,9 +69,9 @@ impl AssistantWorkflowChangeRepositoryInterface for RepositoryFake {
 }
 
 #[derive(Clone, Copy)]
-struct ClockFake;
+struct ClockFakeImpl;
 
-impl AssistantClockInterface for ClockFake {
+impl AssistantClockInterface for ClockFakeImpl {
     fn current_assistant_time(&self) -> Result<AssistantReviewedAt, AssistantApplicationError> {
         Ok(AssistantReviewedAt::new(10_000).unwrap())
     }
@@ -79,11 +79,11 @@ impl AssistantClockInterface for ClockFake {
 
 #[tokio::test]
 async fn exact_fetch_fact_is_required_and_consumed_only_after_persisted_verdict() {
-    let repository = RepositoryFake::default();
+    let repository = RepositoryFakeImpl::default();
     let change = proposed_change();
     repository.insert_assistant_workflow_change(change.clone()).await.unwrap();
     let evidence = AssistantReviewEvidenceRegistry::default();
-    let use_case = AssistantReviewWorkflowChangeUseCase::new(repository, ClockFake, evidence);
+    let use_case = AssistantReviewWorkflowChangeUseCase::new(repository, ClockFakeImpl, evidence);
     let invocation_id = invocation_id(8);
     use_case
         .record_candidate_fetch(AssistantReviewerFetchCommand {

@@ -94,9 +94,9 @@ fn reconstruction_rejects_cycles() {
 
 fn registry() -> WorkflowNodeCapabilityRegistry {
     let implementations: Vec<Arc<dyn WorkflowNodeCapabilityInterface>> = vec![
-        Arc::new(FakeCapability::new("media.source", WorkflowDataType::Image, false)),
-        Arc::new(FakeCapability::new("text.source", WorkflowDataType::Text, false)),
-        Arc::new(FakeCapability::new("media.consume", WorkflowDataType::Image, true)),
+        Arc::new(FakeCapabilityImpl::new("media.source", WorkflowDataType::Image, false)),
+        Arc::new(FakeCapabilityImpl::new("text.source", WorkflowDataType::Text, false)),
+        Arc::new(FakeCapabilityImpl::new("media.consume", WorkflowDataType::Image, true)),
     ];
     WorkflowNodeCapabilityRegistry::try_new(implementations).unwrap()
 }
@@ -152,11 +152,11 @@ fn source_id() -> WorkflowNodeId {
     WorkflowNodeId::from_uuid(uuid(1)).unwrap()
 }
 
-struct FakeCapability {
+struct FakeCapabilityImpl {
     contract: NodeCapabilityContract,
 }
 
-impl FakeCapability {
+impl FakeCapabilityImpl {
     fn new(id: &str, output_type: WorkflowDataType, accepts_input: bool) -> Self {
         let inputs = accepts_input
             .then(|| {
@@ -188,7 +188,7 @@ impl FakeCapability {
 }
 
 #[async_trait]
-impl WorkflowNodeCapabilityInterface for FakeCapability {
+impl WorkflowNodeCapabilityInterface for FakeCapabilityImpl {
     fn node_capability_contract(&self) -> &NodeCapabilityContract {
         &self.contract
     }

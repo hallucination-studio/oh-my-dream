@@ -212,20 +212,20 @@ async fn dispatcher_evaluates_without_persistence_and_proposes_with_persistence(
 }
 
 type TestDispatcher = AssistantToolDispatcherImpl<
-    WorkspaceFake,
-    CapabilityFake,
-    PlanRepositoryFake,
-    EvaluatorFake,
-    Arc<ChangeRepositoryFake>,
+    WorkspaceFakeImpl,
+    CapabilityFakeImpl,
+    PlanRepositoryFakeImpl,
+    EvaluatorFakeImpl,
+    Arc<ChangeRepositoryFakeImpl>,
 >;
 
-fn dispatcher() -> (TestDispatcher, Arc<ChangeRepositoryFake>) {
-    let changes = Arc::new(ChangeRepositoryFake::default());
+fn dispatcher() -> (TestDispatcher, Arc<ChangeRepositoryFakeImpl>) {
+    let changes = Arc::new(ChangeRepositoryFakeImpl::default());
     let dispatcher = AssistantToolDispatcherImpl::try_new(
-        WorkspaceFake,
-        CapabilityFake,
-        PlanRepositoryFake::default(),
-        EvaluatorFake,
+        WorkspaceFakeImpl,
+        CapabilityFakeImpl,
+        PlanRepositoryFakeImpl::default(),
+        EvaluatorFakeImpl,
         Arc::clone(&changes),
     )
     .unwrap();
@@ -255,10 +255,10 @@ fn context() -> AssistantToolExecutionContext {
     }
 }
 
-struct WorkspaceFake;
+struct WorkspaceFakeImpl;
 
 #[async_trait]
-impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceFake {
+impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceFakeImpl {
     async fn read_assistant_workspace_snapshot(
         &self,
         _request: AssistantWorkspaceSnapshotRequest,
@@ -267,10 +267,10 @@ impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceFake {
     }
 }
 
-struct CapabilityFake;
+struct CapabilityFakeImpl;
 
 #[async_trait]
-impl AssistantNodeCapabilityCatalogReaderInterface for CapabilityFake {
+impl AssistantNodeCapabilityCatalogReaderInterface for CapabilityFakeImpl {
     async fn read_assistant_node_capability_catalog(
         &self,
         _request: AssistantNodeCapabilityCatalogRequest,
@@ -280,12 +280,12 @@ impl AssistantNodeCapabilityCatalogReaderInterface for CapabilityFake {
 }
 
 #[derive(Default)]
-struct PlanRepositoryFake {
+struct PlanRepositoryFakeImpl {
     value: Mutex<Option<AssistantProductionPlanAggregate>>,
 }
 
 #[async_trait]
-impl AssistantProductionPlanRepositoryInterface for PlanRepositoryFake {
+impl AssistantProductionPlanRepositoryInterface for PlanRepositoryFakeImpl {
     async fn load_assistant_production_plan(
         &self,
         project_id: ProjectId,
@@ -314,10 +314,10 @@ impl AssistantProductionPlanRepositoryInterface for PlanRepositoryFake {
     }
 }
 
-struct EvaluatorFake;
+struct EvaluatorFakeImpl;
 
 #[async_trait]
-impl AssistantWorkflowMutationEvaluatorInterface for EvaluatorFake {
+impl AssistantWorkflowMutationEvaluatorInterface for EvaluatorFakeImpl {
     async fn evaluate_assistant_workflow_mutations(
         &self,
         request: AssistantWorkflowEvaluationRequest,
@@ -346,12 +346,12 @@ impl AssistantWorkflowMutationEvaluatorInterface for EvaluatorFake {
 }
 
 #[derive(Default)]
-struct ChangeRepositoryFake {
+struct ChangeRepositoryFakeImpl {
     values: Mutex<BTreeMap<AssistantWorkflowChangeId, AssistantWorkflowChangeAggregate>>,
 }
 
 #[async_trait]
-impl AssistantWorkflowChangeRepositoryInterface for Arc<ChangeRepositoryFake> {
+impl AssistantWorkflowChangeRepositoryInterface for Arc<ChangeRepositoryFakeImpl> {
     async fn load_assistant_workflow_change(
         &self,
         change_id: AssistantWorkflowChangeId,

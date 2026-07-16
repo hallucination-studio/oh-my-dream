@@ -1,5 +1,5 @@
 use backends::{
-    ImageToVideoRequest as BackendImageToVideoRequest, InferenceBackendInterface, MockBackend,
+    ImageToVideoRequest as BackendImageToVideoRequest, InferenceBackendInterface, MockBackendImpl,
     ReferenceImageGenerationRequest as BackendReferenceImageGenerationRequest,
     ReferenceVideoGenerationRequest as BackendReferenceVideoGenerationRequest, TaskHandle,
     TaskStatus, TextToAudioRequest as BackendTextToAudioRequest,
@@ -29,12 +29,12 @@ const MOCK_IMAGE_PNG: &[u8] = &[
     5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
 ];
 
-pub(crate) struct MockGenerationAdapter {
-    backend: Arc<MockBackend>,
+pub(crate) struct MockGenerationAdapterImpl {
+    backend: Arc<MockBackendImpl>,
 }
 
-impl MockGenerationAdapter {
-    pub(crate) fn new(backend: Arc<MockBackend>) -> Self {
+impl MockGenerationAdapterImpl {
+    pub(crate) fn new(backend: Arc<MockBackendImpl>) -> Self {
         Self { backend }
     }
 
@@ -87,7 +87,7 @@ impl MockGenerationAdapter {
     }
 }
 
-impl TextToImageGeneratorInterface for MockGenerationAdapter {
+impl TextToImageGeneratorInterface for MockGenerationAdapterImpl {
     fn generate(
         &self,
         request: TextToImageRequest,
@@ -101,7 +101,7 @@ impl TextToImageGeneratorInterface for MockGenerationAdapter {
     }
 }
 
-impl ReferenceImageGeneratorInterface for MockGenerationAdapter {
+impl ReferenceImageGeneratorInterface for MockGenerationAdapterImpl {
     fn generate(
         &self,
         request: ReferenceImageGenerationRequest,
@@ -115,7 +115,7 @@ impl ReferenceImageGeneratorInterface for MockGenerationAdapter {
     }
 }
 
-impl ImageToVideoGeneratorInterface for MockGenerationAdapter {
+impl ImageToVideoGeneratorInterface for MockGenerationAdapterImpl {
     fn generate(
         &self,
         request: ImageToVideoRequest,
@@ -129,7 +129,7 @@ impl ImageToVideoGeneratorInterface for MockGenerationAdapter {
     }
 }
 
-impl ReferenceVideoGeneratorInterface for MockGenerationAdapter {
+impl ReferenceVideoGeneratorInterface for MockGenerationAdapterImpl {
     fn generate(
         &self,
         request: ReferenceVideoGenerationRequest,
@@ -143,7 +143,7 @@ impl ReferenceVideoGeneratorInterface for MockGenerationAdapter {
     }
 }
 
-impl TextToAudioGeneratorInterface for MockGenerationAdapter {
+impl TextToAudioGeneratorInterface for MockGenerationAdapterImpl {
     fn generate(
         &self,
         request: TextToAudioRequest,

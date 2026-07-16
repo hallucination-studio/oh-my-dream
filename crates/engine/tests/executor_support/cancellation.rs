@@ -1,6 +1,6 @@
 use engine::{
     CancellationSignalInterface, InputPort, NodeInputs, NodeInterface, NodeParams, NodeRegistry,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value, Workflow,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value, Workflow,
     WorkflowNode,
 };
 use std::collections::BTreeMap;
@@ -10,31 +10,31 @@ use std::sync::{
 };
 
 #[derive(Default)]
-pub(crate) struct TestCancellation {
+pub(crate) struct TestCancellationImpl {
     cancelled: AtomicBool,
 }
 
-impl TestCancellation {
+impl TestCancellationImpl {
     pub(crate) fn cancel(&self) {
         self.cancelled.store(true, Ordering::SeqCst);
     }
 }
 
-impl CancellationSignalInterface for TestCancellation {
+impl CancellationSignalInterface for TestCancellationImpl {
     fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::SeqCst)
     }
 }
 
 pub(crate) fn commit_then_cancel_registry(
-    cancellation: Arc<TestCancellation>,
+    cancellation: Arc<TestCancellationImpl>,
     runs: Arc<AtomicUsize>,
 ) -> NodeRegistry {
     let mut registry = NodeRegistry::new();
     registry.register(
         "CommitThenCancel",
         Box::new(move |_| {
-            Ok(Box::new(CommitThenCancelNode {
+            Ok(Box::new(CommitThenCancelNodeImpl {
                 cancellation: Arc::clone(&cancellation),
                 runs: Arc::clone(&runs),
             }))
@@ -43,12 +43,12 @@ pub(crate) fn commit_then_cancel_registry(
     registry
 }
 
-pub(crate) fn fail_then_cancel_registry(cancellation: Arc<TestCancellation>) -> NodeRegistry {
+pub(crate) fn fail_then_cancel_registry(cancellation: Arc<TestCancellationImpl>) -> NodeRegistry {
     let mut registry = NodeRegistry::new();
     registry.register(
         "FailThenCancel",
         Box::new(move |_| {
-            Ok(Box::new(FailThenCancelNode { cancellation: Arc::clone(&cancellation) }))
+            Ok(Box::new(FailThenCancelNodeImpl { cancellation: Arc::clone(&cancellation) }))
         }),
     );
     registry
@@ -69,12 +69,12 @@ pub(crate) fn single_node_workflow(type_id: &str) -> Workflow {
     }
 }
 
-struct CommitThenCancelNode {
-    cancellation: Arc<TestCancellation>,
+struct CommitThenCancelNodeImpl {
+    cancellation: Arc<TestCancellationImpl>,
     runs: Arc<AtomicUsize>,
 }
 
-impl NodeInterface for CommitThenCancelNode {
+impl NodeInterface for CommitThenCancelNodeImpl {
     fn type_id(&self) -> &str {
         "CommitThenCancel"
     }
@@ -93,7 +93,7 @@ impl NodeInterface for CommitThenCancelNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         self.cancellation.cancel();
@@ -104,11 +104,11 @@ impl NodeInterface for CommitThenCancelNode {
     }
 }
 
-struct FailThenCancelNode {
-    cancellation: Arc<TestCancellation>,
+struct FailThenCancelNodeImpl {
+    cancellation: Arc<TestCancellationImpl>,
 }
 
-impl NodeInterface for FailThenCancelNode {
+impl NodeInterface for FailThenCancelNodeImpl {
     fn type_id(&self) -> &str {
         "FailThenCancel"
     }
@@ -124,7 +124,7 @@ impl NodeInterface for FailThenCancelNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         self.cancellation.cancel();
         Err(Box::new(std::io::Error::other("provider cancellation failed")))

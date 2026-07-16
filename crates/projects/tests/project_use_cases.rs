@@ -45,17 +45,17 @@ fn mutation_command_hashes_match_the_frozen_binary_vectors() {
 
 #[tokio::test]
 async fn create_replays_the_original_outcome_without_generating_new_values() {
-    let repository = Arc::new(InMemoryProjectRepositoryFake::default());
+    let repository = Arc::new(InMemoryProjectRepositoryFakeImpl::default());
     let request = ProjectCreateRequest {
         request_id: request_id("118f47a2-4e12-4f79-8bd8-95d2b26f4418"),
         name: ProjectName::new("  First  ").expect("name is valid"),
     };
     let use_case = ProjectCreateUseCase::new(
         repository,
-        Arc::new(DeterministicProjectClockFake {
+        Arc::new(DeterministicProjectClockFakeImpl {
             observed_at: ProjectUpdatedAt::new(10).expect("timestamp is valid"),
         }),
-        Arc::new(SequenceProjectIdentityGeneratorFake::new([project_id(
+        Arc::new(SequenceProjectIdentityGeneratorFakeImpl::new([project_id(
             "018f47a2-4e12-4f79-8bd8-95d2b26f4418",
         )])),
     );
@@ -68,13 +68,13 @@ async fn create_replays_the_original_outcome_without_generating_new_values() {
 
 #[tokio::test]
 async fn rename_uses_revision_cas_and_replays_the_exact_committed_outcome() {
-    let repository = Arc::new(InMemoryProjectRepositoryFake::default());
+    let repository = Arc::new(InMemoryProjectRepositoryFakeImpl::default());
     let create = ProjectCreateUseCase::new(
         repository.clone(),
-        Arc::new(DeterministicProjectClockFake {
+        Arc::new(DeterministicProjectClockFakeImpl {
             observed_at: ProjectUpdatedAt::new(10).expect("timestamp is valid"),
         }),
-        Arc::new(SequenceProjectIdentityGeneratorFake::new([project_id(
+        Arc::new(SequenceProjectIdentityGeneratorFakeImpl::new([project_id(
             "018f47a2-4e12-4f79-8bd8-95d2b26f4418",
         )])),
     );
@@ -85,7 +85,7 @@ async fn rename_uses_revision_cas_and_replays_the_exact_committed_outcome() {
     let created = create.create_project(create_request.clone()).await.expect("create succeeds");
     let rename = ProjectRenameUseCase::new(
         repository,
-        Arc::new(DeterministicProjectClockFake {
+        Arc::new(DeterministicProjectClockFakeImpl {
             observed_at: ProjectUpdatedAt::new(20).expect("timestamp is valid"),
         }),
     );
@@ -107,7 +107,7 @@ async fn rename_uses_revision_cas_and_replays_the_exact_committed_outcome() {
 
 #[tokio::test]
 async fn get_returns_not_found_and_list_returns_the_repository_page() {
-    let repository = Arc::new(InMemoryProjectRepositoryFake::default());
+    let repository = Arc::new(InMemoryProjectRepositoryFakeImpl::default());
     let missing = project_id("018f47a2-4e12-4f79-8bd8-95d2b26f4499");
     let get = ProjectGetUseCase::new(repository.clone());
     assert_eq!(
@@ -129,13 +129,13 @@ async fn get_returns_not_found_and_list_returns_the_repository_page() {
 
 #[tokio::test]
 async fn open_returns_the_project_and_only_the_translated_workflow_summary() {
-    let repository = Arc::new(InMemoryProjectRepositoryFake::default());
+    let repository = Arc::new(InMemoryProjectRepositoryFakeImpl::default());
     let create = ProjectCreateUseCase::new(
         repository.clone(),
-        Arc::new(DeterministicProjectClockFake {
+        Arc::new(DeterministicProjectClockFakeImpl {
             observed_at: ProjectUpdatedAt::new(10).expect("timestamp is valid"),
         }),
-        Arc::new(SequenceProjectIdentityGeneratorFake::new([project_id(
+        Arc::new(SequenceProjectIdentityGeneratorFakeImpl::new([project_id(
             "018f47a2-4e12-4f79-8bd8-95d2b26f4418",
         )])),
     );
@@ -154,14 +154,16 @@ async fn open_returns_the_project_and_only_the_translated_workflow_summary() {
     };
     let open = ProjectOpenUseCase::new(
         repository.clone(),
-        Arc::new(DeterministicProjectWorkflowSummaryReaderFake { summary: Some(summary.clone()) }),
+        Arc::new(DeterministicProjectWorkflowSummaryReaderFakeImpl {
+            summary: Some(summary.clone()),
+        }),
     );
     let workspace = open.open_project(project.id()).await.expect("open succeeds");
     assert_eq!(workspace.project, project);
     assert_eq!(workspace.current_workflow_summary, Some(summary));
     let open_without_workflow = ProjectOpenUseCase::new(
         repository,
-        Arc::new(DeterministicProjectWorkflowSummaryReaderFake { summary: None }),
+        Arc::new(DeterministicProjectWorkflowSummaryReaderFakeImpl { summary: None }),
     );
     assert_eq!(
         open_without_workflow
@@ -175,13 +177,13 @@ async fn open_returns_the_project_and_only_the_translated_workflow_summary() {
 
 #[tokio::test]
 async fn open_translates_workflow_reader_failures_to_the_project_error() {
-    let repository = Arc::new(InMemoryProjectRepositoryFake::default());
+    let repository = Arc::new(InMemoryProjectRepositoryFakeImpl::default());
     let create = ProjectCreateUseCase::new(
         repository.clone(),
-        Arc::new(DeterministicProjectClockFake {
+        Arc::new(DeterministicProjectClockFakeImpl {
             observed_at: ProjectUpdatedAt::new(10).expect("timestamp is valid"),
         }),
-        Arc::new(SequenceProjectIdentityGeneratorFake::new([project_id(
+        Arc::new(SequenceProjectIdentityGeneratorFakeImpl::new([project_id(
             "018f47a2-4e12-4f79-8bd8-95d2b26f4418",
         )])),
     );
@@ -193,7 +195,7 @@ async fn open_translates_workflow_reader_failures_to_the_project_error() {
         .await
         .expect("create succeeds");
     let open =
-        ProjectOpenUseCase::new(repository, Arc::new(FailingProjectWorkflowSummaryReaderFake));
+        ProjectOpenUseCase::new(repository, Arc::new(FailingProjectWorkflowSummaryReaderFakeImpl));
     assert_eq!(
         open.open_project(project.id()).await,
         Err(ProjectApplicationError::ProjectWorkflowSummaryReadFailure),
@@ -205,10 +207,10 @@ fn request_id(value: &str) -> ProjectMutationRequestId {
         .expect("test UUID is version four")
 }
 
-struct FailingProjectWorkflowSummaryReaderFake;
+struct FailingProjectWorkflowSummaryReaderFakeImpl;
 
 #[async_trait]
-impl ProjectWorkflowSummaryReaderInterface for FailingProjectWorkflowSummaryReaderFake {
+impl ProjectWorkflowSummaryReaderInterface for FailingProjectWorkflowSummaryReaderFakeImpl {
     async fn read_current_project_workflow_summary(
         &self,
         _project_id: ProjectId,

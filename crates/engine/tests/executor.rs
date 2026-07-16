@@ -5,7 +5,7 @@ use engine::{
     NodeRegistry, OutputRef, PortType, ResultCache, Value, Workflow, WorkflowNode,
 };
 use executor_support::{
-    FailingNode, RunCounters, TestCancellation, capability_effect_registry,
+    FailingNodeImpl, RunCounters, TestCancellationImpl, capability_effect_registry,
     commit_then_cancel_registry, event_summary, fail_then_cancel_registry, linear_workflow,
     local_read_workflow, ordered_video_workflow, registry, single_node_workflow,
 };
@@ -219,7 +219,7 @@ fn cancellation_stops_before_the_next_node() {
     let registry = registry(counters.clone());
     let workflow = linear_workflow("hello");
     let mut cache = ResultCache::new();
-    let cancellation = TestCancellation::default();
+    let cancellation = TestCancellationImpl::default();
 
     let error = Executor::new(&registry)
         .execute_interruptible(&workflow, &mut cache, &cancellation, &mut |event| {
@@ -237,7 +237,7 @@ fn cancellation_stops_before_the_next_node() {
 
 #[test]
 fn successful_final_node_commit_wins_over_late_cancellation() {
-    let cancellation = Arc::new(TestCancellation::default());
+    let cancellation = Arc::new(TestCancellationImpl::default());
     let runs = Arc::new(AtomicUsize::new(0));
     let registry = commit_then_cancel_registry(Arc::clone(&cancellation), Arc::clone(&runs));
     let workflow = single_node_workflow("CommitThenCancel");
@@ -264,7 +264,7 @@ fn successful_final_node_commit_wins_over_late_cancellation() {
 
 #[test]
 fn node_failure_wins_over_concurrent_cancellation() {
-    let cancellation = Arc::new(TestCancellation::default());
+    let cancellation = Arc::new(TestCancellationImpl::default());
     let registry = fail_then_cancel_registry(Arc::clone(&cancellation));
     let mut events = Vec::new();
 
@@ -290,7 +290,7 @@ fn node_failure_wins_over_concurrent_cancellation() {
 #[test]
 fn emits_error_event_before_returning_node_failure() {
     let mut registry = NodeRegistry::new();
-    registry.register("Failing", Box::new(|_| Ok(Box::new(FailingNode))));
+    registry.register("Failing", Box::new(|_| Ok(Box::new(FailingNodeImpl))));
     let workflow = Workflow {
         version: "1.0".to_owned(),
         project_id: "default".to_owned(),

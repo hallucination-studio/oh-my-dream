@@ -14,12 +14,12 @@ use crate::post_commit_effect::{
     DesktopPostCommitRecoveryCursor, DesktopPostCommitRecoveryPage,
 };
 
-struct FakeWorkflowRecovery {
+struct FakeWorkflowRecoveryImpl {
     actions: Arc<Mutex<Vec<&'static str>>>,
 }
 
 #[async_trait]
-impl DesktopWorkflowRestartRecoveryInterface for FakeWorkflowRecovery {
+impl DesktopWorkflowRestartRecoveryInterface for FakeWorkflowRecoveryImpl {
     async fn interrupt_all_non_terminal_workflow_runs(
         &self,
     ) -> Result<(), DesktopWorkflowRestartRecoveryError> {
@@ -36,13 +36,13 @@ impl DesktopWorkflowRestartRecoveryInterface for FakeWorkflowRecovery {
     }
 }
 
-struct FakeOutbox {
+struct FakeOutboxImpl {
     records: Mutex<Option<Vec<DesktopPostCommitEffectRecord>>>,
     actions: Arc<Mutex<Vec<&'static str>>>,
 }
 
 #[async_trait]
-impl DesktopPostCommitEffectOutboxInterface for FakeOutbox {
+impl DesktopPostCommitEffectOutboxInterface for FakeOutboxImpl {
     async fn claim_next_post_commit_effect(
         &self,
         _: DesktopApplicationInstanceId,
@@ -114,10 +114,10 @@ impl DesktopPostCommitEffectOutboxInterface for FakeOutbox {
     }
 }
 
-struct FakeClock;
+struct FakeClockImpl;
 
 #[async_trait]
-impl DesktopPostCommitWorkerClockInterface for FakeClock {
+impl DesktopPostCommitWorkerClockInterface for FakeClockImpl {
     fn current_post_commit_timestamp(
         &self,
     ) -> Result<DesktopPostCommitTimestamp, DesktopPostCommitWorkerClockError> {
@@ -156,9 +156,12 @@ async fn interrupts_runs_before_replaying_only_asset_and_assistant_claims() {
     ];
     let recovery = DesktopStartupRecovery::new(
         instance_id(81),
-        Arc::new(FakeOutbox { records: Mutex::new(Some(records)), actions: Arc::clone(&actions) }),
-        Arc::new(FakeWorkflowRecovery { actions: Arc::clone(&actions) }),
-        Arc::new(FakeClock),
+        Arc::new(FakeOutboxImpl {
+            records: Mutex::new(Some(records)),
+            actions: Arc::clone(&actions),
+        }),
+        Arc::new(FakeWorkflowRecoveryImpl { actions: Arc::clone(&actions) }),
+        Arc::new(FakeClockImpl),
     );
 
     assert_eq!(recovery.recover_before_accepting_commands().await, Ok(()));
@@ -173,7 +176,7 @@ async fn rejects_ready_non_workflow_effect_without_mutating_it() {
     let actions = Arc::new(Mutex::new(Vec::new()));
     let recovery = DesktopStartupRecovery::new(
         instance_id(82),
-        Arc::new(FakeOutbox {
+        Arc::new(FakeOutboxImpl {
             records: Mutex::new(Some(vec![record(
                 4,
                 DesktopPostCommitEffect::Asset(AssetFinalizeContentEffect::new(
@@ -183,8 +186,8 @@ async fn rejects_ready_non_workflow_effect_without_mutating_it() {
             )])),
             actions: Arc::clone(&actions),
         }),
-        Arc::new(FakeWorkflowRecovery { actions }),
-        Arc::new(FakeClock),
+        Arc::new(FakeWorkflowRecoveryImpl { actions }),
+        Arc::new(FakeClockImpl),
     );
 
     assert_eq!(

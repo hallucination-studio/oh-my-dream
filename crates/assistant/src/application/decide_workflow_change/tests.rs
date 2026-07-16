@@ -11,13 +11,13 @@ use super::*;
 use crate::{domain::*, interfaces::*};
 
 #[derive(Clone)]
-struct RepositoryFake {
+struct RepositoryFakeImpl {
     value: Arc<Mutex<AssistantWorkflowChangeAggregate>>,
     effect_committed: Arc<AtomicBool>,
 }
 
 #[async_trait]
-impl AssistantWorkflowChangeRepositoryInterface for RepositoryFake {
+impl AssistantWorkflowChangeRepositoryInterface for RepositoryFakeImpl {
     async fn load_assistant_workflow_change(
         &self,
         change_id: AssistantWorkflowChangeId,
@@ -60,7 +60,7 @@ impl AssistantWorkflowChangeRepositoryInterface for RepositoryFake {
     }
 }
 
-impl RepositoryFake {
+impl RepositoryFakeImpl {
     fn replace(
         &self,
         expected_state: AssistantWorkflowChangeState,
@@ -76,13 +76,13 @@ impl RepositoryFake {
 }
 
 #[derive(Clone)]
-struct ContinuationStoreFake {
-    repository: RepositoryFake,
+struct ContinuationStoreFakeImpl {
+    repository: RepositoryFakeImpl,
     consumed_after_terminal_commit: Arc<AtomicBool>,
 }
 
 #[async_trait]
-impl AssistantModelContinuationStoreInterface for ContinuationStoreFake {
+impl AssistantModelContinuationStoreInterface for ContinuationStoreFakeImpl {
     async fn store_assistant_model_continuation(
         &self,
         _continuation: AssistantStoredContinuation,
@@ -113,7 +113,7 @@ async fn approval_atomically_commits_applying_with_effect() {
     let consumed = Arc::new(AtomicBool::new(false));
     let use_case = AssistantDecideWorkflowChangeUseCase::new(
         repository.clone(),
-        ContinuationStoreFake {
+        ContinuationStoreFakeImpl {
             repository: repository.clone(),
             consumed_after_terminal_commit: consumed,
         },
@@ -133,7 +133,10 @@ async fn rejection_consumes_continuation_only_after_terminal_commit() {
     let consumed = Arc::new(AtomicBool::new(false));
     let use_case = AssistantDecideWorkflowChangeUseCase::new(
         repository.clone(),
-        ContinuationStoreFake { repository, consumed_after_terminal_commit: Arc::clone(&consumed) },
+        ContinuationStoreFakeImpl {
+            repository,
+            consumed_after_terminal_commit: Arc::clone(&consumed),
+        },
     );
     let result = use_case
         .decide_workflow_change(command(&change, AssistantWorkflowChangeDecision::Reject))
@@ -143,8 +146,8 @@ async fn rejection_consumes_continuation_only_after_terminal_commit() {
     assert!(consumed.load(Ordering::SeqCst));
 }
 
-fn repository(change: AssistantWorkflowChangeAggregate) -> RepositoryFake {
-    RepositoryFake {
+fn repository(change: AssistantWorkflowChangeAggregate) -> RepositoryFakeImpl {
+    RepositoryFakeImpl {
         value: Arc::new(Mutex::new(change)),
         effect_committed: Arc::new(AtomicBool::new(false)),
     }

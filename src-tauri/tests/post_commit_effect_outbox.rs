@@ -9,11 +9,11 @@ use oh_my_dream_tauri::post_commit_effect::*;
 use uuid::Uuid;
 
 #[derive(Default)]
-struct DesktopPostCommitEffectOutboxContractFake {
+struct DesktopPostCommitEffectOutboxContractFakeImpl {
     records: Mutex<BTreeMap<DesktopPostCommitEffectId, DesktopPostCommitEffectRecord>>,
 }
 
-impl DesktopPostCommitEffectOutboxContractFake {
+impl DesktopPostCommitEffectOutboxContractFakeImpl {
     fn insert(&self, record: DesktopPostCommitEffectRecord) {
         self.records.lock().unwrap().insert(record.effect_id(), record);
     }
@@ -24,7 +24,7 @@ impl DesktopPostCommitEffectOutboxContractFake {
 }
 
 #[async_trait]
-impl DesktopPostCommitEffectOutboxInterface for DesktopPostCommitEffectOutboxContractFake {
+impl DesktopPostCommitEffectOutboxInterface for DesktopPostCommitEffectOutboxContractFakeImpl {
     async fn claim_next_post_commit_effect(
         &self,
         instance_id: DesktopApplicationInstanceId,
@@ -171,7 +171,7 @@ impl DesktopPostCommitEffectOutboxInterface for DesktopPostCommitEffectOutboxCon
     }
 }
 
-impl DesktopPostCommitEffectOutboxContractFake {
+impl DesktopPostCommitEffectOutboxContractFakeImpl {
     fn replace_claim(
         &self,
         effect_id: DesktopPostCommitEffectId,
@@ -203,7 +203,7 @@ impl DesktopPostCommitEffectOutboxContractFake {
 
 #[tokio::test]
 async fn outbox_contract_claims_in_order_and_requires_the_claiming_instance() {
-    let fake = DesktopPostCommitEffectOutboxContractFake::default();
+    let fake = DesktopPostCommitEffectOutboxContractFakeImpl::default();
     let first = record(1, 10, workflow_effect(1), DesktopPostCommitEffectState::Ready);
     let second = record(2, 20, asset_effect(2), DesktopPostCommitEffectState::Ready);
     fake.insert(second);
@@ -223,7 +223,7 @@ async fn outbox_contract_claims_in_order_and_requires_the_claiming_instance() {
 
 #[tokio::test]
 async fn outbox_contract_recovers_only_prior_claims_and_ready_workflows() {
-    let fake = DesktopPostCommitEffectOutboxContractFake::default();
+    let fake = DesktopPostCommitEffectOutboxContractFakeImpl::default();
     let prior = instance_id(7);
     let current = instance_id(8);
     fake.insert(record(

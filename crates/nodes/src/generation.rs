@@ -241,13 +241,13 @@ pub trait GenerationContextInterface {
     }
 }
 
-impl GenerationContextInterface for engine::NodeRunContext<'_> {
+impl GenerationContextInterface for engine::NodeRunContextImpl<'_> {
     fn progress(&mut self, progress: f32) {
-        engine::NodeRunContext::progress(self, progress);
+        engine::NodeRunContextImpl::progress(self, progress);
     }
 
     fn is_cancelled(&self) -> bool {
-        engine::NodeRunContext::is_cancelled(self)
+        engine::NodeRunContextImpl::is_cancelled(self)
     }
 }
 

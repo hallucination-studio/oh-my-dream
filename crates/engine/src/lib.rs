@@ -34,7 +34,7 @@ pub use executor::{
 };
 pub use graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
 pub use node::{
-    InputPort, NodeInterface, NodeRunContext, NodeRunError, NodeRunResult, OutputPort,
+    InputPort, NodeInterface, NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort,
     cancelled_node_run,
 };
 pub use port::{PortCardinality, PortType};

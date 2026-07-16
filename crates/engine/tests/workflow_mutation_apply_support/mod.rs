@@ -61,9 +61,9 @@ pub(crate) fn command(actions: Vec<WorkflowMutationAction>) -> WorkflowApplyMuta
 
 pub(crate) fn registry() -> WorkflowNodeCapabilityRegistry {
     let implementations: Vec<Arc<dyn WorkflowNodeCapabilityInterface>> = vec![
-        Arc::new(FakeCapability::new("image.source", Vec::new())),
-        Arc::new(FakeCapability::new("image.single", vec![single_input()])),
-        Arc::new(FakeCapability::new("image.references", vec![reference_input()])),
+        Arc::new(FakeCapabilityImpl::new("image.source", Vec::new())),
+        Arc::new(FakeCapabilityImpl::new("image.single", vec![single_input()])),
+        Arc::new(FakeCapabilityImpl::new("image.references", vec![reference_input()])),
     ];
     WorkflowNodeCapabilityRegistry::try_new(implementations).unwrap()
 }
@@ -100,11 +100,11 @@ fn accepted_role(role: &str) -> (NodeCapabilityInputRoleKey, WorkflowAcceptedDat
     )
 }
 
-struct FakeCapability {
+struct FakeCapabilityImpl {
     contract: NodeCapabilityContract,
 }
 
-impl FakeCapability {
+impl FakeCapabilityImpl {
     fn new(id: &str, inputs: Vec<NodeCapabilityInputContract>) -> Self {
         Self {
             contract: NodeCapabilityContract::try_new(
@@ -124,7 +124,7 @@ impl FakeCapability {
 }
 
 #[async_trait]
-impl WorkflowNodeCapabilityInterface for FakeCapability {
+impl WorkflowNodeCapabilityInterface for FakeCapabilityImpl {
     fn node_capability_contract(&self) -> &NodeCapabilityContract {
         &self.contract
     }

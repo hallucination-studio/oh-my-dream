@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 #[allow(dead_code)]
-pub(crate) struct MissingResolver;
+pub(crate) struct MissingResolverImpl;
 
-impl AssetReferenceResolverInterface for MissingResolver {
+impl AssetReferenceResolverInterface for MissingResolverImpl {
     fn resolve(
         &self,
         _request: AssetReferenceRequest<'_>,
@@ -18,9 +18,9 @@ impl AssetReferenceResolverInterface for MissingResolver {
 }
 
 #[allow(dead_code)]
-pub(crate) struct StoreResolver(pub(crate) Arc<Mutex<assets::AssetStore>>);
+pub(crate) struct StoreResolverImpl(pub(crate) Arc<Mutex<assets::AssetStore>>);
 
-impl AssetReferenceResolverInterface for StoreResolver {
+impl AssetReferenceResolverInterface for StoreResolverImpl {
     fn resolve(
         &self,
         request: AssetReferenceRequest<'_>,

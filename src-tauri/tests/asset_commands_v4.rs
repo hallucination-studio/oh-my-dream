@@ -29,8 +29,8 @@ fn canonical_asset_slice_imports_lists_gets_and_issues_signed_preview() {
         let directory = tempdir().unwrap();
         let dependencies = DesktopCompositionRoot::compose_activated_commands_with_emitter(
             DesktopApplicationPaths::from_application_data_root(directory.path()),
-            Arc::new(TestEmitter),
-            Arc::new(PngPicker::new()),
+            Arc::new(TestEmitterImpl),
+            Arc::new(PngPickerImpl::new()),
         )
         .await
         .unwrap();
@@ -116,11 +116,11 @@ fn canonical_asset_slice_imports_lists_gets_and_issues_signed_preview() {
     });
 }
 
-struct PngPicker {
+struct PngPickerImpl {
     bytes: Mutex<Option<Vec<u8>>>,
 }
 
-impl PngPicker {
+impl PngPickerImpl {
     fn new() -> Self {
         let bytes = STANDARD
             .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
@@ -130,7 +130,7 @@ impl PngPicker {
 }
 
 #[async_trait::async_trait]
-impl DesktopAssetImportSourcePickerInterface for PngPicker {
+impl DesktopAssetImportSourcePickerInterface for PngPickerImpl {
     async fn pick_asset_import_source(
         &self,
         expected_media_kind: AssetMediaKind,
@@ -147,9 +147,9 @@ impl DesktopAssetImportSourcePickerInterface for PngPicker {
     }
 }
 
-struct TestEmitter;
+struct TestEmitterImpl;
 
-impl DesktopEventEmitterInterface for TestEmitter {
+impl DesktopEventEmitterInterface for TestEmitterImpl {
     fn emit_desktop_event(
         &self,
         _event_name: &str,

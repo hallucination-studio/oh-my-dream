@@ -5,7 +5,7 @@ use crate::{AssetMediaKind, AssetReferenceRequest, AssetReferenceResolverInterfa
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -81,7 +81,7 @@ fn registration(
                 .get("asset_id")
                 .and_then(serde_json::Value::as_str)
                 .ok_or_else(|| boxed(NodesError::MissingInput { name: "asset_id".to_owned() }))?;
-            Ok(Box::new(AssetSourceNode {
+            Ok(Box::new(AssetSourceNodeImpl {
                 type_id,
                 asset_id: asset_id.to_owned(),
                 kind,
@@ -113,7 +113,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     Ok(normalized)
 }
 
-struct AssetSourceNode {
+struct AssetSourceNodeImpl {
     type_id: &'static str,
     asset_id: String,
     kind: AssetMediaKind,
@@ -121,7 +121,7 @@ struct AssetSourceNode {
     resolver: Arc<dyn AssetReferenceResolverInterface>,
 }
 
-impl NodeInterface for AssetSourceNode {
+impl NodeInterface for AssetSourceNodeImpl {
     fn type_id(&self) -> &str {
         self.type_id
     }
@@ -134,7 +134,7 @@ impl NodeInterface for AssetSourceNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         self.resolver
             .resolve(AssetReferenceRequest {
@@ -175,9 +175,9 @@ mod tests {
         atomic::{AtomicUsize, Ordering},
     };
 
-    struct RecordingResolver(AtomicUsize);
+    struct RecordingResolverImpl(AtomicUsize);
 
-    impl AssetReferenceResolverInterface for RecordingResolver {
+    impl AssetReferenceResolverInterface for RecordingResolverImpl {
         fn resolve(
             &self,
             request: AssetReferenceRequest<'_>,
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn asset_source_typed_outputs_and_every_run_resolution() {
-        let resolver = Arc::new(RecordingResolver(AtomicUsize::new(0)));
+        let resolver = Arc::new(RecordingResolverImpl(AtomicUsize::new(0)));
         let mut registry = NodeRegistry::new();
         for registration in registrations(resolver.clone()) {
             registry.register_selector_capability(registration).expect("register Asset Source");
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn asset_source_rejects_empty_ids_and_boundary_fields() {
         let resolver: Arc<dyn AssetReferenceResolverInterface> =
-            Arc::new(RecordingResolver(AtomicUsize::new(0)));
+            Arc::new(RecordingResolverImpl(AtomicUsize::new(0)));
         let registration = registrations(resolver).into_iter().next().expect("image registration");
         assert!(
             registration

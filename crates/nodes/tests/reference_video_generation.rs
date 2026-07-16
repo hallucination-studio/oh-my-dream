@@ -1,7 +1,7 @@
 use assets::{AssetKind, AssetStore};
 use engine::{
     Executor, InputBinding, InputPort, NodeInputs, NodeInterface, NodeParams, NodeRegistry,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache,
     Value, Workflow, WorkflowNode,
 };
 use nodes::{
@@ -32,8 +32,8 @@ fn ordered_references_and_video_options_reach_the_generator() {
         AssetStore::open(directory.path().join("assets")).expect("asset store"),
     ));
     let project = store.lock().expect("store lock").create_project("Default").expect("project");
-    let resolver = Arc::new(Resolver::new(source_root, project.id.clone()));
-    let generator = Arc::new(RecordingGenerator::default());
+    let resolver = Arc::new(ResolverImpl::new(source_root, project.id.clone()));
+    let generator = Arc::new(RecordingGeneratorImpl::default());
     let mut registry = NodeRegistry::new();
     register(&mut registry, Arc::clone(&generator), Arc::clone(&store), resolver.clone());
     register_source(&mut registry);
@@ -72,18 +72,18 @@ fn ordered_references_and_video_options_reach_the_generator() {
 
 fn register(
     registry: &mut NodeRegistry,
-    generator: Arc<RecordingGenerator>,
+    generator: Arc<RecordingGeneratorImpl>,
     store: nodes::SharedAssetStore,
-    resolver: Arc<Resolver>,
+    resolver: Arc<ResolverImpl>,
 ) {
     nodes::register_all(
         registry,
         nodes::GenerationAdapters::new(
-            Arc::new(NoopGenerator),
-            Arc::new(NoopGenerator),
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
             generator,
-            Arc::new(NoopGenerator),
-            Arc::new(NoopGenerator),
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
         ),
         store,
         resolver,
@@ -93,13 +93,13 @@ fn register(
 
 fn register_source(registry: &mut NodeRegistry) {
     registry.register(
-        "TestImageSource",
+        "TestImageSourceImpl",
         Box::new(|params| {
             let asset_id = params
                 .get("asset_id")
                 .and_then(serde_json::Value::as_str)
                 .ok_or_else(|| "missing asset_id".to_owned())?;
-            Ok(Box::new(TestImageSource::new(asset_id.to_owned())))
+            Ok(Box::new(TestImageSourceImpl::new(asset_id.to_owned())))
         }),
     );
 }
@@ -148,7 +148,7 @@ fn workflow(project_id: String, asset_ids: &[String; 2]) -> Workflow {
 fn source_node(index: usize, asset_id: &str) -> WorkflowNode {
     WorkflowNode {
         id: format!("source-{index}"),
-        type_id: "TestImageSource".to_owned(),
+        type_id: "TestImageSourceImpl".to_owned(),
         contract_version: "1.0".to_owned(),
         params: params(serde_json::json!({"asset_id": asset_id})),
         inputs: BTreeMap::new(),
@@ -160,12 +160,12 @@ fn params(value: serde_json::Value) -> NodeParams {
     value.as_object().cloned().unwrap_or_default()
 }
 
-struct TestImageSource {
+struct TestImageSourceImpl {
     asset_id: String,
     outputs: Vec<OutputPort>,
 }
 
-impl TestImageSource {
+impl TestImageSourceImpl {
     fn new(asset_id: String) -> Self {
         Self {
             asset_id,
@@ -174,9 +174,9 @@ impl TestImageSource {
     }
 }
 
-impl NodeInterface for TestImageSource {
+impl NodeInterface for TestImageSourceImpl {
     fn type_id(&self) -> &str {
-        "TestImageSource"
+        "TestImageSourceImpl"
     }
     fn inputs(&self) -> &[InputPort] {
         &[]
@@ -184,7 +184,11 @@ impl NodeInterface for TestImageSource {
     fn outputs(&self) -> &[OutputPort] {
         &self.outputs
     }
-    fn run(&self, _: &NodeInputs, _: &mut NodeRunContext) -> Result<NodeRunResult, NodeRunError> {
+    fn run(
+        &self,
+        _: &NodeInputs,
+        _: &mut NodeRunContextImpl,
+    ) -> Result<NodeRunResult, NodeRunError> {
         Ok(NodeRunResult::new(BTreeMap::from([(
             "image".to_owned(),
             Value::Image(self.asset_id.clone()),
@@ -192,13 +196,13 @@ impl NodeInterface for TestImageSource {
     }
 }
 
-struct Resolver {
+struct ResolverImpl {
     root: PathBuf,
     project_id: String,
     asset_ids: Mutex<Vec<String>>,
 }
 
-impl Resolver {
+impl ResolverImpl {
     fn new(root: PathBuf, project_id: String) -> Self {
         Self { root, project_id, asset_ids: Mutex::new(Vec::new()) }
     }
@@ -207,7 +211,7 @@ impl Resolver {
     }
 }
 
-impl AssetReferenceResolverInterface for Resolver {
+impl AssetReferenceResolverInterface for ResolverImpl {
     fn resolve(
         &self,
         request: AssetReferenceRequest<'_>,
@@ -231,17 +235,17 @@ impl AssetReferenceResolverInterface for Resolver {
 }
 
 #[derive(Default)]
-struct RecordingGenerator {
+struct RecordingGeneratorImpl {
     request: Mutex<Option<ReferenceVideoGenerationRequest>>,
 }
 
-impl RecordingGenerator {
+impl RecordingGeneratorImpl {
     fn request(&self) -> ReferenceVideoGenerationRequest {
         self.request.lock().expect("generator lock").clone().expect("recorded request")
     }
 }
 
-impl ReferenceVideoGeneratorInterface for RecordingGenerator {
+impl ReferenceVideoGeneratorInterface for RecordingGeneratorImpl {
     fn generate(
         &self,
         request: ReferenceVideoGenerationRequest,
@@ -258,8 +262,8 @@ impl ReferenceVideoGeneratorInterface for RecordingGenerator {
     }
 }
 
-struct NoopGenerator;
-impl TextToImageGeneratorInterface for NoopGenerator {
+struct NoopGeneratorImpl;
+impl TextToImageGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _: TextToImageRequest,
@@ -268,7 +272,7 @@ impl TextToImageGeneratorInterface for NoopGenerator {
         unreachable!()
     }
 }
-impl ReferenceImageGeneratorInterface for NoopGenerator {
+impl ReferenceImageGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _: ReferenceImageGenerationRequest,
@@ -277,7 +281,7 @@ impl ReferenceImageGeneratorInterface for NoopGenerator {
         unreachable!()
     }
 }
-impl ImageToVideoGeneratorInterface for NoopGenerator {
+impl ImageToVideoGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _: ImageToVideoRequest,
@@ -286,7 +290,7 @@ impl ImageToVideoGeneratorInterface for NoopGenerator {
         unreachable!()
     }
 }
-impl TextToAudioGeneratorInterface for NoopGenerator {
+impl TextToAudioGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _: TextToAudioRequest,

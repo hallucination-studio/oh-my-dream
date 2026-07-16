@@ -31,8 +31,8 @@ fn canonical_workflow_slice_creates_mutates_admits_queries_and_cancels() {
         let directory = tempdir().unwrap();
         let dependencies = DesktopCompositionRoot::compose_activated_commands_with_emitter(
             DesktopApplicationPaths::from_application_data_root(directory.path()),
-            Arc::new(TestEmitter),
-            Arc::new(CancelledPicker),
+            Arc::new(TestEmitterImpl),
+            Arc::new(CancelledPickerImpl),
         )
         .await
         .unwrap();
@@ -167,12 +167,12 @@ fn id(seed: u128) -> Uuid {
     Uuid::from_u128(0x123e_4567_e89b_42d3_a456_0000_0000_0000 | seed)
 }
 
-struct TestEmitter;
+struct TestEmitterImpl;
 
-struct CancelledPicker;
+struct CancelledPickerImpl;
 
 #[async_trait::async_trait]
-impl DesktopAssetImportSourcePickerInterface for CancelledPicker {
+impl DesktopAssetImportSourcePickerInterface for CancelledPickerImpl {
     async fn pick_asset_import_source(
         &self,
         _expected_media_kind: assets::asset::domain::AssetMediaKind,
@@ -181,7 +181,7 @@ impl DesktopAssetImportSourcePickerInterface for CancelledPicker {
     }
 }
 
-impl DesktopEventEmitterInterface for TestEmitter {
+impl DesktopEventEmitterInterface for TestEmitterImpl {
     fn emit_desktop_event(
         &self,
         _event_name: &str,

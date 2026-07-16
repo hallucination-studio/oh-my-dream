@@ -14,7 +14,7 @@ use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -54,7 +54,7 @@ pub(crate) fn registration(
         ),
         Box::new(normalize_params),
         Box::new(move |params| {
-            ReferenceImageNode::from_params(
+            ReferenceImageNodeImpl::from_params(
                 params,
                 Arc::clone(&generator),
                 Arc::clone(&store),
@@ -109,7 +109,7 @@ fn insert_optional<T: serde::Serialize>(params: &mut NodeParams, name: &str, val
     }
 }
 
-struct ReferenceImageNode {
+struct ReferenceImageNodeImpl {
     generator: Arc<dyn ReferenceImageGeneratorInterface>,
     store: SharedAssetStore,
     resolver: Arc<dyn AssetReferenceResolverInterface>,
@@ -121,7 +121,7 @@ struct ReferenceImageNode {
     outputs: Vec<OutputPort>,
 }
 
-impl ReferenceImageNode {
+impl ReferenceImageNodeImpl {
     fn from_params(
         params: &NodeParams,
         generator: Arc<dyn ReferenceImageGeneratorInterface>,
@@ -165,7 +165,7 @@ impl ReferenceImageNode {
     }
 }
 
-impl NodeInterface for ReferenceImageNode {
+impl NodeInterface for ReferenceImageNodeImpl {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -181,7 +181,7 @@ impl NodeInterface for ReferenceImageNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;
         let images = image_inputs(inputs, "images").map_err(boxed)?;

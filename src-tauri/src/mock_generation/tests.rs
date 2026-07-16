@@ -1,9 +1,9 @@
 use super::{
-    MockGenerationAdapter, MockMedia, to_backend_image_to_video,
+    MockGenerationAdapterImpl, MockMedia, to_backend_image_to_video,
     to_backend_reference_image_generation, to_backend_reference_video_generation,
     to_backend_text_to_audio, to_backend_text_to_image, translate_success,
 };
-use backends::{InferenceBackendInterface, MockBackend, TaskHandle, TaskStatus};
+use backends::{InferenceBackendInterface, MockBackendImpl, TaskHandle, TaskStatus};
 use nodes::{
     GeneratedArtifact, GenerationContextInterface, GenerationError, ImageToVideoGeneratorInterface,
     ImageToVideoRequest, MediaFormat, MediaKind, ReferenceImageGenerationRequest,
@@ -89,8 +89,8 @@ fn translates_ordered_reference_requests_field_for_field() {
 
 #[test]
 fn text_to_image_translates_mock_success_and_progress() {
-    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-    let mut context = TestGenerationContext::default();
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
 
     let output = TextToImageGeneratorInterface::generate(
         &adapter,
@@ -113,8 +113,8 @@ fn text_to_image_translates_mock_success_and_progress() {
 
 #[test]
 fn reference_image_generation_returns_inline_png() {
-    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-    let mut context = TestGenerationContext::default();
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
 
     let output = ReferenceImageGeneratorInterface::generate(
         &adapter,
@@ -137,8 +137,8 @@ fn reference_image_generation_returns_inline_png() {
 
 #[test]
 fn image_to_video_translates_mock_success_to_inline_video() {
-    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-    let mut context = TestGenerationContext::default();
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
 
     let output = ImageToVideoGeneratorInterface::generate(
         &adapter,
@@ -159,8 +159,8 @@ fn image_to_video_translates_mock_success_to_inline_video() {
 
 #[test]
 fn reference_video_generation_returns_inline_video() {
-    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-    let mut context = TestGenerationContext::default();
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
 
     let output = ReferenceVideoGeneratorInterface::generate(
         &adapter,
@@ -184,8 +184,8 @@ fn reference_video_generation_returns_inline_video() {
 
 #[test]
 fn text_to_audio_translates_mock_success_to_inline_wave() {
-    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-    let mut context = TestGenerationContext::default();
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
 
     let output = TextToAudioGeneratorInterface::generate(
         &adapter,
@@ -207,8 +207,8 @@ fn text_to_audio_translates_mock_success_to_inline_wave() {
 #[test]
 fn failed_mock_task_maps_to_generation_failure() {
     let adapter =
-        MockGenerationAdapter::new(Arc::new(MockBackend::always_fails("provider outage")));
-    let mut context = TestGenerationContext::default();
+        MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::always_fails("provider outage")));
+    let mut context = TestGenerationContextImpl::default();
 
     let error = TextToAudioGeneratorInterface::generate(
         &adapter,
@@ -226,9 +226,9 @@ fn failed_mock_task_maps_to_generation_failure() {
 
 #[test]
 fn cancellation_reaches_the_submitted_backend_task() {
-    let backend = Arc::new(MockBackend::new());
-    let adapter = MockGenerationAdapter::new(Arc::clone(&backend));
-    let mut context = TestGenerationContext { cancel_on_progress: true, ..Default::default() };
+    let backend = Arc::new(MockBackendImpl::new());
+    let adapter = MockGenerationAdapterImpl::new(Arc::clone(&backend));
+    let mut context = TestGenerationContextImpl { cancel_on_progress: true, ..Default::default() };
 
     let error = TextToImageGeneratorInterface::generate(
         &adapter,
@@ -251,9 +251,9 @@ fn cancellation_reaches_the_submitted_backend_task() {
 
 #[test]
 fn cancellation_before_submission_creates_no_backend_task() {
-    let backend = Arc::new(MockBackend::new());
-    let adapter = MockGenerationAdapter::new(Arc::clone(&backend));
-    let mut context = TestGenerationContext { cancelled: true, ..Default::default() };
+    let backend = Arc::new(MockBackendImpl::new());
+    let adapter = MockGenerationAdapterImpl::new(Arc::clone(&backend));
+    let mut context = TestGenerationContextImpl { cancelled: true, ..Default::default() };
 
     let error = TextToImageGeneratorInterface::generate(
         &adapter,
@@ -274,9 +274,9 @@ fn cancellation_before_submission_creates_no_backend_task() {
 
 #[test]
 fn cancellation_after_provider_success_does_not_cancel_terminal_task() {
-    let backend = Arc::new(MockBackend::new());
-    let adapter = MockGenerationAdapter::new(Arc::clone(&backend));
-    let mut context = TestGenerationContext { cancel_on_check: Some(6), ..Default::default() };
+    let backend = Arc::new(MockBackendImpl::new());
+    let adapter = MockGenerationAdapterImpl::new(Arc::clone(&backend));
+    let mut context = TestGenerationContextImpl { cancel_on_check: Some(6), ..Default::default() };
 
     let error = TextToImageGeneratorInterface::generate(
         &adapter,
@@ -331,7 +331,7 @@ fn assert_playable_webm(bytes: &[u8]) {
 }
 
 #[derive(Default)]
-struct TestGenerationContext {
+struct TestGenerationContextImpl {
     progress: Vec<f32>,
     cancel_on_progress: bool,
     cancelled: bool,
@@ -339,7 +339,7 @@ struct TestGenerationContext {
     cancellation_checks: Cell<usize>,
 }
 
-impl GenerationContextInterface for TestGenerationContext {
+impl GenerationContextInterface for TestGenerationContextImpl {
     fn progress(&mut self, progress: f32) {
         self.progress.push(progress);
         self.cancelled = self.cancel_on_progress;

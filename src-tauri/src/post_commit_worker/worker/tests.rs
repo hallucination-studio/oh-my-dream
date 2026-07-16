@@ -26,7 +26,7 @@ use crate::post_commit_effect::{
 };
 
 #[derive(Default)]
-struct FakeOutbox {
+struct FakeOutboxImpl {
     ready: Mutex<VecDeque<DesktopPostCommitEffectRecord>>,
     completed: Mutex<Vec<DesktopPostCommitEffectId>>,
     released: Mutex<Vec<DesktopPostCommitEffectId>>,
@@ -35,7 +35,7 @@ struct FakeOutbox {
 }
 
 #[async_trait]
-impl DesktopPostCommitEffectOutboxInterface for FakeOutbox {
+impl DesktopPostCommitEffectOutboxInterface for FakeOutboxImpl {
     async fn claim_next_post_commit_effect(
         &self,
         _instance_id: DesktopApplicationInstanceId,
@@ -103,14 +103,14 @@ impl DesktopPostCommitEffectOutboxInterface for FakeOutbox {
     }
 }
 
-struct FakeExecutor {
+struct FakeExecutorImpl {
     outcomes: Mutex<VecDeque<DesktopPostCommitEffectExecutionOutcome>>,
     effects: Mutex<Vec<DesktopPostCommitEffect>>,
     barrier: Option<Arc<Barrier>>,
 }
 
 #[async_trait]
-impl DesktopPostCommitEffectExecutorInterface for FakeExecutor {
+impl DesktopPostCommitEffectExecutorInterface for FakeExecutorImpl {
     async fn execute_desktop_post_commit_effect(
         &self,
         effect: DesktopPostCommitEffect,
@@ -128,12 +128,12 @@ impl DesktopPostCommitEffectExecutorInterface for FakeExecutor {
 }
 
 #[derive(Default)]
-struct FakeEventDelivery {
+struct FakeEventDeliveryImpl {
     calls: AtomicUsize,
 }
 
 #[async_trait]
-impl DesktopCommittedWorkflowEventDeliveryInterface for FakeEventDelivery {
+impl DesktopCommittedWorkflowEventDeliveryInterface for FakeEventDeliveryImpl {
     async fn deliver_committed_workflow_run_events(
         &self,
         _limit: usize,
@@ -144,12 +144,12 @@ impl DesktopCommittedWorkflowEventDeliveryInterface for FakeEventDelivery {
 }
 
 #[derive(Default)]
-struct FakeClock {
+struct FakeClockImpl {
     waits: AtomicUsize,
 }
 
 #[async_trait]
-impl DesktopPostCommitWorkerClockInterface for FakeClock {
+impl DesktopPostCommitWorkerClockInterface for FakeClockImpl {
     fn current_post_commit_timestamp(
         &self,
     ) -> Result<DesktopPostCommitTimestamp, DesktopPostCommitWorkerClockError> {
@@ -225,14 +225,14 @@ async fn batch_honors_configured_concurrency_and_cancellation_stops_new_claims()
 
 #[test]
 fn rejects_concurrency_outside_frozen_range() {
-    let outbox = Arc::new(FakeOutbox::default());
-    let executor = Arc::new(FakeExecutor {
+    let outbox = Arc::new(FakeOutboxImpl::default());
+    let executor = Arc::new(FakeExecutorImpl {
         outcomes: Mutex::new(VecDeque::new()),
         effects: Mutex::new(Vec::new()),
         barrier: None,
     });
-    let events = Arc::new(FakeEventDelivery::default());
-    let clock = Arc::new(FakeClock::default());
+    let events = Arc::new(FakeEventDeliveryImpl::default());
+    let clock = Arc::new(FakeClockImpl::default());
     assert!(
         make_worker(outbox.clone(), executor.clone(), events.clone(), clock.clone(), 0).is_err()
     );
@@ -246,20 +246,20 @@ fn worker(
     concurrency: usize,
 ) -> (
     DesktopPostCommitEffectWorker,
-    Arc<FakeOutbox>,
-    Arc<FakeExecutor>,
-    Arc<FakeEventDelivery>,
-    Arc<FakeClock>,
+    Arc<FakeOutboxImpl>,
+    Arc<FakeExecutorImpl>,
+    Arc<FakeEventDeliveryImpl>,
+    Arc<FakeClockImpl>,
 ) {
     let outbox =
-        Arc::new(FakeOutbox { ready: Mutex::new(records.into()), ..FakeOutbox::default() });
-    let executor = Arc::new(FakeExecutor {
+        Arc::new(FakeOutboxImpl { ready: Mutex::new(records.into()), ..FakeOutboxImpl::default() });
+    let executor = Arc::new(FakeExecutorImpl {
         outcomes: Mutex::new(outcomes),
         effects: Mutex::new(Vec::new()),
         barrier,
     });
-    let events = Arc::new(FakeEventDelivery::default());
-    let clock = Arc::new(FakeClock::default());
+    let events = Arc::new(FakeEventDeliveryImpl::default());
+    let clock = Arc::new(FakeClockImpl::default());
     let worker =
         make_worker(outbox.clone(), executor.clone(), events.clone(), clock.clone(), concurrency)
             .expect("worker");
@@ -267,10 +267,10 @@ fn worker(
 }
 
 fn make_worker(
-    outbox: Arc<FakeOutbox>,
-    executor: Arc<FakeExecutor>,
-    events: Arc<FakeEventDelivery>,
-    clock: Arc<FakeClock>,
+    outbox: Arc<FakeOutboxImpl>,
+    executor: Arc<FakeExecutorImpl>,
+    events: Arc<FakeEventDeliveryImpl>,
+    clock: Arc<FakeClockImpl>,
     concurrency: usize,
 ) -> Result<DesktopPostCommitEffectWorker, DesktopPostCommitWorkerConfigurationError> {
     DesktopPostCommitEffectWorker::try_new(

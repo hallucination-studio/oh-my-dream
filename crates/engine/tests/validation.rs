@@ -1,7 +1,7 @@
 use engine::{
     EngineError, Executor, InputBinding, InputPort, NodeExecutionState, NodeInputs, NodeInterface,
-    NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef,
-    PortCardinality, PortType, ResultCache, Value, ValueMap, Workflow, WorkflowNode,
+    NodeParams, NodeRegistry, NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort,
+    OutputRef, PortCardinality, PortType, ResultCache, Value, ValueMap, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -195,7 +195,7 @@ fn registry<const N: usize>(definitions: [NodeDefinition; N]) -> NodeRegistry {
     for definition in definitions {
         registry.register(
             definition.type_id,
-            Box::new(move |_| Ok(Box::new(TestNode::from_definition(&definition)))),
+            Box::new(move |_| Ok(Box::new(TestNodeImpl::from_definition(&definition)))),
         );
     }
     registry
@@ -252,7 +252,7 @@ struct NodeDefinition {
     runs: Arc<AtomicUsize>,
 }
 
-struct TestNode {
+struct TestNodeImpl {
     type_id: &'static str,
     inputs: Vec<InputPort>,
     outputs: Vec<OutputPort>,
@@ -260,7 +260,7 @@ struct TestNode {
     runs: Arc<AtomicUsize>,
 }
 
-impl TestNode {
+impl TestNodeImpl {
     fn from_definition(definition: &NodeDefinition) -> Self {
         Self {
             type_id: definition.type_id,
@@ -272,7 +272,7 @@ impl TestNode {
     }
 }
 
-impl NodeInterface for TestNode {
+impl NodeInterface for TestNodeImpl {
     fn type_id(&self) -> &str {
         self.type_id
     }
@@ -288,7 +288,7 @@ impl NodeInterface for TestNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         Ok(NodeRunResult::new(self.result.clone()))

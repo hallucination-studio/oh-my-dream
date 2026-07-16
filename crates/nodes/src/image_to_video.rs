@@ -13,7 +13,7 @@ use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -58,7 +58,7 @@ pub(crate) fn registration(
         ),
         Box::new(normalize_params),
         Box::new(move |params| {
-            ImageToVideoNode::from_params(
+            ImageToVideoNodeImpl::from_params(
                 params,
                 Arc::clone(&generator),
                 Arc::clone(&store),
@@ -102,7 +102,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     Ok(normalized)
 }
 
-struct ImageToVideoNode {
+struct ImageToVideoNodeImpl {
     generator: Arc<dyn ImageToVideoGeneratorInterface>,
     store: SharedAssetStore,
     resolver: Arc<dyn AssetReferenceResolverInterface>,
@@ -113,7 +113,7 @@ struct ImageToVideoNode {
     outputs: Vec<OutputPort>,
 }
 
-impl ImageToVideoNode {
+impl ImageToVideoNodeImpl {
     fn from_params(
         params: &NodeParams,
         generator: Arc<dyn ImageToVideoGeneratorInterface>,
@@ -142,7 +142,7 @@ impl ImageToVideoNode {
     }
 }
 
-impl NodeInterface for ImageToVideoNode {
+impl NodeInterface for ImageToVideoNodeImpl {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -158,7 +158,7 @@ impl NodeInterface for ImageToVideoNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         let image = image_input(inputs, "image").map_err(boxed)?;
         let resolved = self
@@ -192,6 +192,6 @@ impl NodeInterface for ImageToVideoNode {
     }
 }
 
-fn boxed_node(node: ImageToVideoNode) -> Box<dyn NodeInterface> {
+fn boxed_node(node: ImageToVideoNodeImpl) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

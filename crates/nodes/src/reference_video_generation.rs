@@ -14,7 +14,7 @@ use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -54,7 +54,7 @@ pub(crate) fn registration(
         ),
         Box::new(normalize_params),
         Box::new(move |params| {
-            ReferenceVideoNode::from_params(
+            ReferenceVideoNodeImpl::from_params(
                 params,
                 Arc::clone(&generator),
                 Arc::clone(&store),
@@ -128,7 +128,7 @@ fn insert_optional<T: serde::Serialize>(params: &mut NodeParams, name: &str, val
     }
 }
 
-struct ReferenceVideoNode {
+struct ReferenceVideoNodeImpl {
     generator: Arc<dyn ReferenceVideoGeneratorInterface>,
     store: SharedAssetStore,
     resolver: Arc<dyn AssetReferenceResolverInterface>,
@@ -141,7 +141,7 @@ struct ReferenceVideoNode {
     outputs: Vec<OutputPort>,
 }
 
-impl ReferenceVideoNode {
+impl ReferenceVideoNodeImpl {
     fn from_params(
         params: &NodeParams,
         generator: Arc<dyn ReferenceVideoGeneratorInterface>,
@@ -186,7 +186,7 @@ impl ReferenceVideoNode {
     }
 }
 
-impl NodeInterface for ReferenceVideoNode {
+impl NodeInterface for ReferenceVideoNodeImpl {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -200,7 +200,7 @@ impl NodeInterface for ReferenceVideoNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;
         let images = self

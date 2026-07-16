@@ -13,13 +13,13 @@ use uuid::Uuid;
 use super::*;
 
 #[derive(Default)]
-struct FakeEventRepository {
+struct FakeEventRepositoryImpl {
     events: Mutex<Vec<WorkflowRunEvent>>,
     attempts: Mutex<Vec<(u64, bool)>>,
 }
 
 #[async_trait]
-impl DesktopCommittedWorkflowEventRepositoryInterface for FakeEventRepository {
+impl DesktopCommittedWorkflowEventRepositoryInterface for FakeEventRepositoryImpl {
     async fn list_undelivered_committed_workflow_run_events(
         &self,
         limit: usize,
@@ -37,12 +37,12 @@ impl DesktopCommittedWorkflowEventRepositoryInterface for FakeEventRepository {
     }
 }
 
-struct FakePublisher {
+struct FakePublisherImpl {
     fail_sequence: Option<u64>,
 }
 
 #[async_trait]
-impl WorkflowRunEventPublisherInterface for FakePublisher {
+impl WorkflowRunEventPublisherInterface for FakePublisherImpl {
     async fn publish_committed_workflow_run_event(
         &self,
         event: WorkflowRunEvent,
@@ -57,13 +57,13 @@ impl WorkflowRunEventPublisherInterface for FakePublisher {
 
 #[tokio::test]
 async fn records_every_successful_delivery_attempt() {
-    let repository = Arc::new(FakeEventRepository {
+    let repository = Arc::new(FakeEventRepositoryImpl {
         events: Mutex::new(vec![event(1), event(2)]),
-        ..FakeEventRepository::default()
+        ..FakeEventRepositoryImpl::default()
     });
     let delivery = DesktopCommittedWorkflowEventDeliveryAdapterImpl::new(
         repository.clone(),
-        Arc::new(FakePublisher { fail_sequence: None }),
+        Arc::new(FakePublisherImpl { fail_sequence: None }),
     );
 
     assert_eq!(delivery.deliver_committed_workflow_run_events(2).await, Ok(2));
@@ -72,13 +72,13 @@ async fn records_every_successful_delivery_attempt() {
 
 #[tokio::test]
 async fn records_failed_attempt_and_stops_before_later_event() {
-    let repository = Arc::new(FakeEventRepository {
+    let repository = Arc::new(FakeEventRepositoryImpl {
         events: Mutex::new(vec![event(1), event(2), event(3)]),
-        ..FakeEventRepository::default()
+        ..FakeEventRepositoryImpl::default()
     });
     let delivery = DesktopCommittedWorkflowEventDeliveryAdapterImpl::new(
         repository.clone(),
-        Arc::new(FakePublisher { fail_sequence: Some(2) }),
+        Arc::new(FakePublisherImpl { fail_sequence: Some(2) }),
     );
 
     assert_eq!(
@@ -91,8 +91,8 @@ async fn records_failed_attempt_and_stops_before_later_event() {
 #[tokio::test]
 async fn rejects_delivery_limit_outside_frozen_bound() {
     let delivery = DesktopCommittedWorkflowEventDeliveryAdapterImpl::new(
-        Arc::new(FakeEventRepository::default()),
-        Arc::new(FakePublisher { fail_sequence: None }),
+        Arc::new(FakeEventRepositoryImpl::default()),
+        Arc::new(FakePublisherImpl { fail_sequence: None }),
     );
 
     assert!(delivery.deliver_committed_workflow_run_events(0).await.is_err());

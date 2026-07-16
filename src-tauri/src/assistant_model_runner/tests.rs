@@ -22,7 +22,7 @@ use uuid::Uuid;
 use super::*;
 
 #[derive(Clone)]
-struct LauncherFake {
+struct LauncherFakeImpl {
     state: Arc<Mutex<ProcessState>>,
 }
 
@@ -34,21 +34,21 @@ struct ProcessState {
     aborted: bool,
 }
 
-struct ProcessFake {
+struct ProcessFakeImpl {
     state: Arc<Mutex<ProcessState>>,
 }
 
 #[async_trait]
-impl AssistantProtocolProcessLauncherInterface for LauncherFake {
+impl AssistantProtocolProcessLauncherInterface for LauncherFakeImpl {
     async fn launch_assistant_protocol_process(
         &self,
     ) -> Result<Box<dyn AssistantProtocolProcessInterface>, AssistantApplicationError> {
-        Ok(Box::new(ProcessFake { state: Arc::clone(&self.state) }))
+        Ok(Box::new(ProcessFakeImpl { state: Arc::clone(&self.state) }))
     }
 }
 
 #[async_trait]
-impl AssistantProtocolProcessInterface for ProcessFake {
+impl AssistantProtocolProcessInterface for ProcessFakeImpl {
     async fn read_assistant_protocol_line(&mut self) -> Result<Vec<u8>, AssistantApplicationError> {
         self.state
             .lock()
@@ -97,10 +97,10 @@ impl AssistantProtocolProcessInterface for ProcessFake {
 }
 
 #[derive(Clone, Copy)]
-struct ToolExecutorFake;
+struct ToolExecutorFakeImpl;
 
 #[async_trait]
-impl AssistantProtocolToolExecutorInterface for ToolExecutorFake {
+impl AssistantProtocolToolExecutorInterface for ToolExecutorFakeImpl {
     async fn execute_assistant_protocol_tool(
         &self,
         _context: AssistantToolExecutionContext,
@@ -114,9 +114,9 @@ impl AssistantProtocolToolExecutorInterface for ToolExecutorFake {
 }
 
 #[derive(Clone, Copy)]
-struct ClockFake;
+struct ClockFakeImpl;
 
-impl AssistantClockInterface for ClockFake {
+impl AssistantClockInterface for ClockFakeImpl {
     fn current_assistant_time(&self) -> Result<AssistantReviewedAt, AssistantApplicationError> {
         AssistantReviewedAt::new(1_000)
             .map_err(|_| AssistantApplicationError::ExternalBoundaryFailed)
@@ -124,10 +124,10 @@ impl AssistantClockInterface for ClockFake {
 }
 
 #[derive(Clone, Copy)]
-struct PresentationFake;
+struct PresentationFakeImpl;
 
 #[async_trait]
-impl AssistantPresentationEventPublisherInterface for PresentationFake {
+impl AssistantPresentationEventPublisherInterface for PresentationFakeImpl {
     async fn publish_assistant_presentation_event(
         &self,
         _event: AssistantPresentationEvent,
@@ -137,10 +137,10 @@ impl AssistantPresentationEventPublisherInterface for PresentationFake {
 }
 
 #[derive(Clone, Copy)]
-struct ReviewerFake;
+struct ReviewerFakeImpl;
 
 #[async_trait]
-impl AssistantReviewerProtocolInterface for ReviewerFake {
+impl AssistantReviewerProtocolInterface for ReviewerFakeImpl {
     async fn record_assistant_reviewer_candidate_fetch(
         &self,
         _context: &AssistantToolExecutionContext,
@@ -224,7 +224,7 @@ async fn runner_aborts_process_when_strict_shutdown_rejects_trailing_output() {
     assert!(state.aborted);
 }
 
-fn launcher<const N: usize>(reads: [Vec<u8>; N]) -> (LauncherFake, Arc<Mutex<ProcessState>>) {
+fn launcher<const N: usize>(reads: [Vec<u8>; N]) -> (LauncherFakeImpl, Arc<Mutex<ProcessState>>) {
     let state = Arc::new(Mutex::new(ProcessState {
         reads: reads.into(),
         writes: Vec::new(),
@@ -232,7 +232,7 @@ fn launcher<const N: usize>(reads: [Vec<u8>; N]) -> (LauncherFake, Arc<Mutex<Pro
         shutdown_error: false,
         aborted: false,
     }));
-    (LauncherFake { state: Arc::clone(&state) }, state)
+    (LauncherFakeImpl { state: Arc::clone(&state) }, state)
 }
 
 fn incoming(sequence: u64, kind: &str, payload: Value) -> Vec<u8> {
@@ -272,23 +272,23 @@ fn request() -> AssistantModelTurnRequest {
 }
 
 fn runner(
-    launcher: LauncherFake,
+    launcher: LauncherFakeImpl,
 ) -> PythonAgentsAssistantModelRunnerAdapterImpl<
-    LauncherFake,
-    ToolExecutorFake,
+    LauncherFakeImpl,
+    ToolExecutorFakeImpl,
     crate::assistant_tool_runtime::DesktopAssistantToolExecutionContextFactoryAdapterImpl,
-    PresentationFake,
-    ReviewerFake,
+    PresentationFakeImpl,
+    ReviewerFakeImpl,
 > {
     PythonAgentsAssistantModelRunnerAdapterImpl::new(
         launcher,
-        ToolExecutorFake,
+        ToolExecutorFakeImpl,
         crate::assistant_tool_runtime::DesktopAssistantToolExecutionContextFactoryAdapterImpl::new(
-            Arc::new(ClockFake),
+            Arc::new(ClockFakeImpl),
             60_000,
         ),
-        PresentationFake,
-        ReviewerFake,
+        PresentationFakeImpl,
+        ReviewerFakeImpl,
     )
 }
 

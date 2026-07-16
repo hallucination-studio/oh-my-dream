@@ -1,4 +1,4 @@
-use backends::MockBackend;
+use backends::MockBackendImpl;
 use engine::{
     CapabilityRef, InputBinding, NodeRef, PatchOutputRef, WorkflowPatch, WorkflowPatchOperation,
 };
@@ -21,7 +21,7 @@ async fn assistant_strong_mvp_e2e_builds_fails_repairs_and_succeeds() {
     let root = tempdir().expect("root");
     let state = AppState::from_asset_root_with_backend(
         root.path(),
-        Arc::new(MockBackend::always_fails("provider outage")),
+        Arc::new(MockBackendImpl::always_fails("provider outage")),
     )
     .expect("state");
     state

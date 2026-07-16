@@ -11,7 +11,7 @@ use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -55,7 +55,7 @@ pub(crate) fn registration(
         ),
         Box::new(normalize_params),
         Box::new(move |params| {
-            TextToImageNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))
+            TextToImageNodeImpl::from_params(params, Arc::clone(&generator), Arc::clone(&store))
                 .map(boxed_node)
                 .map_err(boxed)
         }),
@@ -91,7 +91,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     Ok(normalized)
 }
 
-struct TextToImageNode {
+struct TextToImageNodeImpl {
     generator: Arc<dyn TextToImageGeneratorInterface>,
     store: SharedAssetStore,
     model: String,
@@ -102,7 +102,7 @@ struct TextToImageNode {
     outputs: Vec<OutputPort>,
 }
 
-impl TextToImageNode {
+impl TextToImageNodeImpl {
     fn from_params(
         params: &NodeParams,
         generator: Arc<dyn TextToImageGeneratorInterface>,
@@ -131,7 +131,7 @@ impl TextToImageNode {
     }
 }
 
-impl NodeInterface for TextToImageNode {
+impl NodeInterface for TextToImageNodeImpl {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -147,7 +147,7 @@ impl NodeInterface for TextToImageNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;
         info!(type_id = TYPE_ID, "generating image from text");
@@ -177,6 +177,6 @@ impl NodeInterface for TextToImageNode {
     }
 }
 
-fn boxed_node(node: TextToImageNode) -> Box<dyn NodeInterface> {
+fn boxed_node(node: TextToImageNodeImpl) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

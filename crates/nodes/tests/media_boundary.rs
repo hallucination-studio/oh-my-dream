@@ -1,8 +1,8 @@
 use assets::AssetStore;
 use engine::{
     CancellationSignalInterface, EngineError, Executor, InputBinding, InputPort, NodeInterface,
-    NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef,
-    PortType, ResultCache, Value, Workflow, WorkflowNode,
+    NodeParams, NodeRegistry, NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort,
+    OutputRef, PortType, ResultCache, Value, Workflow, WorkflowNode,
 };
 use nodes::{
     AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
@@ -60,20 +60,20 @@ fn asset_prefixed_local_image_reaches_the_video_generator() {
     let directory = TempDir::new().expect("temp directory");
     let store = Arc::new(Mutex::new(AssetStore::open(directory.path()).expect("asset store")));
     let project = store.lock().expect("store lock").create_project("Default").expect("project");
-    let fixed = Arc::new(FixedGenerators {
+    let fixed = Arc::new(FixedGeneratorsImpl {
         image_output: GeneratedOutput {
             artifact: GeneratedArtifact::RemoteUrl(String::new()),
             cost: None,
         },
     });
-    let recorder = Arc::new(RecordingVideoGenerator::default());
+    let recorder = Arc::new(RecordingVideoGeneratorImpl::default());
     let image: Arc<dyn TextToImageGeneratorInterface> = fixed.clone();
     let reference_image: Arc<dyn ReferenceImageGeneratorInterface> = fixed.clone();
     let reference_video: Arc<dyn ReferenceVideoGeneratorInterface> = fixed.clone();
     let video: Arc<dyn ImageToVideoGeneratorInterface> = recorder.clone();
     let audio: Arc<dyn TextToAudioGeneratorInterface> = fixed;
     let mut registry = NodeRegistry::new();
-    let resolver = Arc::new(FixedResolver { path: local.path().to_path_buf() });
+    let resolver = Arc::new(FixedResolverImpl { path: local.path().to_path_buf() });
     nodes::register_all(
         &mut registry,
         nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
@@ -105,8 +105,8 @@ fn cancellation_before_persistence_does_not_store_an_asset() {
     let store = Arc::new(Mutex::new(AssetStore::open(directory.path()).expect("asset store")));
     let project = store.lock().expect("store lock").create_project("Default").expect("project");
     let cancelled = Arc::new(AtomicBool::new(false));
-    let cancelling = Arc::new(CancellingImageGenerator { cancelled: Arc::clone(&cancelled) });
-    let fixed = Arc::new(FixedGenerators {
+    let cancelling = Arc::new(CancellingImageGeneratorImpl { cancelled: Arc::clone(&cancelled) });
+    let fixed = Arc::new(FixedGeneratorsImpl {
         image_output: GeneratedOutput {
             artifact: GeneratedArtifact::RemoteUrl(String::new()),
             cost: None,
@@ -122,10 +122,10 @@ fn cancellation_before_persistence_does_not_store_an_asset() {
         &mut registry,
         nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
         Arc::clone(&store),
-        Arc::new(support::MissingResolver),
+        Arc::new(support::MissingResolverImpl),
     )
     .expect("register workflow capabilities");
-    let signal = AtomicCancellation { cancelled };
+    let signal = AtomicCancellationImpl { cancelled };
 
     let error = Executor::new(&registry)
         .execute_interruptible(
@@ -146,7 +146,7 @@ fn execute_text_to_image(
     let directory = TempDir::new().expect("temp directory");
     let store = Arc::new(Mutex::new(AssetStore::open(directory.path()).expect("asset store")));
     let project = store.lock().expect("store lock").create_project("Default").expect("project");
-    let generators = Arc::new(FixedGenerators { image_output: output });
+    let generators = Arc::new(FixedGeneratorsImpl { image_output: output });
     let image: Arc<dyn TextToImageGeneratorInterface> = generators.clone();
     let reference_image: Arc<dyn ReferenceImageGeneratorInterface> = generators.clone();
     let reference_video: Arc<dyn ReferenceVideoGeneratorInterface> = generators.clone();
@@ -157,7 +157,7 @@ fn execute_text_to_image(
         &mut registry,
         nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
         Arc::clone(&store),
-        Arc::new(support::MissingResolver),
+        Arc::new(support::MissingResolverImpl),
     )
     .expect("register workflow capabilities");
     let workflow = text_to_image_workflow(project.id);
@@ -225,7 +225,7 @@ fn register_local_image(registry: &mut NodeRegistry, reference: &str) {
     let reference = reference.to_owned();
     registry.register(
         "LocalImage",
-        Box::new(move |_| Ok(Box::new(LocalImageNode::new(reference.clone())))),
+        Box::new(move |_| Ok(Box::new(LocalImageNodeImpl::new(reference.clone())))),
     );
 }
 
@@ -236,15 +236,15 @@ fn params(value: serde_json::Value) -> NodeParams {
     }
 }
 
-struct FixedGenerators {
+struct FixedGeneratorsImpl {
     image_output: GeneratedOutput,
 }
 
-struct CancellingImageGenerator {
+struct CancellingImageGeneratorImpl {
     cancelled: Arc<AtomicBool>,
 }
 
-impl TextToImageGeneratorInterface for CancellingImageGenerator {
+impl TextToImageGeneratorInterface for CancellingImageGeneratorImpl {
     fn generate(
         &self,
         _request: TextToImageRequest,
@@ -258,22 +258,22 @@ impl TextToImageGeneratorInterface for CancellingImageGenerator {
     }
 }
 
-struct AtomicCancellation {
+struct AtomicCancellationImpl {
     cancelled: Arc<AtomicBool>,
 }
 
-impl CancellationSignalInterface for AtomicCancellation {
+impl CancellationSignalInterface for AtomicCancellationImpl {
     fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::SeqCst)
     }
 }
 
-struct LocalImageNode {
+struct LocalImageNodeImpl {
     reference: String,
     outputs: Vec<OutputPort>,
 }
 
-impl LocalImageNode {
+impl LocalImageNodeImpl {
     fn new(reference: String) -> Self {
         Self {
             reference,
@@ -282,7 +282,7 @@ impl LocalImageNode {
     }
 }
 
-impl NodeInterface for LocalImageNode {
+impl NodeInterface for LocalImageNodeImpl {
     fn type_id(&self) -> &str {
         "LocalImage"
     }
@@ -298,7 +298,7 @@ impl NodeInterface for LocalImageNode {
     fn run(
         &self,
         _inputs: &engine::NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         Ok(NodeRunResult::new(BTreeMap::from([(
             "image".to_owned(),
@@ -308,15 +308,15 @@ impl NodeInterface for LocalImageNode {
 }
 
 #[derive(Default)]
-struct RecordingVideoGenerator {
+struct RecordingVideoGeneratorImpl {
     requests: Mutex<Vec<ImageToVideoRequest>>,
 }
 
-struct FixedResolver {
+struct FixedResolverImpl {
     path: std::path::PathBuf,
 }
 
-impl AssetReferenceResolverInterface for FixedResolver {
+impl AssetReferenceResolverInterface for FixedResolverImpl {
     fn resolve(
         &self,
         request: AssetReferenceRequest<'_>,
@@ -331,7 +331,7 @@ impl AssetReferenceResolverInterface for FixedResolver {
     }
 }
 
-impl ImageToVideoGeneratorInterface for RecordingVideoGenerator {
+impl ImageToVideoGeneratorInterface for RecordingVideoGeneratorImpl {
     fn generate(
         &self,
         request: ImageToVideoRequest,
@@ -347,7 +347,7 @@ impl ImageToVideoGeneratorInterface for RecordingVideoGenerator {
     }
 }
 
-impl TextToImageGeneratorInterface for FixedGenerators {
+impl TextToImageGeneratorInterface for FixedGeneratorsImpl {
     fn generate(
         &self,
         _request: TextToImageRequest,
@@ -357,7 +357,7 @@ impl TextToImageGeneratorInterface for FixedGenerators {
     }
 }
 
-impl ReferenceImageGeneratorInterface for FixedGenerators {
+impl ReferenceImageGeneratorInterface for FixedGeneratorsImpl {
     fn generate(
         &self,
         _request: ReferenceImageGenerationRequest,
@@ -367,7 +367,7 @@ impl ReferenceImageGeneratorInterface for FixedGenerators {
     }
 }
 
-impl ReferenceVideoGeneratorInterface for FixedGenerators {
+impl ReferenceVideoGeneratorInterface for FixedGeneratorsImpl {
     fn generate(
         &self,
         _request: ReferenceVideoGenerationRequest,
@@ -380,7 +380,7 @@ impl ReferenceVideoGeneratorInterface for FixedGenerators {
     }
 }
 
-impl ImageToVideoGeneratorInterface for FixedGenerators {
+impl ImageToVideoGeneratorInterface for FixedGeneratorsImpl {
     fn generate(
         &self,
         _request: ImageToVideoRequest,
@@ -393,7 +393,7 @@ impl ImageToVideoGeneratorInterface for FixedGenerators {
     }
 }
 
-impl TextToAudioGeneratorInterface for FixedGenerators {
+impl TextToAudioGeneratorInterface for FixedGeneratorsImpl {
     fn generate(
         &self,
         _request: TextToAudioRequest,

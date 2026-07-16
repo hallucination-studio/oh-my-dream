@@ -4,7 +4,7 @@ use crate::cache::{ResultCache, cache_fingerprint};
 use crate::capability::CapabilityEffect;
 use crate::error::{EngineError, Result};
 use crate::graph::{InputBinding, Workflow};
-use crate::node::{NodeRunContext, NodeRunResult, is_cancelled_node_run};
+use crate::node::{NodeRunContextImpl, NodeRunResult, is_cancelled_node_run};
 use crate::registry::NodeRegistry;
 use crate::validation::{ExecutionPlan, PlanNode, build_plan, validate_node_outputs};
 use crate::value::{InputValue, NodeInputs, ValueMap};
@@ -64,7 +64,7 @@ impl<'r> Executor<'r> {
     /// Validates and executes `workflow`, returning each node's outputs.
     pub fn execute(&self, workflow: &Workflow, cache: &mut ResultCache) -> Result<RunOutputs> {
         let mut observer = |_event: &NodeProgressEvent| {};
-        self.execute_interruptible(workflow, cache, &NeverCancelled, &mut observer)
+        self.execute_interruptible(workflow, cache, &NeverCancelledImpl, &mut observer)
     }
 
     /// Validates and executes `workflow`, synchronously reporting node events.
@@ -74,7 +74,7 @@ impl<'r> Executor<'r> {
         cache: &mut ResultCache,
         observer: &mut impl FnMut(&NodeProgressEvent),
     ) -> Result<RunOutputs> {
-        self.execute_interruptible(workflow, cache, &NeverCancelled, observer)
+        self.execute_interruptible(workflow, cache, &NeverCancelledImpl, observer)
     }
 
     /// Executes `workflow` while consulting a caller-owned cancellation signal.
@@ -165,8 +165,13 @@ fn run_plan_node(
     observer: &mut dyn FnMut(&NodeProgressEvent),
 ) -> Result<NodeRunResult> {
     let run_result = {
-        let mut context =
-            NodeRunContext::new(&node.id, project_id, workflow_snapshot, cancellation, observer);
+        let mut context = NodeRunContextImpl::new(
+            &node.id,
+            project_id,
+            workflow_snapshot,
+            cancellation,
+            observer,
+        );
         node.node.run(inputs, &mut context)
     };
     let result = match run_result {
@@ -190,9 +195,9 @@ fn emit_node_event(
     observer(&NodeProgressEvent { node_id: node.id.clone(), state, progress, cost });
 }
 
-struct NeverCancelled;
+struct NeverCancelledImpl;
 
-impl CancellationSignalInterface for NeverCancelled {
+impl CancellationSignalInterface for NeverCancelledImpl {
     fn is_cancelled(&self) -> bool {
         false
     }

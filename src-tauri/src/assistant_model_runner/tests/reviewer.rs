@@ -1,10 +1,10 @@
 use super::*;
 
 #[derive(Clone, Copy)]
-struct ReviewerToolExecutorFake;
+struct ReviewerToolExecutorFakeImpl;
 
 #[async_trait]
-impl AssistantProtocolToolExecutorInterface for ReviewerToolExecutorFake {
+impl AssistantProtocolToolExecutorInterface for ReviewerToolExecutorFakeImpl {
     async fn execute_assistant_protocol_tool(
         &self,
         _context: AssistantToolExecutionContext,
@@ -21,13 +21,13 @@ impl AssistantProtocolToolExecutorInterface for ReviewerToolExecutorFake {
 }
 
 #[derive(Clone, Default)]
-struct ReviewerRecorder {
+struct ReviewerRecorderImpl {
     fetched: Arc<Mutex<Vec<String>>>,
     accepted: Arc<Mutex<Vec<String>>>,
 }
 
 #[async_trait]
-impl AssistantReviewerProtocolInterface for ReviewerRecorder {
+impl AssistantReviewerProtocolInterface for ReviewerRecorderImpl {
     async fn record_assistant_reviewer_candidate_fetch(
         &self,
         _context: &AssistantToolExecutionContext,
@@ -55,10 +55,10 @@ impl AssistantReviewerProtocolInterface for ReviewerRecorder {
 }
 
 #[derive(Clone, Default)]
-struct PresentationRecorder(Arc<Mutex<Vec<AssistantPresentationEvent>>>);
+struct PresentationRecorderImpl(Arc<Mutex<Vec<AssistantPresentationEvent>>>);
 
 #[async_trait]
-impl AssistantPresentationEventPublisherInterface for PresentationRecorder {
+impl AssistantPresentationEventPublisherInterface for PresentationRecorderImpl {
     async fn publish_assistant_presentation_event(
         &self,
         event: AssistantPresentationEvent,
@@ -106,13 +106,13 @@ async fn runner_persists_exact_reviewer_evidence_before_announcing_pending_chang
         ),
         incoming(5, "InvocationCompleted", json!({"final_text": "Awaiting human approval"})),
     ]);
-    let reviewer = ReviewerRecorder::default();
-    let presentation = PresentationRecorder::default();
+    let reviewer = ReviewerRecorderImpl::default();
+    let presentation = PresentationRecorderImpl::default();
     let runner = PythonAgentsAssistantModelRunnerAdapterImpl::new(
         launcher,
-        ReviewerToolExecutorFake,
+        ReviewerToolExecutorFakeImpl,
         crate::assistant_tool_runtime::DesktopAssistantToolExecutionContextFactoryAdapterImpl::new(
-            Arc::new(ClockFake),
+            Arc::new(ClockFakeImpl),
             60_000,
         ),
         presentation.clone(),

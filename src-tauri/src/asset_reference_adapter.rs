@@ -7,17 +7,17 @@ use nodes::{
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-pub(crate) struct AssetStoreReferenceResolver {
+pub(crate) struct AssetStoreReferenceResolverImpl {
     store: Arc<Mutex<AssetStore>>,
 }
 
-impl AssetStoreReferenceResolver {
+impl AssetStoreReferenceResolverImpl {
     pub(crate) fn new(store: Arc<Mutex<AssetStore>>) -> Self {
         Self { store }
     }
 }
 
-impl AssetReferenceResolverInterface for AssetStoreReferenceResolver {
+impl AssetReferenceResolverInterface for AssetStoreReferenceResolverImpl {
     fn resolve(
         &self,
         request: AssetReferenceRequest<'_>,
@@ -47,7 +47,7 @@ fn asset_kind(kind: AssetMediaKind) -> AssetKind {
 
 #[cfg(test)]
 mod tests {
-    use super::AssetStoreReferenceResolver;
+    use super::AssetStoreReferenceResolverImpl;
     use assets::{AssetKind, AssetStore, NewAsset};
     use nodes::{
         AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
@@ -67,7 +67,7 @@ mod tests {
         let project_b = store.lock().expect("store").create_project("B").expect("project B");
         let private = insert(&store, &source, Some(&project_a.id));
         let global = insert(&store, &source, None);
-        let resolver = AssetStoreReferenceResolver::new(Arc::clone(&store));
+        let resolver = AssetStoreReferenceResolverImpl::new(Arc::clone(&store));
 
         assert!(
             resolver.resolve(request(&project_a.id, &private.id, AssetMediaKind::Video)).is_ok()

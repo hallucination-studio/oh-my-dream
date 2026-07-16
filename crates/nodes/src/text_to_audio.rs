@@ -11,7 +11,7 @@ use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -53,7 +53,7 @@ pub(crate) fn registration(
         ),
         Box::new(normalize_params),
         Box::new(move |params| {
-            TextToAudioNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))
+            TextToAudioNodeImpl::from_params(params, Arc::clone(&generator), Arc::clone(&store))
                 .map(boxed_node)
                 .map_err(boxed)
         }),
@@ -74,7 +74,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     Ok(normalized)
 }
 
-struct TextToAudioNode {
+struct TextToAudioNodeImpl {
     generator: Arc<dyn TextToAudioGeneratorInterface>,
     store: SharedAssetStore,
     model: String,
@@ -83,7 +83,7 @@ struct TextToAudioNode {
     outputs: Vec<OutputPort>,
 }
 
-impl TextToAudioNode {
+impl TextToAudioNodeImpl {
     fn from_params(
         params: &NodeParams,
         generator: Arc<dyn TextToAudioGeneratorInterface>,
@@ -104,7 +104,7 @@ impl TextToAudioNode {
     }
 }
 
-impl NodeInterface for TextToAudioNode {
+impl NodeInterface for TextToAudioNodeImpl {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -120,7 +120,7 @@ impl NodeInterface for TextToAudioNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;
         info!(type_id = TYPE_ID, "generating audio from text");
@@ -150,6 +150,6 @@ impl NodeInterface for TextToAudioNode {
     }
 }
 
-fn boxed_node(node: TextToAudioNode) -> Box<dyn NodeInterface> {
+fn boxed_node(node: TextToAudioNodeImpl) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

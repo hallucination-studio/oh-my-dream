@@ -14,9 +14,9 @@ use engine::node_capability::{
 #[test]
 fn immutable_registry_lists_refs_in_order_and_rejects_duplicates() {
     let later: Arc<dyn WorkflowNodeCapabilityInterface> =
-        Arc::new(FakeCapability::new("video.generate_from_image", WorkflowDataType::Video));
+        Arc::new(FakeCapabilityImpl::new("video.generate_from_image", WorkflowDataType::Video));
     let earlier: Arc<dyn WorkflowNodeCapabilityInterface> =
-        Arc::new(FakeCapability::new("image.generate_from_text", WorkflowDataType::Image));
+        Arc::new(FakeCapabilityImpl::new("image.generate_from_text", WorkflowDataType::Image));
     let registry = WorkflowNodeCapabilityRegistry::try_new([later, Arc::clone(&earlier)]).unwrap();
 
     let listed = registry.list_node_capability_contracts();
@@ -34,11 +34,11 @@ fn immutable_registry_lists_refs_in_order_and_rejects_duplicates() {
     ));
 }
 
-struct FakeCapability {
+struct FakeCapabilityImpl {
     contract: NodeCapabilityContract,
 }
 
-impl FakeCapability {
+impl FakeCapabilityImpl {
     fn new(id: &str, output_type: WorkflowDataType) -> Self {
         Self {
             contract: NodeCapabilityContract::try_new(
@@ -58,7 +58,7 @@ impl FakeCapability {
 }
 
 #[async_trait]
-impl WorkflowNodeCapabilityInterface for FakeCapability {
+impl WorkflowNodeCapabilityInterface for FakeCapabilityImpl {
     fn node_capability_contract(&self) -> &NodeCapabilityContract {
         &self.contract
     }

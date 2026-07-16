@@ -14,10 +14,10 @@ use crate::{
     },
 };
 
-struct EvaluatorFake(AssistantWorkflowChangeCandidate);
+struct EvaluatorFakeImpl(AssistantWorkflowChangeCandidate);
 
 #[async_trait]
-impl AssistantWorkflowMutationEvaluatorInterface for EvaluatorFake {
+impl AssistantWorkflowMutationEvaluatorInterface for EvaluatorFakeImpl {
     async fn evaluate_assistant_workflow_mutations(
         &self,
         _request: AssistantWorkflowEvaluationRequest,
@@ -27,10 +27,10 @@ impl AssistantWorkflowMutationEvaluatorInterface for EvaluatorFake {
 }
 
 #[derive(Clone, Default)]
-struct RepositoryFake(Arc<Mutex<Option<AssistantWorkflowChangeAggregate>>>);
+struct RepositoryFakeImpl(Arc<Mutex<Option<AssistantWorkflowChangeAggregate>>>);
 
 #[async_trait]
-impl AssistantWorkflowChangeRepositoryInterface for RepositoryFake {
+impl AssistantWorkflowChangeRepositoryInterface for RepositoryFakeImpl {
     async fn load_assistant_workflow_change(
         &self,
         change_id: AssistantWorkflowChangeId,
@@ -71,9 +71,9 @@ impl AssistantWorkflowChangeRepositoryInterface for RepositoryFake {
 #[tokio::test]
 async fn evaluator_owned_candidate_is_persisted_without_workflow_commit() {
     let candidate = candidate();
-    let repository = RepositoryFake::default();
+    let repository = RepositoryFakeImpl::default();
     let use_case = AssistantEvaluateWorkflowChangeUseCase::new(
-        EvaluatorFake(candidate.clone()),
+        EvaluatorFakeImpl(candidate.clone()),
         repository.clone(),
     );
     let result = use_case

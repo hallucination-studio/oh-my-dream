@@ -97,8 +97,8 @@ fn collect_construction_violations(directory: &Path, violations: &mut Vec<PathBu
             && path.file_stem().is_none_or(|name| name != "tests")
         {
             let source = fs::read_to_string(&path).expect("Rust source should be readable");
-            if source.contains("MockBackend::new(")
-                || source.contains("MockGenerationAdapter::new(")
+            if source.contains("MockBackendImpl::new(")
+                || source.contains("MockGenerationAdapterImpl::new(")
             {
                 violations.push(path);
             }

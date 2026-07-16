@@ -95,6 +95,16 @@ fn workspace_library_substitution_traits_use_interface_suffixes() {
 }
 
 #[test]
+fn repository_interface_implementations_use_impl_suffixes() {
+    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    let mut violations = Vec::new();
+    collect_implementation_name_violations(&workspace_root.join("crates"), &mut violations);
+    collect_implementation_name_violations(&workspace_root.join("src-tauri"), &mut violations);
+
+    assert_eq!(violations, Vec::<String>::new());
+}
+
+#[test]
 fn active_private_boundary_implementations_use_impl_suffixes() {
     assert!(FAL_TRANSPORT.contains("ReqwestFalHttpTransportAdapterImpl"));
     assert!(!FAL_TRANSPORT.contains("struct ReqwestFalHttpTransport {"));
@@ -176,4 +186,56 @@ fn collect_file_trait_name_violations(path: &Path, source: &str, violations: &mu
 
 fn trait_name(declaration: &str) -> Option<&str> {
     declaration.split(['<', ':', ' ', '{']).next().filter(|name| !name.is_empty())
+}
+
+fn collect_implementation_name_violations(directory: &Path, violations: &mut Vec<String>) {
+    for entry in fs::read_dir(directory).expect("source directory should be readable") {
+        let path = entry.expect("source entry should be readable").path();
+        if path.is_dir() {
+            collect_implementation_name_violations(&path, violations);
+            continue;
+        }
+        if path.extension().is_none_or(|extension| extension != "rs") {
+            continue;
+        }
+        let source = fs::read_to_string(&path).expect("Rust source should be readable");
+        collect_file_implementation_name_violations(&path, &source, violations);
+    }
+}
+
+fn collect_file_implementation_name_violations(
+    path: &Path,
+    source: &str,
+    violations: &mut Vec<String>,
+) {
+    let mut declaration = String::new();
+    let mut declaration_line = 0;
+    for (index, line) in source.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if declaration.is_empty() {
+            if !trimmed.starts_with("impl") || !trimmed.contains("Interface") {
+                continue;
+            }
+            declaration_line = index + 1;
+        }
+        declaration.push_str(trimmed);
+        declaration.push(' ');
+        if !trimmed.contains('{') {
+            continue;
+        }
+        if let Some(name) = implementation_type_name(&declaration)
+            && name != "Arc"
+            && !name.starts_with('$')
+            && !name.ends_with("Impl")
+            && !name.ends_with("UseCase")
+        {
+            violations.push(format!("{}:{declaration_line}:{name}", path.display()));
+        }
+        declaration.clear();
+    }
+}
+
+fn implementation_type_name(declaration: &str) -> Option<&str> {
+    let target = declaration.split(" for ").nth(1)?;
+    target.split(['<', ' ', '{']).next().filter(|name| !name.is_empty())
 }

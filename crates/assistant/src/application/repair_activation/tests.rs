@@ -17,13 +17,13 @@ use crate::{
 };
 
 #[derive(Clone, Default)]
-struct RepairRepositoryFake {
+struct RepairRepositoryFakeImpl {
     values:
         Arc<Mutex<BTreeMap<(ProjectId, AssistantFailedWorkflowRunId), AssistantRepairActivation>>>,
 }
 
 #[async_trait]
-impl AssistantRepairActivationRepositoryInterface for RepairRepositoryFake {
+impl AssistantRepairActivationRepositoryInterface for RepairRepositoryFakeImpl {
     async fn record_or_get_repair_activation(
         &self,
         activation: AssistantRepairActivation,
@@ -67,12 +67,12 @@ impl AssistantRepairActivationRepositoryInterface for RepairRepositoryFake {
 }
 
 #[derive(Clone, Default)]
-struct RunnerFake {
+struct RunnerFakeImpl {
     requests: Arc<Mutex<Vec<AssistantModelTurnRequest>>>,
 }
 
 #[async_trait]
-impl AssistantModelRunnerInterface for RunnerFake {
+impl AssistantModelRunnerInterface for RunnerFakeImpl {
     async fn start_assistant_model_turn(
         &self,
         request: AssistantModelTurnRequest,
@@ -93,10 +93,10 @@ impl AssistantModelRunnerInterface for RunnerFake {
 }
 
 #[derive(Clone, Copy)]
-struct RunReaderFake;
+struct RunReaderFakeImpl;
 
 #[async_trait]
-impl AssistantWorkflowRunReaderInterface for RunReaderFake {
+impl AssistantWorkflowRunReaderInterface for RunReaderFakeImpl {
     async fn read_assistant_workflow_run(
         &self,
         _project_id: ProjectId,
@@ -107,10 +107,10 @@ impl AssistantWorkflowRunReaderInterface for RunReaderFake {
 }
 
 #[derive(Clone, Copy)]
-struct WorkspaceReaderFake;
+struct WorkspaceReaderFakeImpl;
 
 #[async_trait]
-impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceReaderFake {
+impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceReaderFakeImpl {
     async fn read_assistant_workspace_snapshot(
         &self,
         _request: AssistantWorkspaceSnapshotRequest,
@@ -121,13 +121,13 @@ impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceReaderFake {
 
 #[tokio::test]
 async fn only_created_activation_starts_a_repair_turn_with_canonical_failed_run_facts() {
-    let repository = RepairRepositoryFake::default();
-    let runner = RunnerFake::default();
+    let repository = RepairRepositoryFakeImpl::default();
+    let runner = RunnerFakeImpl::default();
     let use_case = AssistantActivateRepairUseCase::new(
         repository,
-        RunReaderFake,
+        RunReaderFakeImpl,
         runner.clone(),
-        WorkspaceReaderFake,
+        WorkspaceReaderFakeImpl,
         AssistantActiveInvocationRegistry::default(),
     );
 

@@ -8,10 +8,10 @@ use crate::domain::{
     AssistantReviewedAt, AssistantSessionId,
 };
 
-struct BoundaryFaultFake;
+struct BoundaryFaultFakeImpl;
 
 #[async_trait]
-impl AssistantModelRunnerInterface for BoundaryFaultFake {
+impl AssistantModelRunnerInterface for BoundaryFaultFakeImpl {
     async fn start_assistant_model_turn(
         &self,
         _request: AssistantModelTurnRequest,
@@ -27,7 +27,7 @@ impl AssistantModelRunnerInterface for BoundaryFaultFake {
 }
 
 #[async_trait]
-impl AssistantWorkspaceSnapshotReaderInterface for BoundaryFaultFake {
+impl AssistantWorkspaceSnapshotReaderInterface for BoundaryFaultFakeImpl {
     async fn read_assistant_workspace_snapshot(
         &self,
         _request: AssistantWorkspaceSnapshotRequest,
@@ -37,7 +37,7 @@ impl AssistantWorkspaceSnapshotReaderInterface for BoundaryFaultFake {
 }
 
 #[async_trait]
-impl AssistantNodeCapabilityCatalogReaderInterface for BoundaryFaultFake {
+impl AssistantNodeCapabilityCatalogReaderInterface for BoundaryFaultFakeImpl {
     async fn read_assistant_node_capability_catalog(
         &self,
         _request: AssistantNodeCapabilityCatalogRequest,
@@ -47,7 +47,7 @@ impl AssistantNodeCapabilityCatalogReaderInterface for BoundaryFaultFake {
 }
 
 #[async_trait]
-impl AssistantWorkflowMutationEvaluatorInterface for BoundaryFaultFake {
+impl AssistantWorkflowMutationEvaluatorInterface for BoundaryFaultFakeImpl {
     async fn evaluate_assistant_workflow_mutations(
         &self,
         _request: AssistantWorkflowEvaluationRequest,
@@ -57,7 +57,7 @@ impl AssistantWorkflowMutationEvaluatorInterface for BoundaryFaultFake {
 }
 
 #[async_trait]
-impl AssistantWorkflowMutationApplierInterface for BoundaryFaultFake {
+impl AssistantWorkflowMutationApplierInterface for BoundaryFaultFakeImpl {
     async fn apply_assistant_workflow_change(
         &self,
         _request: AssistantWorkflowApplyRequest,
@@ -67,7 +67,7 @@ impl AssistantWorkflowMutationApplierInterface for BoundaryFaultFake {
 }
 
 #[async_trait]
-impl AssistantWorkflowRunStarterInterface for BoundaryFaultFake {
+impl AssistantWorkflowRunStarterInterface for BoundaryFaultFakeImpl {
     async fn start_assistant_workflow_run(
         &self,
         _request: AssistantWorkflowRunRequest,
@@ -77,7 +77,7 @@ impl AssistantWorkflowRunStarterInterface for BoundaryFaultFake {
 }
 
 #[async_trait]
-impl AssistantWorkflowRunReaderInterface for BoundaryFaultFake {
+impl AssistantWorkflowRunReaderInterface for BoundaryFaultFakeImpl {
     async fn read_assistant_workflow_run(
         &self,
         _project_id: ProjectId,
@@ -88,7 +88,7 @@ impl AssistantWorkflowRunReaderInterface for BoundaryFaultFake {
 }
 
 #[async_trait]
-impl AssistantProductionPlanRepositoryInterface for BoundaryFaultFake {
+impl AssistantProductionPlanRepositoryInterface for BoundaryFaultFakeImpl {
     async fn load_assistant_production_plan(
         &self,
         _project_id: ProjectId,
@@ -105,7 +105,7 @@ impl AssistantProductionPlanRepositoryInterface for BoundaryFaultFake {
     }
 }
 
-impl AssistantClockInterface for BoundaryFaultFake {
+impl AssistantClockInterface for BoundaryFaultFakeImpl {
     fn current_assistant_time(&self) -> Result<AssistantReviewedAt, AssistantApplicationError> {
         Err(AssistantApplicationError::ExternalBoundaryFailed)
     }
@@ -113,8 +113,8 @@ impl AssistantClockInterface for BoundaryFaultFake {
 
 #[tokio::test]
 async fn independent_boundary_faults_preserve_the_closed_category() {
-    assert_interface_coverage::<BoundaryFaultFake>();
-    let fake = BoundaryFaultFake;
+    assert_interface_coverage::<BoundaryFaultFakeImpl>();
+    let fake = BoundaryFaultFakeImpl;
     let project_id = ProjectId::from_uuid(uuid(1)).unwrap();
     let session_id = AssistantSessionId::from_uuid(uuid(2)).unwrap();
     let request = AssistantModelTurnRequest {

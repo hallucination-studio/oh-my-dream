@@ -17,13 +17,13 @@ use crate::traits::InferenceBackendInterface;
 const BACKEND_NAME: &str = "mock";
 
 /// A deterministic local backend with no network or provider credentials.
-pub struct MockBackend {
+pub struct MockBackendImpl {
     state: Mutex<MockState>,
     submitted_tasks: AtomicUsize,
     failure_reason: Option<String>,
 }
 
-impl MockBackend {
+impl MockBackendImpl {
     /// Creates a mock backend whose tasks eventually succeed.
     #[must_use]
     pub fn new() -> Self {
@@ -69,14 +69,14 @@ impl MockBackend {
     }
 }
 
-impl Default for MockBackend {
+impl Default for MockBackendImpl {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[async_trait]
-impl InferenceBackendInterface for MockBackend {
+impl InferenceBackendInterface for MockBackendImpl {
     fn name(&self) -> &str {
         BACKEND_NAME
     }

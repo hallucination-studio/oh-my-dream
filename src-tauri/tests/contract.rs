@@ -135,8 +135,8 @@ fn node_capability_fixtures() -> (serde_json::Value, serde_json::Value) {
     tauri::async_runtime::block_on(async {
         let dependencies = DesktopCompositionRoot::compose_activated_commands_with_emitter(
             DesktopApplicationPaths::from_application_data_root(directory.path()),
-            Arc::new(ContractEventEmitter),
-            Arc::new(CancelledAssetPicker),
+            Arc::new(ContractEventEmitterImpl),
+            Arc::new(CancelledAssetPickerImpl),
         )
         .await
         .expect("compose activated commands");
@@ -159,12 +159,12 @@ fn node_capability_fixtures() -> (serde_json::Value, serde_json::Value) {
     })
 }
 
-struct ContractEventEmitter;
+struct ContractEventEmitterImpl;
 
-struct CancelledAssetPicker;
+struct CancelledAssetPickerImpl;
 
 #[async_trait::async_trait]
-impl DesktopAssetImportSourcePickerInterface for CancelledAssetPicker {
+impl DesktopAssetImportSourcePickerInterface for CancelledAssetPickerImpl {
     async fn pick_asset_import_source(
         &self,
         _expected_media_kind: assets::asset::domain::AssetMediaKind,
@@ -173,7 +173,7 @@ impl DesktopAssetImportSourcePickerInterface for CancelledAssetPicker {
     }
 }
 
-impl DesktopEventEmitterInterface for ContractEventEmitter {
+impl DesktopEventEmitterInterface for ContractEventEmitterImpl {
     fn emit_desktop_event(
         &self,
         _event_name: &str,

@@ -36,7 +36,7 @@ use crate::{
 #[tokio::test]
 async fn sends_exact_frozen_queue_wire_and_returns_downloaded_png() {
     let png = png_bytes(64, 32);
-    let transport = Arc::new(ScriptedTransport::new(
+    let transport = Arc::new(ScriptedTransportImpl::new(
         [
             json_response(202, json!({"request_id": "request_1"})),
             json_response(200, json!({"status": "IN_QUEUE"})),
@@ -58,7 +58,7 @@ async fn sends_exact_frozen_queue_wire_and_returns_downloaded_png() {
     ));
     let route = FalTextToImageProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(FakeRepository),
+        Arc::new(FakeRepositoryImpl),
         transport.clone(),
     );
     let router = TextToImageProviderRouterImpl::try_new([(
@@ -103,13 +103,13 @@ async fn sends_exact_frozen_queue_wire_and_returns_downloaded_png() {
 
 #[tokio::test]
 async fn reports_missing_credential_without_exposing_or_calling_transport() {
-    let transport = Arc::new(ScriptedTransport::new(
+    let transport = Arc::new(ScriptedTransportImpl::new(
         [],
         FalHttpResponse { status: 500, content_type: None, body: vec![] },
     ));
     let route = FalTextToImageProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(MissingRepository),
+        Arc::new(MissingRepositoryImpl),
         transport.clone(),
     );
 
@@ -127,7 +127,7 @@ async fn reports_missing_credential_without_exposing_or_calling_transport() {
 
 #[tokio::test]
 async fn rejects_unknown_queue_status_without_fetching_a_result() {
-    let transport = Arc::new(ScriptedTransport::new(
+    let transport = Arc::new(ScriptedTransportImpl::new(
         [
             json_response(202, json!({"request_id": "request_2"})),
             json_response(200, json!({"status": "UNKNOWN"})),
@@ -140,7 +140,7 @@ async fn rejects_unknown_queue_status_without_fetching_a_result() {
     ));
     let route = FalTextToImageProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(FakeRepository),
+        Arc::new(FakeRepositoryImpl),
         transport.clone(),
     );
     let router = TextToImageProviderRouterImpl::try_new([(
@@ -186,10 +186,10 @@ fn local_repository_permission_failure_is_not_misreported_as_provider_authentica
 
 #[tokio::test]
 async fn ambiguous_submission_is_returned_without_resubmission() {
-    let transport = Arc::new(AmbiguousTransport::default());
+    let transport = Arc::new(AmbiguousTransportImpl::default());
     let route = FalTextToImageProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(FakeRepository),
+        Arc::new(FakeRepositoryImpl),
         transport.clone(),
     );
     let router = TextToImageProviderRouterImpl::try_new([(
@@ -213,11 +213,11 @@ async fn ambiguous_submission_is_returned_without_resubmission() {
     assert_eq!(transport.calls.load(std::sync::atomic::Ordering::Acquire), 1);
 }
 
-struct FakeRepository;
-struct MissingRepository;
+struct FakeRepositoryImpl;
+struct MissingRepositoryImpl;
 
 #[async_trait]
-impl GenerationProviderCredentialRepositoryInterface for FakeRepository {
+impl GenerationProviderCredentialRepositoryInterface for FakeRepositoryImpl {
     async fn save_generation_provider_credential(
         &self,
         _id: GenerationProviderCredentialId,
@@ -243,7 +243,7 @@ impl GenerationProviderCredentialRepositoryInterface for FakeRepository {
 }
 
 #[async_trait]
-impl GenerationProviderCredentialRepositoryInterface for MissingRepository {
+impl GenerationProviderCredentialRepositoryInterface for MissingRepositoryImpl {
     async fn save_generation_provider_credential(
         &self,
         _id: GenerationProviderCredentialId,
@@ -268,19 +268,19 @@ impl GenerationProviderCredentialRepositoryInterface for MissingRepository {
     }
 }
 
-struct ScriptedTransport {
+struct ScriptedTransportImpl {
     queue: Mutex<VecDeque<FalHttpResponse>>,
     download: Mutex<Option<FalHttpResponse>>,
     requests: Mutex<Vec<RecordedRequest>>,
 }
 
 #[derive(Default)]
-struct AmbiguousTransport {
+struct AmbiguousTransportImpl {
     calls: std::sync::atomic::AtomicUsize,
 }
 
 #[async_trait]
-impl FalHttpTransportInterface for AmbiguousTransport {
+impl FalHttpTransportInterface for AmbiguousTransportImpl {
     async fn send_queue_request(
         &self,
         _request: FalQueueRequest,
@@ -300,7 +300,7 @@ impl FalHttpTransportInterface for AmbiguousTransport {
     }
 }
 
-impl ScriptedTransport {
+impl ScriptedTransportImpl {
     fn new(queue: impl IntoIterator<Item = FalHttpResponse>, download: FalHttpResponse) -> Self {
         Self {
             queue: Mutex::new(queue.into_iter().collect()),
@@ -315,7 +315,7 @@ impl ScriptedTransport {
 }
 
 #[async_trait]
-impl FalHttpTransportInterface for ScriptedTransport {
+impl FalHttpTransportInterface for ScriptedTransportImpl {
     async fn send_queue_request(
         &self,
         request: FalQueueRequest,

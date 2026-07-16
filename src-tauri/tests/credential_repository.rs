@@ -4,18 +4,18 @@ use async_trait::async_trait;
 use oh_my_dream_tauri::credential_repository::*;
 
 #[derive(Default)]
-struct GenerationRepositoryFake {
+struct GenerationRepositoryFakeImpl {
     values: Mutex<BTreeMap<GenerationProviderCredentialId, Vec<u8>>>,
 }
 
 #[derive(Default)]
-struct AssistantRepositoryFake {
+struct AssistantRepositoryFakeImpl {
     values: Mutex<BTreeMap<AssistantModelCredentialId, Vec<u8>>>,
     failure: Mutex<Option<AssistantModelCredentialRepositoryError>>,
 }
 
 #[async_trait]
-impl AssistantModelCredentialRepositoryInterface for AssistantRepositoryFake {
+impl AssistantModelCredentialRepositoryInterface for AssistantRepositoryFakeImpl {
     async fn save_assistant_model_credential(
         &self,
         id: AssistantModelCredentialId,
@@ -57,7 +57,7 @@ impl AssistantModelCredentialRepositoryInterface for AssistantRepositoryFake {
 }
 
 #[async_trait]
-impl GenerationProviderCredentialRepositoryInterface for GenerationRepositoryFake {
+impl GenerationProviderCredentialRepositoryInterface for GenerationRepositoryFakeImpl {
     async fn save_generation_provider_credential(
         &self,
         id: GenerationProviderCredentialId,
@@ -104,7 +104,7 @@ fn credential_ids_are_typed_isolated_and_secrets_are_redacted() {
 
 #[tokio::test]
 async fn generation_repository_contract_saves_loads_deletes_and_reports_not_found() {
-    let repository = GenerationRepositoryFake::default();
+    let repository = GenerationRepositoryFakeImpl::default();
     let id = GenerationProviderCredentialId::new("fal.primary").unwrap();
     repository
         .save_generation_provider_credential(
@@ -126,7 +126,7 @@ async fn generation_repository_contract_saves_loads_deletes_and_reports_not_foun
 
 #[tokio::test]
 async fn assistant_repository_is_isolated_and_preserves_access_failures() {
-    let repository = AssistantRepositoryFake::default();
+    let repository = AssistantRepositoryFakeImpl::default();
     let id = AssistantModelCredentialId::new("assistant.openai.default").unwrap();
     repository
         .save_assistant_model_credential(

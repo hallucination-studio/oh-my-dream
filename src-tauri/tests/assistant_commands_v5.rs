@@ -31,8 +31,8 @@ fn canonical_assistant_commands_resolve_project_and_fail_closed_when_disabled() 
         let directory = tempdir().unwrap();
         let dependencies = DesktopCompositionRoot::compose_activated_commands_with_emitter(
             DesktopApplicationPaths::from_application_data_root(directory.path()),
-            Arc::new(TestEmitter),
-            Arc::new(NoSelection),
+            Arc::new(TestEmitterImpl),
+            Arc::new(NoSelectionImpl),
         )
         .await
         .unwrap();
@@ -85,9 +85,9 @@ fn canonical_assistant_commands_resolve_project_and_fail_closed_when_disabled() 
     });
 }
 
-struct TestEmitter;
+struct TestEmitterImpl;
 
-impl DesktopEventEmitterInterface for TestEmitter {
+impl DesktopEventEmitterInterface for TestEmitterImpl {
     fn emit_desktop_event(
         &self,
         _event_name: &str,
@@ -97,10 +97,10 @@ impl DesktopEventEmitterInterface for TestEmitter {
     }
 }
 
-struct NoSelection;
+struct NoSelectionImpl;
 
 #[async_trait]
-impl DesktopAssetImportSourcePickerInterface for NoSelection {
+impl DesktopAssetImportSourcePickerInterface for NoSelectionImpl {
     async fn pick_asset_import_source(
         &self,
         _expected_media_kind: assets::asset::domain::AssetMediaKind,

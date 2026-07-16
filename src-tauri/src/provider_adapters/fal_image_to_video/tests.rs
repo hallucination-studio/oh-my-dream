@@ -39,7 +39,7 @@ use crate::{
 #[tokio::test]
 async fn sends_exact_data_uri_wire_and_returns_silent_mp4() {
     let video = mp4_bytes();
-    let transport = Arc::new(ScriptedTransport::new(
+    let transport = Arc::new(ScriptedTransportImpl::new(
         [
             json_response(202, json!({"request_id": "video_1"})),
             json_response(200, json!({"status": "COMPLETED"})),
@@ -62,7 +62,7 @@ async fn sends_exact_data_uri_wire_and_returns_silent_mp4() {
     ));
     let route = FalImageToVideoProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(FakeRepository),
+        Arc::new(FakeRepositoryImpl),
         transport.clone(),
     );
     let router = ImageToVideoProviderRouterImpl::try_new([(
@@ -107,10 +107,10 @@ async fn sends_exact_data_uri_wire_and_returns_silent_mp4() {
     assert_eq!(requests[2].url, result_url("video_1"));
 }
 
-struct FakeRepository;
+struct FakeRepositoryImpl;
 
 #[async_trait]
-impl GenerationProviderCredentialRepositoryInterface for FakeRepository {
+impl GenerationProviderCredentialRepositoryInterface for FakeRepositoryImpl {
     async fn save_generation_provider_credential(
         &self,
         _id: GenerationProviderCredentialId,
@@ -135,13 +135,13 @@ impl GenerationProviderCredentialRepositoryInterface for FakeRepository {
     }
 }
 
-struct ScriptedTransport {
+struct ScriptedTransportImpl {
     queue: Mutex<VecDeque<FalHttpResponse>>,
     download: Mutex<Option<FalHttpResponse>>,
     requests: Mutex<Vec<RecordedRequest>>,
 }
 
-impl ScriptedTransport {
+impl ScriptedTransportImpl {
     fn new(queue: impl IntoIterator<Item = FalHttpResponse>, download: FalHttpResponse) -> Self {
         Self {
             queue: Mutex::new(queue.into_iter().collect()),
@@ -156,7 +156,7 @@ impl ScriptedTransport {
 }
 
 #[async_trait]
-impl FalHttpTransportInterface for ScriptedTransport {
+impl FalHttpTransportInterface for ScriptedTransportImpl {
     async fn send_queue_request(
         &self,
         request: FalQueueRequest,

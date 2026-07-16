@@ -223,7 +223,7 @@ impl WorkflowRuns {
         let generation = active.next_generation;
         active.next_generation =
             generation.checked_add(1).ok_or(WorkflowRunsError::GenerationExhausted)?;
-        let cancellation = Arc::new(RunCancellation::default());
+        let cancellation = Arc::new(RunCancellationImpl::default());
         let key =
             ActiveKey { run_id: run_id.clone(), project_id: project_id.to_owned(), generation };
         active.by_run_id.insert(
@@ -279,7 +279,7 @@ struct ActiveRuns {
 struct ActiveRun {
     project_id: String,
     generation: u64,
-    cancellation: Arc<RunCancellation>,
+    cancellation: Arc<RunCancellationImpl>,
 }
 
 impl ActiveRun {
@@ -298,7 +298,7 @@ struct ActiveKey {
 struct RunRegistration {
     owner: Arc<WorkflowRuns>,
     key: ActiveKey,
-    cancellation: Arc<RunCancellation>,
+    cancellation: Arc<RunCancellationImpl>,
     active: bool,
 }
 
@@ -349,17 +349,17 @@ impl Drop for RunRegistration {
 }
 
 #[derive(Default)]
-struct RunCancellation {
+struct RunCancellationImpl {
     requested: AtomicBool,
 }
 
-impl RunCancellation {
+impl RunCancellationImpl {
     fn request(&self) {
         self.requested.store(true, Ordering::SeqCst);
     }
 }
 
-impl CancellationSignalInterface for RunCancellation {
+impl CancellationSignalInterface for RunCancellationImpl {
     fn is_cancelled(&self) -> bool {
         self.requested.load(Ordering::SeqCst)
     }

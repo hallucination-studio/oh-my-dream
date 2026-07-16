@@ -177,9 +177,13 @@ fn duplicate_capability_refs_are_rejected() {
     let mut registry = NodeRegistry::new();
     register(&mut registry, Arc::clone(&store));
 
-    let error =
-        nodes::register_all(&mut registry, adapters(), store, Arc::new(support::MissingResolver))
-            .expect_err("duplicate capability refs must be rejected");
+    let error = nodes::register_all(
+        &mut registry,
+        adapters(),
+        store,
+        Arc::new(support::MissingResolverImpl),
+    )
+    .expect_err("duplicate capability refs must be rejected");
     assert!(matches!(error, CapabilityRegistryError::DuplicateReference { .. }));
 }
 
@@ -218,23 +222,23 @@ fn store() -> (TempDir, SharedAssetStore) {
 }
 
 fn register(registry: &mut NodeRegistry, store: SharedAssetStore) {
-    nodes::register_all(registry, adapters(), store, Arc::new(support::MissingResolver))
+    nodes::register_all(registry, adapters(), store, Arc::new(support::MissingResolverImpl))
         .expect("capability registration");
 }
 
 fn adapters() -> nodes::GenerationAdapters {
     nodes::GenerationAdapters::new(
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
+        Arc::new(NoopGeneratorImpl),
+        Arc::new(NoopGeneratorImpl),
+        Arc::new(NoopGeneratorImpl),
+        Arc::new(NoopGeneratorImpl),
+        Arc::new(NoopGeneratorImpl),
     )
 }
 
-struct NoopGenerator;
+struct NoopGeneratorImpl;
 
-impl TextToImageGeneratorInterface for NoopGenerator {
+impl TextToImageGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: TextToImageRequest,
@@ -247,7 +251,7 @@ impl TextToImageGeneratorInterface for NoopGenerator {
     }
 }
 
-impl ImageToVideoGeneratorInterface for NoopGenerator {
+impl ImageToVideoGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: ImageToVideoRequest,
@@ -260,7 +264,7 @@ impl ImageToVideoGeneratorInterface for NoopGenerator {
     }
 }
 
-impl ReferenceImageGeneratorInterface for NoopGenerator {
+impl ReferenceImageGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: ReferenceImageGenerationRequest,
@@ -273,7 +277,7 @@ impl ReferenceImageGeneratorInterface for NoopGenerator {
     }
 }
 
-impl ReferenceVideoGeneratorInterface for NoopGenerator {
+impl ReferenceVideoGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: ReferenceVideoGenerationRequest,
@@ -286,7 +290,7 @@ impl ReferenceVideoGeneratorInterface for NoopGenerator {
     }
 }
 
-impl TextToAudioGeneratorInterface for NoopGenerator {
+impl TextToAudioGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: TextToAudioRequest,

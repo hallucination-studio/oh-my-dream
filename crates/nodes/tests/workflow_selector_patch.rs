@@ -214,22 +214,22 @@ fn registry() -> (TempDir, NodeRegistry) {
     nodes::register_all(
         &mut registry,
         nodes::GenerationAdapters::new(
-            Arc::new(NoopGenerator),
-            Arc::new(NoopGenerator),
-            Arc::new(NoopGenerator),
-            Arc::new(NoopGenerator),
-            Arc::new(NoopGenerator),
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
         ),
         store,
-        Arc::new(support::MissingResolver),
+        Arc::new(support::MissingResolverImpl),
     )
     .expect("capability registration");
     (directory, registry)
 }
 
-struct NoopGenerator;
+struct NoopGeneratorImpl;
 
-impl TextToImageGeneratorInterface for NoopGenerator {
+impl TextToImageGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: TextToImageRequest,
@@ -239,7 +239,7 @@ impl TextToImageGeneratorInterface for NoopGenerator {
     }
 }
 
-impl ImageToVideoGeneratorInterface for NoopGenerator {
+impl ImageToVideoGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: ImageToVideoRequest,
@@ -249,7 +249,7 @@ impl ImageToVideoGeneratorInterface for NoopGenerator {
     }
 }
 
-impl ReferenceImageGeneratorInterface for NoopGenerator {
+impl ReferenceImageGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: ReferenceImageGenerationRequest,
@@ -259,7 +259,7 @@ impl ReferenceImageGeneratorInterface for NoopGenerator {
     }
 }
 
-impl ReferenceVideoGeneratorInterface for NoopGenerator {
+impl ReferenceVideoGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: ReferenceVideoGenerationRequest,
@@ -269,7 +269,7 @@ impl ReferenceVideoGeneratorInterface for NoopGenerator {
     }
 }
 
-impl TextToAudioGeneratorInterface for NoopGenerator {
+impl TextToAudioGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: TextToAudioRequest,

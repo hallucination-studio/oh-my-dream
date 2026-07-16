@@ -25,7 +25,7 @@ fn executes_full_generation_workflow_and_persists_video_asset() {
     let mut registry = NodeRegistry::new();
     register_test_generators(
         &mut registry,
-        Arc::new(TestGenerators::succeeds()),
+        Arc::new(TestGeneratorsImpl::succeeds()),
         Arc::clone(&store),
     );
     let workflow = full_workflow();
@@ -78,7 +78,7 @@ fn executes_text_to_audio_and_persists_audio_asset() {
     let mut registry = NodeRegistry::new();
     register_test_generators(
         &mut registry,
-        Arc::new(TestGenerators::succeeds()),
+        Arc::new(TestGeneratorsImpl::succeeds()),
         Arc::clone(&store),
     );
 
@@ -109,7 +109,7 @@ fn save_asset_node_is_not_registered() {
     let temp_dir = TempDir::new().expect("temp dir should be created");
     let store = shared_store(temp_dir.path());
     let mut registry = NodeRegistry::new();
-    register_test_generators(&mut registry, Arc::new(TestGenerators::succeeds()), store);
+    register_test_generators(&mut registry, Arc::new(TestGeneratorsImpl::succeeds()), store);
 
     let error = Executor::new(&registry)
         .execute(&workflow_with_save_asset(), &mut ResultCache::new())
@@ -125,7 +125,7 @@ fn failed_generation_task_surfaces_as_execution_error() {
     let mut registry = NodeRegistry::new();
     register_test_generators(
         &mut registry,
-        Arc::new(TestGenerators::fails("provider failed")),
+        Arc::new(TestGeneratorsImpl::fails("provider failed")),
         store,
     );
 
@@ -255,7 +255,7 @@ fn params(value: serde_json::Value) -> NodeParams {
 
 fn register_test_generators(
     registry: &mut NodeRegistry,
-    generators: Arc<TestGenerators>,
+    generators: Arc<TestGeneratorsImpl>,
     store: nodes::SharedAssetStore,
 ) {
     let image: Arc<dyn TextToImageGeneratorInterface> = generators.clone();
@@ -263,7 +263,7 @@ fn register_test_generators(
     let reference_video: Arc<dyn ReferenceVideoGeneratorInterface> = generators.clone();
     let video: Arc<dyn ImageToVideoGeneratorInterface> = generators.clone();
     let audio: Arc<dyn TextToAudioGeneratorInterface> = generators;
-    let resolver = Arc::new(support::StoreResolver(Arc::clone(&store)));
+    let resolver = Arc::new(support::StoreResolverImpl(Arc::clone(&store)));
     nodes::register_all(
         registry,
         nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
@@ -273,11 +273,11 @@ fn register_test_generators(
     .expect("register workflow capabilities");
 }
 
-struct TestGenerators {
+struct TestGeneratorsImpl {
     failure_reason: Option<String>,
 }
 
-impl TestGenerators {
+impl TestGeneratorsImpl {
     fn succeeds() -> Self {
         Self { failure_reason: None }
     }
@@ -294,7 +294,7 @@ impl TestGenerators {
     }
 }
 
-impl TextToImageGeneratorInterface for TestGenerators {
+impl TextToImageGeneratorInterface for TestGeneratorsImpl {
     fn generate(
         &self,
         _request: TextToImageRequest,
@@ -306,7 +306,7 @@ impl TextToImageGeneratorInterface for TestGenerators {
     }
 }
 
-impl ImageToVideoGeneratorInterface for TestGenerators {
+impl ImageToVideoGeneratorInterface for TestGeneratorsImpl {
     fn generate(
         &self,
         request: ImageToVideoRequest,
@@ -319,7 +319,7 @@ impl ImageToVideoGeneratorInterface for TestGenerators {
     }
 }
 
-impl ReferenceImageGeneratorInterface for TestGenerators {
+impl ReferenceImageGeneratorInterface for TestGeneratorsImpl {
     fn generate(
         &self,
         _request: ReferenceImageGenerationRequest,
@@ -331,7 +331,7 @@ impl ReferenceImageGeneratorInterface for TestGenerators {
     }
 }
 
-impl ReferenceVideoGeneratorInterface for TestGenerators {
+impl ReferenceVideoGeneratorInterface for TestGeneratorsImpl {
     fn generate(
         &self,
         _request: ReferenceVideoGenerationRequest,
@@ -343,7 +343,7 @@ impl ReferenceVideoGeneratorInterface for TestGenerators {
     }
 }
 
-impl TextToAudioGeneratorInterface for TestGenerators {
+impl TextToAudioGeneratorInterface for TestGeneratorsImpl {
     fn generate(
         &self,
         _request: TextToAudioRequest,

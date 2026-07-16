@@ -1,5 +1,5 @@
 use backends::{
-    BackendError, ImageToVideoRequest, InferenceBackendInterface, MockBackend,
+    BackendError, ImageToVideoRequest, InferenceBackendInterface, MockBackendImpl,
     ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest, TaskHandle, TaskProgress,
     TaskStatus, TextToAudioRequest, TextToImageRequest,
 };
@@ -9,7 +9,7 @@ use std::task::{Context, Poll, Wake, Waker};
 
 #[test]
 fn submits_and_polls_text_to_image_task_to_success() {
-    let backend = MockBackend::new();
+    let backend = MockBackendImpl::new();
 
     let handle = block_on(backend.text_to_image(text_to_image_request()))
         .expect("text-to-image submission should succeed");
@@ -36,7 +36,7 @@ fn submits_and_polls_text_to_image_task_to_success() {
 
 #[test]
 fn submits_reference_generation_tasks_to_distinct_backend_paths() {
-    let backend = MockBackend::new();
+    let backend = MockBackendImpl::new();
     let image_handle = block_on(backend.reference_image_generation(reference_image_request()))
         .expect("reference-image submission should succeed");
     let video_handle = block_on(backend.reference_video_generation(reference_video_request()))
@@ -58,7 +58,7 @@ fn submits_reference_generation_tasks_to_distinct_backend_paths() {
 
 #[test]
 fn submits_and_polls_text_to_audio_task_to_success_with_cost() {
-    let backend = MockBackend::new();
+    let backend = MockBackendImpl::new();
 
     let handle = block_on(backend.text_to_audio(text_to_audio_request()))
         .expect("text-to-audio submission should succeed");
@@ -77,7 +77,7 @@ fn submits_and_polls_text_to_audio_task_to_success_with_cost() {
 
 #[test]
 fn cancel_marks_task_cancelled_for_later_polls() {
-    let backend = MockBackend::new();
+    let backend = MockBackendImpl::new();
     let handle = block_on(backend.image_to_video(image_to_video_request()))
         .expect("image-to-video submission should succeed");
 
@@ -91,7 +91,7 @@ fn cancel_marks_task_cancelled_for_later_polls() {
 
 #[test]
 fn unknown_handle_returns_unknown_task() {
-    let backend = MockBackend::new();
+    let backend = MockBackendImpl::new();
     let handle = TaskHandle { backend: "mock".to_owned(), task_id: "missing".to_owned() };
 
     let error = block_on(backend.poll(&handle)).expect_err("unknown task should fail");
@@ -107,7 +107,7 @@ fn unknown_handle_returns_unknown_task() {
 
 #[test]
 fn failing_backend_returns_failed_status() {
-    let backend = MockBackend::always_fails("forced failure");
+    let backend = MockBackendImpl::always_fails("forced failure");
     let handle = block_on(backend.text_to_image(text_to_image_request()))
         .expect("submission should still succeed");
 
@@ -160,7 +160,7 @@ fn reference_video_request() -> ReferenceVideoGenerationRequest {
 }
 
 fn assert_succeeds_with_output(
-    backend: &MockBackend,
+    backend: &MockBackendImpl,
     handle: &TaskHandle,
     expected_output: &str,
     expected_cost: i64,

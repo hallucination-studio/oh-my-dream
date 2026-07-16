@@ -59,7 +59,7 @@ pub trait NodeInterface: Send + Sync {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext<'_>,
+        context: &mut NodeRunContextImpl<'_>,
     ) -> std::result::Result<NodeRunResult, NodeRunError>;
 
     /// Looks up an output port declaration by name.
@@ -111,7 +111,7 @@ impl NodeRunResult {
 }
 
 /// Synchronous context passed into a running node.
-pub struct NodeRunContext<'a> {
+pub struct NodeRunContextImpl<'a> {
     node_id: &'a str,
     project_id: &'a str,
     workflow_snapshot: &'a serde_json::Value,
@@ -119,7 +119,7 @@ pub struct NodeRunContext<'a> {
     observer: &'a mut dyn FnMut(&NodeProgressEvent),
 }
 
-impl<'a> NodeRunContext<'a> {
+impl<'a> NodeRunContextImpl<'a> {
     /// Creates a context for `node_id`.
     pub(crate) fn new(
         node_id: &'a str,

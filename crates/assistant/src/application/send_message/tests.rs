@@ -9,13 +9,13 @@ use super::*;
 use crate::interfaces::{AssistantModelTurnRequest, AssistantWorkspaceSnapshot};
 
 #[derive(Clone)]
-struct BarrierRunner {
+struct BarrierRunnerImpl {
     barrier: Arc<Barrier>,
     entered: Arc<Notify>,
 }
 
 #[async_trait]
-impl AssistantModelRunnerInterface for BarrierRunner {
+impl AssistantModelRunnerInterface for BarrierRunnerImpl {
     async fn start_assistant_model_turn(
         &self,
         _request: AssistantModelTurnRequest,
@@ -34,10 +34,10 @@ impl AssistantModelRunnerInterface for BarrierRunner {
 }
 
 #[derive(Clone, Copy)]
-struct WorkspaceReaderFake;
+struct WorkspaceReaderFakeImpl;
 
 #[async_trait]
-impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceReaderFake {
+impl AssistantWorkspaceSnapshotReaderInterface for WorkspaceReaderFakeImpl {
     async fn read_assistant_workspace_snapshot(
         &self,
         _request: AssistantWorkspaceSnapshotRequest,
@@ -51,8 +51,8 @@ async fn same_project_session_rejects_a_concurrent_invocation_and_releases_after
     let barrier = Arc::new(Barrier::new(2));
     let entered = Arc::new(Notify::new());
     let use_case = Arc::new(AssistantSendMessageUseCase::new(
-        BarrierRunner { barrier: Arc::clone(&barrier), entered: Arc::clone(&entered) },
-        WorkspaceReaderFake,
+        BarrierRunnerImpl { barrier: Arc::clone(&barrier), entered: Arc::clone(&entered) },
+        WorkspaceReaderFakeImpl,
         AssistantActiveInvocationRegistry::default(),
     ));
     let first = tokio::spawn({
@@ -80,8 +80,8 @@ async fn different_projects_may_invoke_the_same_session_identity_independently()
     let barrier = Arc::new(Barrier::new(3));
     let entered = Arc::new(Notify::new());
     let use_case = Arc::new(AssistantSendMessageUseCase::new(
-        BarrierRunner { barrier: Arc::clone(&barrier), entered },
-        WorkspaceReaderFake,
+        BarrierRunnerImpl { barrier: Arc::clone(&barrier), entered },
+        WorkspaceReaderFakeImpl,
         AssistantActiveInvocationRegistry::default(),
     ));
     let first = tokio::spawn({

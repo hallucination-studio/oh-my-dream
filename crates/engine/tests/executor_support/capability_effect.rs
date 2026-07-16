@@ -2,7 +2,7 @@ use super::{RunCounters, TestNodeError, output, registry};
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
     CapabilityRegistration, CapabilitySelector, InputBinding, InputPort, NodeInputs, NodeInterface,
-    NodeParams, NodeRegistry, NodeRunContext, NodeRunResult, OutputPort, OutputRef, PortType,
+    NodeParams, NodeRegistry, NodeRunContextImpl, NodeRunResult, OutputPort, OutputRef, PortType,
     Value, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
@@ -31,7 +31,7 @@ pub(crate) fn capability_effect_registry(
         CapabilityPresentation::new("Managed Text", "Managed local text", "test", Vec::new()),
         Box::new(|params| Ok(params.clone())),
         Box::new(move |_| {
-            Ok(Box::new(ManagedTextNode {
+            Ok(Box::new(ManagedTextNodeImpl {
                 available: Arc::clone(&available),
                 outputs: vec![output("text", PortType::String)],
                 runs: Arc::clone(&runs),
@@ -73,13 +73,13 @@ pub(crate) fn local_read_workflow() -> Workflow {
     }
 }
 
-struct ManagedTextNode {
+struct ManagedTextNodeImpl {
     available: Arc<AtomicBool>,
     outputs: Vec<OutputPort>,
     runs: Arc<AtomicUsize>,
 }
 
-impl NodeInterface for ManagedTextNode {
+impl NodeInterface for ManagedTextNodeImpl {
     fn type_id(&self) -> &str {
         "ManagedTextSource"
     }
@@ -95,7 +95,7 @@ impl NodeInterface for ManagedTextNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         if !self.available.load(Ordering::SeqCst) {

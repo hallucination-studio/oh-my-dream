@@ -8,12 +8,12 @@ use super::*;
 use crate::domain::*;
 
 #[derive(Default)]
-struct ContinuationStoreFake {
+struct ContinuationStoreFakeImpl {
     values: Mutex<BTreeMap<String, AssistantStoredContinuation>>,
 }
 
 #[async_trait]
-impl AssistantModelContinuationStoreInterface for ContinuationStoreFake {
+impl AssistantModelContinuationStoreInterface for ContinuationStoreFakeImpl {
     async fn store_assistant_model_continuation(
         &self,
         continuation: AssistantStoredContinuation,
@@ -41,12 +41,12 @@ impl AssistantModelContinuationStoreInterface for ContinuationStoreFake {
 }
 
 #[derive(Default)]
-struct ChangeRepositoryFake {
+struct ChangeRepositoryFakeImpl {
     values: Mutex<BTreeMap<AssistantWorkflowChangeId, AssistantWorkflowChangeAggregate>>,
 }
 
 #[async_trait]
-impl AssistantWorkflowChangeRepositoryInterface for ChangeRepositoryFake {
+impl AssistantWorkflowChangeRepositoryInterface for ChangeRepositoryFakeImpl {
     async fn load_assistant_workflow_change(
         &self,
         change_id: AssistantWorkflowChangeId,
@@ -110,7 +110,7 @@ impl AssistantWorkflowChangeRepositoryInterface for ChangeRepositoryFake {
     }
 }
 
-impl ChangeRepositoryFake {
+impl ChangeRepositoryFakeImpl {
     fn replace(
         &self,
         expected_state: AssistantWorkflowChangeState,
@@ -127,12 +127,12 @@ impl ChangeRepositoryFake {
 }
 
 #[derive(Default)]
-struct RepairRepositoryFake {
+struct RepairRepositoryFakeImpl {
     values: Mutex<BTreeMap<(ProjectId, AssistantFailedWorkflowRunId), AssistantRepairActivation>>,
 }
 
 #[async_trait]
-impl AssistantRepairActivationRepositoryInterface for RepairRepositoryFake {
+impl AssistantRepairActivationRepositoryInterface for RepairRepositoryFakeImpl {
     async fn record_or_get_repair_activation(
         &self,
         activation: AssistantRepairActivation,
@@ -171,7 +171,7 @@ impl AssistantRepairActivationRepositoryInterface for RepairRepositoryFake {
 
 #[tokio::test]
 async fn continuation_contract_consumes_exactly_once() {
-    let store = ContinuationStoreFake::default();
+    let store = ContinuationStoreFakeImpl::default();
     let reference = AssistantModelContinuationRef::new("continuation-1").unwrap();
     store
         .store_assistant_model_continuation(AssistantStoredContinuation {
@@ -190,7 +190,7 @@ async fn continuation_contract_consumes_exactly_once() {
 
 #[tokio::test]
 async fn repair_contract_is_idempotent_per_project_and_failed_run() {
-    let repository = RepairRepositoryFake::default();
+    let repository = RepairRepositoryFakeImpl::default();
     let first = repair_activation(project_id(1), 2, 3);
     let second = repair_activation(project_id(1), 4, 3);
     assert!(matches!(
@@ -210,7 +210,7 @@ async fn repair_contract_is_idempotent_per_project_and_failed_run() {
 
 #[tokio::test]
 async fn change_contract_allows_one_pending_approval_per_project_session() {
-    let repository = ChangeRepositoryFake::default();
+    let repository = ChangeRepositoryFakeImpl::default();
     let first = awaiting_change(project_id(1), 2, 3);
     let duplicate_scope = awaiting_change(project_id(1), 2, 4);
     let independent_project = awaiting_change(project_id(9), 2, 5);

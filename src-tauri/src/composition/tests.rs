@@ -15,10 +15,10 @@ use crate::{
     workflow_run_event_publisher::DesktopEventEmissionError,
 };
 
-struct TestExecutor;
+struct TestExecutorImpl;
 
 #[async_trait]
-impl DesktopPostCommitEffectExecutorInterface for TestExecutor {
+impl DesktopPostCommitEffectExecutorInterface for TestExecutorImpl {
     async fn execute_desktop_post_commit_effect(
         &self,
         _: DesktopPostCommitEffect,
@@ -27,10 +27,10 @@ impl DesktopPostCommitEffectExecutorInterface for TestExecutor {
     }
 }
 
-struct TestInterrupter;
+struct TestInterrupterImpl;
 
 #[async_trait]
-impl DesktopWorkflowRunRestartInterrupterInterface for TestInterrupter {
+impl DesktopWorkflowRunRestartInterrupterInterface for TestInterrupterImpl {
     async fn interrupt_workflow_run_after_restart(
         &self,
         _: engine::node_capability::WorkflowRunId,
@@ -40,11 +40,11 @@ impl DesktopWorkflowRunRestartInterrupterInterface for TestInterrupter {
 }
 
 #[derive(Default)]
-struct TestEmitter {
+struct TestEmitterImpl {
     events: Mutex<Vec<String>>,
 }
 
-impl DesktopEventEmitterInterface for TestEmitter {
+impl DesktopEventEmitterInterface for TestEmitterImpl {
     fn emit_desktop_event(
         &self,
         event_name: &str,
@@ -96,11 +96,11 @@ async fn compose(
 ) -> Result<DesktopApplicationHost, DesktopCompositionError> {
     DesktopCompositionRoot::compose_with_business(
         paths,
-        Arc::new(TestEmitter::default()),
+        Arc::new(TestEmitterImpl::default()),
         |_, _, _| {
             Ok(DesktopBusinessComposition {
-                post_commit_effect_executor: Arc::new(TestExecutor),
-                workflow_restart_interrupter: Arc::new(TestInterrupter),
+                post_commit_effect_executor: Arc::new(TestExecutorImpl),
+                workflow_restart_interrupter: Arc::new(TestInterrupterImpl),
             })
         },
     )

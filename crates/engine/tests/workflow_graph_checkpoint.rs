@@ -119,19 +119,19 @@ fn node(seed: u8, capability_id: &str) -> WorkflowNodeEntity {
 
 fn registry() -> WorkflowNodeCapabilityRegistry {
     let implementations: Vec<Arc<dyn WorkflowNodeCapabilityInterface>> = vec![
-        Arc::new(FakeCapability::source("image.source", WorkflowDataType::Image)),
-        Arc::new(FakeCapability::source("video.source", WorkflowDataType::Video)),
-        Arc::new(FakeCapability::source("audio.source", WorkflowDataType::Audio)),
-        Arc::new(FakeCapability::mixed_consumer()),
+        Arc::new(FakeCapabilityImpl::source("image.source", WorkflowDataType::Image)),
+        Arc::new(FakeCapabilityImpl::source("video.source", WorkflowDataType::Video)),
+        Arc::new(FakeCapabilityImpl::source("audio.source", WorkflowDataType::Audio)),
+        Arc::new(FakeCapabilityImpl::mixed_consumer()),
     ];
     WorkflowNodeCapabilityRegistry::try_new(implementations).unwrap()
 }
 
-struct FakeCapability {
+struct FakeCapabilityImpl {
     contract: NodeCapabilityContract,
 }
 
-impl FakeCapability {
+impl FakeCapabilityImpl {
     fn source(id: &str, output_type: WorkflowDataType) -> Self {
         Self::new(id, Vec::new(), output_type)
     }
@@ -186,7 +186,7 @@ impl FakeCapability {
 }
 
 #[async_trait]
-impl WorkflowNodeCapabilityInterface for FakeCapability {
+impl WorkflowNodeCapabilityInterface for FakeCapabilityImpl {
     fn node_capability_contract(&self) -> &NodeCapabilityContract {
         &self.contract
     }

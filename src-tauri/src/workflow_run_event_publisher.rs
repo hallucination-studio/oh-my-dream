@@ -85,12 +85,12 @@ mod tests {
     use super::*;
 
     #[derive(Default)]
-    struct EmitterFake {
+    struct EmitterFakeImpl {
         events: Mutex<Vec<(String, Value)>>,
         fail: bool,
     }
 
-    impl DesktopEventEmitterInterface for EmitterFake {
+    impl DesktopEventEmitterInterface for EmitterFakeImpl {
         fn emit_desktop_event(
             &self,
             event_name: &str,
@@ -109,7 +109,7 @@ mod tests {
 
     #[tokio::test]
     async fn publisher_preserves_committed_identity_sequence_and_failure() {
-        let emitter = Arc::new(EmitterFake::default());
+        let emitter = Arc::new(EmitterFakeImpl::default());
         let publisher = TauriWorkflowRunEventPublisherAdapterImpl::new(emitter.clone());
         let event = event();
 
@@ -125,7 +125,7 @@ mod tests {
             assert_eq!(emitted[0].1["payload"]["type"], "run_started");
         }
 
-        let failing = TauriWorkflowRunEventPublisherAdapterImpl::new(Arc::new(EmitterFake {
+        let failing = TauriWorkflowRunEventPublisherAdapterImpl::new(Arc::new(EmitterFakeImpl {
             events: Mutex::default(),
             fail: true,
         }));

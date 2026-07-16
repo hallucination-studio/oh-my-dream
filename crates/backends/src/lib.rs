@@ -20,7 +20,7 @@ pub mod mock;
 pub mod provider_routing;
 
 pub use error::{BackendError, Result};
-pub use mock::MockBackend;
+pub use mock::MockBackendImpl;
 pub use request::{
     ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest,
     TextToAudioRequest, TextToImageRequest,

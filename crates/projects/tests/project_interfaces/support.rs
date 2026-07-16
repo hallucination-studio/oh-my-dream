@@ -15,38 +15,38 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
-pub struct DeterministicProjectClockFake {
+pub struct DeterministicProjectClockFakeImpl {
     pub observed_at: ProjectUpdatedAt,
 }
 
-impl ProjectClockInterface for DeterministicProjectClockFake {
+impl ProjectClockInterface for DeterministicProjectClockFakeImpl {
     fn observe_project_time(&self) -> Result<ProjectUpdatedAt, ProjectApplicationError> {
         Ok(self.observed_at)
     }
 }
 
-pub struct SequenceProjectIdentityGeneratorFake {
+pub struct SequenceProjectIdentityGeneratorFakeImpl {
     ids: Mutex<VecDeque<ProjectId>>,
 }
 
-impl SequenceProjectIdentityGeneratorFake {
+impl SequenceProjectIdentityGeneratorFakeImpl {
     pub fn new(ids: impl IntoIterator<Item = ProjectId>) -> Self {
         Self { ids: Mutex::new(ids.into_iter().collect()) }
     }
 }
 
-impl ProjectIdentityGeneratorInterface for SequenceProjectIdentityGeneratorFake {
+impl ProjectIdentityGeneratorInterface for SequenceProjectIdentityGeneratorFakeImpl {
     fn generate_project_id(&self) -> ProjectId {
         self.ids.lock().expect("healthy fake lock").pop_front().expect("configured fake identity")
     }
 }
 
-pub struct DeterministicProjectWorkflowSummaryReaderFake {
+pub struct DeterministicProjectWorkflowSummaryReaderFakeImpl {
     pub summary: Option<ProjectWorkflowSummary>,
 }
 
 #[async_trait]
-impl ProjectWorkflowSummaryReaderInterface for DeterministicProjectWorkflowSummaryReaderFake {
+impl ProjectWorkflowSummaryReaderInterface for DeterministicProjectWorkflowSummaryReaderFakeImpl {
     async fn read_current_project_workflow_summary(
         &self,
         _project_id: ProjectId,
@@ -56,7 +56,7 @@ impl ProjectWorkflowSummaryReaderInterface for DeterministicProjectWorkflowSumma
 }
 
 #[derive(Default)]
-pub struct InMemoryProjectRepositoryFake {
+pub struct InMemoryProjectRepositoryFakeImpl {
     state: Mutex<InMemoryProjectRepositoryState>,
 }
 
@@ -67,7 +67,7 @@ struct InMemoryProjectRepositoryState {
 }
 
 #[async_trait]
-impl ProjectRepositoryInterface for InMemoryProjectRepositoryFake {
+impl ProjectRepositoryInterface for InMemoryProjectRepositoryFakeImpl {
     async fn load_project(
         &self,
         project_id: ProjectId,
@@ -160,7 +160,7 @@ impl ProjectRepositoryInterface for InMemoryProjectRepositoryFake {
     }
 }
 
-impl InMemoryProjectRepositoryFake {
+impl InMemoryProjectRepositoryFakeImpl {
     fn lock_state(
         &self,
     ) -> Result<MutexGuard<'_, InMemoryProjectRepositoryState>, ProjectApplicationError> {

@@ -76,13 +76,13 @@ fn mutation_receipt_restore_rejects_a_corrupt_result_fingerprint() {
 
 #[test]
 fn deterministic_clock_and_identity_fakes_return_configured_values() {
-    let clock = DeterministicProjectClockFake {
+    let clock = DeterministicProjectClockFakeImpl {
         observed_at: ProjectUpdatedAt::new(42).expect("timestamp is valid"),
     };
     assert_eq!(clock.observe_project_time().expect("clock succeeds").get(), 42);
     let first = project_id("018f47a2-4e12-4f79-8bd8-95d2b26f4418");
     let second = project_id("018f47a2-4e12-4f79-8bd8-95d2b26f4419");
-    let generator = SequenceProjectIdentityGeneratorFake::new([first, second]);
+    let generator = SequenceProjectIdentityGeneratorFakeImpl::new([first, second]);
     assert_eq!(generator.generate_project_id(), first);
     assert_eq!(generator.generate_project_id(), second);
 }
@@ -93,12 +93,12 @@ fn all_project_interfaces_are_object_safe_substitution_boundaries() {
     fn accepts_reader(_value: &dyn ProjectWorkflowSummaryReaderInterface) {}
     fn accepts_clock(_value: &dyn ProjectClockInterface) {}
     fn accepts_generator(_value: &dyn ProjectIdentityGeneratorInterface) {}
-    accepts_repository(&InMemoryProjectRepositoryFake::default());
-    accepts_reader(&DeterministicProjectWorkflowSummaryReaderFake { summary: None });
-    accepts_clock(&DeterministicProjectClockFake {
+    accepts_repository(&InMemoryProjectRepositoryFakeImpl::default());
+    accepts_reader(&DeterministicProjectWorkflowSummaryReaderFakeImpl { summary: None });
+    accepts_clock(&DeterministicProjectClockFakeImpl {
         observed_at: ProjectUpdatedAt::new(1).expect("timestamp is valid"),
     });
-    accepts_generator(&SequenceProjectIdentityGeneratorFake::new([project_id(
+    accepts_generator(&SequenceProjectIdentityGeneratorFakeImpl::new([project_id(
         "018f47a2-4e12-4f79-8bd8-95d2b26f4418",
     )]));
 }
@@ -112,7 +112,8 @@ async fn workflow_summary_reader_returns_only_the_project_owned_projection() {
             .expect("revision is non-zero"),
         readiness: ProjectWorkflowReadinessSummary::Blocked,
     };
-    let reader = DeterministicProjectWorkflowSummaryReaderFake { summary: Some(summary.clone()) };
+    let reader =
+        DeterministicProjectWorkflowSummaryReaderFakeImpl { summary: Some(summary.clone()) };
     assert_eq!(
         reader
             .read_current_project_workflow_summary(project_id(
@@ -126,7 +127,7 @@ async fn workflow_summary_reader_returns_only_the_project_owned_projection() {
 
 #[tokio::test]
 async fn repository_fake_commits_creation_and_replays_the_exact_receipt() {
-    let repository = InMemoryProjectRepositoryFake::default();
+    let repository = InMemoryProjectRepositoryFakeImpl::default();
     let id = project_id("018f47a2-4e12-4f79-8bd8-95d2b26f4418");
     let project = project(id, "Created", 10);
     let receipt = receipt(
@@ -161,7 +162,7 @@ async fn repository_fake_commits_creation_and_replays_the_exact_receipt() {
 
 #[tokio::test]
 async fn repository_fake_rejects_mismatched_replay_and_revision_conflict() {
-    let repository = InMemoryProjectRepositoryFake::default();
+    let repository = InMemoryProjectRepositoryFakeImpl::default();
     let id = project_id("018f47a2-4e12-4f79-8bd8-95d2b26f4418");
     let project = project(id, "Before", 10);
     let create_receipt = receipt(
@@ -212,7 +213,7 @@ async fn repository_fake_rejects_mismatched_replay_and_revision_conflict() {
 
 #[tokio::test]
 async fn repository_fake_returns_stable_descending_keyset_pages() {
-    let repository = InMemoryProjectRepositoryFake::default();
+    let repository = InMemoryProjectRepositoryFakeImpl::default();
     let fixtures = [
         (
             "018f47a2-4e12-4f79-8bd8-95d2b26f4418",

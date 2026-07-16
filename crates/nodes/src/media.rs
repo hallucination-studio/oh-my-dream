@@ -1,7 +1,7 @@
 use crate::error::NodesError;
 use crate::{GeneratedArtifact, GeneratedOutput, InlineMedia, MediaKind, SharedAssetStore};
 use assets::{Asset, AssetKind, NewAsset};
-use engine::NodeRunContext;
+use engine::NodeRunContextImpl;
 use std::io::Write;
 use tempfile::{Builder, NamedTempFile};
 
@@ -16,7 +16,7 @@ pub(crate) fn store_generated_asset(
     kind: AssetKind,
     output: &GeneratedOutput,
     source_node_type: &str,
-    context: &NodeRunContext<'_>,
+    context: &NodeRunContextImpl<'_>,
     metadata: AssetMetadata,
 ) -> Result<Asset, NodesError> {
     let media = inline_media(&output.artifact, kind)?;
