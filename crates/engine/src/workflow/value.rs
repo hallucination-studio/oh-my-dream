@@ -1,6 +1,33 @@
 use crate::workflow_graph::WorkflowNodeId;
+use uuid::{Uuid, Variant, Version};
 
 use super::WorkflowDomainError;
+
+macro_rules! workflow_request_id {
+    ($name:ident, $description:literal) => {
+        #[doc = $description]
+        #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+        pub struct $name(Uuid);
+
+        impl $name {
+            /// Restores an identity only from an RFC 9562 UUIDv4.
+            #[must_use]
+            pub fn from_uuid(value: Uuid) -> Option<Self> {
+                (value.get_version() == Some(Version::Random)
+                    && value.get_variant() == Variant::RFC4122)
+                    .then_some(Self(value))
+            }
+            /// Returns the UUID without choosing a wire encoding.
+            #[must_use]
+            pub const fn as_uuid(self) -> Uuid {
+                self.0
+            }
+        }
+    };
+}
+
+workflow_request_id!(WorkflowCreateRequestId, "Idempotency identity of one Workflow creation.");
+workflow_request_id!(WorkflowRunRequestId, "Idempotency identity of one Workflow Run admission.");
 
 /// Whole-graph execution or one node plus all transitive ancestors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

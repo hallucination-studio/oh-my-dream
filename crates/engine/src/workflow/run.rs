@@ -207,6 +207,7 @@ impl WorkflowNodeExecutionEntity {
 }
 
 /// Authoritative aggregate for one durable execution of one frozen Workflow revision.
+#[derive(Clone, Debug)]
 pub struct WorkflowRunAggregate {
     run_id: WorkflowRunId,
     project_id: ProjectId,

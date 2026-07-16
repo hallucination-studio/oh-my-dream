@@ -27,6 +27,8 @@ mod workflow_graph_checkpoint;
 mod workflow_graph_reconstruction;
 #[path = "workflow_graph_values.rs"]
 mod workflow_graph_values;
+#[path = "workflow_interfaces.rs"]
+mod workflow_interfaces;
 #[path = "workflow_mutation_apply.rs"]
 mod workflow_mutation_apply;
 #[path = "workflow_mutation_command.rs"]

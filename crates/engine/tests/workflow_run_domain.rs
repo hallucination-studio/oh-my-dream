@@ -257,7 +257,7 @@ fn restore_rejects_outcome_fields_inconsistent_with_node_state() {
     assert!(matches!(restored, Err(WorkflowDomainError::InvalidWorkflowRunValue)));
 }
 
-fn queued_run(
+pub(crate) fn queued_run(
     run_id: WorkflowRunId,
     project_id: ProjectId,
     workflow_id: WorkflowId,
