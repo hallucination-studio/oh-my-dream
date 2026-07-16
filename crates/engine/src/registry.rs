@@ -7,7 +7,7 @@ use crate::capability::{
 };
 use crate::error::EngineError;
 use crate::graph::WorkflowNode;
-use crate::node::Node;
+use crate::node::NodeInterface;
 use std::collections::HashMap;
 
 /// Parameters for a node as stored in the workflow JSON (`params` object).
@@ -16,8 +16,9 @@ pub type NodeParams = serde_json::Map<String, serde_json::Value>;
 /// A factory that constructs a [`Node`] from its serialized parameters.
 ///
 /// Returns a boxed error on invalid params; the caller attaches node context.
-pub type NodeFactory =
-    Box<dyn Fn(&NodeParams) -> Result<Box<dyn Node>, crate::node::NodeRunError> + Send + Sync>;
+pub type NodeFactory = Box<
+    dyn Fn(&NodeParams) -> Result<Box<dyn NodeInterface>, crate::node::NodeRunError> + Send + Sync,
+>;
 
 /// Registry of known node types, populated at startup by the `nodes` crate.
 #[derive(Default)]
@@ -46,7 +47,7 @@ impl NodeRegistry {
         node_id: &str,
         type_id: &str,
         params: &NodeParams,
-    ) -> Result<Box<dyn Node>, EngineError> {
+    ) -> Result<Box<dyn NodeInterface>, EngineError> {
         if let Some(factory) = self.factories.get(type_id) {
             return factory(params).map_err(|source| EngineError::NodeExecution {
                 node_id: node_id.to_owned(),
@@ -102,7 +103,7 @@ impl NodeRegistry {
         type_id: &str,
         contract_version: &str,
         params: &NodeParams,
-    ) -> Result<Box<dyn Node>, EngineError> {
+    ) -> Result<Box<dyn NodeInterface>, EngineError> {
         if !self.contains_capability_type(type_id) {
             return self.instantiate(node_id, type_id, params);
         }
@@ -205,7 +206,7 @@ impl NodeRegistry {
         node_id: &str,
         reference: &CapabilityRef,
         params: &NodeParams,
-    ) -> Result<Box<dyn Node>, EngineError> {
+    ) -> Result<Box<dyn NodeInterface>, EngineError> {
         let registration = self.capabilities.resolve(reference).map_err(|_| {
             EngineError::UnknownCapabilityVersion {
                 node_id: node_id.to_owned(),
@@ -284,7 +285,7 @@ impl NodeRegistry {
 
 fn validate_contract_ports(
     contract: &crate::CapabilityContract,
-    node: &dyn Node,
+    node: &dyn NodeInterface,
 ) -> Result<(), EngineError> {
     if node.inputs().len() != contract.inputs.len() {
         return Err(EngineError::CapabilityContractMismatch {

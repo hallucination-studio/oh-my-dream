@@ -1,6 +1,7 @@
 use engine::{
-    CancellationSignal, InputPort, Node, NodeInputs, NodeParams, NodeRegistry, NodeRunContext,
-    NodeRunError, NodeRunResult, OutputPort, PortType, Value, Workflow, WorkflowNode,
+    CancellationSignalInterface, InputPort, NodeInputs, NodeInterface, NodeParams, NodeRegistry,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value, Workflow,
+    WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::sync::{
@@ -19,7 +20,7 @@ impl TestCancellation {
     }
 }
 
-impl CancellationSignal for TestCancellation {
+impl CancellationSignalInterface for TestCancellation {
     fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::SeqCst)
     }
@@ -73,7 +74,7 @@ struct CommitThenCancelNode {
     runs: Arc<AtomicUsize>,
 }
 
-impl Node for CommitThenCancelNode {
+impl NodeInterface for CommitThenCancelNode {
     fn type_id(&self) -> &str {
         "CommitThenCancel"
     }
@@ -107,7 +108,7 @@ struct FailThenCancelNode {
     cancellation: Arc<TestCancellation>,
 }
 
-impl Node for FailThenCancelNode {
+impl NodeInterface for FailThenCancelNode {
     fn type_id(&self) -> &str {
         "FailThenCancel"
     }

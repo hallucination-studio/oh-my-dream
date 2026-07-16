@@ -3,7 +3,7 @@ use crate::params::{canonicalize_mode, reject_unknown_params, string_param};
 use crate::ports::output;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
+    CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
     NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
@@ -69,7 +69,7 @@ impl TextPromptNode {
     }
 }
 
-impl Node for TextPromptNode {
+impl NodeInterface for TextPromptNode {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -95,6 +95,6 @@ impl Node for TextPromptNode {
     }
 }
 
-fn boxed_node(node: TextPromptNode) -> Box<dyn Node> {
+fn boxed_node(node: TextPromptNode) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

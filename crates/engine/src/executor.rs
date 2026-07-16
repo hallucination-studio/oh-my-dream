@@ -43,7 +43,7 @@ pub struct NodeProgressEvent {
 }
 
 /// Caller-owned signal consulted while a workflow is executing.
-pub trait CancellationSignal: Send + Sync {
+pub trait CancellationSignalInterface: Send + Sync {
     /// Returns whether the current workflow run should stop.
     fn is_cancelled(&self) -> bool;
 }
@@ -82,7 +82,7 @@ impl<'r> Executor<'r> {
         &self,
         workflow: &Workflow,
         cache: &mut ResultCache,
-        cancellation: &dyn CancellationSignal,
+        cancellation: &dyn CancellationSignalInterface,
         observer: &mut impl FnMut(&NodeProgressEvent),
     ) -> Result<RunOutputs> {
         ensure_not_cancelled(cancellation)?;
@@ -117,7 +117,7 @@ fn execute_plan_node(
     workflow_snapshot: &serde_json::Value,
     cache: &mut ResultCache,
     outputs: &mut RunOutputs,
-    cancellation: &dyn CancellationSignal,
+    cancellation: &dyn CancellationSignalInterface,
     observer: &mut dyn FnMut(&NodeProgressEvent),
 ) -> Result<()> {
     let inputs = resolve_inputs(node, outputs)?;
@@ -161,7 +161,7 @@ fn run_plan_node(
     project_id: &str,
     workflow_snapshot: &serde_json::Value,
     inputs: &NodeInputs,
-    cancellation: &dyn CancellationSignal,
+    cancellation: &dyn CancellationSignalInterface,
     observer: &mut dyn FnMut(&NodeProgressEvent),
 ) -> Result<NodeRunResult> {
     let run_result = {
@@ -192,13 +192,13 @@ fn emit_node_event(
 
 struct NeverCancelled;
 
-impl CancellationSignal for NeverCancelled {
+impl CancellationSignalInterface for NeverCancelled {
     fn is_cancelled(&self) -> bool {
         false
     }
 }
 
-fn ensure_not_cancelled(cancellation: &dyn CancellationSignal) -> Result<()> {
+fn ensure_not_cancelled(cancellation: &dyn CancellationSignalInterface) -> Result<()> {
     if cancellation.is_cancelled() { Err(EngineError::Cancelled) } else { Ok(()) }
 }
 

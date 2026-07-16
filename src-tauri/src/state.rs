@@ -104,12 +104,12 @@ impl AppState {
             Arc::new(Mutex::new(AssetStore::open(root.as_path()).context("open asset store")?));
         let mut registry = NodeRegistry::new();
         let adapter = Arc::new(MockGenerationAdapter::new(Arc::clone(&backend)));
-        let image: Arc<dyn nodes::TextToImageGenerator> = adapter.clone();
-        let reference_image: Arc<dyn nodes::ReferenceImageGenerator> = adapter.clone();
-        let reference_video: Arc<dyn nodes::ReferenceVideoGenerator> = adapter.clone();
-        let video: Arc<dyn nodes::ImageToVideoGenerator> = adapter.clone();
-        let audio: Arc<dyn nodes::TextToAudioGenerator> = adapter;
-        let asset_resolver: Arc<dyn nodes::AssetReferenceResolver> = Arc::new(
+        let image: Arc<dyn nodes::TextToImageGeneratorInterface> = adapter.clone();
+        let reference_image: Arc<dyn nodes::ReferenceImageGeneratorInterface> = adapter.clone();
+        let reference_video: Arc<dyn nodes::ReferenceVideoGeneratorInterface> = adapter.clone();
+        let video: Arc<dyn nodes::ImageToVideoGeneratorInterface> = adapter.clone();
+        let audio: Arc<dyn nodes::TextToAudioGeneratorInterface> = adapter;
+        let asset_resolver: Arc<dyn nodes::AssetReferenceResolverInterface> = Arc::new(
             crate::asset_reference_adapter::AssetStoreReferenceResolver::new(Arc::clone(&store)),
         );
         nodes::register_all(

@@ -6,13 +6,14 @@ use crate::params::{
 };
 use crate::ports::{output, required_input, required_many_input};
 use crate::{
-    AssetMediaKind, AssetReferenceRequest, AssetReferenceResolver, GenerationContext,
-    ReferenceImageGenerationRequest, ReferenceImageGenerator, SharedAssetStore,
+    AssetMediaKind, AssetReferenceRequest, AssetReferenceResolverInterface,
+    GenerationContextInterface, ReferenceImageGenerationRequest, ReferenceImageGeneratorInterface,
+    SharedAssetStore,
 };
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
+    CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
     NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
 };
 use std::collections::BTreeMap;
@@ -24,9 +25,9 @@ const MODE: &str = "references";
 const MAX_REFERENCES: usize = 16;
 
 pub(crate) fn registration(
-    generator: Arc<dyn ReferenceImageGenerator>,
+    generator: Arc<dyn ReferenceImageGeneratorInterface>,
     store: SharedAssetStore,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> CapabilityRegistration {
     let references = PortCardinality::Many { minimum: 1, maximum: Some(MAX_REFERENCES) };
     let contract = CapabilityContract::new(
@@ -59,7 +60,7 @@ pub(crate) fn registration(
                 Arc::clone(&store),
                 Arc::clone(&resolver),
             )
-            .map(|node| Box::new(node) as Box<dyn Node>)
+            .map(|node| Box::new(node) as Box<dyn NodeInterface>)
             .map_err(boxed)
         }),
     )
@@ -109,9 +110,9 @@ fn insert_optional<T: serde::Serialize>(params: &mut NodeParams, name: &str, val
 }
 
 struct ReferenceImageNode {
-    generator: Arc<dyn ReferenceImageGenerator>,
+    generator: Arc<dyn ReferenceImageGeneratorInterface>,
     store: SharedAssetStore,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
     model: String,
     negative_prompt: Option<String>,
     steps: Option<u32>,
@@ -123,9 +124,9 @@ struct ReferenceImageNode {
 impl ReferenceImageNode {
     fn from_params(
         params: &NodeParams,
-        generator: Arc<dyn ReferenceImageGenerator>,
+        generator: Arc<dyn ReferenceImageGeneratorInterface>,
         store: SharedAssetStore,
-        resolver: Arc<dyn AssetReferenceResolver>,
+        resolver: Arc<dyn AssetReferenceResolverInterface>,
     ) -> Result<Self, NodesError> {
         Ok(Self {
             generator,
@@ -164,7 +165,7 @@ impl ReferenceImageNode {
     }
 }
 
-impl Node for ReferenceImageNode {
+impl NodeInterface for ReferenceImageNode {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -200,7 +201,7 @@ impl Node for ReferenceImageNode {
                 context,
             )
             .map_err(|source| generation_error("generate reference image", source))?;
-        GenerationContext::ensure_active(context)
+        GenerationContextInterface::ensure_active(context)
             .map_err(|source| generation_error("generate reference image", source))?;
         let asset = store_generated_asset(
             &self.store,

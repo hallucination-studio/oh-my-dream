@@ -4,11 +4,13 @@ use crate::params::{
     canonicalize_mode, optional_param, reject_unknown_params, string_param, text_input,
 };
 use crate::ports::{output, required_input};
-use crate::{GenerationContext, SharedAssetStore, TextToImageGenerator, TextToImageRequest};
+use crate::{
+    GenerationContextInterface, SharedAssetStore, TextToImageGeneratorInterface, TextToImageRequest,
+};
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
+    CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
     NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
@@ -19,7 +21,7 @@ const TYPE_ID: &str = "TextToImage";
 const MODE: &str = "text";
 
 pub(crate) fn registration(
-    generator: Arc<dyn TextToImageGenerator>,
+    generator: Arc<dyn TextToImageGeneratorInterface>,
     store: SharedAssetStore,
 ) -> CapabilityRegistration {
     let contract = CapabilityContract::new(
@@ -90,7 +92,7 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
 }
 
 struct TextToImageNode {
-    generator: Arc<dyn TextToImageGenerator>,
+    generator: Arc<dyn TextToImageGeneratorInterface>,
     store: SharedAssetStore,
     model: String,
     negative_prompt: Option<String>,
@@ -103,7 +105,7 @@ struct TextToImageNode {
 impl TextToImageNode {
     fn from_params(
         params: &NodeParams,
-        generator: Arc<dyn TextToImageGenerator>,
+        generator: Arc<dyn TextToImageGeneratorInterface>,
         store: SharedAssetStore,
     ) -> Result<Self, NodesError> {
         Ok(Self {
@@ -129,7 +131,7 @@ impl TextToImageNode {
     }
 }
 
-impl Node for TextToImageNode {
+impl NodeInterface for TextToImageNode {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -153,7 +155,7 @@ impl Node for TextToImageNode {
             .generator
             .generate(self.request(prompt), context)
             .map_err(|source| generation_error("generate image", source))?;
-        GenerationContext::ensure_active(context)
+        GenerationContextInterface::ensure_active(context)
             .map_err(|source| generation_error("generate image", source))?;
         let asset = store_generated_asset(
             &self.store,
@@ -175,6 +177,6 @@ impl Node for TextToImageNode {
     }
 }
 
-fn boxed_node(node: TextToImageNode) -> Box<dyn Node> {
+fn boxed_node(node: TextToImageNode) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

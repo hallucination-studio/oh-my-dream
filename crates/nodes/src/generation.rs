@@ -228,7 +228,7 @@ pub enum GenerationError {
 }
 
 /// Run-scoped controls exposed to generation capability implementations.
-pub trait GenerationContext {
+pub trait GenerationContextInterface {
     /// Reports normalized progress for the current workflow node.
     fn progress(&mut self, progress: f32);
 
@@ -241,7 +241,7 @@ pub trait GenerationContext {
     }
 }
 
-impl GenerationContext for engine::NodeRunContext<'_> {
+impl GenerationContextInterface for engine::NodeRunContext<'_> {
     fn progress(&mut self, progress: f32) {
         engine::NodeRunContext::progress(self, progress);
     }
@@ -252,52 +252,52 @@ impl GenerationContext for engine::NodeRunContext<'_> {
 }
 
 /// Generates image media from text.
-pub trait TextToImageGenerator: Send + Sync {
+pub trait TextToImageGeneratorInterface: Send + Sync {
     /// Generates an image under the current run controls.
     fn generate(
         &self,
         request: TextToImageRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError>;
 }
 
 /// Generates image media from ordered local image references and text.
-pub trait ReferenceImageGenerator: Send + Sync {
+pub trait ReferenceImageGeneratorInterface: Send + Sync {
     /// Generates an image under the current run controls.
     fn generate(
         &self,
         request: ReferenceImageGenerationRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError>;
 }
 
 /// Generates video media from a local image.
-pub trait ImageToVideoGenerator: Send + Sync {
+pub trait ImageToVideoGeneratorInterface: Send + Sync {
     /// Generates a video under the current run controls.
     fn generate(
         &self,
         request: ImageToVideoRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError>;
 }
 
 /// Generates video media from ordered local image references and text.
-pub trait ReferenceVideoGenerator: Send + Sync {
+pub trait ReferenceVideoGeneratorInterface: Send + Sync {
     /// Generates a video under the current run controls.
     fn generate(
         &self,
         request: ReferenceVideoGenerationRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError>;
 }
 
 /// Generates audio media from text.
-pub trait TextToAudioGenerator: Send + Sync {
+pub trait TextToAudioGeneratorInterface: Send + Sync {
     /// Generates audio under the current run controls.
     fn generate(
         &self,
         request: TextToAudioRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError>;
 }
 

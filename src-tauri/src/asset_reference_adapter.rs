@@ -1,7 +1,7 @@
 use crate::managed_asset_access::get_visible;
 use assets::{AssetKind, AssetStore};
 use nodes::{
-    AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver,
+    AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
     ResolvedAssetReference,
 };
 use std::path::PathBuf;
@@ -17,7 +17,7 @@ impl AssetStoreReferenceResolver {
     }
 }
 
-impl AssetReferenceResolver for AssetStoreReferenceResolver {
+impl AssetReferenceResolverInterface for AssetStoreReferenceResolver {
     fn resolve(
         &self,
         request: AssetReferenceRequest<'_>,
@@ -50,7 +50,7 @@ mod tests {
     use super::AssetStoreReferenceResolver;
     use assets::{AssetKind, AssetStore, NewAsset};
     use nodes::{
-        AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver,
+        AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
     };
     use std::fs;
     use std::sync::{Arc, Mutex};

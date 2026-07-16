@@ -3,12 +3,13 @@ use super::{
     to_backend_reference_image_generation, to_backend_reference_video_generation,
     to_backend_text_to_audio, to_backend_text_to_image, translate_success,
 };
-use backends::{InferenceBackend, MockBackend, TaskHandle, TaskStatus};
+use backends::{InferenceBackendInterface, MockBackend, TaskHandle, TaskStatus};
 use nodes::{
-    GeneratedArtifact, GenerationContext, GenerationError, ImageToVideoGenerator,
+    GeneratedArtifact, GenerationContextInterface, GenerationError, ImageToVideoGeneratorInterface,
     ImageToVideoRequest, MediaFormat, MediaKind, ReferenceImageGenerationRequest,
-    ReferenceImageGenerator, ReferenceVideoGenerationRequest, ReferenceVideoGenerator,
-    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+    ReferenceImageGeneratorInterface, ReferenceVideoGenerationRequest,
+    ReferenceVideoGeneratorInterface, TextToAudioGeneratorInterface, TextToAudioRequest,
+    TextToImageGeneratorInterface, TextToImageRequest,
 };
 use std::cell::Cell;
 use std::sync::Arc;
@@ -91,7 +92,7 @@ fn text_to_image_translates_mock_success_and_progress() {
     let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
     let mut context = TestGenerationContext::default();
 
-    let output = TextToImageGenerator::generate(
+    let output = TextToImageGeneratorInterface::generate(
         &adapter,
         TextToImageRequest {
             model: "mock-image".to_owned(),
@@ -115,7 +116,7 @@ fn reference_image_generation_returns_inline_png() {
     let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
     let mut context = TestGenerationContext::default();
 
-    let output = ReferenceImageGenerator::generate(
+    let output = ReferenceImageGeneratorInterface::generate(
         &adapter,
         ReferenceImageGenerationRequest {
             model: "mock-reference-image".to_owned(),
@@ -139,7 +140,7 @@ fn image_to_video_translates_mock_success_to_inline_video() {
     let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
     let mut context = TestGenerationContext::default();
 
-    let output = ImageToVideoGenerator::generate(
+    let output = ImageToVideoGeneratorInterface::generate(
         &adapter,
         ImageToVideoRequest {
             model: "mock-video".to_owned(),
@@ -161,7 +162,7 @@ fn reference_video_generation_returns_inline_video() {
     let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
     let mut context = TestGenerationContext::default();
 
-    let output = ReferenceVideoGenerator::generate(
+    let output = ReferenceVideoGeneratorInterface::generate(
         &adapter,
         ReferenceVideoGenerationRequest {
             model: "mock-reference-video".to_owned(),
@@ -186,7 +187,7 @@ fn text_to_audio_translates_mock_success_to_inline_wave() {
     let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
     let mut context = TestGenerationContext::default();
 
-    let output = TextToAudioGenerator::generate(
+    let output = TextToAudioGeneratorInterface::generate(
         &adapter,
         TextToAudioRequest {
             model: "mock-audio".to_owned(),
@@ -209,7 +210,7 @@ fn failed_mock_task_maps_to_generation_failure() {
         MockGenerationAdapter::new(Arc::new(MockBackend::always_fails("provider outage")));
     let mut context = TestGenerationContext::default();
 
-    let error = TextToAudioGenerator::generate(
+    let error = TextToAudioGeneratorInterface::generate(
         &adapter,
         TextToAudioRequest {
             model: "mock-audio".to_owned(),
@@ -229,7 +230,7 @@ fn cancellation_reaches_the_submitted_backend_task() {
     let adapter = MockGenerationAdapter::new(Arc::clone(&backend));
     let mut context = TestGenerationContext { cancel_on_progress: true, ..Default::default() };
 
-    let error = TextToImageGenerator::generate(
+    let error = TextToImageGeneratorInterface::generate(
         &adapter,
         TextToImageRequest {
             model: "mock-image".to_owned(),
@@ -254,7 +255,7 @@ fn cancellation_before_submission_creates_no_backend_task() {
     let adapter = MockGenerationAdapter::new(Arc::clone(&backend));
     let mut context = TestGenerationContext { cancelled: true, ..Default::default() };
 
-    let error = TextToImageGenerator::generate(
+    let error = TextToImageGeneratorInterface::generate(
         &adapter,
         TextToImageRequest {
             model: "mock-image".to_owned(),
@@ -277,7 +278,7 @@ fn cancellation_after_provider_success_does_not_cancel_terminal_task() {
     let adapter = MockGenerationAdapter::new(Arc::clone(&backend));
     let mut context = TestGenerationContext { cancel_on_check: Some(6), ..Default::default() };
 
-    let error = TextToImageGenerator::generate(
+    let error = TextToImageGeneratorInterface::generate(
         &adapter,
         TextToImageRequest {
             model: "mock-image".to_owned(),
@@ -338,7 +339,7 @@ struct TestGenerationContext {
     cancellation_checks: Cell<usize>,
 }
 
-impl GenerationContext for TestGenerationContext {
+impl GenerationContextInterface for TestGenerationContext {
     fn progress(&mut self, progress: f32) {
         self.progress.push(progress);
         self.cancelled = self.cancel_on_progress;

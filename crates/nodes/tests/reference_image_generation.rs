@@ -1,15 +1,17 @@
 use assets::{AssetKind, AssetStore};
 use engine::{
-    Executor, InputBinding, InputPort, Node, NodeInputs, NodeParams, NodeRegistry, NodeRunContext,
-    NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache, Value, Workflow,
-    WorkflowNode,
+    Executor, InputBinding, InputPort, NodeInputs, NodeInterface, NodeParams, NodeRegistry,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PortType, ResultCache,
+    Value, Workflow, WorkflowNode,
 };
 use nodes::{
-    AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver,
-    GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, InlineMedia, ReferenceImageGenerationRequest, ReferenceImageGenerator,
-    ReferenceVideoGenerationRequest, ReferenceVideoGenerator, ResolvedAssetReference,
-    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+    AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
+    GeneratedArtifact, GeneratedOutput, GenerationContextInterface, GenerationError,
+    ImageToVideoGeneratorInterface, ImageToVideoRequest, InlineMedia,
+    ReferenceImageGenerationRequest, ReferenceImageGeneratorInterface,
+    ReferenceVideoGenerationRequest, ReferenceVideoGeneratorInterface, ResolvedAssetReference,
+    TextToAudioGeneratorInterface, TextToAudioRequest, TextToImageGeneratorInterface,
+    TextToImageRequest,
 };
 use std::collections::BTreeMap;
 use std::fs;
@@ -190,7 +192,7 @@ impl TestImageSource {
     }
 }
 
-impl Node for TestImageSource {
+impl NodeInterface for TestImageSource {
     fn type_id(&self) -> &str {
         "TestImageSource"
     }
@@ -231,7 +233,7 @@ impl RecordingResolver {
     }
 }
 
-impl AssetReferenceResolver for RecordingResolver {
+impl AssetReferenceResolverInterface for RecordingResolver {
     fn resolve(
         &self,
         request: AssetReferenceRequest<'_>,
@@ -265,11 +267,11 @@ impl RecordingGenerator {
     }
 }
 
-impl ReferenceImageGenerator for RecordingGenerator {
+impl ReferenceImageGeneratorInterface for RecordingGenerator {
     fn generate(
         &self,
         request: ReferenceImageGenerationRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         self.requests
             .lock()
@@ -293,41 +295,41 @@ const MOCK_IMAGE_PNG: &[u8] = &[
     5, 0, 1, 255, 137, 153, 61, 29, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
 ];
 
-impl TextToImageGenerator for NoopGenerator {
+impl TextToImageGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _: TextToImageRequest,
-        _: &mut dyn GenerationContext,
+        _: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!()
     }
 }
 
-impl ImageToVideoGenerator for NoopGenerator {
+impl ImageToVideoGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _: ImageToVideoRequest,
-        _: &mut dyn GenerationContext,
+        _: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!()
     }
 }
 
-impl ReferenceVideoGenerator for NoopGenerator {
+impl ReferenceVideoGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _: ReferenceVideoGenerationRequest,
-        _: &mut dyn GenerationContext,
+        _: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!()
     }
 }
 
-impl TextToAudioGenerator for NoopGenerator {
+impl TextToAudioGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _: TextToAudioRequest,
-        _: &mut dyn GenerationContext,
+        _: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!()
     }

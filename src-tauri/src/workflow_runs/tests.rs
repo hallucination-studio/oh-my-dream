@@ -3,8 +3,8 @@ use super::{
     WorkflowRunOutcome, WorkflowRuns, WorkflowRunsError,
 };
 use engine::{
-    EngineError, InputPort, Node, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
-    OutputPort, PortType, RunOutputs, Value, Workflow, WorkflowNode,
+    EngineError, InputPort, NodeInterface, NodeRegistry, NodeRunContext, NodeRunError,
+    NodeRunResult, OutputPort, PortType, RunOutputs, Value, Workflow, WorkflowNode,
 };
 use std::collections::BTreeMap;
 use std::sync::{Arc, Barrier, mpsc};
@@ -290,7 +290,7 @@ struct ImmediateNode {
     outputs: Vec<OutputPort>,
 }
 
-impl Node for ImmediateNode {
+impl NodeInterface for ImmediateNode {
     fn type_id(&self) -> &str {
         "Immediate"
     }

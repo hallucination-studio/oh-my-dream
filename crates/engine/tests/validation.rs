@@ -1,5 +1,5 @@
 use engine::{
-    EngineError, Executor, InputBinding, InputPort, Node, NodeExecutionState, NodeInputs,
+    EngineError, Executor, InputBinding, InputPort, NodeExecutionState, NodeInputs, NodeInterface,
     NodeParams, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef,
     PortCardinality, PortType, ResultCache, Value, ValueMap, Workflow, WorkflowNode,
 };
@@ -272,7 +272,7 @@ impl TestNode {
     }
 }
 
-impl Node for TestNode {
+impl NodeInterface for TestNode {
     fn type_id(&self) -> &str {
         self.type_id
     }

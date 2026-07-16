@@ -3,7 +3,7 @@
 use crate::capability::CapabilityEffect;
 use crate::error::{EngineError, Result};
 use crate::graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
-use crate::node::{InputPort, Node};
+use crate::node::{InputPort, NodeInterface};
 use crate::registry::{NodeParams, NodeRegistry};
 use crate::value::ValueMap;
 use std::collections::{BTreeMap, BTreeSet};
@@ -20,14 +20,14 @@ pub(crate) struct PlanNode {
     pub(crate) params: NodeParams,
     pub(crate) inputs: BTreeMap<String, InputBinding<OutputRef>>,
     pub(crate) effects: Vec<CapabilityEffect>,
-    pub(crate) node: Box<dyn Node>,
+    pub(crate) node: Box<dyn NodeInterface>,
 }
 
 impl PlanNode {
     fn from_workflow_node(
         workflow_node: &WorkflowNode,
         effects: Vec<CapabilityEffect>,
-        node: Box<dyn Node>,
+        node: Box<dyn NodeInterface>,
     ) -> Self {
         Self {
             id: workflow_node.id.clone(),

@@ -1,6 +1,6 @@
 //! Concrete capability registrations owned by the nodes crate.
 
-use crate::{AssetReferenceResolver, SharedAssetStore};
+use crate::{AssetReferenceResolverInterface, SharedAssetStore};
 use engine::{CapabilityRegistryError, NodeRegistry};
 use std::sync::Arc;
 
@@ -9,7 +9,7 @@ pub(crate) fn register_all(
     registry: &mut NodeRegistry,
     generators: crate::GenerationAdapters,
     store: SharedAssetStore,
-    asset_resolver: Arc<dyn AssetReferenceResolver>,
+    asset_resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> Result<(), CapabilityRegistryError> {
     let crate::GenerationAdapters {
         text_to_image,

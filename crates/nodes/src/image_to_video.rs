@@ -5,13 +5,14 @@ use crate::params::{
 };
 use crate::ports::{output, required_input};
 use crate::{
-    AssetMediaKind, AssetReferenceRequest, AssetReferenceResolver, GenerationContext,
-    ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore,
+    AssetMediaKind, AssetReferenceRequest, AssetReferenceResolverInterface,
+    GenerationContextInterface, ImageToVideoGeneratorInterface, ImageToVideoRequest,
+    SharedAssetStore,
 };
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
+    CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
     NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
@@ -22,9 +23,9 @@ const TYPE_ID: &str = "ImageToVideo";
 const MODE: &str = "image";
 
 pub(crate) fn registration(
-    generator: Arc<dyn ImageToVideoGenerator>,
+    generator: Arc<dyn ImageToVideoGeneratorInterface>,
     store: SharedAssetStore,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> CapabilityRegistration {
     let contract = CapabilityContract::new(
         CapabilityRef::new(TYPE_ID, engine::DEFAULT_CAPABILITY_VERSION),
@@ -102,9 +103,9 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
 }
 
 struct ImageToVideoNode {
-    generator: Arc<dyn ImageToVideoGenerator>,
+    generator: Arc<dyn ImageToVideoGeneratorInterface>,
     store: SharedAssetStore,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
     model: String,
     duration_seconds: Option<f32>,
     fps: Option<u32>,
@@ -115,9 +116,9 @@ struct ImageToVideoNode {
 impl ImageToVideoNode {
     fn from_params(
         params: &NodeParams,
-        generator: Arc<dyn ImageToVideoGenerator>,
+        generator: Arc<dyn ImageToVideoGeneratorInterface>,
         store: SharedAssetStore,
-        resolver: Arc<dyn AssetReferenceResolver>,
+        resolver: Arc<dyn AssetReferenceResolverInterface>,
     ) -> Result<Self, NodesError> {
         Ok(Self {
             generator,
@@ -141,7 +142,7 @@ impl ImageToVideoNode {
     }
 }
 
-impl Node for ImageToVideoNode {
+impl NodeInterface for ImageToVideoNode {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -173,7 +174,7 @@ impl Node for ImageToVideoNode {
             .generator
             .generate(self.request(resolved.local_path.to_string_lossy().into_owned()), context)
             .map_err(|source| generation_error("generate video", source))?;
-        GenerationContext::ensure_active(context)
+        GenerationContextInterface::ensure_active(context)
             .map_err(|source| generation_error("generate video", source))?;
         let asset = store_generated_asset(
             &self.store,
@@ -191,6 +192,6 @@ impl Node for ImageToVideoNode {
     }
 }
 
-fn boxed_node(node: ImageToVideoNode) -> Box<dyn Node> {
+fn boxed_node(node: ImageToVideoNode) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

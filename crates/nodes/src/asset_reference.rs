@@ -40,7 +40,7 @@ pub enum AssetReferenceError {
 }
 
 /// Consumer-owned boundary for resolving stable Asset identities.
-pub trait AssetReferenceResolver: Send + Sync {
+pub trait AssetReferenceResolverInterface: Send + Sync {
     fn resolve(
         &self,
         request: AssetReferenceRequest<'_>,

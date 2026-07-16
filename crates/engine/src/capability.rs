@@ -1,6 +1,6 @@
 //! Pure capability identity, contract, and exact-resolution primitives.
 
-use crate::node::{Node, NodeRunError};
+use crate::node::{NodeInterface, NodeRunError};
 use crate::port::PortCardinality;
 use crate::registry::{NodeFactory, NodeParams};
 use serde::{Deserialize, Serialize};
@@ -276,7 +276,7 @@ impl CapabilityRegistration {
     }
 
     /// Constructs an executable node from canonical params.
-    pub fn instantiate(&self, params: &NodeParams) -> Result<Box<dyn Node>, NodeRunError> {
+    pub fn instantiate(&self, params: &NodeParams) -> Result<Box<dyn NodeInterface>, NodeRunError> {
         (self.factory)(params)
     }
 }

@@ -1,7 +1,7 @@
 //! oh-my-dream concrete nodes.
 //!
 //! These are the real workflow nodes for the first milestone. They implement
-//! the `engine::Node` trait and consume modality-scoped generation contracts
+//! the `engine::NodeInterface` trait and consume modality-scoped generation contracts
 //! owned by this crate.
 //!
 //! Wave 2 (Track E) implements the node bodies and a `register_all` that
@@ -42,17 +42,19 @@ use std::sync::{Arc, Mutex};
 
 pub use asset_read_capability::*;
 pub use asset_reference::{
-    AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver,
+    AssetMediaKind, AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
     ResolvedAssetReference,
 };
 pub use contracts::{
     CapabilityProjection, CapabilityProjectionError, project_capabilities, project_capability,
 };
 pub use generation::{
-    GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, InlineMedia, MediaFormat, MediaKind, ReferenceImageGenerationRequest,
-    ReferenceImageGenerator, ReferenceVideoGenerationRequest, ReferenceVideoGenerator,
-    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+    GeneratedArtifact, GeneratedOutput, GenerationContextInterface, GenerationError,
+    ImageToVideoGeneratorInterface, ImageToVideoRequest, InlineMedia, MediaFormat, MediaKind,
+    ReferenceImageGenerationRequest, ReferenceImageGeneratorInterface,
+    ReferenceVideoGenerationRequest, ReferenceVideoGeneratorInterface,
+    TextToAudioGeneratorInterface, TextToAudioRequest, TextToImageGeneratorInterface,
+    TextToImageRequest,
 };
 pub use generation_profile::*;
 pub use image_to_video_capability::*;
@@ -74,22 +76,22 @@ pub type SharedAssetStore = Arc<Mutex<AssetStore>>;
 
 /// Generation capability implementations selected by the composition root.
 pub struct GenerationAdapters {
-    text_to_image: Arc<dyn TextToImageGenerator>,
-    reference_image: Arc<dyn ReferenceImageGenerator>,
-    reference_video: Arc<dyn ReferenceVideoGenerator>,
-    image_to_video: Arc<dyn ImageToVideoGenerator>,
-    text_to_audio: Arc<dyn TextToAudioGenerator>,
+    text_to_image: Arc<dyn TextToImageGeneratorInterface>,
+    reference_image: Arc<dyn ReferenceImageGeneratorInterface>,
+    reference_video: Arc<dyn ReferenceVideoGeneratorInterface>,
+    image_to_video: Arc<dyn ImageToVideoGeneratorInterface>,
+    text_to_audio: Arc<dyn TextToAudioGeneratorInterface>,
 }
 
 impl GenerationAdapters {
     /// Groups concrete generation adapters for registry construction.
     #[must_use]
     pub fn new(
-        text_to_image: Arc<dyn TextToImageGenerator>,
-        reference_image: Arc<dyn ReferenceImageGenerator>,
-        reference_video: Arc<dyn ReferenceVideoGenerator>,
-        image_to_video: Arc<dyn ImageToVideoGenerator>,
-        text_to_audio: Arc<dyn TextToAudioGenerator>,
+        text_to_image: Arc<dyn TextToImageGeneratorInterface>,
+        reference_image: Arc<dyn ReferenceImageGeneratorInterface>,
+        reference_video: Arc<dyn ReferenceVideoGeneratorInterface>,
+        image_to_video: Arc<dyn ImageToVideoGeneratorInterface>,
+        text_to_audio: Arc<dyn TextToAudioGeneratorInterface>,
     ) -> Self {
         Self { text_to_image, reference_image, reference_video, image_to_video, text_to_audio }
     }
@@ -100,7 +102,7 @@ pub fn register_all(
     registry: &mut NodeRegistry,
     generators: GenerationAdapters,
     store: SharedAssetStore,
-    asset_resolver: Arc<dyn AssetReferenceResolver>,
+    asset_resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> Result<(), engine::CapabilityRegistryError> {
     registry::register_all(registry, generators, store, asset_resolver)
 }

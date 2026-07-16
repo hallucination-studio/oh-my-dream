@@ -1,15 +1,17 @@
 use backends::{
-    ImageToVideoRequest as BackendImageToVideoRequest, InferenceBackend, MockBackend,
+    ImageToVideoRequest as BackendImageToVideoRequest, InferenceBackendInterface, MockBackend,
     ReferenceImageGenerationRequest as BackendReferenceImageGenerationRequest,
     ReferenceVideoGenerationRequest as BackendReferenceVideoGenerationRequest, TaskHandle,
     TaskStatus, TextToAudioRequest as BackendTextToAudioRequest,
     TextToImageRequest as BackendTextToImageRequest,
 };
 use nodes::{
-    GeneratedArtifact, GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, InlineMedia, ReferenceImageGenerationRequest, ReferenceImageGenerator,
-    ReferenceVideoGenerationRequest, ReferenceVideoGenerator, TextToAudioGenerator,
-    TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+    GeneratedArtifact, GeneratedOutput, GenerationContextInterface, GenerationError,
+    ImageToVideoGeneratorInterface, ImageToVideoRequest, InlineMedia,
+    ReferenceImageGenerationRequest, ReferenceImageGeneratorInterface,
+    ReferenceVideoGenerationRequest, ReferenceVideoGeneratorInterface,
+    TextToAudioGeneratorInterface, TextToAudioRequest, TextToImageGeneratorInterface,
+    TextToImageRequest,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,7 +42,7 @@ impl MockGenerationAdapter {
         &self,
         handle: &TaskHandle,
         media: MockMedia,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         for poll_index in 0..MAX_POLLS {
             self.cancel_if_requested(handle, context)?;
@@ -74,7 +76,7 @@ impl MockGenerationAdapter {
     fn cancel_if_requested(
         &self,
         handle: &TaskHandle,
-        context: &dyn GenerationContext,
+        context: &dyn GenerationContextInterface,
     ) -> Result<(), GenerationError> {
         if !context.is_cancelled() {
             return Ok(());
@@ -85,11 +87,11 @@ impl MockGenerationAdapter {
     }
 }
 
-impl TextToImageGenerator for MockGenerationAdapter {
+impl TextToImageGeneratorInterface for MockGenerationAdapter {
     fn generate(
         &self,
         request: TextToImageRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.ensure_active()?;
         let request = to_backend_text_to_image(request);
@@ -99,11 +101,11 @@ impl TextToImageGenerator for MockGenerationAdapter {
     }
 }
 
-impl ReferenceImageGenerator for MockGenerationAdapter {
+impl ReferenceImageGeneratorInterface for MockGenerationAdapter {
     fn generate(
         &self,
         request: ReferenceImageGenerationRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.ensure_active()?;
         let request = to_backend_reference_image_generation(request);
@@ -113,11 +115,11 @@ impl ReferenceImageGenerator for MockGenerationAdapter {
     }
 }
 
-impl ImageToVideoGenerator for MockGenerationAdapter {
+impl ImageToVideoGeneratorInterface for MockGenerationAdapter {
     fn generate(
         &self,
         request: ImageToVideoRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.ensure_active()?;
         let request = to_backend_image_to_video(request);
@@ -127,11 +129,11 @@ impl ImageToVideoGenerator for MockGenerationAdapter {
     }
 }
 
-impl ReferenceVideoGenerator for MockGenerationAdapter {
+impl ReferenceVideoGeneratorInterface for MockGenerationAdapter {
     fn generate(
         &self,
         request: ReferenceVideoGenerationRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.ensure_active()?;
         let request = to_backend_reference_video_generation(request);
@@ -141,11 +143,11 @@ impl ReferenceVideoGenerator for MockGenerationAdapter {
     }
 }
 
-impl TextToAudioGenerator for MockGenerationAdapter {
+impl TextToAudioGeneratorInterface for MockGenerationAdapter {
     fn generate(
         &self,
         request: TextToAudioRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.ensure_active()?;
         let request = to_backend_text_to_audio(request);

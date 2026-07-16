@@ -30,11 +30,12 @@ pub use capability::{
 };
 pub use error::{EngineError, Result};
 pub use executor::{
-    CancellationSignal, Executor, NodeExecutionState, NodeProgressEvent, RunOutputs,
+    CancellationSignalInterface, Executor, NodeExecutionState, NodeProgressEvent, RunOutputs,
 };
 pub use graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
 pub use node::{
-    InputPort, Node, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, cancelled_node_run,
+    InputPort, NodeInterface, NodeRunContext, NodeRunError, NodeRunResult, OutputPort,
+    cancelled_node_run,
 };
 pub use port::{PortCardinality, PortType};
 pub use registry::{NodeFactory, NodeParams, NodeRegistry};

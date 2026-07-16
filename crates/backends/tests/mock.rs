@@ -1,5 +1,5 @@
 use backends::{
-    BackendError, ImageToVideoRequest, InferenceBackend, MockBackend,
+    BackendError, ImageToVideoRequest, InferenceBackendInterface, MockBackend,
     ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest, TaskHandle, TaskProgress,
     TaskStatus, TextToAudioRequest, TextToImageRequest,
 };

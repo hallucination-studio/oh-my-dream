@@ -1,6 +1,6 @@
 use engine::{
-    CancellationSignal, EngineError, Executor, NodeProgressEvent, NodeRegistry, ResultCache,
-    RunOutputs, Workflow,
+    CancellationSignalInterface, EngineError, Executor, NodeProgressEvent, NodeRegistry,
+    ResultCache, RunOutputs, Workflow,
 };
 use std::collections::HashMap;
 use std::error::Error;
@@ -359,7 +359,7 @@ impl RunCancellation {
     }
 }
 
-impl CancellationSignal for RunCancellation {
+impl CancellationSignalInterface for RunCancellation {
     fn is_cancelled(&self) -> bool {
         self.requested.load(Ordering::SeqCst)
     }

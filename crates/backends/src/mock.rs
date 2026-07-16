@@ -12,7 +12,7 @@ use crate::request::{
     TextToAudioRequest, TextToImageRequest,
 };
 use crate::task::{TaskHandle, TaskProgress, TaskStatus};
-use crate::traits::InferenceBackend;
+use crate::traits::InferenceBackendInterface;
 
 const BACKEND_NAME: &str = "mock";
 
@@ -76,7 +76,7 @@ impl Default for MockBackend {
 }
 
 #[async_trait]
-impl InferenceBackend for MockBackend {
+impl InferenceBackendInterface for MockBackend {
     fn name(&self) -> &str {
         BACKEND_NAME
     }

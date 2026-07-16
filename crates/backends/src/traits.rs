@@ -1,4 +1,4 @@
-//! The [`InferenceBackend`] trait: the pluggable seam over generation providers.
+//! The [`InferenceBackendInterface`] trait: the pluggable seam over generation providers.
 
 use async_trait::async_trait;
 
@@ -16,10 +16,10 @@ use crate::task::{TaskHandle, TaskStatus};
 /// poll-based shape matches how cloud vendors behave and keeps the mock and any
 /// future real backend interchangeable.
 ///
-/// [`poll`]: InferenceBackend::poll
-/// [`cancel`]: InferenceBackend::cancel
+/// [`poll`]: InferenceBackendInterface::poll
+/// [`cancel`]: InferenceBackendInterface::cancel
 #[async_trait]
-pub trait InferenceBackend: Send + Sync {
+pub trait InferenceBackendInterface: Send + Sync {
     /// Stable identifier of this backend (e.g. `"mock"`).
     fn name(&self) -> &str;
 

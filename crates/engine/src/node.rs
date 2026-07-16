@@ -7,7 +7,7 @@
 //! synchronous capability contracts whose adapters own any async cloud work.
 
 use crate::error::EngineError;
-use crate::executor::{CancellationSignal, NodeExecutionState, NodeProgressEvent};
+use crate::executor::{CancellationSignalInterface, NodeExecutionState, NodeProgressEvent};
 use crate::port::{PortCardinality, PortType};
 use crate::value::{NodeInputs, Value, ValueMap};
 
@@ -39,7 +39,7 @@ pub struct OutputPort {
 ///
 /// Implementations are constructed from their serialized `params` by a factory
 /// registered in the [`crate::registry::NodeRegistry`].
-pub trait Node: Send + Sync {
+pub trait NodeInterface: Send + Sync {
     /// Stable identifier of this node's type (matches the workflow `type`).
     fn type_id(&self) -> &str;
 
@@ -115,7 +115,7 @@ pub struct NodeRunContext<'a> {
     node_id: &'a str,
     project_id: &'a str,
     workflow_snapshot: &'a serde_json::Value,
-    cancellation: &'a dyn CancellationSignal,
+    cancellation: &'a dyn CancellationSignalInterface,
     observer: &'a mut dyn FnMut(&NodeProgressEvent),
 }
 
@@ -125,7 +125,7 @@ impl<'a> NodeRunContext<'a> {
         node_id: &'a str,
         project_id: &'a str,
         workflow_snapshot: &'a serde_json::Value,
-        cancellation: &'a dyn CancellationSignal,
+        cancellation: &'a dyn CancellationSignalInterface,
         observer: &'a mut dyn FnMut(&NodeProgressEvent),
     ) -> Self {
         Self { node_id, project_id, workflow_snapshot, cancellation, observer }

@@ -36,11 +36,11 @@ fn workspace_crate_dependencies_point_toward_business_contracts() {
 
     assert_eq!(workspace_dependencies(&packages, "engine"), ["projects"]);
     assert_eq!(workspace_dependencies(&packages, "assets"), ["projects"]);
-    assert_eq!(workspace_dependencies(&packages, "backends"), Vec::<String>::new());
+    assert_eq!(workspace_dependencies(&packages, "backends"), ["engine", "nodes"]);
     assert_eq!(workspace_dependencies(&packages, "nodes"), ["assets", "engine", "projects"]);
     assert_eq!(
         workspace_dependencies(&packages, "oh-my-dream-tauri"),
-        ["assets", "backends", "engine", "nodes"]
+        ["assets", "assistant", "backends", "engine", "nodes", "projects"]
     );
 }
 

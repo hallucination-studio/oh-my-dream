@@ -26,4 +26,4 @@ pub use request::{
     TextToAudioRequest, TextToImageRequest,
 };
 pub use task::{TaskHandle, TaskProgress, TaskStatus};
-pub use traits::InferenceBackend;
+pub use traits::InferenceBackendInterface;

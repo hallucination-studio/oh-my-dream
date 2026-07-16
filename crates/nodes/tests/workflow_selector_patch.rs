@@ -4,11 +4,11 @@ use engine::{
     WorkflowNode, WorkflowPatch, WorkflowPatchOperation, apply_workflow_patch,
 };
 use nodes::{
-    CapabilityNodeStatus, GeneratedOutput, GenerationContext, GenerationError,
-    ImageToVideoGenerator, ImageToVideoRequest, ReferenceImageGenerationRequest,
-    ReferenceImageGenerator, ReferenceVideoGenerationRequest, ReferenceVideoGenerator,
-    SharedAssetStore, TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator,
-    TextToImageRequest,
+    CapabilityNodeStatus, GeneratedOutput, GenerationContextInterface, GenerationError,
+    ImageToVideoGeneratorInterface, ImageToVideoRequest, ReferenceImageGenerationRequest,
+    ReferenceImageGeneratorInterface, ReferenceVideoGenerationRequest,
+    ReferenceVideoGeneratorInterface, SharedAssetStore, TextToAudioGeneratorInterface,
+    TextToAudioRequest, TextToImageGeneratorInterface, TextToImageRequest,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -229,51 +229,51 @@ fn registry() -> (TempDir, NodeRegistry) {
 
 struct NoopGenerator;
 
-impl TextToImageGenerator for NoopGenerator {
+impl TextToImageGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: TextToImageRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!("patch tests do not execute nodes")
     }
 }
 
-impl ImageToVideoGenerator for NoopGenerator {
+impl ImageToVideoGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: ImageToVideoRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!("patch tests do not execute nodes")
     }
 }
 
-impl ReferenceImageGenerator for NoopGenerator {
+impl ReferenceImageGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: ReferenceImageGenerationRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!("patch tests do not execute nodes")
     }
 }
 
-impl ReferenceVideoGenerator for NoopGenerator {
+impl ReferenceVideoGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: ReferenceVideoGenerationRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!("patch tests do not execute nodes")
     }
 }
 
-impl TextToAudioGenerator for NoopGenerator {
+impl TextToAudioGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: TextToAudioRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         unreachable!("patch tests do not execute nodes")
     }

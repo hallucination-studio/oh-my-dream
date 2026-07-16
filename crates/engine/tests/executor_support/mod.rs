@@ -7,7 +7,7 @@ pub(crate) use cancellation::{
 pub(crate) use capability_effect::{capability_effect_registry, local_read_workflow};
 
 use engine::{
-    InputBinding, InputPort, InputValue, Node, NodeExecutionState, NodeInputs, NodeParams,
+    InputBinding, InputPort, InputValue, NodeExecutionState, NodeInputs, NodeInterface, NodeParams,
     NodeProgressEvent, NodeRegistry, NodeRunContext, NodeRunResult, OutputPort, OutputRef,
     PortCardinality, PortType, Value, Workflow, WorkflowNode,
 };
@@ -225,7 +225,7 @@ struct TextPromptNode {
     runs: Arc<AtomicUsize>,
 }
 
-impl Node for TextPromptNode {
+impl NodeInterface for TextPromptNode {
     fn type_id(&self) -> &str {
         "TextPrompt"
     }
@@ -257,7 +257,7 @@ struct UpperCaseNode {
     runs: Arc<AtomicUsize>,
 }
 
-impl Node for UpperCaseNode {
+impl NodeInterface for UpperCaseNode {
     fn type_id(&self) -> &str {
         "UpperCase"
     }
@@ -294,7 +294,7 @@ struct CollectNode {
     runs: Arc<AtomicUsize>,
 }
 
-impl Node for CollectNode {
+impl NodeInterface for CollectNode {
     fn type_id(&self) -> &str {
         "Collect"
     }
@@ -334,7 +334,7 @@ struct VideoSourceNode {
     outputs: Vec<OutputPort>,
 }
 
-impl Node for VideoSourceNode {
+impl NodeInterface for VideoSourceNode {
     fn type_id(&self) -> &str {
         "VideoSource"
     }
@@ -366,7 +366,7 @@ struct VideoConcatNode {
     outputs: Vec<OutputPort>,
 }
 
-impl Node for VideoConcatNode {
+impl NodeInterface for VideoConcatNode {
     fn type_id(&self) -> &str {
         "VideoConcat"
     }
@@ -395,7 +395,7 @@ impl Node for VideoConcatNode {
     }
 }
 
-impl Node for ImageSourceNode {
+impl NodeInterface for ImageSourceNode {
     fn type_id(&self) -> &str {
         "ImageSource"
     }
@@ -425,7 +425,7 @@ impl Node for ImageSourceNode {
 
 pub(crate) struct FailingNode;
 
-impl Node for FailingNode {
+impl NodeInterface for FailingNode {
     fn type_id(&self) -> &str {
         "Failing"
     }

@@ -1,7 +1,7 @@
 use super::{RunCounters, TestNodeError, output, registry};
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputBinding, InputPort, Node, NodeInputs,
+    CapabilityRegistration, CapabilitySelector, InputBinding, InputPort, NodeInputs, NodeInterface,
     NodeParams, NodeRegistry, NodeRunContext, NodeRunResult, OutputPort, OutputRef, PortType,
     Value, Workflow, WorkflowNode,
 };
@@ -79,7 +79,7 @@ struct ManagedTextNode {
     runs: Arc<AtomicUsize>,
 }
 
-impl Node for ManagedTextNode {
+impl NodeInterface for ManagedTextNode {
     fn type_id(&self) -> &str {
         "ManagedTextSource"
     }

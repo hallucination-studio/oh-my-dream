@@ -3,7 +3,7 @@ use crate::params::canonicalize_mode;
 use crate::ports::{output, required_many_input};
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputValue, Node, NodeInputs, NodeParams,
+    CapabilityRegistration, CapabilitySelector, InputValue, NodeInputs, NodeInterface, NodeParams,
     NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
 };
 use std::collections::BTreeMap;
@@ -71,7 +71,7 @@ impl VideoConcatNode {
     }
 }
 
-impl Node for VideoConcatNode {
+impl NodeInterface for VideoConcatNode {
     fn type_id(&self) -> &str {
         TYPE_ID
     }

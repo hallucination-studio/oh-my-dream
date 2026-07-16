@@ -6,13 +6,14 @@ use crate::params::{
 };
 use crate::ports::{output, required_input, required_many_input};
 use crate::{
-    AssetMediaKind, AssetReferenceRequest, AssetReferenceResolver, GenerationContext,
-    ReferenceVideoGenerationRequest, ReferenceVideoGenerator, SharedAssetStore,
+    AssetMediaKind, AssetReferenceRequest, AssetReferenceResolverInterface,
+    GenerationContextInterface, ReferenceVideoGenerationRequest, ReferenceVideoGeneratorInterface,
+    SharedAssetStore,
 };
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
+    CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
     NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortCardinality, PortType, Value,
 };
 use std::collections::BTreeMap;
@@ -24,9 +25,9 @@ const MODE: &str = "references";
 const MAX_REFERENCES: usize = 16;
 
 pub(crate) fn registration(
-    generator: Arc<dyn ReferenceVideoGenerator>,
+    generator: Arc<dyn ReferenceVideoGeneratorInterface>,
     store: SharedAssetStore,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> CapabilityRegistration {
     let references = PortCardinality::Many { minimum: 1, maximum: Some(MAX_REFERENCES) };
     let contract = CapabilityContract::new(
@@ -59,7 +60,7 @@ pub(crate) fn registration(
                 Arc::clone(&store),
                 Arc::clone(&resolver),
             )
-            .map(|node| Box::new(node) as Box<dyn Node>)
+            .map(|node| Box::new(node) as Box<dyn NodeInterface>)
             .map_err(boxed)
         }),
     )
@@ -128,9 +129,9 @@ fn insert_optional<T: serde::Serialize>(params: &mut NodeParams, name: &str, val
 }
 
 struct ReferenceVideoNode {
-    generator: Arc<dyn ReferenceVideoGenerator>,
+    generator: Arc<dyn ReferenceVideoGeneratorInterface>,
     store: SharedAssetStore,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
     model: String,
     duration_seconds: Option<f32>,
     aspect_ratio: Option<String>,
@@ -143,9 +144,9 @@ struct ReferenceVideoNode {
 impl ReferenceVideoNode {
     fn from_params(
         params: &NodeParams,
-        generator: Arc<dyn ReferenceVideoGenerator>,
+        generator: Arc<dyn ReferenceVideoGeneratorInterface>,
         store: SharedAssetStore,
-        resolver: Arc<dyn AssetReferenceResolver>,
+        resolver: Arc<dyn AssetReferenceResolverInterface>,
     ) -> Result<Self, NodesError> {
         Ok(Self {
             generator,
@@ -185,7 +186,7 @@ impl ReferenceVideoNode {
     }
 }
 
-impl Node for ReferenceVideoNode {
+impl NodeInterface for ReferenceVideoNode {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -220,7 +221,7 @@ impl Node for ReferenceVideoNode {
                 context,
             )
             .map_err(|source| generation_error("generate reference video", source))?;
-        GenerationContext::ensure_active(context)
+        GenerationContextInterface::ensure_active(context)
             .map_err(|source| generation_error("generate reference video", source))?;
         let asset = store_generated_asset(
             &self.store,

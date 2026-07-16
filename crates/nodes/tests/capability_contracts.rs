@@ -3,10 +3,11 @@ use engine::{
     CapabilityEffect, CapabilityRef, CapabilityRegistryError, CapabilitySelector, NodeRegistry,
 };
 use nodes::{
-    GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceImageGenerator,
-    ReferenceVideoGenerationRequest, ReferenceVideoGenerator, SharedAssetStore,
-    TextToAudioGenerator, TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+    GeneratedOutput, GenerationContextInterface, GenerationError, ImageToVideoGeneratorInterface,
+    ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceImageGeneratorInterface,
+    ReferenceVideoGenerationRequest, ReferenceVideoGeneratorInterface, SharedAssetStore,
+    TextToAudioGeneratorInterface, TextToAudioRequest, TextToImageGeneratorInterface,
+    TextToImageRequest,
 };
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
@@ -233,11 +234,11 @@ fn adapters() -> nodes::GenerationAdapters {
 
 struct NoopGenerator;
 
-impl TextToImageGenerator for NoopGenerator {
+impl TextToImageGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: TextToImageRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",
@@ -246,11 +247,11 @@ impl TextToImageGenerator for NoopGenerator {
     }
 }
 
-impl ImageToVideoGenerator for NoopGenerator {
+impl ImageToVideoGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: ImageToVideoRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",
@@ -259,11 +260,11 @@ impl ImageToVideoGenerator for NoopGenerator {
     }
 }
 
-impl ReferenceImageGenerator for NoopGenerator {
+impl ReferenceImageGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: ReferenceImageGenerationRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",
@@ -272,11 +273,11 @@ impl ReferenceImageGenerator for NoopGenerator {
     }
 }
 
-impl ReferenceVideoGenerator for NoopGenerator {
+impl ReferenceVideoGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: ReferenceVideoGenerationRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",
@@ -285,11 +286,11 @@ impl ReferenceVideoGenerator for NoopGenerator {
     }
 }
 
-impl TextToAudioGenerator for NoopGenerator {
+impl TextToAudioGeneratorInterface for NoopGenerator {
     fn generate(
         &self,
         _request: TextToAudioRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",

@@ -4,10 +4,11 @@ use engine::{
     Workflow, WorkflowNode,
 };
 use nodes::{
-    GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, InlineMedia, ReferenceImageGenerationRequest, ReferenceImageGenerator,
-    ReferenceVideoGenerationRequest, ReferenceVideoGenerator, TextToAudioGenerator,
-    TextToAudioRequest, TextToImageGenerator, TextToImageRequest,
+    GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGeneratorInterface,
+    ImageToVideoRequest, InlineMedia, ReferenceImageGenerationRequest,
+    ReferenceImageGeneratorInterface, ReferenceVideoGenerationRequest,
+    ReferenceVideoGeneratorInterface, TextToAudioGeneratorInterface, TextToAudioRequest,
+    TextToImageGeneratorInterface, TextToImageRequest,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -257,11 +258,11 @@ fn register_test_generators(
     generators: Arc<TestGenerators>,
     store: nodes::SharedAssetStore,
 ) {
-    let image: Arc<dyn TextToImageGenerator> = generators.clone();
-    let reference_image: Arc<dyn ReferenceImageGenerator> = generators.clone();
-    let reference_video: Arc<dyn ReferenceVideoGenerator> = generators.clone();
-    let video: Arc<dyn ImageToVideoGenerator> = generators.clone();
-    let audio: Arc<dyn TextToAudioGenerator> = generators;
+    let image: Arc<dyn TextToImageGeneratorInterface> = generators.clone();
+    let reference_image: Arc<dyn ReferenceImageGeneratorInterface> = generators.clone();
+    let reference_video: Arc<dyn ReferenceVideoGeneratorInterface> = generators.clone();
+    let video: Arc<dyn ImageToVideoGeneratorInterface> = generators.clone();
+    let audio: Arc<dyn TextToAudioGeneratorInterface> = generators;
     let resolver = Arc::new(support::StoreResolver(Arc::clone(&store)));
     nodes::register_all(
         registry,
@@ -293,11 +294,11 @@ impl TestGenerators {
     }
 }
 
-impl TextToImageGenerator for TestGenerators {
+impl TextToImageGeneratorInterface for TestGenerators {
     fn generate(
         &self,
         _request: TextToImageRequest,
-        context: &mut dyn nodes::GenerationContext,
+        context: &mut dyn nodes::GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.progress(0.25);
         context.progress(0.75);
@@ -305,11 +306,11 @@ impl TextToImageGenerator for TestGenerators {
     }
 }
 
-impl ImageToVideoGenerator for TestGenerators {
+impl ImageToVideoGeneratorInterface for TestGenerators {
     fn generate(
         &self,
         request: ImageToVideoRequest,
-        context: &mut dyn nodes::GenerationContext,
+        context: &mut dyn nodes::GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         assert!(Path::new(&request.image).is_file(), "source image must resolve to a local asset");
         context.progress(0.25);
@@ -318,11 +319,11 @@ impl ImageToVideoGenerator for TestGenerators {
     }
 }
 
-impl ReferenceImageGenerator for TestGenerators {
+impl ReferenceImageGeneratorInterface for TestGenerators {
     fn generate(
         &self,
         _request: ReferenceImageGenerationRequest,
-        context: &mut dyn nodes::GenerationContext,
+        context: &mut dyn nodes::GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.progress(0.25);
         context.progress(0.75);
@@ -330,11 +331,11 @@ impl ReferenceImageGenerator for TestGenerators {
     }
 }
 
-impl ReferenceVideoGenerator for TestGenerators {
+impl ReferenceVideoGeneratorInterface for TestGenerators {
     fn generate(
         &self,
         _request: ReferenceVideoGenerationRequest,
-        context: &mut dyn nodes::GenerationContext,
+        context: &mut dyn nodes::GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.progress(0.25);
         context.progress(0.75);
@@ -342,11 +343,11 @@ impl ReferenceVideoGenerator for TestGenerators {
     }
 }
 
-impl TextToAudioGenerator for TestGenerators {
+impl TextToAudioGeneratorInterface for TestGenerators {
     fn generate(
         &self,
         _request: TextToAudioRequest,
-        context: &mut dyn nodes::GenerationContext,
+        context: &mut dyn nodes::GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.progress(0.25);
         context.progress(0.75);

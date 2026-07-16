@@ -1,7 +1,8 @@
 use engine::{
-    InputBinding, InputPort, Node, NodeInputs, NodeParams, NodeRef, NodeRegistry, NodeRunContext,
-    NodeRunError, NodeRunResult, OutputPort, OutputRef, PatchOutputRef, PortCardinality, PortType,
-    Workflow, WorkflowNode, WorkflowPatch, WorkflowPatchOperation, apply_workflow_patch,
+    InputBinding, InputPort, NodeInputs, NodeInterface, NodeParams, NodeRef, NodeRegistry,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, OutputRef, PatchOutputRef,
+    PortCardinality, PortType, Workflow, WorkflowNode, WorkflowPatch, WorkflowPatchOperation,
+    apply_workflow_patch,
 };
 use std::collections::BTreeMap;
 
@@ -113,7 +114,7 @@ struct MultiOutputNode {
     outputs: Vec<OutputPort>,
 }
 
-impl Node for MultiOutputNode {
+impl NodeInterface for MultiOutputNode {
     fn type_id(&self) -> &str {
         "MultiOutput"
     }
@@ -139,7 +140,7 @@ struct TextTargetNode {
     inputs: Vec<InputPort>,
 }
 
-impl Node for TextTargetNode {
+impl NodeInterface for TextTargetNode {
     fn type_id(&self) -> &str {
         "TextTarget"
     }

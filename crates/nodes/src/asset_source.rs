@@ -1,11 +1,11 @@
 use crate::error::{NodesError, boxed};
 use crate::params::{canonicalize_mode, reject_unknown_params};
 use crate::ports::output;
-use crate::{AssetMediaKind, AssetReferenceRequest, AssetReferenceResolver};
+use crate::{AssetMediaKind, AssetReferenceRequest, AssetReferenceResolverInterface};
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, Node, NodeInputs, NodeParams, NodeRunContext,
-    NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    CapabilityRegistration, CapabilitySelector, NodeInputs, NodeInterface, NodeParams,
+    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use std::sync::Arc;
 const MODE: &str = "asset";
 
 pub(crate) fn registrations(
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> [CapabilityRegistration; 3] {
     [
         registration(
@@ -49,7 +49,7 @@ fn registration(
     label: &'static str,
     port_type: PortType,
     kind: AssetMediaKind,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> CapabilityRegistration {
     let contract = CapabilityContract::contextual(
         CapabilityRef::new(type_id, engine::DEFAULT_CAPABILITY_VERSION),
@@ -118,10 +118,10 @@ struct AssetSourceNode {
     asset_id: String,
     kind: AssetMediaKind,
     outputs: Vec<OutputPort>,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 }
 
-impl Node for AssetSourceNode {
+impl NodeInterface for AssetSourceNode {
     fn type_id(&self) -> &str {
         self.type_id
     }
@@ -164,7 +164,8 @@ fn output_name(kind: AssetMediaKind) -> &'static str {
 mod tests {
     use super::registrations;
     use crate::{
-        AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver, ResolvedAssetReference,
+        AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
+        ResolvedAssetReference,
     };
     use engine::{Executor, NodeParams, NodeRegistry, ResultCache, Value, Workflow, WorkflowNode};
     use std::collections::BTreeMap;
@@ -176,7 +177,7 @@ mod tests {
 
     struct RecordingResolver(AtomicUsize);
 
-    impl AssetReferenceResolver for RecordingResolver {
+    impl AssetReferenceResolverInterface for RecordingResolver {
         fn resolve(
             &self,
             request: AssetReferenceRequest<'_>,
@@ -232,7 +233,7 @@ mod tests {
 
     #[test]
     fn asset_source_rejects_empty_ids_and_boundary_fields() {
-        let resolver: Arc<dyn AssetReferenceResolver> =
+        let resolver: Arc<dyn AssetReferenceResolverInterface> =
             Arc::new(RecordingResolver(AtomicUsize::new(0)));
         let registration = registrations(resolver).into_iter().next().expect("image registration");
         assert!(
