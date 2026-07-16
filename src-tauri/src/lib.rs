@@ -14,6 +14,7 @@ mod assistant_review_bridge;
 pub mod assistant_runtime;
 pub mod assistant_sidecar;
 pub mod assistant_transport;
+pub mod backend_settings_adapter;
 pub mod capability_catalog;
 pub mod capability_discovery;
 mod command_error;
