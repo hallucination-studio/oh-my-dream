@@ -73,6 +73,19 @@ pub struct AssistantProductionPlanAggregate {
     pub items: Vec<AssistantPlanItemEntity>,
     pub revision: AssistantProductionPlanRevision,
 }
+
+pub struct AssistantPlanItemEntity {
+    pub id: AssistantPlanItemId,
+    pub goal: AssistantPlanItemGoal,
+    pub state: AssistantPlanItemState,
+}
+
+pub enum AssistantPlanItemState {
+    Pending,
+    InProgress,
+    Blocked { reason: AssistantPlanItemBlockedReason },
+    Completed { acceptance_note: AssistantPlanItemAcceptanceNote },
+}
 ```
 
 The plan contains at most 128 user-meaningful items with goal, acceptance note, and optional blocked
@@ -87,6 +100,12 @@ InProgress -> Blocked -> InProgress
 Every mutation uses compare-and-swap revision. Rust validates transitions; the model chooses which
 item to discuss or update. Product code never consumes the plan as a queue, selects the next item,
 starts one model Runner per item, or treats plan completion as Workflow success.
+
+`AssistantPlanItemId` is a plan-local stable identity of 1..=64 ASCII bytes matching
+`[a-z][a-z0-9_]*`; item order is the aggregate's persisted vector order and ID values are unique
+inside that plan. Replacing the plan supplies a complete new ordered item set and does not imply
+continuity for a reused ID. State-associated reason and acceptance note exist only in their exact
+variants, so impossible combinations cannot be persisted.
 
 `AssistantProductionPlanId`, `AssistantSessionId`, `AssistantWorkflowChangeId`,
 `AssistantApprovalScopeId`, `AssistantModelInvocationId`, and `AssistantRepairActivationId` use the
