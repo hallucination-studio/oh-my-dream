@@ -27,11 +27,11 @@ pub fn run_with_events_boundary(
             "created_at_epoch_ms": run.created_at().as_utc_milliseconds(),
             "updated_at_epoch_ms": run.updated_at().as_utc_milliseconds(),
         },
-        "events": events.iter().map(event).collect::<Vec<_>>(),
+        "events": events.iter().map(workflow_run_event_value).collect::<Vec<_>>(),
     }))
 }
 
-fn event(value: &WorkflowRunEvent) -> Value {
+pub(crate) fn workflow_run_event_value(value: &WorkflowRunEvent) -> Value {
     json!({
         "sequence": value.sequence().get(),
         "occurred_at_epoch_ms": value.occurred_at().as_utc_milliseconds(),

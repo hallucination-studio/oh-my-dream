@@ -2,7 +2,7 @@
 
 mod proposal;
 mod receipt;
-mod run_projection;
+pub(crate) mod run_projection;
 #[cfg(test)]
 mod tests;
 mod workflow;
