@@ -37,6 +37,8 @@ mod workflow_mutation_command;
 mod workflow_mutation_receipt;
 #[path = "workflow_patch.rs"]
 mod workflow_patch;
+#[path = "workflow_queries.rs"]
+mod workflow_queries;
 #[path = "workflow_run_admission.rs"]
 mod workflow_run_admission;
 #[path = "workflow_run_domain.rs"]

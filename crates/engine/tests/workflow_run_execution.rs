@@ -247,7 +247,7 @@ async fn cancellation_commits_before_signalling_and_rejects_late_results() {
     );
 }
 
-async fn admit_run(
+pub(crate) async fn admit_run(
     repository: Arc<WorkflowContractFakeImpl>,
     registry: Arc<WorkflowNodeCapabilityRegistry>,
     capability_contract: &NodeCapabilityContract,

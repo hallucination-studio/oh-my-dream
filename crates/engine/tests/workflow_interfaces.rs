@@ -210,6 +210,47 @@ impl WorkflowRunRepositoryInterface for WorkflowContractFakeImpl {
         state.runs.insert(key, run.clone());
         Ok(run)
     }
+
+    async fn list_workflow_run_events_after(
+        &self,
+        workflow_run_id: WorkflowRunId,
+        after_sequence: Option<engine::workflow::WorkflowRunEventSequence>,
+        limit: usize,
+    ) -> Result<Vec<WorkflowRunEvent>, WorkflowApplicationError> {
+        let state = self.state.lock().map_err(|_| persistence())?;
+        let run = state
+            .runs
+            .values()
+            .find(|run| run.run_id() == workflow_run_id)
+            .ok_or(WorkflowApplicationError::WorkflowRunNotFound)?;
+        let cursor = after_sequence.map_or(0, engine::workflow::WorkflowRunEventSequence::get);
+        Ok(run
+            .events()
+            .iter()
+            .filter(|event| event.sequence().get() > cursor)
+            .take(limit)
+            .cloned()
+            .collect())
+    }
+
+    async fn load_latest_workflow_run_for_node(
+        &self,
+        project_id: ProjectId,
+        workflow_id: WorkflowId,
+        node_id: engine::workflow_graph::WorkflowNodeId,
+    ) -> Result<Option<WorkflowRunAggregate>, WorkflowApplicationError> {
+        let state = self.state.lock().map_err(|_| persistence())?;
+        Ok(state
+            .runs
+            .values()
+            .filter(|run| {
+                run.project_id() == project_id
+                    && run.workflow_id() == workflow_id
+                    && run.plan().nodes().iter().any(|node| node.node_id == node_id)
+            })
+            .max_by_key(|run| (run.created_at(), run.run_id()))
+            .cloned())
+    }
 }
 
 impl WorkflowClockInterface for WorkflowContractFakeImpl {

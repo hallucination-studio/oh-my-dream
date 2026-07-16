@@ -57,6 +57,12 @@ pub enum WorkflowApplicationError {
         /// Complete sorted readiness evidence.
         readiness: super::WorkflowReadinessResult,
     },
+    /// A Run event page limit was outside `1..=500`.
+    #[error("Workflow Run event limit must be between 1 and 500")]
+    WorkflowRunEventLimitOutOfBounds {
+        /// Rejected requested limit.
+        requested_limit: u16,
+    },
     /// A persistence operation failed without exposing implementation details.
     #[error("Workflow persistence failed")]
     WorkflowPersistenceFailure,
@@ -331,6 +337,20 @@ pub trait WorkflowRunRepositoryInterface: Send + Sync {
         run: WorkflowRunAggregate,
         expected_last_event_count: usize,
     ) -> Result<WorkflowRunAggregate, WorkflowApplicationError>;
+    /// Loads at most `limit` events after an optional exclusive sequence cursor.
+    async fn list_workflow_run_events_after(
+        &self,
+        workflow_run_id: WorkflowRunId,
+        after_sequence: Option<super::WorkflowRunEventSequence>,
+        limit: usize,
+    ) -> Result<Vec<WorkflowRunEvent>, WorkflowApplicationError>;
+    /// Loads the latest Run containing one node by `(created_at, Run ID)`.
+    async fn load_latest_workflow_run_for_node(
+        &self,
+        project_id: ProjectId,
+        workflow_id: WorkflowId,
+        node_id: crate::workflow_graph::WorkflowNodeId,
+    ) -> Result<Option<WorkflowRunAggregate>, WorkflowApplicationError>;
 }
 
 /// Deterministic Workflow time source.
