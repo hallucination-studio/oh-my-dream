@@ -28,6 +28,12 @@ impl WorkflowMutationCommandHash {
         Self(Sha256::digest(bytes).into())
     }
 
+    /// Restores exact persisted SHA-256 bytes.
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
     /// Returns the exact digest bytes without selecting a text encoding.
     #[must_use]
     pub const fn as_bytes(self) -> [u8; 32] {

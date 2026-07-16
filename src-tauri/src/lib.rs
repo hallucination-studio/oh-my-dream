@@ -34,6 +34,7 @@ mod workflow_repository;
 pub mod workflow_run_commands;
 pub mod workflow_run_dto;
 pub mod workflow_runs;
+pub mod workflow_storage_adapters;
 pub mod workspace_snapshot;
 
 use commands::{

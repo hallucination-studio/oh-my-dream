@@ -75,6 +75,15 @@ impl WorkflowRunAdmissionReceipt {
             workflow_run_id,
         }
     }
+    /// Restores exact persisted request-to-Run admission evidence.
+    #[must_use]
+    pub const fn restore(
+        request_id: WorkflowRunRequestId,
+        command_hash: WorkflowRunCommandHash,
+        workflow_run_id: WorkflowRunId,
+    ) -> Self {
+        Self { request_id, command_hash, workflow_run_id }
+    }
     /// Returns the request identity.
     #[must_use]
     pub const fn request_id(&self) -> WorkflowRunRequestId {

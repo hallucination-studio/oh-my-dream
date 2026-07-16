@@ -1,6 +1,6 @@
 //! Provider failures shared by exact generation capability interfaces.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use thiserror::Error;
 
@@ -63,6 +63,40 @@ impl NodeCapabilityProviderFailure {
         {
             return Err(NodeCapabilityProviderFailureConstructionError);
         }
+        Ok(Self { category, retryable, safe_retry_at })
+    }
+
+    /// Restores durable provider failure semantics without process-local retry timing.
+    pub fn try_restore(
+        category: NodeCapabilityProviderFailureCategory,
+        retryable: bool,
+    ) -> Result<Self, NodeCapabilityProviderFailureConstructionError> {
+        Self::try_restore_with_retry_after(category, retryable, None)
+    }
+
+    /// Restores durable retry semantics as a conservative delay from this process observation.
+    pub fn try_restore_with_retry_after(
+        category: NodeCapabilityProviderFailureCategory,
+        retryable: bool,
+        safe_retry_after: Option<Duration>,
+    ) -> Result<Self, NodeCapabilityProviderFailureConstructionError> {
+        let valid = match category {
+            NodeCapabilityProviderFailureCategory::RateLimited
+            | NodeCapabilityProviderFailureCategory::ProviderUnavailable => retryable,
+            NodeCapabilityProviderFailureCategory::DeadlineExceeded => true,
+            _ => !retryable,
+        };
+        if !valid || (!retryable && safe_retry_after.is_some()) {
+            return Err(NodeCapabilityProviderFailureConstructionError);
+        }
+        let safe_retry_at = match safe_retry_after {
+            Some(delay) => Some(
+                Instant::now()
+                    .checked_add(delay)
+                    .ok_or(NodeCapabilityProviderFailureConstructionError)?,
+            ),
+            None => None,
+        };
         Ok(Self { category, retryable, safe_retry_at })
     }
 

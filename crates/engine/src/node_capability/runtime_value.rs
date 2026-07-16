@@ -292,6 +292,20 @@ impl WorkflowNodeOutputSet {
         if valid { Ok(Self(values)) } else { Err(WorkflowRuntimeValueError::InvalidOutputSet) }
     }
 
+    /// Restores a previously contract-validated complete output map.
+    pub fn try_restore(
+        expected_data_types: &BTreeMap<NodeCapabilityOutputKey, WorkflowDataType>,
+        values: BTreeMap<NodeCapabilityOutputKey, WorkflowRuntimeValue>,
+    ) -> Result<Self, WorkflowRuntimeValueError> {
+        let valid = !values.is_empty()
+            && values.len() <= 64
+            && values.len() == expected_data_types.len()
+            && expected_data_types.iter().all(|(key, data_type)| {
+                values.get(key).is_some_and(|value| value.data_type() == *data_type)
+            });
+        if !valid { Err(WorkflowRuntimeValueError::InvalidOutputSet) } else { Ok(Self(values)) }
+    }
+
     /// Returns one named runtime output.
     #[must_use]
     pub fn get(&self, key: &NodeCapabilityOutputKey) -> Option<&WorkflowRuntimeValue> {

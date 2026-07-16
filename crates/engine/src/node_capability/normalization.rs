@@ -1,8 +1,8 @@
 //! Complete normalized parameter sets and canonical domain encoding.
 
 use super::{
-    NodeCapabilityNormalizedParameterMap, NodeCapabilityParameterKey, NodeCapabilityParameterSet,
-    NodeCapabilityParameterValue,
+    NodeCapabilityNormalizedParameterMap, NodeCapabilityParameterCanonicalDecodeError,
+    NodeCapabilityParameterKey, NodeCapabilityParameterSet, NodeCapabilityParameterValue,
 };
 
 /// Complete validated and defaulted parameter set.
@@ -34,7 +34,36 @@ impl NodeCapabilityNormalizedParameters {
         self.0.canonical_bytes()
     }
 
+    /// Restores a previously validated normalized set from its exact canonical bytes.
+    pub fn try_from_canonical_bytes(
+        bytes: &[u8],
+    ) -> Result<Self, NodeCapabilityParameterCanonicalDecodeError> {
+        NodeCapabilityParameterSet::try_from_canonical_bytes(bytes).map(Self)
+    }
+
     pub(crate) const fn from_validated(values: NodeCapabilityNormalizedParameterMap) -> Self {
         Self(NodeCapabilityParameterSet::from_validated_map(values))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+
+    #[test]
+    fn restores_exact_normalized_parameter_canonical_bytes() {
+        let values = BTreeMap::from([(
+            NodeCapabilityParameterKey::new("count").unwrap(),
+            NodeCapabilityParameterValue::UnsignedInteger(3),
+        )]);
+        let original = NodeCapabilityNormalizedParameters::from_validated(values);
+        let bytes = original.canonical_bytes();
+
+        let restored =
+            NodeCapabilityNormalizedParameters::try_from_canonical_bytes(&bytes).unwrap();
+
+        assert_eq!(restored, original);
     }
 }
