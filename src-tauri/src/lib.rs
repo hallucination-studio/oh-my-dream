@@ -22,6 +22,7 @@ pub mod production_plan;
 pub mod project_adapters;
 pub mod reviewed_change;
 pub mod state;
+pub mod workflow_adapters;
 pub mod workflow_authority;
 pub mod workflow_patch_operation;
 mod workflow_repository;
