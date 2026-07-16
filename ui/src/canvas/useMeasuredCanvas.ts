@@ -4,18 +4,30 @@ import { useLayoutEffect, useRef, useState } from "react";
 export function useMeasuredCanvas() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [canvasReady, setCanvasReady] = useState(false);
+  const readyRef = useRef(false);
 
   useLayoutEffect(() => {
     const element = canvasRef.current;
     if (!element) return;
     const update = () => {
       const bounds = element.getBoundingClientRect();
-      setCanvasReady(bounds.width > 0 && bounds.height > 0);
+      const ready = bounds.width > 0 && bounds.height > 0;
+      if (ready !== readyRef.current) {
+        readyRef.current = ready;
+        setCanvasReady(ready);
+      }
     };
     update();
-    const observer = new ResizeObserver(update);
+    let frame: number | undefined;
+    const observer = new ResizeObserver(() => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(update);
+    });
     observer.observe(element);
-    return () => observer.disconnect();
+    return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, []);
 
   return { canvasRef, canvasReady };

@@ -60,6 +60,22 @@ input {
   grid-template-columns: 44px minmax(280px, 360px) 300px minmax(320px, 1fr) 292px 320px;
 }
 
+@media (max-width: 1100px) {
+  .bench__body--assistant,
+  .bench__body--assets.bench__body--assistant {
+    grid-template-columns: 44px 220px minmax(0, 1fr) 260px;
+  }
+
+  .bench__body--assistant .adock {
+    position: fixed;
+    z-index: 20;
+    top: 44px;
+    right: 0;
+    bottom: 0;
+    width: min(320px, calc(100vw - 44px));
+  }
+}
+
 /* Canvas is the only textured surface; nodes float on it. */
 .bench__canvas {
   position: relative;
