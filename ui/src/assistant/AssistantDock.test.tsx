@@ -255,6 +255,8 @@ function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
     getAsset: vi.fn(),
     listProjects: vi.fn(),
     createProject: vi.fn(),
+    getProject: vi.fn(),
+    renameProject: vi.fn(),
     openProject: vi.fn(),
     searchCapabilities: vi.fn(),
     getCapabilityBundles: vi.fn(),

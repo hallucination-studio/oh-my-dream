@@ -19,6 +19,7 @@ import type {
   CapabilityRef,
   CapabilitySearchPage,
   CapabilitySearchRequest,
+  Project,
   RunHandle,
   RunObserver,
   WorkflowApi,
@@ -41,6 +42,9 @@ const STEP_MS = 400;
 const mockHeads = new Map<string, WorkflowHead>();
 const MOCK_PROJECT_ID = "mock-project";
 const MOCK_PROJECT_NAME = "Mock Project";
+const mockProjects = new Map<string, Project>([
+  [MOCK_PROJECT_ID, mockProject(MOCK_PROJECT_ID, MOCK_PROJECT_NAME)],
+]);
 let mockAssistantConfig: AssistantConfig = {
   enabled: false,
   base_url: "https://api.openai.com/v1",
@@ -162,17 +166,43 @@ async function getAsset(id: string): Promise<AssetDto> {
 }
 
 async function listProjects() {
-  return [{ id: MOCK_PROJECT_ID, name: MOCK_PROJECT_NAME, created_at: 0 }];
+  return [...mockProjects.values()];
 }
 
 async function createProject(name: string) {
-  return { id: MOCK_PROJECT_ID, name, created_at: 0 };
+  const project = mockProject(MOCK_PROJECT_ID, name);
+  mockProjects.set(project.id, project);
+  return project;
+}
+
+async function getProject(id: string) {
+  const project = mockProjects.get(id);
+  if (!project) throw new Error(`Project ${id} was not found`);
+  return project;
+}
+
+async function renameProject(project: Project, name: string) {
+  const renamed = { ...project, name, revision: String(Number(project.revision) + 1) };
+  mockProjects.set(renamed.id, renamed);
+  return renamed;
 }
 
 async function openProject(id: string) {
+  const project = await getProject(id);
   return {
-    project: { id, name: MOCK_PROJECT_NAME, created_at: 0 },
+    project,
+    current_workflow_summary: null,
     workflow_head: mockHeads.get(id) ?? null,
+  };
+}
+
+function mockProject(id: string, name: string): Project {
+  return {
+    id,
+    name,
+    revision: "1",
+    created_at_epoch_ms: "0",
+    updated_at_epoch_ms: "0",
   };
 }
 
@@ -393,6 +423,8 @@ export const mockApi: WorkflowApi = {
   getAsset,
   listProjects,
   createProject,
+  getProject,
+  renameProject,
   openProject,
   searchCapabilities,
   getCapabilityBundles,

@@ -298,7 +298,9 @@ function isProject(value: unknown): value is Project {
     isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.name === "string" &&
-    typeof value.created_at === "number"
+    typeof value.revision === "string" &&
+    typeof value.created_at_epoch_ms === "string" &&
+    typeof value.updated_at_epoch_ms === "string"
   );
 }
 
@@ -306,23 +308,13 @@ function isOpenProject(value: unknown): value is OpenProjectResult {
   if (!isRecord(value) || !isProject(value.project)) {
     return false;
   }
-  return value.workflow_head === null || isWorkflowHead(value.workflow_head);
-}
-
-function isWorkflowHead(value: unknown): boolean {
-  if (
-    !isRecord(value) ||
-    typeof value.project_id !== "string" ||
-    typeof value.revision !== "number"
-  ) {
-    return false;
-  }
-  const workflow = value.workflow;
+  const summary = value.current_workflow_summary;
   return (
-    isRecord(workflow) &&
-    typeof workflow.version === "string" &&
-    typeof workflow.project_id === "string" &&
-    Array.isArray(workflow.nodes)
+    summary === null ||
+    (isRecord(summary) &&
+      typeof summary.workflow_id === "string" &&
+      typeof summary.workflow_revision === "string" &&
+      (summary.readiness === "ready" || summary.readiness === "blocked"))
   );
 }
 

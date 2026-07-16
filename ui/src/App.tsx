@@ -351,6 +351,7 @@ export function App() {
         open={projectsOpen}
         onClose={() => setProjectsOpen(false)}
         onOpenProject={openProject}
+        onProjectRenamed={setProject}
       />
 
       <main

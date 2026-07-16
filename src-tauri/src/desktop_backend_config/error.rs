@@ -3,7 +3,10 @@ use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DesktopErrorCode {
+    ProjectInvalidRequest,
     ProjectNotFound,
+    ProjectRevisionConflict,
+    ProjectMutationConflict,
     WorkflowRevisionConflict,
     ProviderUnavailable,
     AssistantProtocolViolation,
@@ -73,7 +76,16 @@ impl DesktopErrorDto {
 
 fn safe_error(code: DesktopErrorCode) -> (&'static str, &'static str) {
     match code {
+        DesktopErrorCode::ProjectInvalidRequest => {
+            ("project.invalid_request", "The Project request was invalid.")
+        }
         DesktopErrorCode::ProjectNotFound => ("project.not_found", "The Project was not found."),
+        DesktopErrorCode::ProjectRevisionConflict => {
+            ("project.revision_conflict", "The Project changed. Reload and try again.")
+        }
+        DesktopErrorCode::ProjectMutationConflict => {
+            ("project.mutation_conflict", "The Project request conflicts with a prior request.")
+        }
         DesktopErrorCode::WorkflowRevisionConflict => {
             ("workflow.revision_conflict", "The Workflow changed. Reload and try again.")
         }

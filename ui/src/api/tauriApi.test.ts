@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AssetDto,
   AssistantSendInput,
+  Project,
   RunObserver,
   WorkflowRunEvent,
   WorkflowRunResult,
@@ -82,6 +83,58 @@ it("leaves null thumbnails and paths outside the asset root unchanged", async ()
   expect(converted.file_path).toBe("/tmp/outside/video.mp4");
   expect(converted.thumbnail_path).toBeNull();
   expect(convertFileSrcMock).not.toHaveBeenCalledWith("/tmp/outside/video.mp4");
+});
+
+it("uses the frozen Project commands, paginates, and deduplicates by Project ID", async () => {
+  const { tauriApi } = await import("./tauriApi.ts");
+  const alpha = projectFixture("alpha", "Alpha", "1");
+  const renamedAlpha = projectFixture("alpha", "Renamed", "2");
+  const beta = projectFixture("beta", "Beta", "1");
+  invokeMock
+    .mockResolvedValueOnce({ projects: [alpha, beta], next_cursor: "next" })
+    .mockResolvedValueOnce({ projects: [renamedAlpha], next_cursor: null });
+
+  await expect(tauriApi.listProjects()).resolves.toEqual([renamedAlpha, beta]);
+  expect(invokeMock).toHaveBeenNthCalledWith(1, "project_list", {
+    request: { limit: 100, cursor: null },
+  });
+  expect(invokeMock).toHaveBeenNthCalledWith(2, "project_list", {
+    request: { limit: 100, cursor: "next" },
+  });
+});
+
+it("sends canonical create, get, rename, and open Project requests", async () => {
+  const { tauriApi } = await import("./tauriApi.ts");
+  const project = projectFixture("alpha", "Alpha", "3");
+  invokeMock
+    .mockResolvedValueOnce(project)
+    .mockResolvedValueOnce(project)
+    .mockResolvedValueOnce({ ...project, name: "Renamed", revision: "4" })
+    .mockResolvedValueOnce({ project, current_workflow_summary: null });
+
+  await tauriApi.createProject("Alpha");
+  await tauriApi.getProject("alpha");
+  await tauriApi.renameProject(project, "Renamed");
+  await expect(tauriApi.openProject("alpha")).resolves.toEqual({
+    project,
+    current_workflow_summary: null,
+    workflow_head: null,
+  });
+
+  expect(invokeMock.mock.calls[0]?.[0]).toBe("project_create");
+  expect(invokeMock.mock.calls[0]?.[1]).toMatchObject({
+    request: { name: "Alpha" },
+  });
+  expect(invokeMock).toHaveBeenNthCalledWith(2, "project_get", {
+    request: { project_id: "alpha" },
+  });
+  expect(invokeMock.mock.calls[2]?.[0]).toBe("project_rename");
+  expect(invokeMock.mock.calls[2]?.[1]).toMatchObject({
+    request: { project_id: "alpha", expected_revision: "3", name: "Renamed" },
+  });
+  expect(invokeMock).toHaveBeenNthCalledWith(4, "project_open", {
+    request: { project_id: "alpha" },
+  });
 });
 
 it("applies Workflow patches through the shared Tauri command", async () => {
@@ -357,6 +410,16 @@ function assetFixture(overrides: Partial<AssetDto> = {}): AssetDto {
     tags: [],
     created_at: 0,
     ...overrides,
+  };
+}
+
+function projectFixture(id: string, name: string, revision: string): Project {
+  return {
+    id,
+    name,
+    revision,
+    created_at_epoch_ms: "0",
+    updated_at_epoch_ms: "0",
   };
 }
 

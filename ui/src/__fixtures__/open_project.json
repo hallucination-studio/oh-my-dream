@@ -1,27 +1,14 @@
 {
   "project": {
-    "id": "project-0000000000000001",
+    "id": "123e4567-e89b-42d3-a456-426600000001",
     "name": "Default",
-    "created_at": 0
+    "revision": "1",
+    "created_at_epoch_ms": "0",
+    "updated_at_epoch_ms": "0"
   },
-  "workflow_head": {
-    "project_id": "project-0000000000000001",
-    "revision": 1,
-    "workflow": {
-      "nodes": [
-        {
-          "contract_version": "1.0",
-          "id": "prompt",
-          "inputs": {},
-          "params": {
-            "text": "hello"
-          },
-          "position": null,
-          "type": "TextPrompt"
-        }
-      ],
-      "project_id": "project-0000000000000001",
-      "version": "1.0"
-    }
+  "current_workflow_summary": {
+    "workflow_id": "123e4567-e89b-42d3-a456-426600000002",
+    "workflow_revision": "1",
+    "readiness": "ready"
   }
 }

@@ -83,8 +83,19 @@ describe("M3 co-author flow", () => {
 
 function projectWorkspace(id: string, name: string, head: WorkflowHead | null): ProjectWorkspace {
   return {
-    project: { id, name, created_at: 0 },
+    project: project(id, name),
+    current_workflow_summary: null,
     workflow_head: head,
+  };
+}
+
+function project(id: string, name: string) {
+  return {
+    id,
+    name,
+    revision: "1",
+    created_at_epoch_ms: "0",
+    updated_at_epoch_ms: "0",
   };
 }
 

@@ -10,19 +10,22 @@ export function ProjectSwitcher({
   open,
   onClose,
   onOpenProject,
+  onProjectRenamed,
 }: {
   current: Project | null;
   open: boolean;
   onClose: () => void;
   onOpenProject: (id: string) => void;
+  onProjectRenamed: (project: Project) => void;
 }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [name, setName] = useState("");
+  const [renameName, setRenameName] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
-      api.listProjects().then(setProjects).catch(() => setProjects([]));
+      void refreshProjects(setProjects);
     }
   }, [open]);
 
@@ -50,7 +53,18 @@ export function ProjectSwitcher({
     }
     api.createProject(trimmed).then((p) => {
       setName("");
+      setProjects((currentProjects) => deduplicateProjects([p, ...currentProjects]));
       onOpenProject(p.id);
+    });
+  };
+
+  const rename = () => {
+    const trimmed = renameName.trim();
+    if (!current || !trimmed || trimmed === current.name) return;
+    void api.renameProject(current, trimmed).then(async (renamed) => {
+      setRenameName("");
+      onProjectRenamed(renamed);
+      setProjects(await api.listProjects().then(deduplicateProjects));
     });
   };
 
@@ -80,6 +94,31 @@ export function ProjectSwitcher({
         />
         <button className="psw__add" onClick={create}>Create</button>
       </div>
+      {current ? (
+        <div className="psw__new">
+          <input
+            aria-label="Rename current project"
+            name="project-rename"
+            value={renameName}
+            placeholder={`Rename ${current.name}…`}
+            onChange={(event) => setRenameName(event.target.value)}
+            onKeyDown={(event) => event.key === "Enter" && rename()}
+          />
+          <button className="psw__add" onClick={rename}>Rename</button>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+async function refreshProjects(setProjects: (projects: Project[]) => void) {
+  try {
+    setProjects(deduplicateProjects(await api.listProjects()));
+  } catch {
+    setProjects([]);
+  }
+}
+
+function deduplicateProjects(projects: Project[]): Project[] {
+  return [...new Map(projects.map((project) => [project.id, project])).values()];
 }

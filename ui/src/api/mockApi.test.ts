@@ -7,6 +7,14 @@ it("has no persistent asset root outside Tauri", async () => {
   await expect(mockApi.assetsRoot()).resolves.toBeNull();
 });
 
+it("persists Project rename for the next deduplicated list refresh", async () => {
+  const created = await mockApi.createProject("Before");
+  const renamed = await mockApi.renameProject(created, "After");
+
+  await expect(mockApi.getProject(created.id)).resolves.toEqual(renamed);
+  await expect(mockApi.listProjects()).resolves.toContainEqual(renamed);
+});
+
 it("preserves requested patch outputs and rejects undeclared names", async () => {
   const projectId = "named-output-project";
   const created = await mockApi.applyWorkflowPatch(projectId, "create", {

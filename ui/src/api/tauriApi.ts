@@ -169,15 +169,45 @@ async function assetsRoot(): Promise<string> {
 }
 
 async function listProjects(): Promise<Project[]> {
-  return invoke<Project[]>("list_projects");
+  const projects = new Map<string, Project>();
+  let cursor: string | null = null;
+  do {
+    const page: { projects: Project[]; next_cursor: string | null } = await invoke(
+      "project_list",
+      { request: { limit: 100, cursor } },
+    );
+    for (const project of page.projects) projects.set(project.id, project);
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+  return [...projects.values()];
 }
 
 async function createProject(name: string): Promise<Project> {
-  return invoke<Project>("create_project", { name });
+  return invoke<Project>("project_create", {
+    request: { request_id: crypto.randomUUID(), name },
+  });
+}
+
+async function getProject(id: string): Promise<Project> {
+  return invoke<Project>("project_get", { request: { project_id: id } });
+}
+
+async function renameProject(project: Project, name: string): Promise<Project> {
+  return invoke<Project>("project_rename", {
+    request: {
+      request_id: crypto.randomUUID(),
+      project_id: project.id,
+      expected_revision: project.revision,
+      name,
+    },
+  });
 }
 
 async function openProject(id: string): Promise<ProjectWorkspace> {
-  return invoke<ProjectWorkspace>("open_project", { id });
+  const workspace = await invoke<Omit<ProjectWorkspace, "workflow_head">>("project_open", {
+    request: { project_id: id },
+  });
+  return { ...workspace, workflow_head: null };
 }
 
 async function searchCapabilities(
@@ -289,6 +319,8 @@ export const tauriApi: WorkflowApi = {
   getAsset,
   listProjects,
   createProject,
+  getProject,
+  renameProject,
   openProject,
   searchCapabilities,
   getCapabilityBundles,

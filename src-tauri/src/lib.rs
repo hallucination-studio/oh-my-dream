@@ -34,6 +34,7 @@ pub mod post_commit_effect;
 pub mod post_commit_worker;
 pub mod production_plan;
 pub mod project_adapters;
+pub mod project_commands;
 pub mod provider_adapters;
 pub mod reviewed_change;
 pub mod state;
@@ -50,11 +51,12 @@ pub mod workspace_snapshot;
 
 use commands::{
     assets_root, assistant_decide_approval, assistant_get_pending_approval, assistant_send,
-    cancel_workflow_run, create_project, get_asset, get_assistant_config, get_capability_bundles,
-    get_capability_catalog, get_providers, list_assets, list_projects, open_project, run_workflow,
-    search_capabilities, set_active_provider, set_assistant_config, set_provider_key,
-    start_workflow_run, workflow_apply_patch,
+    cancel_workflow_run, get_asset, get_assistant_config, get_capability_bundles,
+    get_capability_catalog, get_providers, list_assets, run_workflow, search_capabilities,
+    set_active_provider, set_assistant_config, set_provider_key, start_workflow_run,
+    workflow_apply_patch,
 };
+use project_commands::{project_create, project_get, project_list, project_open, project_rename};
 use tauri::Manager;
 
 /// Runs the Tauri application.
@@ -62,9 +64,23 @@ pub fn run() -> tauri::Result<()> {
     init_logging();
     tauri::Builder::default()
         .setup(|app| {
+            let app_data_root = app
+                .handle()
+                .path()
+                .app_data_dir()
+                .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
+            let project_commands = tauri::async_runtime::block_on(
+                composition::DesktopCompositionRoot::compose_project_commands(
+                    composition::DesktopApplicationPaths::from_application_data_root(
+                        &app_data_root,
+                    ),
+                ),
+            )
+            .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
             let state = state::AppState::from_app_handle(app.handle())
                 .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
             app.manage(state);
+            app.manage(project_commands);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -77,9 +93,11 @@ pub fn run() -> tauri::Result<()> {
             list_assets,
             get_asset,
             assets_root,
-            list_projects,
-            create_project,
-            open_project,
+            project_create,
+            project_rename,
+            project_get,
+            project_list,
+            project_open,
             workflow_apply_patch,
             get_providers,
             set_active_provider,

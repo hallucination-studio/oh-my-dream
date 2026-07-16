@@ -38,7 +38,15 @@ export interface AssetDto {
 export interface Project {
   id: string;
   name: string;
-  created_at: number;
+  revision: string;
+  created_at_epoch_ms: string;
+  updated_at_epoch_ms: string;
+}
+
+export interface ProjectWorkflowSummary {
+  workflow_id: string;
+  workflow_revision: string;
+  readiness: "ready" | "blocked";
 }
 
 export interface WorkflowHead {
@@ -186,6 +194,8 @@ export interface WorkflowApplyPatchOutput {
 
 export interface ProjectWorkspace {
   project: Project;
+  current_workflow_summary: ProjectWorkflowSummary | null;
+  /** Removed by V3 when the canonical Workflow command slice activates. */
   workflow_head: WorkflowHead | null;
 }
 
@@ -333,6 +343,8 @@ export interface WorkflowApi {
   getAsset: (id: string) => Promise<AssetDto>;
   listProjects: () => Promise<Project[]>;
   createProject: (name: string) => Promise<Project>;
+  getProject: (id: string) => Promise<Project>;
+  renameProject: (project: Project, name: string) => Promise<Project>;
   openProject: (id: string) => Promise<ProjectWorkspace>;
   searchCapabilities: (request: CapabilitySearchRequest) => Promise<CapabilitySearchPage>;
   getCapabilityBundles: (refs: CapabilityRef[]) => Promise<CapabilityBundles>;

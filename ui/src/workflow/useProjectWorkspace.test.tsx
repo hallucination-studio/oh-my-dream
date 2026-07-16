@@ -139,7 +139,8 @@ describe("useProjectWorkspace", () => {
 
   it("adopts the authoritative mode contract after replacement succeeds", async () => {
     const alpha: ProjectWorkspace = {
-      project: { id: "alpha", name: "Alpha", created_at: 0 },
+      project: testProject("alpha", "Alpha"),
+      current_workflow_summary: null,
       workflow_head: {
         project_id: "alpha",
         revision: 1,
@@ -220,7 +221,18 @@ function useWorkspaceHarness() {
 
 function emptyWorkspace(id: string, name: string): ProjectWorkspace {
   return {
-    project: { id, name, created_at: 0 },
+    project: testProject(id, name),
+    current_workflow_summary: null,
     workflow_head: null,
+  };
+}
+
+function testProject(id: string, name: string): Project {
+  return {
+    id,
+    name,
+    revision: "1",
+    created_at_epoch_ms: "0",
+    updated_at_epoch_ms: "0",
   };
 }

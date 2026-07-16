@@ -94,13 +94,7 @@ pub fn assets_root_with_state(state: &AppState) -> Result<String, String> {
         .ok_or_else(|| command_error("resolve asset root", "asset root path is not valid UTF-8"))
 }
 
-/// Lists projects.
-#[tauri::command(rename_all = "snake_case")]
-pub fn list_projects(state: State<'_, AppState>) -> Result<Vec<ProjectDto>, String> {
-    list_projects_with_state(&state)
-}
-
-/// Lists projects against an explicit app state.
+/// Legacy integration helper retained until V3 deletes the old Workflow authority.
 pub fn list_projects_with_state(state: &AppState) -> Result<Vec<ProjectDto>, String> {
     let projects = state
         .store
@@ -111,13 +105,7 @@ pub fn list_projects_with_state(state: &AppState) -> Result<Vec<ProjectDto>, Str
     Ok(projects.into_iter().map(ProjectDto::from).collect())
 }
 
-/// Creates a project.
-#[tauri::command(rename_all = "snake_case")]
-pub fn create_project(name: String, state: State<'_, AppState>) -> Result<ProjectDto, String> {
-    create_project_with_state(name, &state)
-}
-
-/// Creates a project against an explicit app state.
+/// Legacy integration helper retained until V3 deletes the old Workflow authority.
 pub fn create_project_with_state(name: String, state: &AppState) -> Result<ProjectDto, String> {
     let project = state
         .store
@@ -128,16 +116,7 @@ pub fn create_project_with_state(name: String, state: &AppState) -> Result<Proje
     Ok(ProjectDto::from(project))
 }
 
-/// Opens a Project and returns its optional authoritative Workflow head.
-#[tauri::command(rename_all = "snake_case")]
-pub fn open_project(
-    id: String,
-    state: State<'_, AppState>,
-) -> Result<OpenProjectResultDto, String> {
-    open_project_with_state(id, &state)
-}
-
-/// Opens a project against an explicit app state.
+/// Legacy integration helper retained until V3 deletes the old Workflow authority.
 pub fn open_project_with_state(
     id: String,
     state: &AppState,

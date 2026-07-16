@@ -1,7 +1,9 @@
 use engine::{NodeExecutionState, NodeProgressEvent, PortType, RunOutputs, Value, ValueMap};
 use oh_my_dream_tauri::dto::{
-    AssetDto, AssistantConfigDto, CapabilityCatalogDto, NodeProgressEventDto, OpenProjectResultDto,
-    ProjectDto, RunWorkflowResultDto, WorkflowHeadDto,
+    AssetDto, AssistantConfigDto, CapabilityCatalogDto, NodeProgressEventDto, RunWorkflowResultDto,
+};
+use oh_my_dream_tauri::project_commands::{
+    ProjectDto, ProjectWorkflowReadinessDto, ProjectWorkflowSummaryDto, ProjectWorkspaceDto,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -63,34 +65,27 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     assert_eq!(
         serde_json::to_value(&project).expect("serialize project"),
         json!({
-            "id": "project-0000000000000001",
+            "id": "123e4567-e89b-42d3-a456-426600000001",
             "name": "Default",
-            "created_at": 0
+            "revision": "1",
+            "created_at_epoch_ms": "0",
+            "updated_at_epoch_ms": "0"
         })
     );
     assert_eq!(
         serde_json::to_value(&open_project).expect("serialize open project result"),
         json!({
             "project": {
-                "id": "project-0000000000000001",
+                "id": "123e4567-e89b-42d3-a456-426600000001",
                 "name": "Default",
-                "created_at": 0
+                "revision": "1",
+                "created_at_epoch_ms": "0",
+                "updated_at_epoch_ms": "0"
             },
-            "workflow_head": {
-                "project_id": "project-0000000000000001",
-                "revision": 1,
-                "workflow": {
-                    "version": "1.0",
-                    "project_id": "project-0000000000000001",
-                    "nodes": [{
-                        "id": "prompt",
-                        "type": "TextPrompt",
-                        "contract_version": "1.0",
-                        "params": {"text": "hello"},
-                        "inputs": {},
-                        "position": null
-                    }]
-                }
+            "current_workflow_summary": {
+                "workflow_id": "123e4567-e89b-42d3-a456-426600000002",
+                "workflow_revision": "1",
+                "readiness": "ready"
             }
         })
     );
@@ -240,30 +235,21 @@ fn asset_fixture() -> AssetDto {
 
 fn project_fixture() -> ProjectDto {
     ProjectDto {
-        id: "project-0000000000000001".to_owned(),
+        id: "123e4567-e89b-42d3-a456-426600000001".to_owned(),
         name: "Default".to_owned(),
-        created_at: 0,
+        revision: "1".to_owned(),
+        created_at_epoch_ms: "0".to_owned(),
+        updated_at_epoch_ms: "0".to_owned(),
     }
 }
 
-fn open_project_fixture() -> OpenProjectResultDto {
-    OpenProjectResultDto {
+fn open_project_fixture() -> ProjectWorkspaceDto {
+    ProjectWorkspaceDto {
         project: project_fixture(),
-        workflow_head: Some(WorkflowHeadDto {
-            project_id: "project-0000000000000001".to_owned(),
-            revision: 1,
-            workflow: json!({
-                "version": "1.0",
-                "project_id": "project-0000000000000001",
-                "nodes": [{
-                    "id": "prompt",
-                    "type": "TextPrompt",
-                    "contract_version": "1.0",
-                    "params": {"text": "hello"},
-                    "inputs": {},
-                    "position": null
-                }]
-            }),
+        current_workflow_summary: Some(ProjectWorkflowSummaryDto {
+            workflow_id: "123e4567-e89b-42d3-a456-426600000002".to_owned(),
+            workflow_revision: "1".to_owned(),
+            readiness: ProjectWorkflowReadinessDto::Ready,
         }),
     }
 }
