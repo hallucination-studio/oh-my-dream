@@ -7,15 +7,7 @@ use std::{
 };
 
 use engine::{
-    node_capability::WorkflowNodeCapabilityRegistry,
-    workflow::{WorkflowGetCurrentUseCase, WorkflowRunEventPublisherInterface},
-};
-use projects::project::{
-    application::{
-        ProjectCreateUseCase, ProjectGetUseCase, ProjectListUseCase, ProjectOpenUseCase,
-        ProjectRenameUseCase,
-    },
-    interfaces::{ProjectRepositoryInterface, ProjectWorkflowSummaryReaderInterface},
+    node_capability::WorkflowNodeCapabilityRegistry, workflow::WorkflowRunEventPublisherInterface,
 };
 use rusqlite::Connection;
 use uuid::Uuid;
@@ -27,7 +19,6 @@ use crate::{
         AssistantModelCredentialRepositoryInterface,
     },
     desktop_backend_config::{DesktopBackendConfig, DesktopBackendConfigRepositoryInterface},
-    desktop_bridges::DesktopProjectWorkflowBridgeAdapterImpl,
     metadata_sqlite::{metadata_sqlite_path, open_metadata_sqlite},
     post_commit_effect::{
         DesktopApplicationInstanceId, SqliteDesktopPostCommitEffectOutboxAdapterImpl,
@@ -38,17 +29,15 @@ use crate::{
         DesktopWorkflowRestartRecoveryAdapterImpl, DesktopWorkflowRunRestartInterrupterInterface,
         SystemDesktopPostCommitWorkerClockAdapterImpl,
     },
-    project_adapters::{
-        SqliteProjectRepositoryAdapterImpl, SystemProjectClockAdapterImpl,
-        UuidProjectIdentityGeneratorAdapterImpl,
-    },
     workflow_run_event_publisher::{
         DesktopEventEmitterInterface, TauriWorkflowRunEventPublisherAdapterImpl,
     },
     workflow_storage_adapters::SqliteWorkflowRunRepositoryAdapterImpl,
 };
 
+mod activated_commands;
 mod node_capabilities;
+pub use activated_commands::DesktopActivatedCommandDependencies;
 
 /// Filesystem locations derived from the operating-system application-data root.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -79,21 +68,6 @@ pub struct DesktopBusinessComposition {
     pub post_commit_effect_executor: Arc<dyn DesktopPostCommitEffectExecutorInterface>,
     /// Workflow-owned restart transition entry point.
     pub workflow_restart_interrupter: Arc<dyn DesktopWorkflowRunRestartInterrupterInterface>,
-}
-
-/// Typed dependencies for the five Project command entry points.
-pub struct DesktopProjectCommandDependencies {
-    /// Project creation application boundary.
-    pub create: Arc<ProjectCreateUseCase>,
-    /// Project rename application boundary.
-    pub rename: Arc<ProjectRenameUseCase>,
-    /// Exact Project query boundary.
-    pub get: Arc<ProjectGetUseCase>,
-    /// Stable Project list boundary.
-    pub list: Arc<ProjectListUseCase>,
-    /// Project plus same-snapshot current-Workflow summary boundary.
-    pub open: Arc<ProjectOpenUseCase>,
-    _metadata_connection: Arc<Mutex<Connection>>,
 }
 
 /// Fully constructed process host passed only to Tauri entry points.
@@ -173,50 +147,11 @@ const EXACT_NODE_CAPABILITY_REFS: [&str; 7] = [
 ];
 
 impl DesktopCompositionRoot {
-    /// Composes only the Project vertical slice activated by V1.
-    pub async fn compose_project_commands(
+    /// Composes the command slices activated through the current V leaf.
+    pub async fn compose_activated_commands(
         paths: DesktopApplicationPaths,
-    ) -> Result<DesktopProjectCommandDependencies, DesktopCompositionError> {
-        std::fs::create_dir_all(&paths.config_root)
-            .map_err(|_| DesktopCompositionError::Metadata)?;
-        let connection = Arc::new(Mutex::new(
-            open_metadata_sqlite(&metadata_sqlite_path(&paths.config_root))
-                .map_err(|_| DesktopCompositionError::Metadata)?,
-        ));
-        let settings = Arc::new(
-            SqliteDesktopBackendSettingsAdapterImpl::try_new(connection.clone())
-                .map_err(|_| DesktopCompositionError::Config)?,
-        );
-        let config = settings
-            .load_or_initialize_desktop_backend_config()
-            .await
-            .map_err(|_| DesktopCompositionError::Config)?;
-        SqliteDesktopPostCommitEffectOutboxAdapterImpl::try_new(connection.clone())
-            .map_err(|_| DesktopCompositionError::Metadata)?;
-        let capabilities = node_capabilities::compose_node_capabilities(
-            connection.clone(),
-            paths.managed_content_root,
-            paths.media_inspector_executable,
-            settings,
-            &config,
-        )?;
-        let workflow_repository = Arc::new(
-            SqliteWorkflowRunRepositoryAdapterImpl::try_new(
-                connection.clone(),
-                capabilities.clone(),
-            )
-            .map_err(|_| DesktopCompositionError::Metadata)?,
-        );
-        let project_repository = Arc::new(
-            SqliteProjectRepositoryAdapterImpl::try_new(connection.clone())
-                .map_err(|_| DesktopCompositionError::Metadata)?,
-        );
-        Ok(project_command_dependencies(
-            connection,
-            project_repository,
-            workflow_repository,
-            capabilities,
-        ))
+    ) -> Result<DesktopActivatedCommandDependencies, DesktopCompositionError> {
+        activated_commands::compose(paths).await
     }
 
     /// Builds the host while allowing tests to substitute a deterministic business graph.
@@ -249,20 +184,20 @@ impl DesktopCompositionRoot {
             SqliteDesktopPostCommitEffectOutboxAdapterImpl::try_new(Arc::clone(&connection))
                 .map_err(|_| DesktopCompositionError::Metadata)?,
         );
-        let capabilities = node_capabilities::compose_node_capabilities(
+        let node_composition = node_capabilities::compose_node_capabilities(
             Arc::clone(&connection),
             paths.managed_content_root,
             paths.media_inspector_executable,
             Arc::clone(&settings),
             &config,
         )?;
-        if !has_exact_node_capabilities(&capabilities) {
+        if !has_exact_node_capabilities(&node_composition.registry) {
             return Err(DesktopCompositionError::Business);
         }
         let workflow_repository = Arc::new(
             SqliteWorkflowRunRepositoryAdapterImpl::try_new(
                 Arc::clone(&connection),
-                Arc::clone(&capabilities),
+                Arc::clone(&node_composition.registry),
             )
             .map_err(|_| DesktopCompositionError::Metadata)?,
         );
@@ -278,7 +213,7 @@ impl DesktopCompositionRoot {
                 workflow_repository,
                 outbox,
                 publisher,
-                node_capabilities: capabilities,
+                node_capabilities: node_composition.registry,
             },
             business,
         )
@@ -334,31 +269,6 @@ impl DesktopCompositionRoot {
         };
         host.recover_before_accepting_commands().await?;
         Ok(host)
-    }
-}
-
-fn project_command_dependencies(
-    connection: Arc<Mutex<Connection>>,
-    repository: Arc<SqliteProjectRepositoryAdapterImpl>,
-    workflow_repository: Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
-    capabilities: Arc<WorkflowNodeCapabilityRegistry>,
-) -> DesktopProjectCommandDependencies {
-    let repository_interface: Arc<dyn ProjectRepositoryInterface> = repository;
-    let clock = Arc::new(SystemProjectClockAdapterImpl);
-    let get_current = Arc::new(WorkflowGetCurrentUseCase::new(workflow_repository));
-    let summary: Arc<dyn ProjectWorkflowSummaryReaderInterface> =
-        Arc::new(DesktopProjectWorkflowBridgeAdapterImpl::new(get_current, capabilities));
-    DesktopProjectCommandDependencies {
-        create: Arc::new(ProjectCreateUseCase::new(
-            repository_interface.clone(),
-            clock.clone(),
-            Arc::new(UuidProjectIdentityGeneratorAdapterImpl),
-        )),
-        rename: Arc::new(ProjectRenameUseCase::new(repository_interface.clone(), clock)),
-        get: Arc::new(ProjectGetUseCase::new(repository_interface.clone())),
-        list: Arc::new(ProjectListUseCase::new(repository_interface.clone())),
-        open: Arc::new(ProjectOpenUseCase::new(repository_interface, summary)),
-        _metadata_connection: connection,
     }
 }
 

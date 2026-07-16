@@ -17,9 +17,11 @@ import type {
   CapabilityBundle,
   CapabilityCatalog,
   CapabilityRef,
+  GenerationProfileForCapability,
   CapabilitySearchPage,
   CapabilitySearchRequest,
   Project,
+  NodeCapabilityContractDto,
   RunHandle,
   RunObserver,
   WorkflowApi,
@@ -194,6 +196,16 @@ async function openProject(id: string) {
     current_workflow_summary: null,
     workflow_head: mockHeads.get(id) ?? null,
   };
+}
+
+async function nodeCapabilityList(): Promise<NodeCapabilityContractDto[]> {
+  return [];
+}
+
+async function generationProfileListForCapability(
+  _reference: CapabilityRef,
+): Promise<GenerationProfileForCapability[]> {
+  return [];
 }
 
 function mockProject(id: string, name: string): Project {
@@ -426,6 +438,8 @@ export const mockApi: WorkflowApi = {
   getProject,
   renameProject,
   openProject,
+  nodeCapabilityList,
+  generationProfileListForCapability,
   searchCapabilities,
   getCapabilityBundles,
   applyWorkflowPatch,

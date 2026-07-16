@@ -258,6 +258,8 @@ function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
     getProject: vi.fn(),
     renameProject: vi.fn(),
     openProject: vi.fn(),
+    nodeCapabilityList: vi.fn(),
+    generationProfileListForCapability: vi.fn(),
     searchCapabilities: vi.fn(),
     getCapabilityBundles: vi.fn(),
     applyWorkflowPatch: vi.fn(),

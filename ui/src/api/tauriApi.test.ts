@@ -137,6 +137,25 @@ it("sends canonical create, get, rename, and open Project requests", async () =>
   });
 });
 
+it("uses the exact Node Capability and Generation Profile commands", async () => {
+  const { tauriApi } = await import("./tauriApi.ts");
+  invokeMock.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+  await tauriApi.nodeCapabilityList();
+  await tauriApi.generationProfileListForCapability({
+    id: "image.generate_from_text",
+    version: "1.0",
+  });
+
+  expect(invokeMock).toHaveBeenNthCalledWith(1, "node_capability_list", { request: {} });
+  expect(invokeMock).toHaveBeenNthCalledWith(2, "generation_profile_list_for_capability", {
+    request: {
+      capability_id: "image.generate_from_text",
+      capability_version: "1.0",
+    },
+  });
+});
+
 it("applies Workflow patches through the shared Tauri command", async () => {
   const { tauriApi } = await import("./tauriApi.ts");
   const input = {

@@ -6,6 +6,8 @@ import assistantApprovalFixture from "../__fixtures__/assistant_approval.json";
 import capabilityCatalogFixture from "../__fixtures__/capability_catalog.json";
 import progressFixture from "../__fixtures__/node_progress_event.json";
 import openProjectFixture from "../__fixtures__/open_project.json";
+import nodeCapabilitiesFixture from "../__fixtures__/node_capabilities.json";
+import generationProfilesFixture from "../__fixtures__/generation_profiles.json";
 import projectFixture from "../__fixtures__/project.json";
 import runWorkflowFixture from "../__fixtures__/run_workflow_result.json";
 import {
@@ -32,6 +34,8 @@ describe("backend DTO fixtures", () => {
     expect(isAsset(assetFixture)).toBe(true);
     expect(isProject(projectFixture)).toBe(true);
     expect(isOpenProject(openProjectFixture)).toBe(true);
+    expect(isNodeCapabilityList(nodeCapabilitiesFixture)).toBe(true);
+    expect(isGenerationProfileList(generationProfilesFixture)).toBe(true);
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
     expect(isAssistantConfig(assistantConfigFixture)).toBe(true);
     expect(isCapabilityCatalog(capabilityCatalogFixture)).toBe(true);
@@ -77,6 +81,31 @@ function isAssistantApprovalFixture(value: unknown): value is {
     typeof decision.approval_scope_id === "string" &&
     typeof decision.candidate_digest === "string" &&
     typeof decision.approved === "boolean"
+  );
+}
+
+function isNodeCapabilityList(value: unknown): boolean {
+  return Array.isArray(value) && value.length === 7 && value.every((contract) =>
+    isRecord(contract) &&
+    isRecord(contract.capability_ref) &&
+    typeof contract.capability_ref.id === "string" &&
+    typeof contract.capability_ref.version === "string" &&
+    Array.isArray(contract.parameters) &&
+    Array.isArray(contract.inputs) &&
+    Array.isArray(contract.outputs) &&
+    typeof contract.execution_kind === "string"
+  );
+}
+
+function isGenerationProfileList(value: unknown): boolean {
+  return Array.isArray(value) && value.every((profile) =>
+    isRecord(profile) &&
+    typeof profile.profile_ref === "string" &&
+    typeof profile.display_name === "string" &&
+    isRecord(profile.availability) &&
+    typeof profile.availability.state === "string" &&
+    typeof profile.availability.observed_at_epoch_ms === "string" &&
+    typeof profile.availability.expires_at_epoch_ms === "string"
   );
 }
 

@@ -7,7 +7,7 @@ use crate::composition::{DesktopApplicationPaths, DesktopCompositionRoot};
 #[tokio::test]
 async fn activates_create_get_rename_list_and_open_with_canonical_dtos() {
     let directory = tempdir().expect("directory");
-    let dependencies = DesktopCompositionRoot::compose_project_commands(
+    let dependencies = DesktopCompositionRoot::compose_activated_commands(
         DesktopApplicationPaths::from_application_data_root(directory.path()),
     )
     .await
@@ -67,7 +67,7 @@ async fn activates_create_get_rename_list_and_open_with_canonical_dtos() {
 #[tokio::test]
 async fn list_cursor_is_canonical_bounded_and_does_not_repeat_project_ids() {
     let directory = tempdir().expect("directory");
-    let dependencies = DesktopCompositionRoot::compose_project_commands(
+    let dependencies = DesktopCompositionRoot::compose_activated_commands(
         DesktopApplicationPaths::from_application_data_root(directory.path()),
     )
     .await
@@ -118,7 +118,7 @@ async fn list_cursor_is_canonical_bounded_and_does_not_repeat_project_ids() {
 #[tokio::test]
 async fn rejects_noncanonical_identity_revision_and_idempotency_conflict_safely() {
     let directory = tempdir().expect("directory");
-    let dependencies = DesktopCompositionRoot::compose_project_commands(
+    let dependencies = DesktopCompositionRoot::compose_activated_commands(
         DesktopApplicationPaths::from_application_data_root(directory.path()),
     )
     .await

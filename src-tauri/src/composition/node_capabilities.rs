@@ -20,10 +20,10 @@ use backends::provider_routing::{
 };
 use engine::node_capability::{WorkflowNodeCapabilityInterface, WorkflowNodeCapabilityRegistry};
 use nodes::{
-    GenerationProfileCatalog, GenerationProfileId, GenerationProfileRef, GenerationProfileVersion,
-    ImageToVideoCapabilityImpl, ProvideLiteralTextCapabilityImpl, ReadAudioAssetCapabilityImpl,
-    ReadImageAssetCapabilityImpl, ReadVideoAssetCapabilityImpl, TextToImageCapabilityImpl,
-    TextToSpeechCapabilityImpl,
+    GenerationProfileAvailabilityReaderInterface, GenerationProfileCatalog, GenerationProfileId,
+    GenerationProfileRef, GenerationProfileVersion, ImageToVideoCapabilityImpl,
+    ProvideLiteralTextCapabilityImpl, ReadAudioAssetCapabilityImpl, ReadImageAssetCapabilityImpl,
+    ReadVideoAssetCapabilityImpl, TextToImageCapabilityImpl, TextToSpeechCapabilityImpl,
 };
 use rusqlite::Connection;
 
@@ -48,13 +48,19 @@ use crate::{
     },
 };
 
+pub(super) struct DesktopNodeCapabilityComposition {
+    pub(super) registry: Arc<WorkflowNodeCapabilityRegistry>,
+    pub(super) catalog: Arc<GenerationProfileCatalog>,
+    pub(super) availability_reader: Arc<dyn GenerationProfileAvailabilityReaderInterface>,
+}
+
 pub(super) fn compose_node_capabilities(
     connection: Arc<Mutex<Connection>>,
     managed_content_root: PathBuf,
     media_inspector_executable: PathBuf,
     settings: Arc<SqliteDesktopBackendSettingsAdapterImpl>,
     config: &DesktopBackendConfig,
-) -> Result<Arc<WorkflowNodeCapabilityRegistry>, DesktopCompositionError> {
+) -> Result<DesktopNodeCapabilityComposition, DesktopCompositionError> {
     let bridge =
         compose_asset_bridge(connection, managed_content_root, media_inspector_executable)?;
     let (text_to_image, image_to_video, text_to_speech) =
@@ -104,13 +110,20 @@ pub(super) fn compose_node_capabilities(
             .map_err(|_| DesktopCompositionError::Business)?,
         ),
         Arc::new(
-            TextToSpeechCapabilityImpl::try_new(catalog, availability, text_to_speech, bridge)
-                .map_err(|_| DesktopCompositionError::Business)?,
+            TextToSpeechCapabilityImpl::try_new(
+                catalog.clone(),
+                availability.clone(),
+                text_to_speech,
+                bridge,
+            )
+            .map_err(|_| DesktopCompositionError::Business)?,
         ),
     ];
-    WorkflowNodeCapabilityRegistry::try_new(implementations)
-        .map(Arc::new)
-        .map_err(|_| DesktopCompositionError::Business)
+    let registry = Arc::new(
+        WorkflowNodeCapabilityRegistry::try_new(implementations)
+            .map_err(|_| DesktopCompositionError::Business)?,
+    );
+    Ok(DesktopNodeCapabilityComposition { registry, catalog, availability_reader: availability })
 }
 
 fn compose_asset_bridge(

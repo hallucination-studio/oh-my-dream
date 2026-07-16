@@ -49,6 +49,31 @@ export interface ProjectWorkflowSummary {
   readiness: "ready" | "blocked";
 }
 
+export interface NodeCapabilityContractDto {
+  capability_ref: CapabilityRef;
+  parameters: Array<{ key: string; constraint: Record<string, unknown>; presence: Record<string, unknown> }>;
+  inputs: Array<{ key: string; binding: Record<string, unknown> }>;
+  outputs: Array<{ key: string; data_type: "text" | "image" | "video" | "audio"; is_primary: boolean }>;
+  execution_kind:
+    | "pure_value"
+    | "managed_asset_read"
+    | "content_generation"
+    | "media_transformation"
+    | "content_analysis";
+}
+
+export interface GenerationProfileForCapability {
+  profile_ref: string;
+  display_name: string;
+  availability: {
+    state: "available" | "unavailable" | "indeterminate";
+    reason: string | null;
+    retry_after_epoch_ms: string | null;
+    observed_at_epoch_ms: string;
+    expires_at_epoch_ms: string;
+  };
+}
+
 export interface WorkflowHead {
   project_id: string;
   revision: number;
@@ -346,6 +371,10 @@ export interface WorkflowApi {
   getProject: (id: string) => Promise<Project>;
   renameProject: (project: Project, name: string) => Promise<Project>;
   openProject: (id: string) => Promise<ProjectWorkspace>;
+  nodeCapabilityList: () => Promise<NodeCapabilityContractDto[]>;
+  generationProfileListForCapability: (
+    reference: CapabilityRef,
+  ) => Promise<GenerationProfileForCapability[]>;
   searchCapabilities: (request: CapabilitySearchRequest) => Promise<CapabilitySearchPage>;
   getCapabilityBundles: (refs: CapabilityRef[]) => Promise<CapabilityBundles>;
   applyWorkflowPatch: (

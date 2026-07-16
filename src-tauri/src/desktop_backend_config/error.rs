@@ -7,6 +7,7 @@ pub enum DesktopErrorCode {
     ProjectNotFound,
     ProjectRevisionConflict,
     ProjectMutationConflict,
+    NodeCapabilityInvalidRequest,
     WorkflowRevisionConflict,
     ProviderUnavailable,
     AssistantProtocolViolation,
@@ -85,6 +86,9 @@ fn safe_error(code: DesktopErrorCode) -> (&'static str, &'static str) {
         }
         DesktopErrorCode::ProjectMutationConflict => {
             ("project.mutation_conflict", "The Project request conflicts with a prior request.")
+        }
+        DesktopErrorCode::NodeCapabilityInvalidRequest => {
+            ("node_capability.invalid_request", "The Node Capability request was invalid.")
         }
         DesktopErrorCode::WorkflowRevisionConflict => {
             ("workflow.revision_conflict", "The Workflow changed. Reload and try again.")

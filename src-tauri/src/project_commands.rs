@@ -14,7 +14,7 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::{
-    composition::DesktopProjectCommandDependencies,
+    composition::DesktopActivatedCommandDependencies,
     desktop_backend_config::{DesktopErrorContext, DesktopErrorDto, DesktopErrorTarget},
 };
 
@@ -126,14 +126,14 @@ pub struct ProjectWorkspaceDto {
 #[tauri::command(rename_all = "snake_case")]
 pub async fn project_create(
     request: ProjectCreateRequestDto,
-    state: State<'_, DesktopProjectCommandDependencies>,
+    state: State<'_, DesktopActivatedCommandDependencies>,
 ) -> Result<ProjectDto, DesktopErrorDto> {
     project_create_with_dependencies(request, &state).await
 }
 
 pub(crate) async fn project_create_with_dependencies(
     request: ProjectCreateRequestDto,
-    state: &DesktopProjectCommandDependencies,
+    state: &DesktopActivatedCommandDependencies,
 ) -> Result<ProjectDto, DesktopErrorDto> {
     let request = ProjectCreateRequest {
         request_id: mutation_request_id(&request.request_id)?,
@@ -146,14 +146,14 @@ pub(crate) async fn project_create_with_dependencies(
 #[tauri::command(rename_all = "snake_case")]
 pub async fn project_rename(
     request: ProjectRenameRequestDto,
-    state: State<'_, DesktopProjectCommandDependencies>,
+    state: State<'_, DesktopActivatedCommandDependencies>,
 ) -> Result<ProjectDto, DesktopErrorDto> {
     project_rename_with_dependencies(request, &state).await
 }
 
 pub(crate) async fn project_rename_with_dependencies(
     request: ProjectRenameRequestDto,
-    state: &DesktopProjectCommandDependencies,
+    state: &DesktopActivatedCommandDependencies,
 ) -> Result<ProjectDto, DesktopErrorDto> {
     let request = ProjectRenameRequest {
         request_id: mutation_request_id(&request.request_id)?,
@@ -168,14 +168,14 @@ pub(crate) async fn project_rename_with_dependencies(
 #[tauri::command(rename_all = "snake_case")]
 pub async fn project_get(
     request: ProjectGetRequestDto,
-    state: State<'_, DesktopProjectCommandDependencies>,
+    state: State<'_, DesktopActivatedCommandDependencies>,
 ) -> Result<ProjectDto, DesktopErrorDto> {
     project_get_with_dependencies(request, &state).await
 }
 
 pub(crate) async fn project_get_with_dependencies(
     request: ProjectGetRequestDto,
-    state: &DesktopProjectCommandDependencies,
+    state: &DesktopActivatedCommandDependencies,
 ) -> Result<ProjectDto, DesktopErrorDto> {
     state
         .get
@@ -189,14 +189,14 @@ pub(crate) async fn project_get_with_dependencies(
 #[tauri::command(rename_all = "snake_case")]
 pub async fn project_list(
     request: ProjectListRequestDto,
-    state: State<'_, DesktopProjectCommandDependencies>,
+    state: State<'_, DesktopActivatedCommandDependencies>,
 ) -> Result<ProjectListPageDto, DesktopErrorDto> {
     project_list_with_dependencies(request, &state).await
 }
 
 pub(crate) async fn project_list_with_dependencies(
     request: ProjectListRequestDto,
-    state: &DesktopProjectCommandDependencies,
+    state: &DesktopActivatedCommandDependencies,
 ) -> Result<ProjectListPageDto, DesktopErrorDto> {
     let page = state
         .list
@@ -216,14 +216,14 @@ pub(crate) async fn project_list_with_dependencies(
 #[tauri::command(rename_all = "snake_case")]
 pub async fn project_open(
     request: ProjectOpenRequestDto,
-    state: State<'_, DesktopProjectCommandDependencies>,
+    state: State<'_, DesktopActivatedCommandDependencies>,
 ) -> Result<ProjectWorkspaceDto, DesktopErrorDto> {
     project_open_with_dependencies(request, &state).await
 }
 
 pub(crate) async fn project_open_with_dependencies(
     request: ProjectOpenRequestDto,
-    state: &DesktopProjectCommandDependencies,
+    state: &DesktopActivatedCommandDependencies,
 ) -> Result<ProjectWorkspaceDto, DesktopErrorDto> {
     state
         .open

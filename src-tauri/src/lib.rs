@@ -30,6 +30,7 @@ pub mod dto;
 mod managed_asset_access;
 pub(crate) mod metadata_sqlite;
 mod mock_generation;
+pub mod node_capability_commands;
 pub mod post_commit_effect;
 pub mod post_commit_worker;
 pub mod production_plan;
@@ -56,6 +57,7 @@ use commands::{
     set_active_provider, set_assistant_config, set_provider_key, start_workflow_run,
     workflow_apply_patch,
 };
+use node_capability_commands::{generation_profile_list_for_capability, node_capability_list};
 use project_commands::{project_create, project_get, project_list, project_open, project_rename};
 use tauri::Manager;
 
@@ -70,7 +72,7 @@ pub fn run() -> tauri::Result<()> {
                 .app_data_dir()
                 .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
             let project_commands = tauri::async_runtime::block_on(
-                composition::DesktopCompositionRoot::compose_project_commands(
+                composition::DesktopCompositionRoot::compose_activated_commands(
                     composition::DesktopApplicationPaths::from_application_data_root(
                         &app_data_root,
                     ),
@@ -98,6 +100,8 @@ pub fn run() -> tauri::Result<()> {
             project_get,
             project_list,
             project_open,
+            node_capability_list,
+            generation_profile_list_for_capability,
             workflow_apply_patch,
             get_providers,
             set_active_provider,

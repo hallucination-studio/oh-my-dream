@@ -1,0 +1,13 @@
+[
+  {
+    "availability": {
+      "expires_at_epoch_ms": "1784215018237",
+      "observed_at_epoch_ms": "1784214988237",
+      "reason": "no_configured_route",
+      "retry_after_epoch_ms": null,
+      "state": "unavailable"
+    },
+    "display_name": "High Quality Image",
+    "profile_ref": "image.high_quality_general@1"
+  }
+]

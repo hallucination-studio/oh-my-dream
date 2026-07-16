@@ -5,6 +5,13 @@ use oh_my_dream_tauri::dto::{
 use oh_my_dream_tauri::project_commands::{
     ProjectDto, ProjectWorkflowReadinessDto, ProjectWorkflowSummaryDto, ProjectWorkspaceDto,
 };
+use oh_my_dream_tauri::{
+    composition::{DesktopApplicationPaths, DesktopCompositionRoot},
+    node_capability_commands::{
+        GenerationProfileListForCapabilityRequestDto, generation_profile_list_with_dependencies,
+        node_capability_list_with_dependencies,
+    },
+};
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
@@ -28,6 +35,7 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let node_contracts = node_contract_fixture();
     let assistant_operations = assistant_operation_contract::fixture();
     let assistant_approval = assistant_approval_contract::fixture();
+    let (node_capabilities, generation_profiles) = node_capability_fixtures();
 
     assert_eq!(
         serde_json::to_value(&run_result).expect("serialize run workflow result"),
@@ -118,6 +126,33 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     write_fixture("node_contracts.json", &node_contracts);
     write_fixture("assistant_operations.json", &assistant_operations);
     write_fixture("assistant_approval.json", &assistant_approval);
+    write_fixture("node_capabilities.json", &node_capabilities);
+    write_fixture("generation_profiles.json", &generation_profiles);
+}
+
+fn node_capability_fixtures() -> (serde_json::Value, serde_json::Value) {
+    let directory = tempdir().expect("node capability fixture root");
+    tauri::async_runtime::block_on(async {
+        let dependencies = DesktopCompositionRoot::compose_activated_commands(
+            DesktopApplicationPaths::from_application_data_root(directory.path()),
+        )
+        .await
+        .expect("compose activated commands");
+        let contracts = node_capability_list_with_dependencies(&dependencies);
+        let profiles = generation_profile_list_with_dependencies(
+            GenerationProfileListForCapabilityRequestDto {
+                capability_id: "image.generate_from_text".to_owned(),
+                capability_version: "1.0".to_owned(),
+            },
+            &dependencies,
+        )
+        .await
+        .expect("list profiles");
+        (
+            serde_json::to_value(contracts).expect("serialize contracts"),
+            serde_json::to_value(profiles).expect("serialize profiles"),
+        )
+    })
 }
 
 fn capability_catalog_fixture() -> CapabilityCatalogDto {

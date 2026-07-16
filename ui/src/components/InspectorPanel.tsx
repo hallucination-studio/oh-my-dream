@@ -3,6 +3,7 @@
 
 import type { NodeTypeSpec } from "../nodes/catalog.ts";
 import { ParameterInput } from "../nodes/ParameterInput.tsx";
+import { GenerationProfileSelector } from "./GenerationProfileSelector.tsx";
 import { nodeAccent } from "../nodes/typeColor.ts";
 import "./inspector.css";
 
@@ -47,6 +48,9 @@ export function InspectorPanel({
   const accent = spec ? nodeAccent(spec.outputs, spec.inputs) : "var(--ink-3)";
   const produces = spec && spec.outputs.some((o) => ["image", "video", "audio"].includes(o.type));
   const isAsset = spec?.contextualCreationRoute === "asset_library";
+  const isGeneration = spec?.ref.id === "image.generate_from_text"
+    || spec?.ref.id === "video.generate_from_image"
+    || spec?.ref.id === "audio.synthesize_speech_from_text";
 
   return (
     <aside className="insp">
@@ -90,6 +94,19 @@ export function InspectorPanel({
           {spec.status.reason ?? "Capability needs repair before it can run."}
         </div>
       )}
+
+      {isGeneration && spec ? (
+        <label className="insp__field">
+          <span className="insp__label">Generation profile</span>
+          <GenerationProfileSelector
+            capability={spec.ref}
+            value={typeof node.params.generation_profile_ref === "string"
+              ? node.params.generation_profile_ref
+              : ""}
+            onChange={(value) => onParamChange(node.id, "generation_profile_ref", value)}
+          />
+        </label>
+      ) : null}
 
       {!isAsset && spec && spec.params.length > 0 ? (
         <>

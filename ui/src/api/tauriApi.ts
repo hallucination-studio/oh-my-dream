@@ -20,7 +20,9 @@ import type {
   CapabilitySearchPage,
   CapabilitySearchRequest,
   CapabilityRef,
+  GenerationProfileForCapability,
   ListAssetsOptions,
+  NodeCapabilityContractDto,
   Project,
   ProjectWorkspace,
   Provider,
@@ -210,6 +212,21 @@ async function openProject(id: string): Promise<ProjectWorkspace> {
   return { ...workspace, workflow_head: null };
 }
 
+async function nodeCapabilityList(): Promise<NodeCapabilityContractDto[]> {
+  return invoke<NodeCapabilityContractDto[]>("node_capability_list", { request: {} });
+}
+
+async function generationProfileListForCapability(
+  reference: CapabilityRef,
+): Promise<GenerationProfileForCapability[]> {
+  return invoke<GenerationProfileForCapability[]>("generation_profile_list_for_capability", {
+    request: {
+      capability_id: reference.id,
+      capability_version: reference.version,
+    },
+  });
+}
+
 async function searchCapabilities(
   request: CapabilitySearchRequest,
 ): Promise<CapabilitySearchPage> {
@@ -322,6 +339,8 @@ export const tauriApi: WorkflowApi = {
   getProject,
   renameProject,
   openProject,
+  nodeCapabilityList,
+  generationProfileListForCapability,
   searchCapabilities,
   getCapabilityBundles,
   applyWorkflowPatch,

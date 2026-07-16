@@ -5,6 +5,7 @@ import type {
   CapabilitySearchPage,
   CapabilitySummary,
 } from "../api/types.ts";
+import { api, type NodeCapabilityContractDto } from "../api/index.ts";
 import type { NodeTypeSpec } from "../nodes/catalog.ts";
 import { isPaletteVisible, paletteCreation } from "../nodes/catalog.ts";
 import { nodeAccent } from "../nodes/typeColor.ts";
@@ -24,7 +25,24 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd, onOpenAss
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [contracts, setContracts] = useState<NodeCapabilityContractDto[] | null>();
   const offersAssetRoute = query.toLowerCase().includes("asset");
+
+  useEffect(() => {
+    if (contracts !== null) return;
+    let active = true;
+    void api
+      .nodeCapabilityList()
+      .then((items) => {
+        if (active) setContracts(items.length > 0 ? items : null);
+      })
+      .catch(() => {
+        if (active) setContracts(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -39,11 +57,16 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd, onOpenAss
     return () => {
       active = false;
     };
-  }, [onSearch, query]);
+  }, [contracts, onSearch, query]);
 
   const groups = useMemo(() => {
     const grouped: { category: string; nodes: CapabilitySummary[] }[] = [];
-    for (const summary of summaries.filter(isPaletteVisible)) {
+    const visibleSummaries = Array.isArray(contracts)
+      ? contracts.map(contractSummary).filter((summary) =>
+          summary.presentation.label.toLowerCase().includes(query.toLowerCase())
+          || summary.reference.id.includes(query.toLowerCase()))
+      : summaries.filter(isPaletteVisible);
+    for (const summary of visibleSummaries) {
       let group = grouped.find((candidate) => candidate.category === summary.presentation.category);
       if (!group) {
         group = { category: summary.presentation.category, nodes: [] };
@@ -52,7 +75,7 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd, onOpenAss
       group.nodes.push(summary);
     }
     return grouped;
-  }, [summaries]);
+  }, [contracts, query, summaries]);
 
   const loadMore = () => {
     if (!nextCursor || loading) return;
@@ -149,6 +172,31 @@ export function NodeLibrary({ summaries, loadedSpecs, onSearch, onAdd, onOpenAss
       <p className="nlib__foot">Drag onto the canvas, or select a node to load its exact contract.</p>
     </aside>
   );
+}
+
+function contractSummary(contract: NodeCapabilityContractDto): CapabilitySummary {
+  const presentation = presentationFor(contract.capability_ref.id);
+  return {
+    selector: { type_id: contract.capability_ref.id, mode: "" },
+    reference: contract.capability_ref,
+    presentation,
+    contextual_creation: null,
+    status: { availability: "available", reason: null, provider_health: null, status_revision: 0 },
+  };
+}
+
+function presentationFor(id: string) {
+  const values: Record<string, { label: string; category: string }> = {
+    "text.provide_literal": { label: "Text", category: "Text" },
+    "image.read_asset": { label: "Image Asset", category: "Assets" },
+    "video.read_asset": { label: "Video Asset", category: "Assets" },
+    "audio.read_asset": { label: "Audio Asset", category: "Assets" },
+    "image.generate_from_text": { label: "Text to Image", category: "Generation" },
+    "video.generate_from_image": { label: "Image to Video", category: "Generation" },
+    "audio.synthesize_speech_from_text": { label: "Text to Speech", category: "Generation" },
+  };
+  const value = values[id] ?? { label: id, category: "Other" };
+  return { ...value, description: value.label, search_terms: [id] };
 }
 
 function categoryColor(summary: CapabilitySummary | undefined, specs: readonly NodeTypeSpec[]): string {
