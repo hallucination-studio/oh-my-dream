@@ -86,6 +86,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "assistant"
+version = "0.1.0"
+dependencies = [
+ "projects",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -6,6 +6,7 @@ members = [
     "crates/nodes",
     "crates/backends",
     "crates/assets",
+    "crates/assistant",
     "src-tauri",
 ]
 
@@ -43,5 +44,6 @@ getrandom = "0.2"
 engine = { path = "crates/engine" }
 backends = { path = "crates/backends" }
 assets = { path = "crates/assets" }
+assistant = { path = "crates/assistant" }
 nodes = { path = "crates/nodes" }
 projects = { path = "crates/projects" }
