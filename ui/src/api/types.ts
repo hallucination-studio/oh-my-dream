@@ -165,28 +165,6 @@ export interface ProjectWorkspace {
 
 export type OpenProjectResult = ProjectWorkspace;
 
-export interface Provider {
-  id: string;
-  name: string;
-  active: boolean;
-  has_key: boolean;
-}
-
-export interface AssistantConfig {
-  enabled: boolean;
-  base_url: string;
-  model: string;
-  has_key: boolean;
-}
-
-export interface AssistantConfigInput {
-  enabled: boolean;
-  base_url: string;
-  model: string;
-  api_key: string | null;
-  clear_api_key: boolean;
-}
-
 export type JsonValue =
   | null
   | boolean
@@ -338,11 +316,6 @@ export interface WorkflowApi {
     workflowId: string,
     nodeId: string,
   ) => Promise<WorkflowNodePresentationDto>;
-  getProviders: () => Promise<Provider[]>;
-  setActiveProvider: (providerId: string) => Promise<void>;
-  setProviderKey: (providerId: string, key: string) => Promise<void>;
-  getAssistantConfig: () => Promise<AssistantConfig>;
-  setAssistantConfig: (input: AssistantConfigInput) => Promise<void>;
   assistantSendMessage: (input: AssistantSendInput) => Promise<AssistantSendMessageResult>;
   assistantGetPendingWorkflowChange: (
     projectId: string,

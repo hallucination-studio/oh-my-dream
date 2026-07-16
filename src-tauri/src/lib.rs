@@ -121,9 +121,6 @@ pub fn run() -> tauri::Result<()> {
                 ),
             )
             .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
-            let state = state::AppState::from_app_handle(app.handle())
-                .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
-            app.manage(state);
             let worker = project_commands.post_commit_worker.clone();
             app.manage(project_commands);
             tauri::async_runtime::spawn(run_post_commit_worker(worker));

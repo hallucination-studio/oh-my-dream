@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import assetFixture from "../__fixtures__/asset.json";
-import assistantConfigFixture from "../__fixtures__/assistant_config.json";
 import assistantOperationsFixture from "../__fixtures__/assistant_operations.json";
 import assistantApprovalFixture from "../__fixtures__/assistant_approval.json";
 import capabilityCatalogFixture from "../__fixtures__/capability_catalog.json";
@@ -15,7 +14,6 @@ import workflowRunEventsFixture from "../__fixtures__/workflow_run_events.json";
 import { isCatalogEntry } from "./capabilityContractValidators.ts";
 import type {
   AssetDto,
-  AssistantConfig,
   AssistantApprovalDecisionInput,
   AssistantPendingWorkflowChange,
   CapabilityCatalog,
@@ -35,7 +33,6 @@ describe("backend DTO fixtures", () => {
     expect(isNodeCapabilityList(nodeCapabilitiesFixture)).toBe(true);
     expect(isGenerationProfileList(generationProfilesFixture)).toBe(true);
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
-    expect(isAssistantConfig(assistantConfigFixture)).toBe(true);
     expect(isCapabilityCatalog(capabilityCatalogFixture)).toBe(true);
     if (!isAssistantApprovalFixture(assistantApprovalFixture)) {
       throw new Error("assistant approval fixture does not match the DTO contract");
@@ -162,16 +159,6 @@ function isOpenProject(value: unknown): value is OpenProjectResult {
       typeof summary.workflow_id === "string" &&
       typeof summary.workflow_revision === "string" &&
       (summary.readiness === "ready" || summary.readiness === "blocked"))
-  );
-}
-
-function isAssistantConfig(value: unknown): value is AssistantConfig {
-  return (
-    isRecord(value) &&
-    typeof value.enabled === "boolean" &&
-    typeof value.base_url === "string" &&
-    typeof value.model === "string" &&
-    typeof value.has_key === "boolean"
   );
 }
 

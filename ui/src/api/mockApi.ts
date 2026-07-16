@@ -4,8 +4,6 @@
 // not running inside a Tauri window.
 
 import type {
-  AssistantConfig,
-  AssistantConfigInput,
   CapabilityRef,
   GenerationProfileForCapability,
   Project,
@@ -47,12 +45,6 @@ const MOCK_PROJECT_NAME = "Mock Project";
 const mockProjects = new Map<string, Project>([
   [MOCK_PROJECT_ID, mockProject(MOCK_PROJECT_ID, MOCK_PROJECT_NAME)],
 ]);
-let mockAssistantConfig: AssistantConfig = {
-  enabled: false,
-  base_url: "https://api.openai.com/v1",
-  model: "gpt-5.4",
-  has_key: false,
-};
 
 async function listProjects() {
   return [...mockProjects.values()];
@@ -333,31 +325,6 @@ function mockProject(id: string, name: string): Project {
   };
 }
 
-async function getProviders() {
-  return [{ id: "mock", name: "Mock", active: true, has_key: false }];
-}
-
-async function setActiveProvider(): Promise<void> {}
-
-async function setProviderKey(): Promise<void> {}
-
-async function getAssistantConfig(): Promise<AssistantConfig> {
-  return { ...mockAssistantConfig };
-}
-
-async function setAssistantConfig(input: AssistantConfigInput): Promise<void> {
-  mockAssistantConfig = {
-    enabled: input.enabled,
-    base_url: input.base_url,
-    model: input.model,
-    has_key:
-      input.clear_api_key
-        ? false
-        : input.api_key === null
-          ? mockAssistantConfig.has_key
-          : input.api_key.length > 0,
-  };
-}
 
 export const mockApi: WorkflowApi = {
   assetImport: mockAssetImport,
@@ -381,11 +348,6 @@ export const mockApi: WorkflowApi = {
   workflowListRunEvents,
   observeWorkflowRunEvents,
   workflowGetNodePresentation,
-  getProviders,
-  setActiveProvider,
-  setProviderKey,
-  getAssistantConfig,
-  setAssistantConfig,
   assistantSendMessage,
   assistantGetPendingWorkflowChange,
   assistantDecideWorkflowChange,

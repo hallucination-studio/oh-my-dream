@@ -11,8 +11,6 @@ import type {
   AssetKind,
   AssetListPageDto,
   AssetPreviewDto,
-  AssistantConfig,
-  AssistantConfigInput,
   AssistantApprovalDecisionInput,
   AssistantPendingWorkflowChange,
   AssistantPresentationEvent,
@@ -24,7 +22,6 @@ import type {
   NodeCapabilityContractDto,
   Project,
   ProjectWorkspace,
-  Provider,
   WorkflowApi,
   WorkflowDto,
   WorkflowMutationActionDto,
@@ -244,26 +241,6 @@ async function workflowGetNodePresentation(
   });
 }
 
-async function getProviders(): Promise<Provider[]> {
-  return invoke<Provider[]>("get_providers");
-}
-
-async function setActiveProvider(providerId: string): Promise<void> {
-  await invoke("set_active_provider", { provider_id: providerId });
-}
-
-async function setProviderKey(providerId: string, key: string): Promise<void> {
-  await invoke("set_provider_key", { provider_id: providerId, key });
-}
-
-async function getAssistantConfig(): Promise<AssistantConfig> {
-  return invoke<AssistantConfig>("get_assistant_config");
-}
-
-async function setAssistantConfig(input: AssistantConfigInput): Promise<void> {
-  await invoke("set_assistant_config", { input });
-}
-
 async function assistantSendMessage(
   input: AssistantSendInput,
 ): Promise<AssistantSendMessageResult> {
@@ -316,11 +293,6 @@ export const tauriApi: WorkflowApi = {
   workflowListRunEvents,
   observeWorkflowRunEvents,
   workflowGetNodePresentation,
-  getProviders,
-  setActiveProvider,
-  setProviderKey,
-  getAssistantConfig,
-  setAssistantConfig,
   assistantSendMessage,
   assistantGetPendingWorkflowChange,
   assistantDecideWorkflowChange,

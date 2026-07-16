@@ -8,12 +8,6 @@ afterEach(() => vi.restoreAllMocks());
 describe("App canonical workspace shell", () => {
   it("keeps the frozen shell available without an active Project", async () => {
     vi.spyOn(api, "listProjects").mockResolvedValue([]);
-    vi.spyOn(api, "getAssistantConfig").mockResolvedValue({
-      enabled: false,
-      base_url: "https://api.openai.com/v1",
-      model: "gpt-5.4",
-      has_key: false,
-    });
     render(<App />);
 
     await waitFor(() => expect(screen.getByText("No project")).toBeTruthy());

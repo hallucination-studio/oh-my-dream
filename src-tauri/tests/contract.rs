@@ -1,5 +1,5 @@
 use engine::{NodeExecutionState, NodeProgressEvent, PortType};
-use oh_my_dream_tauri::dto::{AssistantConfigDto, CapabilityCatalogDto, NodeProgressEventDto};
+use oh_my_dream_tauri::dto::{CapabilityCatalogDto, NodeProgressEventDto};
 use oh_my_dream_tauri::project_commands::{
     ProjectDto, ProjectWorkflowReadinessDto, ProjectWorkflowSummaryDto, ProjectWorkspaceDto,
 };
@@ -42,7 +42,6 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let project = project_fixture();
     let open_project = open_project_fixture();
     let progress = progress_fixture();
-    let assistant_config = assistant_config_fixture();
     let capability_catalog = capability_catalog_fixture();
     let node_contracts = node_contract_fixture();
     let assistant_operations = assistant_operation_contract::fixture();
@@ -115,15 +114,6 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
             "cost": 900
         })
     );
-    assert_eq!(
-        serde_json::to_value(&assistant_config).expect("serialize assistant config"),
-        json!({
-            "enabled": true,
-            "base_url": "https://api.openai.com/v1",
-            "model": "gpt-5.4",
-            "has_key": false
-        })
-    );
     assistant_operation_contract::assert_fixture(&assistant_operations);
     write_fixture("workflow.json", &workflow);
     write_fixture("workflow_run.json", &workflow_run);
@@ -132,7 +122,6 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     write_fixture("project.json", &project);
     write_fixture("open_project.json", &open_project);
     write_fixture("node_progress_event.json", &progress);
-    write_fixture("assistant_config.json", &assistant_config);
     write_fixture("capability_catalog.json", &capability_catalog);
     write_fixture("node_contracts.json", &node_contracts);
     write_fixture("assistant_operations.json", &assistant_operations);
@@ -358,15 +347,6 @@ fn progress_fixture() -> NodeProgressEventDto {
         progress: Some(1.0),
         cost: Some(900),
     })
-}
-
-fn assistant_config_fixture() -> AssistantConfigDto {
-    AssistantConfigDto {
-        enabled: true,
-        base_url: "https://api.openai.com/v1".to_owned(),
-        model: "gpt-5.4".to_owned(),
-        has_key: false,
-    }
 }
 
 fn write_fixture<T: serde::Serialize>(file_name: &str, value: &T) {
