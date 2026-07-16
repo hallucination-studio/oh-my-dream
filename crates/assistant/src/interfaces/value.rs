@@ -73,6 +73,31 @@ bounded_bytes!(AssistantModelTurnInput, 1024 * 1024);
 bounded_bytes!(AssistantModelTurnResult, 16 * 1024 * 1024);
 bounded_bytes!(AssistantModelContinuationEnvelope, 4 * 1024 * 1024);
 
+/// Closed authoritative capability-catalog query.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AssistantNodeCapabilityCatalogRequest {
+    /// Lists bounded active contract summaries.
+    List,
+    /// Describes one to three exact active contract references.
+    Describe { contract_refs: Vec<String> },
+}
+
+impl AssistantNodeCapabilityCatalogRequest {
+    /// Validates exact description references without interpreting capability semantics.
+    pub fn describe(contract_refs: Vec<String>) -> Result<Self, AssistantApplicationError> {
+        let valid = (1..=3).contains(&contract_refs.len())
+            && contract_refs
+                .iter()
+                .all(|value| !value.is_empty() && value.len() <= 256 && value.is_ascii());
+        let unique = contract_refs.iter().collect::<std::collections::BTreeSet<_>>();
+        if valid && unique.len() == contract_refs.len() {
+            Ok(Self::Describe { contract_refs })
+        } else {
+            Err(AssistantApplicationError::ProtocolViolation)
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AssistantModelTurnRequest {
     pub project_id: ProjectId,

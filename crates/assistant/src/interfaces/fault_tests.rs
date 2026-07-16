@@ -41,6 +41,7 @@ impl AssistantWorkspaceSnapshotReaderInterface for BoundaryFaultFake {
 impl AssistantNodeCapabilityCatalogReaderInterface for BoundaryFaultFake {
     async fn read_assistant_node_capability_catalog(
         &self,
+        _request: AssistantNodeCapabilityCatalogRequest,
     ) -> Result<AssistantNodeCapabilityCatalogSnapshot, AssistantApplicationError> {
         Err(AssistantApplicationError::ExternalBoundaryFailed)
     }

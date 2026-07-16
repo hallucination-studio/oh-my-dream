@@ -290,6 +290,24 @@ impl AssistantProductionPlanAggregate {
         &self.items
     }
 
+    /// Replaces editable working memory under optimistic revision control.
+    pub fn replace(
+        &mut self,
+        expected_revision: u64,
+        title: impl AsRef<str>,
+        items: Vec<AssistantPlanItemEntity>,
+    ) -> Result<(), AssistantProductionPlanError> {
+        self.check_revision(expected_revision)?;
+        let title = AssistantPlanTitle::new(title)?;
+        validate_items(&items)?;
+        let revision =
+            self.revision.0.checked_add(1).ok_or(AssistantProductionPlanError::RevisionOverflow)?;
+        self.title = title;
+        self.items = items;
+        self.revision = AssistantProductionPlanRevision(revision);
+        Ok(())
+    }
+
     /// Moves a Pending or Blocked item into progress.
     pub fn start_item(
         &mut self,

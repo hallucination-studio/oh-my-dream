@@ -84,6 +84,37 @@ fn production_plan_restore_revalidates_items_and_nonzero_revision() {
     );
 }
 
+#[test]
+fn production_plan_replaces_title_and_items_under_revision_cas() {
+    let mut plan = AssistantProductionPlanAggregate::new(
+        production_plan_id(),
+        project_id(),
+        session_id(),
+        "Initial",
+        vec![AssistantPlanItemEntity::new("first", "First goal").unwrap()],
+    )
+    .unwrap();
+
+    plan.replace(
+        1,
+        "Replacement",
+        vec![AssistantPlanItemEntity::new("second", "Second goal").unwrap()],
+    )
+    .unwrap();
+
+    assert_eq!(plan.revision().get(), 2);
+    assert_eq!(plan.title().as_str(), "Replacement");
+    assert_eq!(plan.items()[0].id().as_str(), "second");
+    assert!(
+        plan.replace(
+            1,
+            "Stale",
+            vec![AssistantPlanItemEntity::new("third", "Third goal").unwrap()],
+        )
+        .is_err()
+    );
+}
+
 fn plan() -> AssistantProductionPlanAggregate {
     AssistantProductionPlanAggregate::new(
         production_plan_id(),

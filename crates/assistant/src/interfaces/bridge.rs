@@ -2,10 +2,11 @@ use async_trait::async_trait;
 use projects::project::domain::ProjectId;
 
 use super::{
-    AssistantApplicationError, AssistantNodeCapabilityCatalogSnapshot,
-    AssistantWorkflowApplyReceiptBoundaryValue, AssistantWorkflowApplyRequest,
-    AssistantWorkflowEvaluationRequest, AssistantWorkflowEvaluationResult,
-    AssistantWorkflowRunBoundaryValue, AssistantWorkflowRunRequest, AssistantWorkspaceSnapshot,
+    AssistantApplicationError, AssistantNodeCapabilityCatalogRequest,
+    AssistantNodeCapabilityCatalogSnapshot, AssistantWorkflowApplyReceiptBoundaryValue,
+    AssistantWorkflowApplyRequest, AssistantWorkflowEvaluationRequest,
+    AssistantWorkflowEvaluationResult, AssistantWorkflowRunBoundaryValue,
+    AssistantWorkflowRunRequest, AssistantWorkspaceSnapshot,
 };
 use crate::domain::AssistantSessionId;
 
@@ -24,6 +25,7 @@ pub trait AssistantWorkspaceSnapshotReaderInterface: Send + Sync {
 pub trait AssistantNodeCapabilityCatalogReaderInterface: Send + Sync {
     async fn read_assistant_node_capability_catalog(
         &self,
+        request: AssistantNodeCapabilityCatalogRequest,
     ) -> Result<AssistantNodeCapabilityCatalogSnapshot, AssistantApplicationError>;
 }
 
