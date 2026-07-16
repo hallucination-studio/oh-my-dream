@@ -15,6 +15,7 @@ pub mod capability_catalog;
 pub mod capability_discovery;
 mod command_error;
 pub mod commands;
+pub mod credential_vault;
 pub mod dto;
 mod managed_asset_access;
 pub(crate) mod metadata_sqlite;

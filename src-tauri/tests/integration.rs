@@ -26,6 +26,8 @@ mod assistant_transport;
 mod commands;
 #[path = "contract.rs"]
 mod contract;
+#[path = "credential_vault.rs"]
+mod credential_vault;
 #[path = "dto.rs"]
 mod dto;
 #[path = "e2e.rs"]
