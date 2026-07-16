@@ -45,6 +45,21 @@ pub struct NodeCapabilityProviderFailure {
 pub struct NodeCapabilityProviderFailureConstructionError;
 
 impl NodeCapabilityProviderFailure {
+    /// Creates a failure without an optional retry instant.
+    #[must_use]
+    pub fn without_retry_at(
+        category: NodeCapabilityProviderFailureCategory,
+        submission_was_accepted: bool,
+    ) -> Self {
+        let retryable = matches!(
+            category,
+            NodeCapabilityProviderFailureCategory::RateLimited
+                | NodeCapabilityProviderFailureCategory::ProviderUnavailable
+        ) || (category == NodeCapabilityProviderFailureCategory::DeadlineExceeded
+            && !submission_was_accepted);
+        Self { category, retryable, safe_retry_at: None }
+    }
+
     /// Creates a provider failure and rejects inconsistent retry metadata.
     pub fn try_new(
         category: NodeCapabilityProviderFailureCategory,
@@ -52,18 +67,14 @@ impl NodeCapabilityProviderFailure {
         observed_at: Instant,
         safe_retry_at: Option<Instant>,
     ) -> Result<Self, NodeCapabilityProviderFailureConstructionError> {
-        let retryable = matches!(
-            category,
-            NodeCapabilityProviderFailureCategory::RateLimited
-                | NodeCapabilityProviderFailureCategory::ProviderUnavailable
-        ) || (category == NodeCapabilityProviderFailureCategory::DeadlineExceeded
-            && !submission_was_accepted);
+        let failure = Self::without_retry_at(category, submission_was_accepted);
+        let retryable = failure.retryable;
         if (!retryable && safe_retry_at.is_some())
             || safe_retry_at.is_some_and(|retry_at| retry_at <= observed_at)
         {
             return Err(NodeCapabilityProviderFailureConstructionError);
         }
-        Ok(Self { category, retryable, safe_retry_at })
+        Ok(Self { safe_retry_at, ..failure })
     }
 
     /// Restores durable provider failure semantics without process-local retry timing.

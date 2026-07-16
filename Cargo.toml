@@ -32,7 +32,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 async-trait = "0.1"
 # Async assistant transport and integration tests share one Tokio feature set.
-tokio = { version = "1", features = ["fs", "macros", "rt", "io-util", "process", "sync", "time"] }
+tokio = { version = "1", features = ["fs", "macros", "net", "rt", "io-util", "process", "sync", "time"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls"] }
 pollster = "0.4"
 tauri = "2"
 tauri-build = "2"

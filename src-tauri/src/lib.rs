@@ -25,6 +25,7 @@ mod mock_generation;
 pub mod post_commit_effect;
 pub mod production_plan;
 pub mod project_adapters;
+pub mod provider_adapters;
 pub mod reviewed_change;
 pub mod state;
 pub mod workflow_adapters;
