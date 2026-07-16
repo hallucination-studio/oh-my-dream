@@ -25,8 +25,8 @@ use uuid::Uuid;
 
 use super::*;
 use crate::{
-    credential_vault::{
-        GenerationProviderCredentialSecret, GenerationProviderCredentialVaultError,
+    credential_repository::{
+        GenerationProviderCredentialRepositoryError, GenerationProviderCredentialSecret,
     },
     provider_adapters::fal::{
         FalHttpResponse, FalHttpTransportInterface, FalQueueRequest, FalTransportError,
@@ -58,7 +58,7 @@ async fn sends_exact_frozen_queue_wire_and_returns_downloaded_png() {
     ));
     let route = FalTextToImageProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(FakeVault),
+        Arc::new(FakeRepository),
         transport.clone(),
     );
     let router = TextToImageProviderRouterImpl::try_new([(
@@ -109,7 +109,7 @@ async fn reports_missing_credential_without_exposing_or_calling_transport() {
     ));
     let route = FalTextToImageProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(MissingVault),
+        Arc::new(MissingRepository),
         transport.clone(),
     );
 
@@ -140,7 +140,7 @@ async fn rejects_unknown_queue_status_without_fetching_a_result() {
     ));
     let route = FalTextToImageProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(FakeVault),
+        Arc::new(FakeRepository),
         transport.clone(),
     );
     let router = TextToImageProviderRouterImpl::try_new([(
@@ -177,12 +177,19 @@ fn provider_failures_expose_only_structured_safe_metadata() {
     }
 }
 
+#[test]
+fn local_repository_permission_failure_is_not_misreported_as_provider_authentication() {
+    let error = credential_failure(GenerationProviderCredentialRepositoryError::PermissionDenied);
+
+    assert_eq!(error.category(), NodeCapabilityProviderFailureCategory::ProviderUnavailable);
+}
+
 #[tokio::test]
 async fn ambiguous_submission_is_returned_without_resubmission() {
     let transport = Arc::new(AmbiguousTransport::default());
     let route = FalTextToImageProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(FakeVault),
+        Arc::new(FakeRepository),
         transport.clone(),
     );
     let router = TextToImageProviderRouterImpl::try_new([(
@@ -206,56 +213,58 @@ async fn ambiguous_submission_is_returned_without_resubmission() {
     assert_eq!(transport.calls.load(std::sync::atomic::Ordering::Acquire), 1);
 }
 
-struct FakeVault;
-struct MissingVault;
+struct FakeRepository;
+struct MissingRepository;
 
 #[async_trait]
-impl GenerationProviderCredentialVaultInterface for FakeVault {
+impl GenerationProviderCredentialRepositoryInterface for FakeRepository {
     async fn save_generation_provider_credential(
         &self,
         _id: GenerationProviderCredentialId,
         _secret: GenerationProviderCredentialSecret,
-    ) -> Result<(), GenerationProviderCredentialVaultError> {
+    ) -> Result<(), GenerationProviderCredentialRepositoryError> {
         Ok(())
     }
 
     async fn load_generation_provider_credential(
         &self,
         _id: &GenerationProviderCredentialId,
-    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialVaultError> {
+    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialRepositoryError>
+    {
         GenerationProviderCredentialSecret::new(b"fal-secret".to_vec())
     }
 
     async fn delete_generation_provider_credential(
         &self,
         _id: &GenerationProviderCredentialId,
-    ) -> Result<(), GenerationProviderCredentialVaultError> {
+    ) -> Result<(), GenerationProviderCredentialRepositoryError> {
         Ok(())
     }
 }
 
 #[async_trait]
-impl GenerationProviderCredentialVaultInterface for MissingVault {
+impl GenerationProviderCredentialRepositoryInterface for MissingRepository {
     async fn save_generation_provider_credential(
         &self,
         _id: GenerationProviderCredentialId,
         _secret: GenerationProviderCredentialSecret,
-    ) -> Result<(), GenerationProviderCredentialVaultError> {
-        Err(GenerationProviderCredentialVaultError::NotFound)
+    ) -> Result<(), GenerationProviderCredentialRepositoryError> {
+        Err(GenerationProviderCredentialRepositoryError::NotFound)
     }
 
     async fn load_generation_provider_credential(
         &self,
         _id: &GenerationProviderCredentialId,
-    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialVaultError> {
-        Err(GenerationProviderCredentialVaultError::NotFound)
+    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialRepositoryError>
+    {
+        Err(GenerationProviderCredentialRepositoryError::NotFound)
     }
 
     async fn delete_generation_provider_credential(
         &self,
         _id: &GenerationProviderCredentialId,
-    ) -> Result<(), GenerationProviderCredentialVaultError> {
-        Err(GenerationProviderCredentialVaultError::NotFound)
+    ) -> Result<(), GenerationProviderCredentialRepositoryError> {
+        Err(GenerationProviderCredentialRepositoryError::NotFound)
     }
 }
 

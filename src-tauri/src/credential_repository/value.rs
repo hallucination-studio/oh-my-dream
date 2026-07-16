@@ -3,6 +3,7 @@ use std::fmt;
 use thiserror::Error;
 
 const MAX_CREDENTIAL_ID_LENGTH: usize = 128;
+const MAX_CREDENTIAL_SECRET_LENGTH: usize = 16 * 1024;
 
 macro_rules! credential_id {
     ($name:ident, $error:ident) => {
@@ -35,7 +36,11 @@ macro_rules! credential_secret {
         impl $name {
             /// Wraps non-empty credential bytes without exposing them in diagnostics.
             pub fn new(value: Vec<u8>) -> Result<Self, $error> {
-                if value.is_empty() { Err($error::InvalidCredential) } else { Ok(Self(value)) }
+                if value.is_empty() || value.len() > MAX_CREDENTIAL_SECRET_LENGTH {
+                    Err($error::InvalidCredential)
+                } else {
+                    Ok(Self(value))
+                }
             }
 
             /// Borrows the secret for immediate adapter use.
@@ -59,33 +64,33 @@ macro_rules! credential_secret {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-pub enum GenerationProviderCredentialVaultError {
+pub enum GenerationProviderCredentialRepositoryError {
     #[error("invalid generation-provider credential")]
     InvalidCredential,
     #[error("generation-provider credential not found")]
     NotFound,
-    #[error("generation-provider credential access denied")]
-    Denied,
-    #[error("generation-provider credential vault unavailable")]
+    #[error("generation-provider credential repository permission denied")]
+    PermissionDenied,
+    #[error("generation-provider credential repository unavailable")]
     Unavailable,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-pub enum AssistantModelCredentialVaultError {
+pub enum AssistantModelCredentialRepositoryError {
     #[error("invalid Assistant-model credential")]
     InvalidCredential,
     #[error("Assistant-model credential not found")]
     NotFound,
-    #[error("Assistant-model credential access denied")]
-    Denied,
-    #[error("Assistant-model credential vault unavailable")]
+    #[error("Assistant-model credential repository permission denied")]
+    PermissionDenied,
+    #[error("Assistant-model credential repository unavailable")]
     Unavailable,
 }
 
-credential_id!(GenerationProviderCredentialId, GenerationProviderCredentialVaultError);
-credential_id!(AssistantModelCredentialId, AssistantModelCredentialVaultError);
-credential_secret!(GenerationProviderCredentialSecret, GenerationProviderCredentialVaultError);
-credential_secret!(AssistantModelCredentialSecret, AssistantModelCredentialVaultError);
+credential_id!(GenerationProviderCredentialId, GenerationProviderCredentialRepositoryError);
+credential_id!(AssistantModelCredentialId, AssistantModelCredentialRepositoryError);
+credential_secret!(GenerationProviderCredentialSecret, GenerationProviderCredentialRepositoryError);
+credential_secret!(AssistantModelCredentialSecret, AssistantModelCredentialRepositoryError);
 
 fn is_valid_credential_id(value: &str) -> bool {
     if value.len() < 3 || value.len() > MAX_CREDENTIAL_ID_LENGTH {

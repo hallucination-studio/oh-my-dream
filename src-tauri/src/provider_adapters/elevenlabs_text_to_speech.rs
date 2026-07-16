@@ -18,16 +18,16 @@ use engine::node_capability::{
     WorkflowTextValue,
 };
 use nodes::{
-    GenerationProfileAvailabilityIndeterminateReason, GenerationProfileUnavailableReason,
-    NodeCapabilityMediaContentDigest, NodeCapabilityMediaSourceLease, SynthesizedSpeechPayload,
+    GenerationProfileUnavailableReason, NodeCapabilityMediaContentDigest,
+    NodeCapabilityMediaSourceLease, SynthesizedSpeechPayload,
 };
 use reqwest::header;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::credential_vault::{
-    GenerationProviderCredentialId, GenerationProviderCredentialSecret,
-    GenerationProviderCredentialVaultError, GenerationProviderCredentialVaultInterface,
+use crate::credential_repository::{
+    GenerationProviderCredentialId, GenerationProviderCredentialRepositoryError,
+    GenerationProviderCredentialRepositoryInterface, GenerationProviderCredentialSecret,
 };
 
 const API_ROOT: &str = "https://api.elevenlabs.io";
@@ -64,16 +64,16 @@ pub struct ElevenLabsVoiceIdError;
 /// Exact ElevenLabs implementation of the frozen text-to-speech route.
 pub struct ElevenLabsTextToSpeechProviderRouteImpl {
     credential_id: GenerationProviderCredentialId,
-    vault: Arc<dyn GenerationProviderCredentialVaultInterface>,
+    repository: Arc<dyn GenerationProviderCredentialRepositoryInterface>,
     voice_id: ElevenLabsVoiceId,
     client: reqwest::Client,
 }
 
 impl ElevenLabsTextToSpeechProviderRouteImpl {
-    /// Constructs the shipped route from non-secret voice and opaque credential configuration.
+    /// Constructs the shipped route from voice configuration and a credential repository.
     pub fn try_new(
         credential_id: GenerationProviderCredentialId,
-        vault: Arc<dyn GenerationProviderCredentialVaultInterface>,
+        repository: Arc<dyn GenerationProviderCredentialRepositoryInterface>,
         voice_id: ElevenLabsVoiceId,
     ) -> Result<Self, NodeCapabilityProviderFailure> {
         let client = reqwest::Client::builder()
@@ -82,7 +82,7 @@ impl ElevenLabsTextToSpeechProviderRouteImpl {
             .no_proxy()
             .build()
             .map_err(|_| failure(NodeCapabilityProviderFailureCategory::ProviderUnavailable))?;
-        Ok(Self { credential_id, vault, voice_id, client })
+        Ok(Self { credential_id, repository, voice_id, client })
     }
 
     async fn execute(
@@ -103,7 +103,7 @@ impl ElevenLabsTextToSpeechProviderRouteImpl {
         })
         .map_err(|_| failure(NodeCapabilityProviderFailureCategory::InvalidSemanticRequest))?;
         let secret = self
-            .vault
+            .repository
             .load_generation_provider_credential(&self.credential_id)
             .await
             .map_err(credential_failure)?;
@@ -176,24 +176,25 @@ impl TextToSpeechProviderRouteInterface for ElevenLabsTextToSpeechProviderRouteI
     }
 
     async fn observe_provider_route_availability(&self) -> GenerationProviderRouteAvailability {
-        match self.vault.load_generation_provider_credential(&self.credential_id).await {
+        match self.repository.load_generation_provider_credential(&self.credential_id).await {
             Ok(secret) => {
                 drop(secret);
                 GenerationProviderRouteAvailability::Available
             }
             Err(
-                GenerationProviderCredentialVaultError::NotFound
-                | GenerationProviderCredentialVaultError::Denied
-                | GenerationProviderCredentialVaultError::InvalidCredential,
+                GenerationProviderCredentialRepositoryError::NotFound
+                | GenerationProviderCredentialRepositoryError::InvalidCredential,
             ) => GenerationProviderRouteAvailability::Unavailable {
                 reason: GenerationProfileUnavailableReason::AuthenticationRequired,
                 retry_after: None,
             },
-            Err(GenerationProviderCredentialVaultError::Unavailable) => {
-                GenerationProviderRouteAvailability::Indeterminate {
-                    reason: GenerationProfileAvailabilityIndeterminateReason::NetworkOffline,
-                }
-            }
+            Err(
+                GenerationProviderCredentialRepositoryError::PermissionDenied
+                | GenerationProviderCredentialRepositoryError::Unavailable,
+            ) => GenerationProviderRouteAvailability::Unavailable {
+                reason: GenerationProfileUnavailableReason::ProviderUnavailable,
+                retry_after: None,
+            },
         }
     }
 
@@ -267,15 +268,15 @@ fn http_failure(status: u16) -> NodeCapabilityProviderFailure {
 }
 
 fn credential_failure(
-    error: GenerationProviderCredentialVaultError,
+    error: GenerationProviderCredentialRepositoryError,
 ) -> NodeCapabilityProviderFailure {
     match error {
-        GenerationProviderCredentialVaultError::NotFound
-        | GenerationProviderCredentialVaultError::Denied
-        | GenerationProviderCredentialVaultError::InvalidCredential => {
+        GenerationProviderCredentialRepositoryError::NotFound
+        | GenerationProviderCredentialRepositoryError::InvalidCredential => {
             failure(NodeCapabilityProviderFailureCategory::AuthenticationFailed)
         }
-        GenerationProviderCredentialVaultError::Unavailable => {
+        GenerationProviderCredentialRepositoryError::PermissionDenied
+        | GenerationProviderCredentialRepositoryError::Unavailable => {
             failure(NodeCapabilityProviderFailureCategory::ProviderUnavailable)
         }
     }

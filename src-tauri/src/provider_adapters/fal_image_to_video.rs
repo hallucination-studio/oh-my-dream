@@ -20,8 +20,7 @@ use engine::node_capability::{
     WorkflowNodeExecutionContext,
 };
 use nodes::{
-    GeneratedVideoPayload, GenerationProfileAvailabilityIndeterminateReason,
-    GenerationProfileUnavailableReason, ImageToVideoDurationSeconds,
+    GeneratedVideoPayload, GenerationProfileUnavailableReason, ImageToVideoDurationSeconds,
     NodeCapabilityDeclaredMediaFacts, NodeCapabilityMediaContentDigest,
     NodeCapabilityMediaSourceLease,
 };
@@ -33,9 +32,9 @@ use super::fal::{
     FalGenerationProviderAccount, FalHttpResponse, FalHttpTransportInterface, FalQueueMethod,
     FalQueueRequest, ReqwestFalHttpTransport, status_is_success,
 };
-use crate::credential_vault::{
-    GenerationProviderCredentialId, GenerationProviderCredentialVaultError,
-    GenerationProviderCredentialVaultInterface,
+use crate::credential_repository::{
+    GenerationProviderCredentialId, GenerationProviderCredentialRepositoryError,
+    GenerationProviderCredentialRepositoryInterface,
 };
 use support::*;
 use wire::{FalImageToVideoRequestDto, FalVideoDto, FalVideoResultDto};
@@ -65,16 +64,16 @@ pub struct FalImageToVideoProviderRouteImpl {
 }
 
 impl FalImageToVideoProviderRouteImpl {
-    /// Constructs the shipped Fal route with an opaque credential handle.
+    /// Constructs the shipped Fal route with a focused credential repository.
     pub fn try_new(
         credential_id: GenerationProviderCredentialId,
-        vault: Arc<dyn GenerationProviderCredentialVaultInterface>,
+        repository: Arc<dyn GenerationProviderCredentialRepositoryInterface>,
     ) -> Result<Self, NodeCapabilityProviderFailure> {
         let transport = ReqwestFalHttpTransport::try_new().map_err(|_| {
             failure(NodeCapabilityProviderFailureCategory::ProviderUnavailable, false)
         })?;
         Ok(Self {
-            account: FalGenerationProviderAccount::new(credential_id, vault),
+            account: FalGenerationProviderAccount::new(credential_id, repository),
             transport: Arc::new(transport),
             poll_delay: POLL_DELAY,
         })
@@ -83,11 +82,11 @@ impl FalImageToVideoProviderRouteImpl {
     #[cfg(test)]
     fn with_transport(
         credential_id: GenerationProviderCredentialId,
-        vault: Arc<dyn GenerationProviderCredentialVaultInterface>,
+        repository: Arc<dyn GenerationProviderCredentialRepositoryInterface>,
         transport: Arc<dyn FalHttpTransportInterface>,
     ) -> Self {
         Self {
-            account: FalGenerationProviderAccount::new(credential_id, vault),
+            account: FalGenerationProviderAccount::new(credential_id, repository),
             transport,
             poll_delay: Duration::ZERO,
         }
@@ -274,18 +273,19 @@ impl ImageToVideoProviderRouteInterface for FalImageToVideoProviderRouteImpl {
         match self.account.credential_state().await {
             Ok(()) => GenerationProviderRouteAvailability::Available,
             Err(
-                GenerationProviderCredentialVaultError::NotFound
-                | GenerationProviderCredentialVaultError::Denied
-                | GenerationProviderCredentialVaultError::InvalidCredential,
+                GenerationProviderCredentialRepositoryError::NotFound
+                | GenerationProviderCredentialRepositoryError::InvalidCredential,
             ) => GenerationProviderRouteAvailability::Unavailable {
                 reason: GenerationProfileUnavailableReason::AuthenticationRequired,
                 retry_after: None,
             },
-            Err(GenerationProviderCredentialVaultError::Unavailable) => {
-                GenerationProviderRouteAvailability::Indeterminate {
-                    reason: GenerationProfileAvailabilityIndeterminateReason::NetworkOffline,
-                }
-            }
+            Err(
+                GenerationProviderCredentialRepositoryError::PermissionDenied
+                | GenerationProviderCredentialRepositoryError::Unavailable,
+            ) => GenerationProviderRouteAvailability::Unavailable {
+                reason: GenerationProfileUnavailableReason::ProviderUnavailable,
+                retry_after: None,
+            },
         }
     }
 

@@ -38,3 +38,10 @@ fn public_configuration_errors_never_include_candidate_secrets() {
     assert_eq!(error.to_string(), "invalid ElevenLabs voice ID");
     assert!(!format!("{error:?}").contains(candidate));
 }
+
+#[test]
+fn local_repository_permission_failure_is_not_provider_authentication_failure() {
+    let error = credential_failure(GenerationProviderCredentialRepositoryError::PermissionDenied);
+
+    assert_eq!(error.category(), NodeCapabilityProviderFailureCategory::ProviderUnavailable);
+}

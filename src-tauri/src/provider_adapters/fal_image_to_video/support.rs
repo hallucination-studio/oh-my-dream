@@ -7,7 +7,7 @@ use engine::node_capability::{
 use nodes::NodeCapabilityMediaMimeType;
 use serde::Deserialize;
 
-use crate::credential_vault::GenerationProviderCredentialVaultError;
+use crate::credential_repository::GenerationProviderCredentialRepositoryError;
 
 use super::super::fal::{FalHttpResponse, FalTransportError, status_is_success};
 
@@ -80,15 +80,15 @@ pub(super) fn valid_request_id(value: &str) -> bool {
 }
 
 pub(super) fn credential_failure(
-    error: GenerationProviderCredentialVaultError,
+    error: GenerationProviderCredentialRepositoryError,
 ) -> NodeCapabilityProviderFailure {
     match error {
-        GenerationProviderCredentialVaultError::NotFound
-        | GenerationProviderCredentialVaultError::Denied
-        | GenerationProviderCredentialVaultError::InvalidCredential => {
+        GenerationProviderCredentialRepositoryError::NotFound
+        | GenerationProviderCredentialRepositoryError::InvalidCredential => {
             failure(NodeCapabilityProviderFailureCategory::AuthenticationFailed, false)
         }
-        GenerationProviderCredentialVaultError::Unavailable => {
+        GenerationProviderCredentialRepositoryError::PermissionDenied
+        | GenerationProviderCredentialRepositoryError::Unavailable => {
             failure(NodeCapabilityProviderFailureCategory::ProviderUnavailable, false)
         }
     }

@@ -7,35 +7,36 @@ use std::{
 use async_trait::async_trait;
 use reqwest::{Method, StatusCode, Url, header};
 
-use crate::credential_vault::{
-    GenerationProviderCredentialId, GenerationProviderCredentialSecret,
-    GenerationProviderCredentialVaultError, GenerationProviderCredentialVaultInterface,
+use crate::credential_repository::{
+    GenerationProviderCredentialId, GenerationProviderCredentialRepositoryError,
+    GenerationProviderCredentialRepositoryInterface, GenerationProviderCredentialSecret,
 };
 
 const MAX_JSON_RESPONSE_BYTES: usize = 1024 * 1024;
 
 pub(super) struct FalGenerationProviderAccount {
     credential_id: GenerationProviderCredentialId,
-    vault: Arc<dyn GenerationProviderCredentialVaultInterface>,
+    repository: Arc<dyn GenerationProviderCredentialRepositoryInterface>,
 }
 
 impl FalGenerationProviderAccount {
     pub(super) fn new(
         credential_id: GenerationProviderCredentialId,
-        vault: Arc<dyn GenerationProviderCredentialVaultInterface>,
+        repository: Arc<dyn GenerationProviderCredentialRepositoryInterface>,
     ) -> Self {
-        Self { credential_id, vault }
+        Self { credential_id, repository }
     }
 
     pub(super) async fn materialize(
         &self,
-    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialVaultError> {
-        self.vault.load_generation_provider_credential(&self.credential_id).await
+    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialRepositoryError>
+    {
+        self.repository.load_generation_provider_credential(&self.credential_id).await
     }
 
     pub(super) async fn credential_state(
         &self,
-    ) -> Result<(), GenerationProviderCredentialVaultError> {
+    ) -> Result<(), GenerationProviderCredentialRepositoryError> {
         self.materialize().await.map(drop)
     }
 }

@@ -1,26 +1,26 @@
 use std::{collections::BTreeMap, sync::Mutex};
 
 use async_trait::async_trait;
-use oh_my_dream_tauri::credential_vault::*;
+use oh_my_dream_tauri::credential_repository::*;
 
 #[derive(Default)]
-struct GenerationVaultFake {
+struct GenerationRepositoryFake {
     values: Mutex<BTreeMap<GenerationProviderCredentialId, Vec<u8>>>,
 }
 
 #[derive(Default)]
-struct AssistantVaultFake {
+struct AssistantRepositoryFake {
     values: Mutex<BTreeMap<AssistantModelCredentialId, Vec<u8>>>,
-    failure: Mutex<Option<AssistantModelCredentialVaultError>>,
+    failure: Mutex<Option<AssistantModelCredentialRepositoryError>>,
 }
 
 #[async_trait]
-impl AssistantModelCredentialVaultInterface for AssistantVaultFake {
+impl AssistantModelCredentialRepositoryInterface for AssistantRepositoryFake {
     async fn save_assistant_model_credential(
         &self,
         id: AssistantModelCredentialId,
         secret: AssistantModelCredentialSecret,
-    ) -> Result<(), AssistantModelCredentialVaultError> {
+    ) -> Result<(), AssistantModelCredentialRepositoryError> {
         if let Some(error) = *self.failure.lock().unwrap() {
             return Err(error);
         }
@@ -31,7 +31,7 @@ impl AssistantModelCredentialVaultInterface for AssistantVaultFake {
     async fn load_assistant_model_credential(
         &self,
         id: &AssistantModelCredentialId,
-    ) -> Result<AssistantModelCredentialSecret, AssistantModelCredentialVaultError> {
+    ) -> Result<AssistantModelCredentialSecret, AssistantModelCredentialRepositoryError> {
         if let Some(error) = *self.failure.lock().unwrap() {
             return Err(error);
         }
@@ -40,14 +40,14 @@ impl AssistantModelCredentialVaultInterface for AssistantVaultFake {
             .unwrap()
             .get(id)
             .cloned()
-            .ok_or(AssistantModelCredentialVaultError::NotFound)
+            .ok_or(AssistantModelCredentialRepositoryError::NotFound)
             .and_then(AssistantModelCredentialSecret::new)
     }
 
     async fn delete_assistant_model_credential(
         &self,
         id: &AssistantModelCredentialId,
-    ) -> Result<(), AssistantModelCredentialVaultError> {
+    ) -> Result<(), AssistantModelCredentialRepositoryError> {
         if let Some(error) = *self.failure.lock().unwrap() {
             return Err(error);
         }
@@ -57,12 +57,12 @@ impl AssistantModelCredentialVaultInterface for AssistantVaultFake {
 }
 
 #[async_trait]
-impl GenerationProviderCredentialVaultInterface for GenerationVaultFake {
+impl GenerationProviderCredentialRepositoryInterface for GenerationRepositoryFake {
     async fn save_generation_provider_credential(
         &self,
         id: GenerationProviderCredentialId,
         secret: GenerationProviderCredentialSecret,
-    ) -> Result<(), GenerationProviderCredentialVaultError> {
+    ) -> Result<(), GenerationProviderCredentialRepositoryError> {
         self.values.lock().unwrap().insert(id, secret.as_bytes().to_vec());
         Ok(())
     }
@@ -70,20 +70,21 @@ impl GenerationProviderCredentialVaultInterface for GenerationVaultFake {
     async fn load_generation_provider_credential(
         &self,
         id: &GenerationProviderCredentialId,
-    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialVaultError> {
+    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialRepositoryError>
+    {
         self.values
             .lock()
             .unwrap()
             .get(id)
             .cloned()
-            .ok_or(GenerationProviderCredentialVaultError::NotFound)
+            .ok_or(GenerationProviderCredentialRepositoryError::NotFound)
             .and_then(GenerationProviderCredentialSecret::new)
     }
 
     async fn delete_generation_provider_credential(
         &self,
         id: &GenerationProviderCredentialId,
-    ) -> Result<(), GenerationProviderCredentialVaultError> {
+    ) -> Result<(), GenerationProviderCredentialRepositoryError> {
         self.values.lock().unwrap().remove(id);
         Ok(())
     }
@@ -102,10 +103,10 @@ fn credential_ids_are_typed_isolated_and_secrets_are_redacted() {
 }
 
 #[tokio::test]
-async fn generation_vault_contract_saves_loads_deletes_and_reports_not_found() {
-    let vault = GenerationVaultFake::default();
+async fn generation_repository_contract_saves_loads_deletes_and_reports_not_found() {
+    let repository = GenerationRepositoryFake::default();
     let id = GenerationProviderCredentialId::new("fal.primary").unwrap();
-    vault
+    repository
         .save_generation_provider_credential(
             id.clone(),
             GenerationProviderCredentialSecret::new(b"secret".to_vec()).unwrap(),
@@ -113,20 +114,21 @@ async fn generation_vault_contract_saves_loads_deletes_and_reports_not_found() {
         .await
         .unwrap();
 
-    let loaded = vault.load_generation_provider_credential(&id).await.unwrap();
+    let loaded = repository.load_generation_provider_credential(&id).await.unwrap();
     assert_eq!(loaded.as_bytes(), b"secret");
-    vault.delete_generation_provider_credential(&id).await.unwrap();
+    repository.delete_generation_provider_credential(&id).await.unwrap();
+    repository.delete_generation_provider_credential(&id).await.unwrap();
     assert_eq!(
-        vault.load_generation_provider_credential(&id).await.unwrap_err(),
-        GenerationProviderCredentialVaultError::NotFound
+        repository.load_generation_provider_credential(&id).await.unwrap_err(),
+        GenerationProviderCredentialRepositoryError::NotFound
     );
 }
 
 #[tokio::test]
-async fn assistant_vault_is_isolated_and_preserves_access_failures() {
-    let vault = AssistantVaultFake::default();
+async fn assistant_repository_is_isolated_and_preserves_access_failures() {
+    let repository = AssistantRepositoryFake::default();
     let id = AssistantModelCredentialId::new("assistant.openai.default").unwrap();
-    vault
+    repository
         .save_assistant_model_credential(
             id.clone(),
             AssistantModelCredentialSecret::new(b"assistant-secret".to_vec()).unwrap(),
@@ -134,19 +136,21 @@ async fn assistant_vault_is_isolated_and_preserves_access_failures() {
         .await
         .unwrap();
     assert_eq!(
-        vault.load_assistant_model_credential(&id).await.unwrap().as_bytes(),
+        repository.load_assistant_model_credential(&id).await.unwrap().as_bytes(),
         b"assistant-secret"
     );
 
-    *vault.failure.lock().unwrap() = Some(AssistantModelCredentialVaultError::Denied);
+    *repository.failure.lock().unwrap() =
+        Some(AssistantModelCredentialRepositoryError::PermissionDenied);
     assert_eq!(
-        vault.load_assistant_model_credential(&id).await.unwrap_err(),
-        AssistantModelCredentialVaultError::Denied
+        repository.load_assistant_model_credential(&id).await.unwrap_err(),
+        AssistantModelCredentialRepositoryError::PermissionDenied
     );
-    *vault.failure.lock().unwrap() = Some(AssistantModelCredentialVaultError::Unavailable);
+    *repository.failure.lock().unwrap() =
+        Some(AssistantModelCredentialRepositoryError::Unavailable);
     assert_eq!(
-        vault.delete_assistant_model_credential(&id).await.unwrap_err(),
-        AssistantModelCredentialVaultError::Unavailable
+        repository.delete_assistant_model_credential(&id).await.unwrap_err(),
+        AssistantModelCredentialRepositoryError::Unavailable
     );
 }
 
@@ -154,6 +158,13 @@ async fn assistant_vault_is_isolated_and_preserves_access_failures() {
 fn secrets_and_errors_never_include_plaintext() {
     let secret = AssistantModelCredentialSecret::new(b"do-not-log".to_vec()).unwrap();
     let diagnostics =
-        format!("{secret:?} {:?}", AssistantModelCredentialVaultError::InvalidCredential);
+        format!("{secret:?} {:?}", AssistantModelCredentialRepositoryError::InvalidCredential);
     assert!(!diagnostics.contains("do-not-log"));
+}
+
+#[test]
+fn credential_secrets_enforce_the_plaintext_storage_bound() {
+    assert!(GenerationProviderCredentialSecret::new(vec![1; 16 * 1024]).is_ok());
+    assert!(GenerationProviderCredentialSecret::new(vec![1; 16 * 1024 + 1]).is_err());
+    assert!(AssistantModelCredentialSecret::new(Vec::new()).is_err());
 }

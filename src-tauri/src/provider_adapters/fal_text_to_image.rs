@@ -18,8 +18,7 @@ use engine::node_capability::{
 };
 use image::GenericImageView;
 use nodes::{
-    GeneratedImagePayload, GenerationProfileAvailabilityIndeterminateReason,
-    GenerationProfileUnavailableReason, NodeCapabilityDeclaredMediaFacts,
+    GeneratedImagePayload, GenerationProfileUnavailableReason, NodeCapabilityDeclaredMediaFacts,
     NodeCapabilityMediaContentDigest, NodeCapabilityMediaSourceLease,
 };
 use serde::Deserialize;
@@ -29,9 +28,9 @@ use super::fal::{
     FalGenerationProviderAccount, FalHttpResponse, FalHttpTransportInterface, FalQueueMethod,
     FalQueueRequest, FalTransportError, ReqwestFalHttpTransport, status_is_success,
 };
-use crate::credential_vault::{
-    GenerationProviderCredentialId, GenerationProviderCredentialVaultError,
-    GenerationProviderCredentialVaultInterface,
+use crate::credential_repository::{
+    GenerationProviderCredentialId, GenerationProviderCredentialRepositoryError,
+    GenerationProviderCredentialRepositoryInterface,
 };
 use wire::{
     FalImageResult, FalStatusResponseDto, FalSubmitResponseDto, FalTextToImageRequestDto,
@@ -64,16 +63,16 @@ pub struct FalTextToImageProviderRouteImpl {
 }
 
 impl FalTextToImageProviderRouteImpl {
-    /// Constructs the shipped Fal route with an opaque credential handle.
+    /// Constructs the shipped Fal route with a focused credential repository.
     pub fn try_new(
         credential_id: GenerationProviderCredentialId,
-        vault: Arc<dyn GenerationProviderCredentialVaultInterface>,
+        repository: Arc<dyn GenerationProviderCredentialRepositoryInterface>,
     ) -> Result<Self, NodeCapabilityProviderFailure> {
         let transport = ReqwestFalHttpTransport::try_new().map_err(|_| {
             failure(NodeCapabilityProviderFailureCategory::ProviderUnavailable, false)
         })?;
         Ok(Self {
-            account: FalGenerationProviderAccount::new(credential_id, vault),
+            account: FalGenerationProviderAccount::new(credential_id, repository),
             native_model_id: NATIVE_MODEL_ID,
             transport: Arc::new(transport),
             poll_delay: POLL_DELAY,
@@ -83,11 +82,11 @@ impl FalTextToImageProviderRouteImpl {
     #[cfg(test)]
     fn with_transport(
         credential_id: GenerationProviderCredentialId,
-        vault: Arc<dyn GenerationProviderCredentialVaultInterface>,
+        repository: Arc<dyn GenerationProviderCredentialRepositoryInterface>,
         transport: Arc<dyn FalHttpTransportInterface>,
     ) -> Self {
         Self {
-            account: FalGenerationProviderAccount::new(credential_id, vault),
+            account: FalGenerationProviderAccount::new(credential_id, repository),
             native_model_id: NATIVE_MODEL_ID,
             transport,
             poll_delay: Duration::ZERO,
@@ -260,18 +259,19 @@ impl TextToImageProviderRouteInterface for FalTextToImageProviderRouteImpl {
         match self.account.credential_state().await {
             Ok(()) => GenerationProviderRouteAvailability::Available,
             Err(
-                GenerationProviderCredentialVaultError::NotFound
-                | GenerationProviderCredentialVaultError::Denied
-                | GenerationProviderCredentialVaultError::InvalidCredential,
+                GenerationProviderCredentialRepositoryError::NotFound
+                | GenerationProviderCredentialRepositoryError::InvalidCredential,
             ) => GenerationProviderRouteAvailability::Unavailable {
                 reason: GenerationProfileUnavailableReason::AuthenticationRequired,
                 retry_after: None,
             },
-            Err(GenerationProviderCredentialVaultError::Unavailable) => {
-                GenerationProviderRouteAvailability::Indeterminate {
-                    reason: GenerationProfileAvailabilityIndeterminateReason::NetworkOffline,
-                }
-            }
+            Err(
+                GenerationProviderCredentialRepositoryError::PermissionDenied
+                | GenerationProviderCredentialRepositoryError::Unavailable,
+            ) => GenerationProviderRouteAvailability::Unavailable {
+                reason: GenerationProfileUnavailableReason::ProviderUnavailable,
+                retry_after: None,
+            },
         }
     }
 
@@ -341,15 +341,15 @@ fn ensure_json(response: &FalHttpResponse) -> Result<(), NodeCapabilityProviderF
 }
 
 fn credential_failure(
-    error: GenerationProviderCredentialVaultError,
+    error: GenerationProviderCredentialRepositoryError,
 ) -> NodeCapabilityProviderFailure {
     match error {
-        GenerationProviderCredentialVaultError::NotFound
-        | GenerationProviderCredentialVaultError::Denied
-        | GenerationProviderCredentialVaultError::InvalidCredential => {
+        GenerationProviderCredentialRepositoryError::NotFound
+        | GenerationProviderCredentialRepositoryError::InvalidCredential => {
             failure(NodeCapabilityProviderFailureCategory::AuthenticationFailed, false)
         }
-        GenerationProviderCredentialVaultError::Unavailable => {
+        GenerationProviderCredentialRepositoryError::PermissionDenied
+        | GenerationProviderCredentialRepositoryError::Unavailable => {
             failure(NodeCapabilityProviderFailureCategory::ProviderUnavailable, false)
         }
     }

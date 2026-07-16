@@ -28,8 +28,8 @@ use uuid::Uuid;
 
 use super::*;
 use crate::{
-    credential_vault::{
-        GenerationProviderCredentialSecret, GenerationProviderCredentialVaultError,
+    credential_repository::{
+        GenerationProviderCredentialRepositoryError, GenerationProviderCredentialSecret,
     },
     provider_adapters::fal::{
         FalHttpResponse, FalHttpTransportInterface, FalQueueRequest, FalTransportError,
@@ -62,7 +62,7 @@ async fn sends_exact_data_uri_wire_and_returns_silent_mp4() {
     ));
     let route = FalImageToVideoProviderRouteImpl::with_transport(
         credential_id(),
-        Arc::new(FakeVault),
+        Arc::new(FakeRepository),
         transport.clone(),
     );
     let router = ImageToVideoProviderRouterImpl::try_new([(
@@ -107,29 +107,30 @@ async fn sends_exact_data_uri_wire_and_returns_silent_mp4() {
     assert_eq!(requests[2].url, result_url("video_1"));
 }
 
-struct FakeVault;
+struct FakeRepository;
 
 #[async_trait]
-impl GenerationProviderCredentialVaultInterface for FakeVault {
+impl GenerationProviderCredentialRepositoryInterface for FakeRepository {
     async fn save_generation_provider_credential(
         &self,
         _id: GenerationProviderCredentialId,
         _secret: GenerationProviderCredentialSecret,
-    ) -> Result<(), GenerationProviderCredentialVaultError> {
+    ) -> Result<(), GenerationProviderCredentialRepositoryError> {
         Ok(())
     }
 
     async fn load_generation_provider_credential(
         &self,
         _id: &GenerationProviderCredentialId,
-    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialVaultError> {
+    ) -> Result<GenerationProviderCredentialSecret, GenerationProviderCredentialRepositoryError>
+    {
         GenerationProviderCredentialSecret::new(b"test-credential".to_vec())
     }
 
     async fn delete_generation_provider_credential(
         &self,
         _id: &GenerationProviderCredentialId,
-    ) -> Result<(), GenerationProviderCredentialVaultError> {
+    ) -> Result<(), GenerationProviderCredentialRepositoryError> {
         Ok(())
     }
 }
