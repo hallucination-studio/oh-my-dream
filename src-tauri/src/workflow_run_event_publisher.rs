@@ -115,11 +115,12 @@ mod tests {
         let event = event();
 
         publisher.publish_committed_workflow_run_event(event.clone()).await.unwrap();
-        let emitted = emitter.events.lock().unwrap();
-        assert_eq!(emitted[0].0, "workflow-run-event-v1");
-        assert_eq!(emitted[0].1["sequence"], 7);
-        assert_eq!(emitted[0].1["payload"]["type"], "run_started");
-        drop(emitted);
+        {
+            let emitted = emitter.events.lock().unwrap();
+            assert_eq!(emitted[0].0, "workflow-run-event-v1");
+            assert_eq!(emitted[0].1["sequence"], 7);
+            assert_eq!(emitted[0].1["payload"]["type"], "run_started");
+        }
 
         let failing = TauriWorkflowRunEventPublisherAdapterImpl::new(Arc::new(EmitterFake {
             events: Mutex::default(),
