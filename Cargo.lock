@@ -2410,6 +2410,7 @@ dependencies = [
  "jsonschema",
  "nodes",
  "pollster",
+ "projects",
  "rusqlite",
  "schemars 0.8.22",
  "serde",
@@ -2422,6 +2423,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

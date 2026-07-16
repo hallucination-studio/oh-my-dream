@@ -19,6 +19,7 @@ mod managed_asset_access;
 pub(crate) mod metadata_sqlite;
 mod mock_generation;
 pub mod production_plan;
+pub mod project_adapters;
 pub mod reviewed_change;
 pub mod state;
 pub mod workflow_authority;
