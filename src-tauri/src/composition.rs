@@ -35,6 +35,8 @@ use crate::{
     workflow_storage_adapters::SqliteWorkflowRunRepositoryAdapterImpl,
 };
 
+mod node_capabilities;
+
 /// Filesystem locations derived from the operating-system application-data root.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DesktopApplicationPaths {
@@ -42,13 +44,19 @@ pub struct DesktopApplicationPaths {
     pub config_root: PathBuf,
     /// Root for managed Asset content.
     pub managed_content_root: PathBuf,
+    /// Private ffprobe executable selected by the application bundle.
+    pub media_inspector_executable: PathBuf,
 }
 
 impl DesktopApplicationPaths {
     /// Derives both private roots without reading paths from backend configuration.
     #[must_use]
     pub fn from_application_data_root(root: &Path) -> Self {
-        Self { config_root: root.join("config"), managed_content_root: root.join("assets") }
+        Self {
+            config_root: root.join("config"),
+            managed_content_root: root.join("assets"),
+            media_inspector_executable: root.join("tools").join("ffprobe"),
+        }
     }
 }
 
@@ -141,12 +149,6 @@ impl DesktopCompositionRoot {
     pub async fn compose_with_business(
         paths: DesktopApplicationPaths,
         emitter: Arc<dyn DesktopEventEmitterInterface>,
-        build_capabilities: impl FnOnce(
-            &DesktopBackendConfig,
-        ) -> Result<
-            Arc<WorkflowNodeCapabilityRegistry>,
-            DesktopCompositionError,
-        >,
         build_business: impl FnOnce(
             Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
             Arc<dyn WorkflowRunEventPublisherInterface>,
@@ -169,7 +171,17 @@ impl DesktopCompositionRoot {
             .load_or_initialize_desktop_backend_config()
             .await
             .map_err(|_| DesktopCompositionError::Config)?;
-        let capabilities = build_capabilities(&config)?;
+        let outbox = Arc::new(
+            SqliteDesktopPostCommitEffectOutboxAdapterImpl::try_new(Arc::clone(&connection))
+                .map_err(|_| DesktopCompositionError::Metadata)?,
+        );
+        let capabilities = node_capabilities::compose_node_capabilities(
+            Arc::clone(&connection),
+            paths.managed_content_root,
+            paths.media_inspector_executable,
+            Arc::clone(&settings),
+            &config,
+        )?;
         if !has_exact_node_capabilities(&capabilities) {
             return Err(DesktopCompositionError::Business);
         }
@@ -184,10 +196,6 @@ impl DesktopCompositionRoot {
             Arc::new(TauriWorkflowRunEventPublisherAdapterImpl::new(emitter));
         let business =
             build_business(Arc::clone(&workflow_repository), Arc::clone(&publisher), &config)?;
-        let outbox = Arc::new(
-            SqliteDesktopPostCommitEffectOutboxAdapterImpl::try_new(Arc::clone(&connection))
-                .map_err(|_| DesktopCompositionError::Metadata)?,
-        );
         Self::finish_host(
             DesktopInfrastructureComposition {
                 connection,

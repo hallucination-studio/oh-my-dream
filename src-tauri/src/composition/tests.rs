@@ -1,14 +1,6 @@
 use std::sync::Mutex;
 
 use async_trait::async_trait;
-use engine::node_capability::{
-    NodeCapabilityContract, NodeCapabilityContractId, NodeCapabilityContractRef,
-    NodeCapabilityContractVersion, NodeCapabilityExecutionError, NodeCapabilityExecutionKind,
-    NodeCapabilityExecutionRequest, NodeCapabilityNormalizedParameters,
-    NodeCapabilityOutputContract, NodeCapabilityOutputKey, NodeCapabilityParameterError,
-    NodeCapabilityParameterSet, NodeCapabilityReadinessIssue, NodeCapabilityReadinessRequest,
-    WorkflowDataType, WorkflowNodeCapabilityInterface, WorkflowNodeOutputSet,
-};
 use tempfile::tempdir;
 
 use super::*;
@@ -22,38 +14,6 @@ use crate::{
     post_commit_worker::DesktopPostCommitEffectExecutionOutcome,
     workflow_run_event_publisher::DesktopEventEmissionError,
 };
-
-struct TestCapability {
-    contract: NodeCapabilityContract,
-}
-
-#[async_trait]
-impl WorkflowNodeCapabilityInterface for TestCapability {
-    fn node_capability_contract(&self) -> &NodeCapabilityContract {
-        &self.contract
-    }
-
-    fn normalize_node_parameters(
-        &self,
-        parameters: &NodeCapabilityParameterSet,
-    ) -> Result<NodeCapabilityNormalizedParameters, NodeCapabilityParameterError> {
-        self.contract.normalize_node_parameters(parameters)
-    }
-
-    async fn check_node_external_readiness(
-        &self,
-        _: NodeCapabilityReadinessRequest,
-    ) -> Vec<NodeCapabilityReadinessIssue> {
-        Vec::new()
-    }
-
-    async fn execute_node_capability(
-        &self,
-        _: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
-        unreachable!("composition tests do not execute capabilities")
-    }
-}
 
 struct TestExecutor;
 
@@ -137,7 +97,6 @@ async fn compose(
     DesktopCompositionRoot::compose_with_business(
         paths,
         Arc::new(TestEmitter::default()),
-        |_| Ok(test_registry()),
         |_, _, _| {
             Ok(DesktopBusinessComposition {
                 post_commit_effect_executor: Arc::new(TestExecutor),
@@ -190,40 +149,4 @@ async fn seed_config(
             .await
             .expect("save credential");
     }
-}
-
-fn test_registry() -> Arc<WorkflowNodeCapabilityRegistry> {
-    let capabilities = EXACT_NODE_CAPABILITY_REFS
-        .into_iter()
-        .map(|reference| {
-            Arc::new(TestCapability { contract: test_contract(reference) })
-                as Arc<dyn WorkflowNodeCapabilityInterface>
-        })
-        .collect::<Vec<_>>();
-    Arc::new(WorkflowNodeCapabilityRegistry::try_new(capabilities).expect("registry"))
-}
-
-fn test_contract(reference: &str) -> NodeCapabilityContract {
-    let (id, version) = reference.split_once('@').expect("reference");
-    let (major, minor) = version.split_once('.').expect("version");
-    let contract_ref = NodeCapabilityContractRef::new(
-        NodeCapabilityContractId::new(id).expect("ID"),
-        NodeCapabilityContractVersion::new(
-            major.parse().expect("major"),
-            minor.parse().expect("minor"),
-        )
-        .expect("version"),
-    );
-    NodeCapabilityContract::try_new(
-        contract_ref,
-        Vec::new(),
-        Vec::new(),
-        vec![NodeCapabilityOutputContract::new(
-            NodeCapabilityOutputKey::new("result").expect("output"),
-            WorkflowDataType::Text,
-            true,
-        )],
-        NodeCapabilityExecutionKind::PureValue,
-    )
-    .expect("contract")
 }

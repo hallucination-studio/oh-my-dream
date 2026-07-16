@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use engine::node_capability::NodeCapabilityContractRef;
@@ -176,4 +179,16 @@ pub trait GenerationProfileAvailabilityReaderInterface: Send + Sync {
         &self,
         request: GenerationProfileAvailabilityRequest,
     ) -> Result<Vec<GenerationProfileAvailabilityObservation>, GenerationProfileError>;
+}
+
+#[async_trait]
+impl<T: GenerationProfileAvailabilityReaderInterface + ?Sized>
+    GenerationProfileAvailabilityReaderInterface for Arc<T>
+{
+    async fn read_generation_profile_availability(
+        &self,
+        request: GenerationProfileAvailabilityRequest,
+    ) -> Result<Vec<GenerationProfileAvailabilityObservation>, GenerationProfileError> {
+        self.as_ref().read_generation_profile_availability(request).await
+    }
 }

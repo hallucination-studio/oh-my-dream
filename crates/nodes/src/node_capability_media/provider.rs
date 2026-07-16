@@ -283,3 +283,34 @@ pub trait TextToSpeechProviderInterface: Send + Sync {
         request: TextToSpeechProviderRequest,
     ) -> Result<SynthesizedSpeechPayload, NodeCapabilityProviderFailure>;
 }
+
+#[async_trait]
+impl<T: TextToImageProviderInterface + ?Sized> TextToImageProviderInterface for Arc<T> {
+    async fn generate_image_from_text(
+        &self,
+        request: TextToImageProviderRequest,
+    ) -> Result<GeneratedImagePayload, NodeCapabilityProviderFailure> {
+        self.as_ref().generate_image_from_text(request).await
+    }
+}
+
+#[async_trait]
+impl<T: ImageToVideoProviderInterface + ?Sized> ImageToVideoProviderInterface for Arc<T> {
+    async fn generate_video_from_image(
+        &self,
+        request: ImageToVideoProviderRequest,
+    ) -> Result<GeneratedVideoPayload, NodeCapabilityProviderFailure> {
+        self.as_ref().generate_video_from_image(request).await
+    }
+}
+
+#[async_trait]
+impl<T: TextToSpeechProviderInterface + ?Sized> TextToSpeechProviderInterface for Arc<T> {
+    async fn synthesize_speech_from_text(
+        &self,
+        request: TextToSpeechProviderRequest,
+    ) -> Result<SynthesizedSpeechPayload, NodeCapabilityProviderFailure> {
+        self.as_ref().synthesize_speech_from_text(request).await
+    }
+}
+use std::sync::Arc;

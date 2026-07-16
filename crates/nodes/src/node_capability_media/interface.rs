@@ -333,6 +333,30 @@ pub trait NodeCapabilityProducedMediaWriterInterface: Send + Sync {
     ) -> Result<NodeCapabilityProducedMediaReference, NodeCapabilityMediaBoundaryError>;
 }
 
+#[async_trait]
+impl<T: NodeCapabilityManagedMediaReaderInterface + ?Sized>
+    NodeCapabilityManagedMediaReaderInterface for Arc<T>
+{
+    async fn read_managed_media(
+        &self,
+        request: NodeCapabilityManagedMediaReadRequest,
+    ) -> Result<NodeCapabilityReadableMediaInput, NodeCapabilityMediaBoundaryError> {
+        self.as_ref().read_managed_media(request).await
+    }
+}
+
+#[async_trait]
+impl<T: NodeCapabilityProducedMediaWriterInterface + ?Sized>
+    NodeCapabilityProducedMediaWriterInterface for Arc<T>
+{
+    async fn write_node_output_media(
+        &self,
+        request: NodeCapabilityProducedMediaWriteRequest,
+    ) -> Result<NodeCapabilityProducedMediaReference, NodeCapabilityMediaBoundaryError> {
+        self.as_ref().write_node_output_media(request).await
+    }
+}
+
 fn output_key_matches_context(
     output_key: &NodeCapabilityProducedMediaOutputKey,
     context: &WorkflowNodeExecutionContext,
@@ -340,3 +364,4 @@ fn output_key_matches_context(
     output_key.workflow_run_id() == context.workflow_run_id
         && output_key.node_execution_id() == context.node_execution_id
 }
+use std::sync::Arc;
