@@ -89,8 +89,10 @@ dependencies = [
 name = "assistant"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "projects",
  "thiserror 2.0.18",
+ "tokio",
  "uuid",
 ]
 

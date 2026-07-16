@@ -12,6 +12,10 @@ name = "integration"
 path = "tests/integration.rs"
 
 [dependencies]
+async-trait.workspace = true
 projects.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
