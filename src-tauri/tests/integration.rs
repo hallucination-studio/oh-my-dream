@@ -30,6 +30,8 @@ mod contract;
 mod dto;
 #[path = "e2e.rs"]
 mod e2e;
+#[path = "post_commit_effect_outbox.rs"]
+mod post_commit_effect_outbox;
 #[path = "post_commit_effect_values.rs"]
 mod post_commit_effect_values;
 #[path = "production_plan.rs"]
