@@ -33,6 +33,12 @@ impl TextToSpeechProviderRouteRequest {
     pub const fn text(&self) -> &WorkflowTextValue {
         &self.text
     }
+
+    /// Consumes the routed request into every provider-independent field.
+    #[must_use]
+    pub fn into_parts(self) -> (WorkflowNodeExecutionContext, WorkflowTextValue) {
+        (self.context, self.text)
+    }
 }
 
 /// Private exact route boundary implemented by text-to-speech adapters.
