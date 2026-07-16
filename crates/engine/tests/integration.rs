@@ -35,3 +35,5 @@ mod workflow_mutation_command;
 mod workflow_mutation_receipt;
 #[path = "workflow_patch.rs"]
 mod workflow_patch;
+#[path = "workflow_run_domain.rs"]
+mod workflow_run_domain;

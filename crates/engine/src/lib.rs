@@ -18,6 +18,7 @@ pub mod port;
 pub mod registry;
 mod validation;
 pub mod value;
+pub mod workflow;
 pub mod workflow_graph;
 pub mod workflow_patch;
 
