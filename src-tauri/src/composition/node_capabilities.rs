@@ -61,6 +61,7 @@ pub(super) struct DesktopNodeCapabilityComposition {
     pub(super) asset_list: Arc<AssetListUseCase>,
     pub(super) asset_issue_preview: Arc<AssetIssuePreviewUseCase>,
     pub(super) asset_preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
+    pub(super) asset_finalizer: Arc<AssetFinalizeContentUseCase>,
 }
 
 pub(super) fn compose_node_capabilities(
@@ -142,6 +143,7 @@ pub(super) fn compose_node_capabilities(
         asset_list: assets.list,
         asset_issue_preview: assets.issue_preview,
         asset_preview_protocol: assets.preview_protocol,
+        asset_finalizer: assets.finalizer,
     })
 }
 
@@ -153,6 +155,7 @@ struct DesktopAssetComposition {
     list: Arc<AssetListUseCase>,
     issue_preview: Arc<AssetIssuePreviewUseCase>,
     preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
+    finalizer: Arc<AssetFinalizeContentUseCase>,
 }
 
 fn compose_asset_bridge(
@@ -207,7 +210,13 @@ fn compose_asset_bridge(
         .map_err(|_| DesktopCompositionError::Business)?,
     );
     let record = Arc::new(AssetRecordNodeOutputUseCase::new(
-        repository, ingest, managed, inspector, clock, identities, finalizer,
+        repository,
+        ingest,
+        managed,
+        inspector,
+        clock,
+        identities,
+        finalizer.clone(),
     ));
     Ok(DesktopAssetComposition {
         bridge: Arc::new(DesktopNodeCapabilityAssetBridgeAdapterImpl::new(resolve, record)),
@@ -220,6 +229,7 @@ fn compose_asset_bridge(
         list,
         issue_preview,
         preview_protocol,
+        finalizer,
     })
 }
 

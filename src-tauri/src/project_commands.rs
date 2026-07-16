@@ -306,7 +306,7 @@ fn decode_cursor(value: &str) -> Result<ProjectListCursor, DesktopErrorDto> {
     })
 }
 
-fn project_error(error: impl Into<ProjectApplicationError>) -> DesktopErrorDto {
+pub(crate) fn project_error(error: impl Into<ProjectApplicationError>) -> DesktopErrorDto {
     let error = error.into();
     use crate::desktop_backend_config::DesktopErrorCode;
     let (code, target) = match error {

@@ -10,6 +10,7 @@ use engine::workflow::{
 use engine::workflow_graph::WorkflowId;
 
 /// UTC system-clock implementation of the Workflow time boundary.
+#[derive(Clone, Copy)]
 pub struct SystemWorkflowClockAdapterImpl;
 
 impl WorkflowClockInterface for SystemWorkflowClockAdapterImpl {
@@ -22,6 +23,7 @@ impl WorkflowClockInterface for SystemWorkflowClockAdapterImpl {
 }
 
 /// Operating-system-random UUIDv4 implementation of all Workflow identity methods.
+#[derive(Clone, Copy)]
 pub struct UuidV4WorkflowIdentityGeneratorAdapterImpl;
 
 impl WorkflowIdentityGeneratorInterface for UuidV4WorkflowIdentityGeneratorAdapterImpl {

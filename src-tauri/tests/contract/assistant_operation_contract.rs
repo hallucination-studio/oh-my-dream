@@ -1,266 +1,50 @@
-use std::sync::Arc;
-use tempfile::tempdir;
+use assistant::application::{AssistantToolCatalog, AssistantToolEffect};
+use serde::Serialize;
+use serde_json::Value;
 
-use oh_my_dream_tauri::assistant_operations::{
-    OperationEffect, OperationInputSchemaMode, OperationRegistration, RequestContext,
-};
-use oh_my_dream_tauri::capability_discovery::CapabilityDiscovery;
-use oh_my_dream_tauri::state::AppState;
-use oh_my_dream_tauri::workflow_patch_operation::WorkflowPatchService;
-use oh_my_dream_tauri::workspace_snapshot::WorkspaceSnapshotService;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-
-const OPERATION_CONTRACT_KEYS: [&str; 8] = [
-    "description",
-    "effect",
-    "id",
-    "input_schema",
-    "needs_approval",
-    "output_schema",
-    "strict_json_schema",
-    "version",
-];
-
-const TRUSTED_ARGUMENT_NAMES: [&str; 7] = [
-    "project_id",
-    "session_id",
-    "request_id",
-    "tool_version",
-    "approved_effect",
-    "selected_node_ids",
-    "selected_asset_ids",
-];
-
-#[derive(Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-struct PreparedInput {
-    proposal_id: String,
+#[derive(Serialize)]
+pub struct AssistantToolContractFixture {
+    operations: Vec<AssistantToolContractDto>,
 }
 
-#[derive(Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-struct Output {
-    result: String,
+#[derive(Serialize)]
+struct AssistantToolContractDto {
+    id: String,
+    description: String,
+    effect: &'static str,
+    needs_approval: bool,
+    input_schema: Value,
+    output_schema: Value,
 }
 
-pub(super) fn fixture() -> Value {
-    let root = tempdir().expect("create operation contract asset root");
-    let state = AppState::from_asset_root(root.path()).expect("build operation contract state");
-    let read = Arc::new(WorkspaceSnapshotService::from_state(&state))
-        .operation_registration()
-        .expect("register workspace snapshot contract");
-    let prepared = OperationRegistration::new::<PreparedInput, Output, _>(
-        "proposal_execute",
-        3,
-        "Execute a previously prepared proposal.",
-        OperationEffect::PreparedApprovalExecution,
-        OperationInputSchemaMode::Strict,
-        |_context: &RequestContext, input: PreparedInput| async move {
-            Ok(Output { result: input.proposal_id })
-        },
-    )
-    .expect("register prepared execution contract");
-    let patch_service = Arc::new(WorkflowPatchService::from_state(&state));
-    let patch = Arc::clone(&patch_service)
-        .operation_registration()
-        .expect("register Workflow patch contract");
-    let evaluate = patch_service
-        .evaluation_operation_registration()
-        .expect("register Workflow evaluation contract");
-    let discovery = Arc::new(CapabilityDiscovery::from_state(&state))
-        .operation_registrations()
-        .expect("register capability discovery contracts");
-    let mut operations =
-        vec![read.contract(), patch.contract(), evaluate.contract(), prepared.contract()];
-    operations.extend(discovery.into_iter().map(|registration| registration.contract()));
-    json!({ "operations": operations })
+pub fn fixture() -> AssistantToolContractFixture {
+    let catalog = AssistantToolCatalog::try_new().expect("frozen Assistant tool catalog");
+    AssistantToolContractFixture {
+        operations: catalog
+            .contracts()
+            .iter()
+            .map(|contract| AssistantToolContractDto {
+                id: contract.id().as_str().to_owned(),
+                description: contract.description().to_owned(),
+                effect: match contract.effect() {
+                    AssistantToolEffect::AuthoritativeRead => "authoritative_read",
+                    AssistantToolEffect::AssistantStateMutation => "assistant_state_mutation",
+                    AssistantToolEffect::HumanApprovalRequest => "human_approval_request",
+                },
+                needs_approval: contract.requires_human_approval(),
+                input_schema: contract.input_schema().clone(),
+                output_schema: contract.output_schema().clone(),
+            })
+            .collect(),
+    }
 }
 
-pub(super) fn assert_fixture(fixture: &Value) {
-    let operations = fixture["operations"].as_array().expect("operations array");
-    assert_eq!(operations.len(), 6);
-    assert_operation(&operations[0], "workspace_get_snapshot", "local_read", true, false);
-    assert_operation(
-        &operations[1],
-        "workflow_apply_patch",
-        "visible_reversible_workflow_patch",
-        false,
-        false,
+pub fn assert_fixture(fixture: &AssistantToolContractFixture) {
+    assert_eq!(fixture.operations.len(), 11);
+    assert!(
+        fixture
+            .operations
+            .iter()
+            .all(|operation| operation.id.starts_with("assistant.") && operation.id.ends_with("@1"))
     );
-    assert_operation(&operations[2], "workflow_evaluate_patch", "local_read", false, false);
-    assert_operation(&operations[3], "proposal_execute", "prepared_approval_execution", true, true);
-    assert_operation(&operations[4], "capability_search", "local_read", true, false);
-    assert_operation(&operations[5], "capability_describe", "local_read", true, false);
-    assert!(operations[0]["input_schema"].get("required").is_none());
-    assert!(operations[0]["input_schema"].get("properties").is_none());
-    assert_eq!(operations[0]["output_schema"]["properties"]["assets"]["maxItems"], 8);
-    assert_eq!(
-        operations[1]["input_schema"]["required"],
-        json!(["expected_revision", "operations"])
-    );
-    assert_eq!(operations[2]["input_schema"], operations[1]["input_schema"]);
-    assert_eq!(operations[2]["version"], 2);
-    assert_eq!(operations[3]["input_schema"]["required"], json!(["proposal_id"]));
-    assert_eq!(operations[4]["input_schema"]["required"], json!(["kinds", "query"]));
-    assert_eq!(operations[5]["input_schema"]["required"], json!(["refs"]));
-    assert_eq!(
-        operations[1]["input_schema"]["properties"]["operations"]["items"]["oneOf"][0]["properties"]
-            ["params"]["additionalProperties"],
-        true
-    );
-    assert_eq!(operations[5]["input_schema"]["properties"]["refs"]["maxItems"], 3);
-}
-
-fn assert_operation(operation: &Value, id: &str, effect: &str, strict: bool, approval: bool) {
-    let object = operation.as_object().expect("serialized operation contract");
-    let mut keys = object.keys().map(String::as_str).collect::<Vec<_>>();
-    keys.sort_unstable();
-    assert_eq!(keys, OPERATION_CONTRACT_KEYS);
-    assert_eq!(operation["id"], id);
-    assert_eq!(operation["effect"], effect);
-    assert_eq!(operation["strict_json_schema"], strict);
-    assert_eq!(operation["needs_approval"], approval);
-    assert_no_trusted_schema_fields(&operation["input_schema"])
-        .expect("trusted context must not be exposed as model arguments");
-}
-
-fn assert_no_trusted_schema_fields(schema: &Value) -> Result<(), String> {
-    inspect_schema(schema, "#")
-}
-
-fn inspect_schema(schema: &Value, path: &str) -> Result<(), String> {
-    let Some(object) = schema.as_object() else {
-        return Ok(());
-    };
-    if let Some(properties) = object.get("properties").and_then(Value::as_object) {
-        for name in properties.keys() {
-            if is_trusted_argument(name) {
-                return Err(format!("trusted property {name} at {path}"));
-            }
-        }
-    }
-    if let Some(required) = object.get("required").and_then(Value::as_array) {
-        for name in required.iter().filter_map(Value::as_str) {
-            if is_trusted_argument(name) {
-                return Err(format!("trusted required field {name} at {path}"));
-            }
-        }
-    }
-    for keyword in [
-        "properties",
-        "patternProperties",
-        "definitions",
-        "$defs",
-        "dependentSchemas",
-        "dependencies",
-    ] {
-        inspect_schema_map(object.get(keyword), path, keyword)?;
-    }
-    for keyword in [
-        "additionalProperties",
-        "additionalItems",
-        "contains",
-        "propertyNames",
-        "not",
-        "if",
-        "then",
-        "else",
-        "unevaluatedProperties",
-        "unevaluatedItems",
-    ] {
-        if let Some(subschema) = object.get(keyword) {
-            inspect_schema(subschema, &format!("{path}/{keyword}"))?;
-        }
-    }
-    for keyword in ["items", "prefixItems", "allOf", "anyOf", "oneOf"] {
-        if let Some(subschema) = object.get(keyword) {
-            inspect_schema_or_array(subschema, path, keyword)?;
-        }
-    }
-    Ok(())
-}
-
-fn inspect_schema_map(value: Option<&Value>, path: &str, keyword: &str) -> Result<(), String> {
-    let Some(entries) = value.and_then(Value::as_object) else {
-        return Ok(());
-    };
-    for (name, subschema) in entries {
-        inspect_schema(subschema, &format!("{path}/{keyword}/{}", escape_pointer(name)))?;
-    }
-    Ok(())
-}
-
-fn inspect_schema_or_array(value: &Value, path: &str, keyword: &str) -> Result<(), String> {
-    if let Some(subschemas) = value.as_array() {
-        for (index, subschema) in subschemas.iter().enumerate() {
-            inspect_schema(subschema, &format!("{path}/{keyword}/{index}"))?;
-        }
-        return Ok(());
-    }
-    inspect_schema(value, &format!("{path}/{keyword}"))
-}
-
-fn is_trusted_argument(name: &str) -> bool {
-    TRUSTED_ARGUMENT_NAMES.contains(&name)
-}
-
-fn escape_pointer(value: &str) -> String {
-    value.replace('~', "~0").replace('/', "~1")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn trusted_words_in_schema_annotations_are_ignored() {
-        let schema = json!({
-            "type": "object",
-            "properties": { "query": { "type": "string" } },
-            "default": {
-                "project_id": "project-default",
-                "session_id": "session-default",
-                "request_id": "request-default"
-            },
-            "examples": [{
-                "tool_version": 7,
-                "approved_effect": "example approval text"
-            }]
-        });
-
-        assert_no_trusted_schema_fields(&schema).expect("annotations are not model fields");
-    }
-
-    #[test]
-    fn nested_trusted_property_is_rejected() {
-        let schema = json!({
-            "type": "object",
-            "properties": {
-                "nested": {
-                    "type": "object",
-                    "properties": { "session_id": { "type": "string" } },
-                    "required": ["session_id"]
-                }
-            }
-        });
-
-        let error = assert_no_trusted_schema_fields(&schema)
-            .expect_err("nested trusted model field must be rejected");
-        assert_eq!(error, "trusted property session_id at #/properties/nested");
-    }
-
-    #[test]
-    fn trusted_required_entry_is_rejected() {
-        let schema = json!({
-            "type": "object",
-            "properties": { "query": { "type": "string" } },
-            "required": ["query", "request_id"]
-        });
-
-        let error = assert_no_trusted_schema_fields(&schema)
-            .expect_err("trusted required entry must be rejected");
-        assert_eq!(error, "trusted required field request_id at #");
-    }
 }

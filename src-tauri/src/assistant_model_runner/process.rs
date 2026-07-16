@@ -1,4 +1,4 @@
-use std::{io, process::Stdio};
+use std::{io, process::Stdio, sync::Arc};
 
 use assistant::interfaces::AssistantApplicationError;
 use async_trait::async_trait;
@@ -8,8 +8,12 @@ use tokio::{
 };
 
 use super::{AssistantProtocolProcessInterface, AssistantProtocolProcessLauncherInterface};
-use crate::assistant_runtime::AssistantSidecarCommand;
+use crate::assistant_process_command::AssistantSidecarCommand;
+use crate::credential_repository::{
+    AssistantModelCredentialId, AssistantModelCredentialRepositoryInterface,
+};
 
+#[derive(Clone)]
 pub struct AssistantSidecarCommandProcessLauncherImpl {
     command: AssistantSidecarCommand,
 }
@@ -53,6 +57,51 @@ impl AssistantProtocolProcessLauncherInterface for AssistantSidecarCommandProces
             stdin: Some(BufWriter::new(stdin)),
             stdout: BufReader::new(stdout),
         }))
+    }
+}
+
+/// Loads the plaintext credential only for one bounded sidecar invocation.
+#[derive(Clone)]
+pub struct CredentialedAssistantSidecarProcessLauncherAdapterImpl {
+    command: AssistantSidecarCommand,
+    credentials: Arc<dyn AssistantModelCredentialRepositoryInterface>,
+    credential_id: AssistantModelCredentialId,
+    enabled: bool,
+}
+
+impl CredentialedAssistantSidecarProcessLauncherAdapterImpl {
+    #[must_use]
+    pub fn new(
+        command: AssistantSidecarCommand,
+        credentials: Arc<dyn AssistantModelCredentialRepositoryInterface>,
+        credential_id: AssistantModelCredentialId,
+        enabled: bool,
+    ) -> Self {
+        Self { command, credentials, credential_id, enabled }
+    }
+}
+
+#[async_trait]
+impl AssistantProtocolProcessLauncherInterface
+    for CredentialedAssistantSidecarProcessLauncherAdapterImpl
+{
+    async fn launch_assistant_protocol_process(
+        &self,
+    ) -> Result<Box<dyn AssistantProtocolProcessInterface>, AssistantApplicationError> {
+        if !self.enabled {
+            return Err(AssistantApplicationError::ModelUnavailable);
+        }
+        let secret = self
+            .credentials
+            .load_assistant_model_credential(&self.credential_id)
+            .await
+            .map_err(|_| AssistantApplicationError::ModelUnavailable)?;
+        let value = std::str::from_utf8(secret.as_bytes())
+            .map_err(|_| AssistantApplicationError::ModelUnavailable)?;
+        let launcher = AssistantSidecarCommandProcessLauncherImpl::new(
+            self.command.clone().env("OMD_ASSISTANT_API_KEY", value),
+        );
+        launcher.launch_assistant_protocol_process().await
     }
 }
 

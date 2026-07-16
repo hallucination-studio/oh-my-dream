@@ -14,8 +14,8 @@ use crate::{
         AssistantApprovalScopeId, AssistantModelInvocationId, AssistantProductionPlanAggregate,
         AssistantProductionPlanId, AssistantSessionId, AssistantUserIntent,
         AssistantWorkflowChangeAggregate, AssistantWorkflowChangeCandidate,
-        AssistantWorkflowChangeExpiry, AssistantWorkflowChangeId, AssistantWorkflowFingerprint,
-        AssistantWorkflowMutation, AssistantWorkflowMutationDigest,
+        AssistantWorkflowChangeExpiry, AssistantWorkflowChangeId, AssistantWorkflowChangeLineage,
+        AssistantWorkflowFingerprint, AssistantWorkflowMutation, AssistantWorkflowMutationDigest,
         AssistantWorkflowStableAliasSet,
     },
     interfaces::{
@@ -239,8 +239,10 @@ fn context() -> AssistantToolExecutionContext {
         production_plan_id: plan_id(),
         workflow_change_id: change_id(),
         approval_scope_id: AssistantApprovalScopeId::from_uuid(uuid(6)).unwrap(),
-        invocation_id: AssistantModelInvocationId::from_uuid(uuid(5)).unwrap(),
-        user_intent: AssistantUserIntent::new("Create workflow").unwrap(),
+        lineage: AssistantWorkflowChangeLineage::UserMessage {
+            invocation_id: AssistantModelInvocationId::from_uuid(uuid(5)).unwrap(),
+            intent: AssistantUserIntent::new("Create workflow").unwrap(),
+        },
         workflow_change_expires_at: AssistantWorkflowChangeExpiry::new(60_000).unwrap(),
         workspace_request: AssistantWorkspaceSnapshotRequest::try_new(
             project_id(),

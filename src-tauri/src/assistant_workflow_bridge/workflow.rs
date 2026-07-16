@@ -38,6 +38,7 @@ use super::{
 };
 
 /// Canonical Assistant evaluation bridge over Workflow application use cases.
+#[derive(Clone)]
 pub struct DesktopAssistantWorkflowBridgeAdapterImpl<A, R, C, I> {
     evaluate_mutation: Arc<WorkflowEvaluateMutationUseCase<A, C>>,
     apply_mutation: Arc<engine::workflow::WorkflowApplyMutationUseCase<A, C>>,

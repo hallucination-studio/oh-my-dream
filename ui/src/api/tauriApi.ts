@@ -4,7 +4,7 @@
 // result is the sole terminal authority; cancellation remains a request until
 // that result reports cancelled, succeeded, or failed.
 
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type {
   AssetDto,
@@ -14,9 +14,11 @@ import type {
   AssistantConfig,
   AssistantConfigInput,
   AssistantApprovalDecisionInput,
-  AssistantPendingApproval,
+  AssistantPendingWorkflowChange,
+  AssistantPresentationEvent,
+  AssistantSendMessageResult,
+  AssistantWorkflowChangeDecisionResult,
   AssistantSendInput,
-  ResponsesStreamEvent,
   CapabilityRef,
   GenerationProfileForCapability,
   NodeCapabilityContractDto,
@@ -24,7 +26,6 @@ import type {
   ProjectWorkspace,
   Provider,
   WorkflowApi,
-  WorkflowHead,
   WorkflowDto,
   WorkflowMutationActionDto,
   WorkflowNodePresentationDto,
@@ -263,32 +264,33 @@ async function setAssistantConfig(input: AssistantConfigInput): Promise<void> {
   await invoke("set_assistant_config", { input });
 }
 
-async function sendAssistant(
+async function assistantSendMessage(
   input: AssistantSendInput,
-  onEvent: (event: ResponsesStreamEvent) => void,
-): Promise<WorkflowHead | null> {
-  const channel = new Channel<ResponsesStreamEvent>();
-  channel.onmessage = onEvent;
-  return invoke<WorkflowHead | null>("assistant_send", { input, on_event: channel });
+): Promise<AssistantSendMessageResult> {
+  return invoke<AssistantSendMessageResult>("assistant_send_message", { request: input });
 }
 
-async function decideAssistantApproval(
+async function assistantDecideWorkflowChange(
   input: AssistantApprovalDecisionInput,
-  onEvent: (event: ResponsesStreamEvent) => void,
-): Promise<WorkflowHead | null> {
-  const channel = new Channel<ResponsesStreamEvent>();
-  channel.onmessage = onEvent;
-  return invoke<WorkflowHead | null>("assistant_decide_approval", {
-    input,
-    on_event: channel,
+): Promise<AssistantWorkflowChangeDecisionResult> {
+  return invoke<AssistantWorkflowChangeDecisionResult>("assistant_decide_workflow_change", {
+    request: input,
   });
 }
 
-async function getPendingAssistantApproval(
+async function assistantGetPendingWorkflowChange(
   projectId: string,
-): Promise<AssistantPendingApproval | null> {
-  return invoke<AssistantPendingApproval | null>("assistant_get_pending_approval", {
-    project_id: projectId,
+): Promise<AssistantPendingWorkflowChange | null> {
+  return invoke<AssistantPendingWorkflowChange | null>("assistant_get_pending_workflow_change", {
+    request: { project_id: projectId },
+  });
+}
+
+async function observeAssistantPresentationEvents(
+  onEvent: (event: AssistantPresentationEvent) => void,
+): Promise<() => void> {
+  return listen<AssistantPresentationEvent>("assistant-presentation-event-v1", ({ payload }) => {
+    onEvent(payload);
   });
 }
 
@@ -319,7 +321,8 @@ export const tauriApi: WorkflowApi = {
   setProviderKey,
   getAssistantConfig,
   setAssistantConfig,
-  sendAssistant,
-  getPendingAssistantApproval,
-  decideAssistantApproval,
+  assistantSendMessage,
+  assistantGetPendingWorkflowChange,
+  assistantDecideWorkflowChange,
+  observeAssistantPresentationEvents,
 };

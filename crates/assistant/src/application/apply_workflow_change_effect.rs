@@ -1,6 +1,7 @@
 use crate::{
     domain::{
         AssistantWorkflowChangeAggregate, AssistantWorkflowChangeId, AssistantWorkflowChangeState,
+        WorkflowRevisionBoundaryValue,
     },
     interfaces::{
         AssistantApplicationError, AssistantModelContinuationStoreInterface,
@@ -126,6 +127,15 @@ where
                     project_id: stored.project_id,
                     session_id: stored.session_id,
                     invocation_id: stored.invocation_id,
+                    lineage: change.lineage().clone(),
+                    observed_workflow_revision: WorkflowRevisionBoundaryValue::new(
+                        change
+                            .base_workflow_revision()
+                            .get()
+                            .checked_add(1)
+                            .ok_or(AssistantApplicationError::ProtocolViolation)?,
+                    )
+                    .map_err(|_| AssistantApplicationError::ProtocolViolation)?,
                     continuation: stored.envelope,
                     input: AssistantModelTurnInput::new(receipt.canonical_bytes().to_vec())?,
                 })

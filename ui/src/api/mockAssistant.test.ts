@@ -1,81 +1,62 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import {
-  decideAssistantApproval,
-  getPendingAssistantApproval,
+  assistantDecideWorkflowChange,
+  assistantGetPendingWorkflowChange,
+  assistantSendMessage,
+  observeAssistantPresentationEvents,
   primeMockAssistantApproval,
 } from "./mockAssistant.ts";
-import type { AssistantPendingApproval } from "./types.ts";
+import type { AssistantPendingWorkflowChange } from "./types.ts";
 
-const APPROVAL: AssistantPendingApproval = {
-  project_id: "project-1",
-  approval_scope_id: "scope-1",
-  user_intent: "Build a film",
-  candidate_digest: "sha256:candidate",
-  reviewer_version: "reviewer-v1",
-  evidence_hash: "sha256:evidence",
-  review_summary: "Ready",
-  review_findings: [],
-  effect: "apply_reviewed_workflow_candidate",
-  workflow: { version: "1.0", project_id: "project-1", nodes: [] },
-  readiness_blockers: [],
-  assets: [],
+const CHANGE: AssistantPendingWorkflowChange = {
+  workflow_change_id: "20000000-0000-4000-8000-000000000001",
+  project_id: "10000000-0000-4000-8000-000000000001",
+  base_workflow_revision: "1",
+  mutation_digest_hex: "00".repeat(32),
+  approval_scope_id: "30000000-0000-4000-8000-000000000001",
+  expires_at_epoch_ms: "1000",
+  state: "awaiting_approval",
+  lineage: {
+    kind: "user_message",
+    invocation_id: "40000000-0000-4000-8000-000000000001",
+    intent: "Build a film",
+  },
+  mutations: [{}],
+  readiness_issues: [],
 };
 
 beforeEach(() => primeMockAssistantApproval(null));
 
-it.each([true, false])("clears a pending approval after decision %s", async (approved) => {
-  primeMockAssistantApproval(APPROVAL);
-  const onEvent = vi.fn();
-  await decideAssistantApproval(
-    {
-      project_id: "project-1",
-      approval_scope_id: "scope-1",
-      candidate_digest: "sha256:candidate",
-      approved,
-    },
-    onEvent,
-  );
-  await expect(getPendingAssistantApproval()).resolves.toBeNull();
-  expect(onEvent).toHaveBeenCalledWith({ type: "response.completed" });
+it("emits typed contiguous presentation events", async () => {
+  const observer = vi.fn();
+  const unlisten = await observeAssistantPresentationEvents(observer);
+  await assistantSendMessage({
+    project_id: CHANGE.project_id,
+    workflow_present: false,
+    workflow_revision: null,
+    selected_node_ids: [],
+    selected_asset_ids: [],
+    text: "Build a film",
+  });
+  unlisten();
+  expect(observer.mock.calls.map(([event]) => event.kind)).toEqual([
+    "text_delta",
+    "invocation_completed",
+  ]);
 });
 
-it("rejects missing and cross-project pending approvals", async () => {
-  await expect(
-    decideAssistantApproval(
-      {
-        project_id: "project-1",
-        approval_scope_id: "scope-1",
-        candidate_digest: "sha256:candidate",
-        approved: true,
-      },
-      vi.fn(),
-    ),
-  ).rejects.toThrow("ASSISTANT_APPROVAL_NOT_FOUND");
-  primeMockAssistantApproval(APPROVAL);
-  await expect(
-    decideAssistantApproval(
-      {
-        project_id: "project-2",
-        approval_scope_id: "scope-1",
-        candidate_digest: "sha256:candidate",
-        approved: true,
-      },
-      vi.fn(),
-    ),
-  ).rejects.toThrow("ASSISTANT_APPROVAL_SCOPE_MISMATCH");
-});
-
-it("rejects a decision for a replaced candidate", async () => {
-  primeMockAssistantApproval(APPROVAL);
-  await expect(
-    decideAssistantApproval(
-      {
-        project_id: "project-1",
-        approval_scope_id: "stale-scope",
-        candidate_digest: "sha256:candidate",
-        approved: true,
-      },
-      vi.fn(),
-    ),
-  ).rejects.toThrow("ASSISTANT_APPROVAL_STALE");
+it.each(["approve", "reject"] as const)("commits an exact %s decision", async (decision) => {
+  primeMockAssistantApproval(CHANGE);
+  const result = await assistantDecideWorkflowChange({
+    project_id: CHANGE.project_id,
+    workflow_change_id: CHANGE.workflow_change_id,
+    approval_scope_id: CHANGE.approval_scope_id,
+    mutation_digest_hex: CHANGE.mutation_digest_hex,
+    decision,
+  });
+  expect(result.state).toBe(decision === "approve" ? "applying" : "rejected");
+  await expect(assistantGetPendingWorkflowChange()).resolves.toMatchObject({
+    workflow_change_id: result.workflow_change_id,
+    state: result.state,
+  });
 });

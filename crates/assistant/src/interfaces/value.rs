@@ -184,6 +184,7 @@ pub struct AssistantModelTurnRequest {
     pub session_id: AssistantSessionId,
     pub invocation_id: AssistantModelInvocationId,
     pub start: AssistantModelTurnStart,
+    pub workspace_request: AssistantWorkspaceSnapshotRequest,
     pub workspace_snapshot: AssistantWorkspaceSnapshot,
 }
 
@@ -192,6 +193,8 @@ pub struct AssistantModelResumeRequest {
     pub project_id: ProjectId,
     pub session_id: AssistantSessionId,
     pub invocation_id: AssistantModelInvocationId,
+    pub lineage: AssistantWorkflowChangeLineage,
+    pub observed_workflow_revision: WorkflowRevisionBoundaryValue,
     pub continuation: AssistantModelContinuationEnvelope,
     pub input: AssistantModelTurnInput,
 }

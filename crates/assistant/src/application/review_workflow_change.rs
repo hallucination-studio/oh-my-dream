@@ -57,6 +57,7 @@ pub struct AssistantReviewerVerdictCommand {
 }
 
 /// Records exact candidate fetches and persists only verified Reviewer verdicts.
+#[derive(Clone)]
 pub struct AssistantReviewWorkflowChangeUseCase<R, C> {
     repository: R,
     clock: C,

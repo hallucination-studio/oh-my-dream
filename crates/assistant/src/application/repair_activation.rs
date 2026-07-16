@@ -80,17 +80,16 @@ where
             return Ok(None);
         };
 
+        let workspace_request = crate::interfaces::AssistantWorkspaceSnapshotRequest::try_new(
+            command.project_id,
+            command.session_id,
+            None,
+            Vec::new(),
+            Vec::new(),
+        )?;
         let workspace_snapshot = self
             .workspace_reader
-            .read_assistant_workspace_snapshot(
-                crate::interfaces::AssistantWorkspaceSnapshotRequest::try_new(
-                    command.project_id,
-                    command.session_id,
-                    None,
-                    Vec::new(),
-                    Vec::new(),
-                )?,
-            )
+            .read_assistant_workspace_snapshot(workspace_request.clone())
             .await?;
         let result = self
             .model_runner
@@ -99,6 +98,7 @@ where
                 session_id: command.session_id,
                 invocation_id: command.invocation_id,
                 start: AssistantModelTurnStart::RepairActivation(activation),
+                workspace_request,
                 workspace_snapshot,
             })
             .await?;

@@ -11,8 +11,10 @@ use assets::asset::{
     domain::{AssetAggregate, AssetManagedContentState, AssetMediaKind},
 };
 use assistant::interfaces::{
-    AssistantApplicationError, AssistantWorkspaceSnapshot,
-    AssistantWorkspaceSnapshotReaderInterface, AssistantWorkspaceSnapshotRequest,
+    AssistantApplicationError, AssistantNodeCapabilityCatalogReaderInterface,
+    AssistantNodeCapabilityCatalogRequest, AssistantNodeCapabilityCatalogSnapshot,
+    AssistantWorkspaceSnapshot, AssistantWorkspaceSnapshotReaderInterface,
+    AssistantWorkspaceSnapshotRequest,
 };
 use async_trait::async_trait;
 use engine::{
@@ -29,6 +31,7 @@ use nodes::{
 use serde_json::{Value, json};
 
 /// Bounded authoritative Assistant workspace projection over public application queries.
+#[derive(Clone)]
 pub struct DesktopAssistantWorkspaceBridgeAdapterImpl<A, R> {
     get_current: Arc<WorkflowGetCurrentUseCase<A>>,
     list_active_runs: Arc<WorkflowListActiveRunsUseCase<R>>,
@@ -99,6 +102,32 @@ where
         });
         AssistantWorkspaceSnapshot::new(
             serde_json::to_vec(&snapshot)
+                .map_err(|_| AssistantApplicationError::ProtocolViolation)?,
+        )
+    }
+}
+
+#[async_trait]
+impl<A, R> AssistantNodeCapabilityCatalogReaderInterface
+    for DesktopAssistantWorkspaceBridgeAdapterImpl<A, R>
+where
+    A: WorkflowAggregateRepositoryInterface + 'static,
+    R: WorkflowRunRepositoryInterface + 'static,
+{
+    async fn read_assistant_node_capability_catalog(
+        &self,
+        request: AssistantNodeCapabilityCatalogRequest,
+    ) -> Result<AssistantNodeCapabilityCatalogSnapshot, AssistantApplicationError> {
+        let catalog = self.catalog().await?;
+        let selected = match request {
+            AssistantNodeCapabilityCatalogRequest::List => catalog,
+            AssistantNodeCapabilityCatalogRequest::Describe { contract_refs } => catalog
+                .into_iter()
+                .filter(|value| requested_contract(value, &contract_refs))
+                .collect(),
+        };
+        AssistantNodeCapabilityCatalogSnapshot::new(
+            serde_json::to_vec(&selected)
                 .map_err(|_| AssistantApplicationError::ProtocolViolation)?,
         )
     }
@@ -256,4 +285,21 @@ const fn availability_tag(value: &GenerationProfileAvailabilityState) -> &'stati
         GenerationProfileAvailabilityState::Unavailable { .. } => "unavailable",
         GenerationProfileAvailabilityState::Indeterminate { .. } => "indeterminate",
     }
+}
+
+fn requested_contract(value: &Value, requested: &[String]) -> bool {
+    let Some(reference) = value.get("contract_ref") else {
+        return false;
+    };
+    let Some(id) = reference.get("id").and_then(Value::as_str) else {
+        return false;
+    };
+    let Some(major) = reference.get("major").and_then(Value::as_u64) else {
+        return false;
+    };
+    let Some(minor) = reference.get("minor").and_then(Value::as_u64) else {
+        return false;
+    };
+    let canonical = format!("{id}@{major}.{minor}");
+    requested.iter().any(|candidate| candidate == &canonical)
 }

@@ -84,6 +84,7 @@ where
     ) -> Result<AssistantModelTurnResult, AssistantApplicationError> {
         let project_id = command.workspace_request.project_id;
         let session_id = command.workspace_request.session_id;
+        let workspace_request = command.workspace_request.clone();
         let _guard = self.active_invocations.claim(project_id, session_id)?;
         let workspace_snapshot = self
             .workspace_reader
@@ -95,6 +96,7 @@ where
                 session_id,
                 invocation_id: command.invocation_id,
                 start: AssistantModelTurnStart::UserMessage(command.intent),
+                workspace_request,
                 workspace_snapshot,
             })
             .await

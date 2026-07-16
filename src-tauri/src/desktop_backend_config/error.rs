@@ -21,6 +21,12 @@ pub enum DesktopErrorCode {
     AssetContentMissing,
     AssetInvalidMedia,
     ProviderUnavailable,
+    AssistantNotFound,
+    AssistantNotVisible,
+    AssistantBusy,
+    AssistantPendingApproval,
+    AssistantApprovalExpired,
+    AssistantApprovalMismatch,
     AssistantProtocolViolation,
     StorageUnavailable,
 }
@@ -138,6 +144,24 @@ fn safe_error(code: DesktopErrorCode) -> (&'static str, &'static str) {
         }
         DesktopErrorCode::ProviderUnavailable => {
             ("provider.unavailable", "The selected generation provider is unavailable.")
+        }
+        DesktopErrorCode::AssistantNotFound => {
+            ("assistant.not_found", "The Assistant change was not found.")
+        }
+        DesktopErrorCode::AssistantNotVisible => {
+            ("assistant.not_visible", "The Assistant change is not visible in this Project.")
+        }
+        DesktopErrorCode::AssistantBusy => {
+            ("assistant.busy", "An Assistant invocation is already active.")
+        }
+        DesktopErrorCode::AssistantPendingApproval => {
+            ("assistant.pending_approval", "An Assistant change is awaiting a decision.")
+        }
+        DesktopErrorCode::AssistantApprovalExpired => {
+            ("assistant.approval_expired", "The Assistant approval has expired.")
+        }
+        DesktopErrorCode::AssistantApprovalMismatch => {
+            ("assistant.approval_mismatch", "The Assistant approval proof does not match.")
         }
         DesktopErrorCode::AssistantProtocolViolation => {
             ("assistant.protocol_violation", "The Assistant response was invalid.")

@@ -12,19 +12,12 @@ import projectFixture from "../__fixtures__/project.json";
 import workflowFixture from "../__fixtures__/workflow.json";
 import workflowRunFixture from "../__fixtures__/workflow_run.json";
 import workflowRunEventsFixture from "../__fixtures__/workflow_run_events.json";
-import {
-  fixtureFingerprint,
-  hasAssistantOperationsShape,
-  hasTrustedContextInModelInputs,
-  isAssistantOperationsFixture,
-} from "./assistantOperationContract.testHelpers.ts";
 import { isCatalogEntry } from "./capabilityContractValidators.ts";
 import type {
   AssetDto,
   AssistantConfig,
   AssistantApprovalDecisionInput,
-  AssistantPendingApproval,
-  AssistantOperationsFixture,
+  AssistantPendingWorkflowChange,
   CapabilityCatalog,
   OpenProjectResult,
   Project,
@@ -47,20 +40,21 @@ describe("backend DTO fixtures", () => {
     if (!isAssistantApprovalFixture(assistantApprovalFixture)) {
       throw new Error("assistant approval fixture does not match the DTO contract");
     }
-    const approval: AssistantPendingApproval = assistantApprovalFixture.pending;
+    const approval: AssistantPendingWorkflowChange = assistantApprovalFixture.pending;
     const decision: AssistantApprovalDecisionInput = assistantApprovalFixture.decision;
-    expect(approval.candidate_digest).toBe("sha256:candidate");
+    expect(approval.mutation_digest_hex).toBe("00".repeat(32));
     expect(decision).toEqual({
-      project_id: "project-1",
-      approval_scope_id: "scope-1",
-      candidate_digest: "sha256:candidate",
-      approved: true,
+      project_id: "10000000-0000-4000-8000-000000000001",
+      workflow_change_id: "20000000-0000-4000-8000-000000000001",
+      approval_scope_id: "30000000-0000-4000-8000-000000000001",
+      mutation_digest_hex: "00".repeat(32),
+      decision: "approve",
     });
   });
 });
 
 function isAssistantApprovalFixture(value: unknown): value is {
-  pending: AssistantPendingApproval;
+  pending: AssistantPendingWorkflowChange;
   decision: AssistantApprovalDecisionInput;
 } {
   if (!isRecord(value) || !isRecord(value.pending) || !isRecord(value.decision)) return false;
@@ -68,24 +62,18 @@ function isAssistantApprovalFixture(value: unknown): value is {
   const decision = value.decision;
   return (
     typeof pending.project_id === "string" &&
+    typeof pending.workflow_change_id === "string" &&
     typeof pending.approval_scope_id === "string" &&
-    typeof pending.user_intent === "string" &&
-    typeof pending.candidate_digest === "string" &&
-    typeof pending.reviewer_version === "string" &&
-    typeof pending.evidence_hash === "string" &&
-    typeof pending.review_summary === "string" &&
-    isStringArray(pending.review_findings) &&
-    pending.effect === "apply_reviewed_workflow_candidate" &&
-    isRecord(pending.workflow) &&
-    Array.isArray(pending.readiness_blockers) &&
-    Array.isArray(pending.assets) && pending.assets.every((asset) =>
-      isRecord(asset) && typeof asset.asset_id === "string" &&
-      (asset.kind === "image" || asset.kind === "video" || asset.kind === "audio")
-    ) &&
+    typeof pending.mutation_digest_hex === "string" &&
+    pending.state === "awaiting_approval" &&
+    isRecord(pending.lineage) &&
+    Array.isArray(pending.mutations) &&
+    Array.isArray(pending.readiness_issues) &&
     typeof decision.project_id === "string" &&
+    typeof decision.workflow_change_id === "string" &&
     typeof decision.approval_scope_id === "string" &&
-    typeof decision.candidate_digest === "string" &&
-    typeof decision.approved === "boolean"
+    typeof decision.mutation_digest_hex === "string" &&
+    (decision.decision === "approve" || decision.decision === "reject")
   );
 }
 
@@ -115,179 +103,22 @@ function isGenerationProfileList(value: unknown): boolean {
 }
 
 describe("assistant operation contract fixture", () => {
-  it("matches the exact generated operation contract", () => {
-    expect(hasAssistantOperationsShape(assistantOperationsFixture)).toBe(true);
-    expect(isAssistantOperationsFixture(assistantOperationsFixture)).toBe(true);
-    expect(isExactAssistantOperationsFixture(assistantOperationsFixture)).toBe(true);
-  });
-
-  it("includes bounded capability discovery operations", () => {
+  it("contains exactly the eleven versioned Rust-owned tools", () => {
     const operationIds = assistantOperationsFixture.operations.map((operation) => operation.id);
-    expect(operationIds).toContain("capability_search");
-    expect(operationIds).toContain("capability_describe");
-    const search = assistantOperationsFixture.operations.find(
-      (operation) => operation.id === "capability_search",
+    expect(operationIds).toHaveLength(11);
+    expect(new Set(operationIds).size).toBe(11);
+    expect(operationIds.every((id) => /^assistant\.[a-z_]+(?:\.[a-z_]+)*@1$/.test(id))).toBe(true);
+    expect(operationIds).toContain("assistant.workspace.get_snapshot@1");
+    expect(operationIds).toContain("assistant.workflow.request_apply@1");
+  });
+
+  it("keeps trusted context out of every model input schema", () => {
+    const encoded = JSON.stringify(
+      assistantOperationsFixture.operations.map((operation) => operation.input_schema),
     );
-    const describe = assistantOperationsFixture.operations.find(
-      (operation) => operation.id === "capability_describe",
-    );
-    expect(search?.input_schema.required).toEqual(["kinds", "query"]);
-    expect(describe?.input_schema.properties?.refs).toMatchObject({ maxItems: 3 });
-  });
-
-  it("keeps workspace scope out of bounded snapshot model input", () => {
-    const snapshot = assistantOperationsFixture.operations.find(
-      (operation) => operation.id === "workspace_get_snapshot",
-    );
-    expect(snapshot?.input_schema.required).toBeUndefined();
-    expect(snapshot?.input_schema.properties).toBeUndefined();
-    expect(snapshot?.output_schema.properties?.assets).toMatchObject({ maxItems: 8 });
-    expect(snapshot?.output_schema.properties?.runs).toMatchObject({ maxItems: 1 });
-  });
-
-  it("rejects a canonical model input field rename", () => {
-    const fixture = cloneFixture();
-    const schema = operationInputSchemaAt(fixture, 1);
-    const properties = requiredRecord(schema.properties);
-    const [canonicalName] = Object.keys(properties);
-    if (canonicalName === undefined) {
-      throw new Error("expected a model input property");
-    }
-
-    properties.renamed_field = properties[canonicalName];
-    delete properties[canonicalName];
-    schema.required = requiredStringArray(schema.required).map((name) =>
-      name === canonicalName ? "renamed_field" : name,
-    );
-
-    expect(isAssistantOperationsFixture(fixture)).toBe(true);
-    expect(fixtureFingerprint(fixture)).not.toBe(FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT);
-    expect(isExactAssistantOperationsFixture(fixture)).toBe(false);
-  });
-
-  it("rejects a removed required model input field", () => {
-    const fixture = cloneFixture();
-    const schema = operationInputSchemaAt(fixture, 1);
-    const required = requiredStringArray(schema.required);
-
-    schema.required = required.slice(0, -1);
-
-    expect(isAssistantOperationsFixture(fixture)).toBe(true);
-    expect(fixtureFingerprint(fixture)).not.toBe(FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT);
-    expect(isExactAssistantOperationsFixture(fixture)).toBe(false);
-  });
-
-  it("rejects operation metadata drift", () => {
-    const fixture = cloneFixture();
-    const [operation] = fixture.operations;
-    if (operation === undefined) {
-      throw new Error("expected an operation");
-    }
-    operation.description = "changed";
-
-    expect(isAssistantOperationsFixture(fixture)).toBe(true);
-    expect(fixtureFingerprint(fixture)).not.toBe(FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT);
-    expect(isExactAssistantOperationsFixture(fixture)).toBe(false);
-  });
-
-  it("rejects trusted context through the recursive safety validator", () => {
-    const fixture = cloneFixture();
-    const schema = operationInputSchemaAt(fixture, 2);
-    const properties = requiredRecord(schema.properties);
-    const [propertyName] = Object.keys(properties);
-    if (propertyName === undefined) {
-      throw new Error("expected a model input property");
-    }
-    const propertySchema = requiredRecord(properties[propertyName]);
-
-    propertySchema.description = "project_id";
-    expect(hasTrustedContextInModelInputs(fixture)).toBe(false);
-
-    propertySchema.type = "object";
-    propertySchema.properties = { project_id: { type: "string" } };
-    propertySchema.required = ["project_id"];
-    propertySchema.additionalProperties = false;
-
-    expect(hasAssistantOperationsShape(fixture)).toBe(true);
-    expect(hasTrustedContextInModelInputs(fixture)).toBe(true);
-    expect(isAssistantOperationsFixture(fixture)).toBe(false);
-  });
-
-  it("ignores trusted names inside annotation instance data", () => {
-    const fixture = cloneFixture();
-    const schema = operationInputSchemaAt(fixture, 1);
-    const properties = requiredRecord(schema.properties);
-    const propertySchema = requiredRecord(properties[Object.keys(properties)[0] ?? ""]);
-
-    propertySchema.default = {
-      properties: { project_id: "instance value" },
-      required: ["project_id"],
-    };
-    propertySchema.examples = [{ properties: { project_id: "example value" } }];
-
-    expect(hasAssistantOperationsShape(fixture)).toBe(true);
-    expect(hasTrustedContextInModelInputs(fixture)).toBe(false);
-  });
-
-  it("detects trusted fields beneath contains", () => {
-    const fixture = cloneFixture();
-    const schema = operationInputSchemaAt(fixture, 1);
-    const properties = requiredRecord(schema.properties);
-    const propertySchema = requiredRecord(properties[Object.keys(properties)[0] ?? ""]);
-
-    propertySchema.contains = {
-      type: "object",
-      properties: { project_id: { type: "string" } },
-      required: ["project_id"],
-      additionalProperties: false,
-    };
-
-    expect(hasAssistantOperationsShape(fixture)).toBe(true);
-    expect(hasTrustedContextInModelInputs(fixture)).toBe(true);
+    expect(encoded).not.toMatch(/project_id|session_id|approval_scope_id|invocation_id/);
   });
 });
-
-// Freezes the generated fixture as an opaque artifact, not a semantic source.
-const FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT = "fnv1a64:a81c70af3a11db64";
-
-function isExactAssistantOperationsFixture(value: unknown): value is AssistantOperationsFixture {
-  return (
-    isAssistantOperationsFixture(value) &&
-    fixtureFingerprint(value) === FROZEN_ASSISTANT_OPERATIONS_FINGERPRINT
-  );
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
-
-function cloneFixture(): AssistantOperationsFixture {
-  return JSON.parse(JSON.stringify(assistantOperationsFixture)) as AssistantOperationsFixture;
-}
-
-function operationInputSchemaAt(value: unknown, index: number): Record<string, unknown> {
-  const fixture = requiredRecord(value);
-  const operations = fixture.operations;
-  if (!Array.isArray(operations)) {
-    throw new Error("fixture operations must be an array");
-  }
-  const operation = operations[index];
-  return requiredRecord(requiredRecord(operation).input_schema);
-}
-
-function requiredStringArray(value: unknown): string[] {
-  if (!isStringArray(value)) {
-    throw new Error("expected a string array");
-  }
-  return value;
-}
-
-function requiredRecord(value: unknown): Record<string, unknown> {
-  if (!isRecord(value)) {
-    throw new Error("expected an object");
-  }
-  return value;
-}
 
 function isAsset(value: unknown): value is AssetDto {
   return (

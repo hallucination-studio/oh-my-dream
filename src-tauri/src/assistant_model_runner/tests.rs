@@ -4,10 +4,14 @@ use std::{
 };
 
 use assistant::{
-    domain::{AssistantModelInvocationId, AssistantSessionId, AssistantUserIntent},
+    application::AssistantToolExecutionContext,
+    domain::{
+        AssistantModelInvocationId, AssistantReviewedAt, AssistantSessionId, AssistantUserIntent,
+    },
     interfaces::{
-        AssistantModelRunnerInterface, AssistantModelTurnRequest, AssistantModelTurnStart,
-        AssistantWorkspaceSnapshot,
+        AssistantApplicationError, AssistantClockInterface, AssistantModelRunnerInterface,
+        AssistantModelTurnRequest, AssistantModelTurnStart, AssistantWorkspaceSnapshot,
+        AssistantWorkspaceSnapshotRequest,
     },
 };
 use async_trait::async_trait;
@@ -99,14 +103,64 @@ struct ToolExecutorFake;
 impl AssistantProtocolToolExecutorInterface for ToolExecutorFake {
     async fn execute_assistant_protocol_tool(
         &self,
-        _project_id: ProjectId,
-        _session_id: AssistantSessionId,
+        _context: AssistantToolExecutionContext,
         tool_id: &str,
         arguments: Value,
     ) -> Result<Value, AssistantApplicationError> {
         assert_eq!(tool_id, "assistant.workspace.get_snapshot@1");
         assert_eq!(arguments, json!({}));
         Ok(json!({"snapshot": {}}))
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ClockFake;
+
+impl AssistantClockInterface for ClockFake {
+    fn current_assistant_time(&self) -> Result<AssistantReviewedAt, AssistantApplicationError> {
+        AssistantReviewedAt::new(1_000)
+            .map_err(|_| AssistantApplicationError::ExternalBoundaryFailed)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct PresentationFake;
+
+#[async_trait]
+impl AssistantPresentationEventPublisherInterface for PresentationFake {
+    async fn publish_assistant_presentation_event(
+        &self,
+        _event: AssistantPresentationEvent,
+    ) -> Result<(), AssistantApplicationError> {
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ReviewerFake;
+
+#[async_trait]
+impl AssistantReviewerProtocolInterface for ReviewerFake {
+    async fn record_assistant_reviewer_candidate_fetch(
+        &self,
+        _context: &AssistantToolExecutionContext,
+        _invocation_id: AssistantModelInvocationId,
+        _tool_call_id: &str,
+        _change_id: assistant::domain::AssistantWorkflowChangeId,
+    ) -> Result<(), AssistantApplicationError> {
+        Ok(())
+    }
+
+    async fn accept_assistant_reviewer_verdict(
+        &self,
+        _context: &AssistantToolExecutionContext,
+        _invocation_id: AssistantModelInvocationId,
+        _change_id: assistant::domain::AssistantWorkflowChangeId,
+        _mutation_digest_hex: &str,
+        _verdict: &str,
+        _continuation: Option<assistant::interfaces::AssistantModelContinuationEnvelope>,
+    ) -> Result<(), AssistantApplicationError> {
+        Ok(())
     }
 }
 
@@ -125,7 +179,7 @@ async fn runner_launches_one_process_executes_serial_tool_call_and_shuts_down() 
         ),
         incoming(3, "InvocationCompleted", json!({"final_text": "done"})),
     ]);
-    let runner = PythonAgentsAssistantModelRunnerAdapterImpl::new(launcher, ToolExecutorFake);
+    let runner = runner(launcher);
 
     let result = runner.start_assistant_model_turn(request()).await.unwrap();
 
@@ -141,7 +195,7 @@ async fn runner_launches_one_process_executes_serial_tool_call_and_shuts_down() 
 #[tokio::test]
 async fn runner_aborts_process_after_protocol_failure() {
     let (launcher, state) = launcher([b"{invalid}\n".to_vec()]);
-    let runner = PythonAgentsAssistantModelRunnerAdapterImpl::new(launcher, ToolExecutorFake);
+    let runner = runner(launcher);
 
     assert_eq!(
         runner.start_assistant_model_turn(request()).await,
@@ -159,7 +213,7 @@ async fn runner_aborts_process_when_strict_shutdown_rejects_trailing_output() {
         incoming(2, "InvocationCompleted", json!({"final_text": "done"})),
     ]);
     state.lock().unwrap().shutdown_error = true;
-    let runner = PythonAgentsAssistantModelRunnerAdapterImpl::new(launcher, ToolExecutorFake);
+    let runner = runner(launcher);
 
     assert_eq!(
         runner.start_assistant_model_turn(request()).await,
@@ -196,17 +250,51 @@ fn incoming(sequence: u64, kind: &str, payload: Value) -> Vec<u8> {
 }
 
 fn request() -> AssistantModelTurnRequest {
+    let project_id = ProjectId::from_uuid(uuid(1)).unwrap();
+    let session_id = AssistantSessionId::from_uuid(uuid(2)).unwrap();
     AssistantModelTurnRequest {
-        project_id: ProjectId::from_uuid(uuid(1)).unwrap(),
-        session_id: AssistantSessionId::from_uuid(uuid(2)).unwrap(),
+        project_id,
+        session_id,
         invocation_id: AssistantModelInvocationId::from_uuid(uuid(3)).unwrap(),
         start: AssistantModelTurnStart::UserMessage(
             AssistantUserIntent::new("Create a scene").unwrap(),
         ),
+        workspace_request: AssistantWorkspaceSnapshotRequest::try_new(
+            project_id,
+            session_id,
+            None,
+            Vec::new(),
+            Vec::new(),
+        )
+        .unwrap(),
         workspace_snapshot: AssistantWorkspaceSnapshot::new(b"{}".to_vec()).unwrap(),
     }
+}
+
+fn runner(
+    launcher: LauncherFake,
+) -> PythonAgentsAssistantModelRunnerAdapterImpl<
+    LauncherFake,
+    ToolExecutorFake,
+    crate::assistant_tool_runtime::DesktopAssistantToolExecutionContextFactoryAdapterImpl,
+    PresentationFake,
+    ReviewerFake,
+> {
+    PythonAgentsAssistantModelRunnerAdapterImpl::new(
+        launcher,
+        ToolExecutorFake,
+        crate::assistant_tool_runtime::DesktopAssistantToolExecutionContextFactoryAdapterImpl::new(
+            Arc::new(ClockFake),
+            60_000,
+        ),
+        PresentationFake,
+        ReviewerFake,
+    )
 }
 
 fn uuid(seed: u8) -> Uuid {
     Uuid::from_bytes([seed, 0, 0, 0, 0, 0, 0x40, 0, 0x80, 0, 0, 0, 0, 0, 0, seed])
 }
+
+#[path = "tests/reviewer.rs"]
+mod reviewer;

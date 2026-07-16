@@ -20,9 +20,10 @@ import type {
   WorkflowWithReadinessDto,
 } from "./types.ts";
 import {
-  decideAssistantApproval,
-  getPendingAssistantApproval,
-  sendAssistant,
+  assistantDecideWorkflowChange,
+  assistantGetPendingWorkflowChange,
+  assistantSendMessage,
+  observeAssistantPresentationEvents,
 } from "./mockAssistant.ts";
 import {
   mockAssetGet,
@@ -385,7 +386,8 @@ export const mockApi: WorkflowApi = {
   setProviderKey,
   getAssistantConfig,
   setAssistantConfig,
-  sendAssistant,
-  getPendingAssistantApproval,
-  decideAssistantApproval,
+  assistantSendMessage,
+  assistantGetPendingWorkflowChange,
+  assistantDecideWorkflowChange,
+  observeAssistantPresentationEvents,
 };

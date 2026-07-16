@@ -1,33 +1,29 @@
 {
   "pending": {
-    "project_id": "project-1",
-    "approval_scope_id": "scope-1",
-    "user_intent": "Build a film",
-    "candidate_digest": "sha256:candidate",
-    "reviewer_version": "reviewer-v1",
-    "evidence_hash": "sha256:evidence",
-    "review_summary": "Ready to apply",
-    "review_findings": [
-      "Matches the requested production"
-    ],
-    "effect": "apply_reviewed_workflow_candidate",
-    "workflow": {
-      "nodes": [],
-      "project_id": "project-1",
-      "version": "1.0"
+    "workflow_change_id": "20000000-0000-4000-8000-000000000001",
+    "project_id": "10000000-0000-4000-8000-000000000001",
+    "base_workflow_revision": "1",
+    "mutation_digest_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+    "approval_scope_id": "30000000-0000-4000-8000-000000000001",
+    "expires_at_epoch_ms": "1000",
+    "state": "awaiting_approval",
+    "lineage": {
+      "kind": "user_message",
+      "invocation_id": "40000000-0000-4000-8000-000000000001",
+      "intent": "Build a film"
     },
-    "readiness_blockers": [],
-    "assets": [
+    "mutations": [
       {
-        "asset_id": "asset-1",
-        "kind": "video"
+        "type": "add_node"
       }
-    ]
+    ],
+    "readiness_issues": []
   },
   "decision": {
-    "project_id": "project-1",
-    "approval_scope_id": "scope-1",
-    "candidate_digest": "sha256:candidate",
-    "approved": true
+    "project_id": "10000000-0000-4000-8000-000000000001",
+    "workflow_change_id": "20000000-0000-4000-8000-000000000001",
+    "approval_scope_id": "30000000-0000-4000-8000-000000000001",
+    "mutation_digest_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+    "decision": "approve"
   }
 }

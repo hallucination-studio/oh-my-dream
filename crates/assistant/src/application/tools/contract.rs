@@ -58,6 +58,7 @@ impl AssistantToolId {
 }
 
 /// One strict typed tool contract generated from canonical DTOs.
+#[derive(Clone)]
 pub struct AssistantToolContract {
     id: AssistantToolId,
     input_schema: Value,
@@ -116,6 +117,7 @@ impl AssistantToolContract {
 }
 
 /// Closed catalog containing exactly the eleven Assistant tools.
+#[derive(Clone)]
 pub struct AssistantToolCatalog {
     contracts: Vec<AssistantToolContract>,
     index_by_id: BTreeMap<AssistantToolId, usize>,

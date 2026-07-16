@@ -6,6 +6,8 @@ mod assistant;
 mod assistant_approval;
 #[path = "assistant_coauthor.rs"]
 mod assistant_coauthor;
+#[path = "assistant_commands_v5.rs"]
+mod assistant_commands_v5;
 #[path = "assistant_operation_async.rs"]
 mod assistant_operation_async;
 #[path = "assistant_operation_required.rs"]

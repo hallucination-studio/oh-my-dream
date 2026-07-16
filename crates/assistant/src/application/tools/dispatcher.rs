@@ -14,11 +14,10 @@ use super::{
 };
 use crate::{
     domain::{
-        AssistantApprovalScopeId, AssistantModelInvocationId, AssistantPlanItemEntity,
-        AssistantPlanItemId, AssistantProductionPlanAggregate, AssistantProductionPlanError,
-        AssistantProductionPlanId, AssistantSessionId, AssistantUserIntent,
-        AssistantWorkflowChangeAggregate, AssistantWorkflowChangeExpiry, AssistantWorkflowChangeId,
-        AssistantWorkflowChangeLineage, AssistantWorkflowChangeState,
+        AssistantApprovalScopeId, AssistantPlanItemEntity, AssistantPlanItemId,
+        AssistantProductionPlanAggregate, AssistantProductionPlanError, AssistantProductionPlanId,
+        AssistantSessionId, AssistantWorkflowChangeAggregate, AssistantWorkflowChangeExpiry,
+        AssistantWorkflowChangeId, AssistantWorkflowChangeLineage, AssistantWorkflowChangeState,
         WorkflowRevisionBoundaryValue,
     },
     interfaces::{
@@ -45,10 +44,8 @@ pub struct AssistantToolExecutionContext {
     pub workflow_change_id: AssistantWorkflowChangeId,
     /// Rust-reserved approval scope for this turn's Workflow candidate.
     pub approval_scope_id: AssistantApprovalScopeId,
-    /// Immutable user-message authorization for candidate lineage.
-    pub invocation_id: AssistantModelInvocationId,
-    /// Exact user intent authorizing the candidate.
-    pub user_intent: AssistantUserIntent,
+    /// Exact user-message or reviewed-repair authorization.
+    pub lineage: AssistantWorkflowChangeLineage,
     /// Precomputed immutable candidate expiry.
     pub workflow_change_expires_at: AssistantWorkflowChangeExpiry,
     /// Exact trusted workspace selection and observed revision.
@@ -56,6 +53,7 @@ pub struct AssistantToolExecutionContext {
 }
 
 /// Concrete typed dispatcher for exactly the eleven frozen Assistant tools.
+#[derive(Clone)]
 pub struct AssistantToolDispatcherImpl<W, C, P, E, R> {
     catalog: AssistantToolCatalog,
     workspace: W,
@@ -347,10 +345,7 @@ fn evaluation_request(
             change_id: context.workflow_change_id,
             project_id: context.project_id,
             session_id: context.session_id,
-            lineage: AssistantWorkflowChangeLineage::UserMessage {
-                invocation_id: context.invocation_id,
-                intent: context.user_intent,
-            },
+            lineage: context.lineage,
             approval_scope_id: context.approval_scope_id,
             expires_at: context.workflow_change_expires_at,
         },

@@ -124,6 +124,14 @@ async fn independent_boundary_faults_preserve_the_closed_category() {
         start: super::AssistantModelTurnStart::UserMessage(
             crate::domain::AssistantUserIntent::new("intent").unwrap(),
         ),
+        workspace_request: AssistantWorkspaceSnapshotRequest::try_new(
+            project_id,
+            session_id,
+            None,
+            Vec::new(),
+            Vec::new(),
+        )
+        .unwrap(),
         workspace_snapshot: AssistantWorkspaceSnapshot::new(vec![1]).unwrap(),
     };
     assert_eq!(

@@ -200,16 +200,14 @@ export interface JsonObject {
 }
 
 export type AssistantOperationEffect =
-  | "local_read"
-  | "visible_reversible_workflow_patch"
-  | "prepared_approval_execution";
+  | "authoritative_read"
+  | "assistant_state_mutation"
+  | "human_approval_request";
 
 export interface AssistantOperationContract {
   id: string;
-  version: number;
   description: string;
   effect: AssistantOperationEffect;
-  strict_json_schema: boolean;
   needs_approval: boolean;
   input_schema: JsonObject;
   output_schema: JsonObject;
@@ -230,7 +228,7 @@ export interface AssistantContext {
 export interface AssistantSendInput {
   project_id: string;
   workflow_present: boolean;
-  workflow_revision: number | null;
+  workflow_revision: string | null;
   selected_node_ids: string[];
   selected_asset_ids: string[];
   text: string;
@@ -238,27 +236,54 @@ export interface AssistantSendInput {
 
 export interface AssistantApprovalDecisionInput {
   project_id: string;
+  workflow_change_id: string;
   approval_scope_id: string;
-  candidate_digest: string;
-  approved: boolean;
+  mutation_digest_hex: string;
+  decision: "approve" | "reject";
 }
 
-export interface AssistantPendingApproval {
+export interface AssistantPendingWorkflowChange {
+  workflow_change_id: string;
   project_id: string;
+  base_workflow_revision: string;
+  mutation_digest_hex: string;
   approval_scope_id: string;
-  user_intent: string;
-  candidate_digest: string;
-  reviewer_version: string;
-  evidence_hash: string;
-  review_summary: string;
-  review_findings: string[];
-  effect: "apply_reviewed_workflow_candidate";
-  workflow: Workflow;
-  readiness_blockers: JsonValue;
-  assets: Array<{ asset_id: string; kind: AssetKind }>;
+  expires_at_epoch_ms: string;
+  state:
+    | "proposed"
+    | "review_rejected"
+    | "awaiting_approval"
+    | "rejected"
+    | "applying"
+    | "applied"
+    | "apply_failed"
+    | "expired";
+  lineage:
+    | { kind: "user_message"; invocation_id: string; intent: string }
+    | { kind: "reviewed_repair"; activation_id: string; failed_workflow_run_id: string };
+  mutations: JsonValue[];
+  readiness_issues: JsonValue[];
 }
 
-export type ResponsesStreamEvent = JsonObject & { type: string };
+export interface AssistantSendMessageResult {
+  invocation_id: string;
+  final_text: string;
+}
+
+export interface AssistantWorkflowChangeDecisionResult {
+  workflow_change_id: string;
+  state: AssistantPendingWorkflowChange["state"];
+}
+
+export type AssistantPresentationEvent =
+  & { invocation_id: string; sequence: string }
+  & (
+    | { kind: "text_delta"; text: string }
+    | { kind: "tool_activity"; tool_id: string; state: "started" | "completed" | "failed" }
+    | { kind: "workflow_change_ready"; workflow_change_id: string }
+    | { kind: "invocation_completed" }
+    | { kind: "invocation_failed"; error: { code: string; message: string } }
+  );
 
 export interface WorkflowApi {
   assetImport: (projectId: string, expectedMediaKind: AssetKind) => Promise<AssetDto | null>;
@@ -318,13 +343,14 @@ export interface WorkflowApi {
   setProviderKey: (providerId: string, key: string) => Promise<void>;
   getAssistantConfig: () => Promise<AssistantConfig>;
   setAssistantConfig: (input: AssistantConfigInput) => Promise<void>;
-  sendAssistant: (
-    input: AssistantSendInput,
-    onEvent: (event: ResponsesStreamEvent) => void,
-  ) => Promise<WorkflowHead | null>;
-  getPendingAssistantApproval: (projectId: string) => Promise<AssistantPendingApproval | null>;
-  decideAssistantApproval: (
+  assistantSendMessage: (input: AssistantSendInput) => Promise<AssistantSendMessageResult>;
+  assistantGetPendingWorkflowChange: (
+    projectId: string,
+  ) => Promise<AssistantPendingWorkflowChange | null>;
+  assistantDecideWorkflowChange: (
     input: AssistantApprovalDecisionInput,
-    onEvent: (event: ResponsesStreamEvent) => void,
-  ) => Promise<WorkflowHead | null>;
+  ) => Promise<AssistantWorkflowChangeDecisionResult>;
+  observeAssistantPresentationEvents: (
+    onEvent: (event: AssistantPresentationEvent) => void,
+  ) => Promise<() => void>;
 }

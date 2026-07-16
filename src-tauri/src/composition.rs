@@ -37,6 +37,7 @@ use crate::{
 };
 
 mod activated_commands;
+mod assistant;
 mod node_capabilities;
 pub use activated_commands::DesktopActivatedCommandDependencies;
 

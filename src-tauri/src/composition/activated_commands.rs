@@ -30,7 +30,15 @@ use crate::{
         DesktopProjectWorkflowBridgeAdapterImpl, DesktopWorkflowMediaPreviewAdapterImpl,
     },
     metadata_sqlite::{metadata_sqlite_path, open_metadata_sqlite},
-    post_commit_effect::SqliteDesktopPostCommitEffectOutboxAdapterImpl,
+    post_commit_effect::{
+        DesktopApplicationInstanceId, SqliteDesktopPostCommitEffectOutboxAdapterImpl,
+    },
+    post_commit_worker::{
+        DesktopCommittedWorkflowEventDeliveryAdapterImpl,
+        DesktopPostCommitEffectExecutorAdapterImpl, DesktopPostCommitEffectWorker,
+        DesktopStartupRecovery, DesktopWorkflowRestartRecoveryAdapterImpl,
+        SystemDesktopPostCommitWorkerClockAdapterImpl,
+    },
     project_adapters::{
         SqliteProjectRepositoryAdapterImpl, SystemProjectClockAdapterImpl,
         UuidProjectIdentityGeneratorAdapterImpl,
@@ -113,6 +121,10 @@ pub struct DesktopActivatedCommandDependencies {
     pub asset_preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
     /// Native file selection and already-open source boundary.
     pub asset_import_source_picker: Arc<dyn DesktopAssetImportSourcePickerInterface>,
+    /// Canonical Assistant command boundary.
+    pub assistant: Arc<dyn crate::assistant_commands_v5::DesktopAssistantCommandInterface>,
+    /// Closed durable effect worker shared by Workflow, Asset, and Assistant.
+    pub post_commit_worker: DesktopPostCommitEffectWorker,
     _metadata_connection: Arc<Mutex<Connection>>,
 }
 
@@ -134,13 +146,15 @@ pub(super) async fn compose(
         .load_or_initialize_desktop_backend_config()
         .await
         .map_err(|_| DesktopCompositionError::Config)?;
-    SqliteDesktopPostCommitEffectOutboxAdapterImpl::try_new(connection.clone())
-        .map_err(|_| DesktopCompositionError::Metadata)?;
+    let outbox = Arc::new(
+        SqliteDesktopPostCommitEffectOutboxAdapterImpl::try_new(connection.clone())
+            .map_err(|_| DesktopCompositionError::Metadata)?,
+    );
     let node_composition = node_capabilities::compose_node_capabilities(
         connection.clone(),
         paths.managed_content_root,
         paths.media_inspector_executable,
-        settings,
+        settings.clone(),
         &config,
     )?;
     let workflow_repository = Arc::new(
@@ -154,24 +168,55 @@ pub(super) async fn compose(
         SqliteProjectRepositoryAdapterImpl::try_new(connection.clone())
             .map_err(|_| DesktopCompositionError::Metadata)?,
     );
-    Ok(dependencies(
+    let assistant = super::assistant::compose(
+        connection.clone(),
+        &paths.config_root,
+        &config,
+        settings,
+        workflow_repository.clone(),
+        &node_composition,
+        emitter.clone(),
+    )?;
+    dependencies(DependencyInputs {
         connection,
-        project_repository,
+        repository: project_repository,
         workflow_repository,
-        node_composition,
+        nodes: node_composition,
         emitter,
         asset_import_source_picker,
-    ))
+        assistant,
+        outbox,
+        config,
+    })
+    .await
 }
 
-fn dependencies(
+struct DependencyInputs {
     connection: Arc<Mutex<Connection>>,
     repository: Arc<SqliteProjectRepositoryAdapterImpl>,
     workflow_repository: Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
-    node_composition: node_capabilities::DesktopNodeCapabilityComposition,
+    nodes: node_capabilities::DesktopNodeCapabilityComposition,
     emitter: Arc<dyn DesktopEventEmitterInterface>,
     asset_import_source_picker: Arc<dyn DesktopAssetImportSourcePickerInterface>,
-) -> DesktopActivatedCommandDependencies {
+    assistant: super::assistant::DesktopAssistantComposition,
+    outbox: Arc<SqliteDesktopPostCommitEffectOutboxAdapterImpl>,
+    config: crate::desktop_backend_config::DesktopBackendConfig,
+}
+
+async fn dependencies(
+    input: DependencyInputs,
+) -> Result<DesktopActivatedCommandDependencies, DesktopCompositionError> {
+    let DependencyInputs {
+        connection,
+        repository,
+        workflow_repository,
+        nodes: node_composition,
+        emitter,
+        asset_import_source_picker,
+        assistant,
+        outbox,
+        config,
+    } = input;
     let repository_interface: Arc<dyn ProjectRepositoryInterface> = repository;
     let clock = Arc::new(SystemProjectClockAdapterImpl);
     let get_current = Arc::new(WorkflowGetCurrentUseCase::new(workflow_repository.clone()));
@@ -184,7 +229,51 @@ fn dependencies(
     let workflow_identities = Arc::new(UuidV4WorkflowIdentityGeneratorAdapterImpl);
     let workflow_publisher = Arc::new(TauriWorkflowRunEventPublisherAdapterImpl::new(emitter));
     let cancellations = Arc::new(WorkflowExecutionCancellationRegistry::default());
-    DesktopActivatedCommandDependencies {
+    let workflow_executor = Arc::new(
+        engine::workflow::WorkflowExecuteRunUseCase::try_new(
+            workflow_repository.clone(),
+            workflow_clock.clone(),
+            workflow_publisher.clone(),
+            node_composition.registry.clone(),
+            cancellations.clone(),
+            usize::from(config.workflow_node_concurrency),
+        )
+        .map_err(|_| DesktopCompositionError::Business)?,
+    );
+    let executor = Arc::new(DesktopPostCommitEffectExecutorAdapterImpl::new(
+        workflow_executor.clone(),
+        node_composition.asset_finalizer.clone(),
+        assistant.effect_executor,
+    ));
+    let worker_clock = Arc::new(SystemDesktopPostCommitWorkerClockAdapterImpl);
+    let delivery = Arc::new(DesktopCommittedWorkflowEventDeliveryAdapterImpl::new(
+        workflow_repository.clone(),
+        workflow_publisher.clone(),
+    ));
+    let instance_id = DesktopApplicationInstanceId::from_uuid(uuid::Uuid::new_v4())
+        .map_err(|_| DesktopCompositionError::Worker)?;
+    DesktopStartupRecovery::new(
+        instance_id,
+        outbox.clone(),
+        Arc::new(DesktopWorkflowRestartRecoveryAdapterImpl::new(
+            workflow_repository.clone(),
+            workflow_executor,
+        )),
+        worker_clock.clone(),
+    )
+    .recover_before_accepting_commands()
+    .await
+    .map_err(|_| DesktopCompositionError::StartupRecovery)?;
+    let worker = DesktopPostCommitEffectWorker::try_new(
+        instance_id,
+        outbox,
+        executor,
+        delivery,
+        worker_clock,
+        usize::from(config.post_commit_effect_concurrency),
+    )
+    .map_err(|_| DesktopCompositionError::Worker)?;
+    Ok(DesktopActivatedCommandDependencies {
         create: Arc::new(ProjectCreateUseCase::new(
             repository_interface.clone(),
             clock.clone(),
@@ -248,6 +337,8 @@ fn dependencies(
         asset_issue_preview: node_composition.asset_issue_preview,
         asset_preview_protocol: node_composition.asset_preview_protocol,
         asset_import_source_picker,
+        assistant: assistant.commands,
+        post_commit_worker: worker,
         _metadata_connection: connection,
-    }
+    })
 }

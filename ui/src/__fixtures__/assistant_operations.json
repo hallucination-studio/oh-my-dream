@@ -1,1493 +1,46 @@
 {
   "operations": [
     {
-      "description": "Read one bounded authoritative snapshot of the current Project workspace.",
-      "effect": "local_read",
-      "id": "workspace_get_snapshot",
-      "input_schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "title": "WorkspaceSnapshotInput",
-        "type": "object"
-      },
+      "id": "assistant.workspace.get_snapshot@1",
+      "description": "Read the bounded authoritative workspace snapshot.",
+      "effect": "authoritative_read",
       "needs_approval": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "title": "EmptyInput",
+        "type": "object"
+      },
       "output_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
-          "assets": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "created_at": {
-                  "type": "integer"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "kind": {
-                  "enum": [
-                    "image",
-                    "video",
-                    "audio"
-                  ],
-                  "type": "string"
-                },
-                "model": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "project_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "prompt": {
-                  "maxLength": 512,
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "prompt_truncated": {
-                  "type": "boolean"
-                },
-                "source_node_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "source_node_type": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "required": [
-                "created_at",
-                "id",
-                "kind",
-                "model",
-                "project_id",
-                "prompt",
-                "prompt_truncated",
-                "source_node_id",
-                "source_node_type"
-              ],
-              "type": "object"
-            },
-            "maxItems": 8,
-            "type": "array"
-          },
-          "project": {
-            "additionalProperties": false,
-            "properties": {
-              "created_at": {
-                "type": "integer"
-              },
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "created_at",
-              "id",
-              "name"
-            ],
-            "type": "object"
-          },
-          "readiness_blockers": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "constraint": {
-                  "type": "string"
-                },
-                "pointer": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "constraint",
-                "pointer"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "runs": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "run_id": {
-                  "type": "string"
-                },
-                "status": {
-                  "enum": [
-                    "active"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "run_id",
-                "status"
-              ],
-              "type": "object"
-            },
-            "maxItems": 1,
-            "type": "array"
-          },
-          "scope": {
-            "additionalProperties": false,
-            "properties": {
-              "project_id": {
-                "type": "string"
-              },
-              "request_id": {
-                "type": "string"
-              },
-              "session_id": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "project_id",
-              "request_id",
-              "session_id"
-            ],
-            "type": "object"
-          },
-          "selected_assets": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "created_at": {
-                  "type": "integer"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "kind": {
-                  "enum": [
-                    "image",
-                    "video",
-                    "audio"
-                  ],
-                  "type": "string"
-                },
-                "model": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "project_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "prompt": {
-                  "maxLength": 512,
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "prompt_truncated": {
-                  "type": "boolean"
-                },
-                "source_node_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "source_node_type": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                }
-              },
-              "required": [
-                "created_at",
-                "id",
-                "kind",
-                "model",
-                "project_id",
-                "prompt",
-                "prompt_truncated",
-                "source_node_id",
-                "source_node_type"
-              ],
-              "type": "object"
-            },
-            "maxItems": 16,
-            "type": "array"
-          },
-          "selected_nodes": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "capability": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "version": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "version"
-                  ],
-                  "type": "object"
-                },
-                "id": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "capability",
-                "id"
-              ],
-              "type": "object"
-            },
-            "maxItems": 16,
-            "type": "array"
-          },
-          "workflow_head": {
-            "additionalProperties": false,
-            "properties": {
-              "project_id": {
-                "type": "string"
-              },
-              "revision": {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              "workflow": {
-                "type": "object"
-              }
-            },
-            "required": [
-              "project_id",
-              "revision",
-              "workflow"
-            ],
-            "type": [
-              "object",
-              "null"
-            ]
-          }
+          "snapshot": true
         },
         "required": [
-          "assets",
-          "project",
-          "readiness_blockers",
-          "runs",
-          "scope",
-          "selected_assets",
-          "selected_nodes",
-          "workflow_head"
+          "snapshot"
         ],
-        "title": "WorkspaceSnapshotOutput",
+        "title": "WorkspaceOutput",
         "type": "object"
-      },
-      "strict_json_schema": true,
-      "version": 1
+      }
     },
     {
-      "description": "Apply one atomic, reversible Workflow patch using exact capability contracts.",
-      "effect": "visible_reversible_workflow_patch",
-      "id": "workflow_apply_patch",
-      "input_schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-          "expected_revision": {
-            "minimum": 0.0,
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "operations": {
-            "items": {
-              "oneOf": [
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "alias": {
-                      "type": "string"
-                    },
-                    "capability": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "version"
-                      ],
-                      "type": "object"
-                    },
-                    "op": {
-                      "const": "add_node"
-                    },
-                    "params": {
-                      "additionalProperties": true,
-                      "type": "object"
-                    },
-                    "position": {
-                      "items": {
-                        "type": "number"
-                      },
-                      "maxItems": 2,
-                      "minItems": 2,
-                      "type": [
-                        "array",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "alias",
-                    "capability",
-                    "op",
-                    "params",
-                    "position"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "replace_params"
-                    },
-                    "params": {
-                      "additionalProperties": true,
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "node",
-                    "op",
-                    "params"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "binding": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "kind": {
-                              "const": "single"
-                            },
-                            "source": {
-                              "additionalProperties": false,
-                              "properties": {
-                                "node": {
-                                  "oneOf": [
-                                    {
-                                      "additionalProperties": false,
-                                      "properties": {
-                                        "id": {
-                                          "type": "string"
-                                        },
-                                        "kind": {
-                                          "const": "id"
-                                        }
-                                      },
-                                      "required": [
-                                        "id",
-                                        "kind"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    {
-                                      "additionalProperties": false,
-                                      "properties": {
-                                        "alias": {
-                                          "type": "string"
-                                        },
-                                        "kind": {
-                                          "const": "alias"
-                                        }
-                                      },
-                                      "required": [
-                                        "alias",
-                                        "kind"
-                                      ],
-                                      "type": "object"
-                                    }
-                                  ]
-                                },
-                                "output": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "node",
-                                "output"
-                              ],
-                              "type": "object"
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "source"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "kind": {
-                              "const": "ordered_many"
-                            },
-                            "sources": {
-                              "items": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "node": {
-                                    "oneOf": [
-                                      {
-                                        "additionalProperties": false,
-                                        "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "kind": {
-                                            "const": "id"
-                                          }
-                                        },
-                                        "required": [
-                                          "id",
-                                          "kind"
-                                        ],
-                                        "type": "object"
-                                      },
-                                      {
-                                        "additionalProperties": false,
-                                        "properties": {
-                                          "alias": {
-                                            "type": "string"
-                                          },
-                                          "kind": {
-                                            "const": "alias"
-                                          }
-                                        },
-                                        "required": [
-                                          "alias",
-                                          "kind"
-                                        ],
-                                        "type": "object"
-                                      }
-                                    ]
-                                  },
-                                  "output": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "node",
-                                  "output"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "sources"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "input": {
-                      "type": "string"
-                    },
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "set_input"
-                    }
-                  },
-                  "required": [
-                    "binding",
-                    "input",
-                    "node",
-                    "op"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "input": {
-                      "type": "string"
-                    },
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "clear_input"
-                    }
-                  },
-                  "required": [
-                    "input",
-                    "node",
-                    "op"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "remove_node"
-                    }
-                  },
-                  "required": [
-                    "node",
-                    "op"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "set_position"
-                    },
-                    "position": {
-                      "items": {
-                        "type": "number"
-                      },
-                      "maxItems": 2,
-                      "minItems": 2,
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "node",
-                    "op",
-                    "position"
-                  ],
-                  "type": "object"
-                }
-              ]
-            },
-            "maxItems": 128,
-            "minItems": 0,
-            "type": "array"
-          }
-        },
-        "required": [
-          "expected_revision",
-          "operations"
-        ],
-        "title": "WorkflowApplyPatchInput",
-        "type": "object"
-      },
+      "id": "assistant.node_capability.list@1",
+      "description": "List bounded active Node Capability contracts.",
+      "effect": "authoritative_read",
       "needs_approval": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "title": "EmptyInput",
+        "type": "object"
+      },
       "output_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "properties": {
-          "aliases": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "alias": {
-                  "type": "string"
-                },
-                "node_id": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "alias",
-                "node_id"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "changed": {
-            "type": "boolean"
-          },
-          "deduplicated": {
-            "type": "boolean"
-          },
-          "readiness_blockers": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "constraint": {
-                  "type": "string"
-                },
-                "pointer": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "constraint",
-                "pointer"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "undo_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "workflow_head": {
-            "additionalProperties": false,
-            "properties": {
-              "project_id": {
-                "type": "string"
-              },
-              "revision": {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              "workflow": {
-                "type": "object"
-              }
-            },
-            "required": [
-              "project_id",
-              "revision",
-              "workflow"
-            ],
-            "type": [
-              "object",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "aliases",
-          "changed",
-          "deduplicated",
-          "readiness_blockers",
-          "undo_id",
-          "workflow_head"
-        ],
-        "title": "WorkflowApplyPatchOutput",
-        "type": "object"
-      },
-      "strict_json_schema": false,
-      "version": 2
-    },
-    {
-      "description": "Evaluate one bounded Workflow patch without changing canonical state.",
-      "effect": "local_read",
-      "id": "workflow_evaluate_patch",
-      "input_schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-          "expected_revision": {
-            "minimum": 0.0,
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "operations": {
-            "items": {
-              "oneOf": [
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "alias": {
-                      "type": "string"
-                    },
-                    "capability": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "version"
-                      ],
-                      "type": "object"
-                    },
-                    "op": {
-                      "const": "add_node"
-                    },
-                    "params": {
-                      "additionalProperties": true,
-                      "type": "object"
-                    },
-                    "position": {
-                      "items": {
-                        "type": "number"
-                      },
-                      "maxItems": 2,
-                      "minItems": 2,
-                      "type": [
-                        "array",
-                        "null"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "alias",
-                    "capability",
-                    "op",
-                    "params",
-                    "position"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "replace_params"
-                    },
-                    "params": {
-                      "additionalProperties": true,
-                      "type": "object"
-                    }
-                  },
-                  "required": [
-                    "node",
-                    "op",
-                    "params"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "binding": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "kind": {
-                              "const": "single"
-                            },
-                            "source": {
-                              "additionalProperties": false,
-                              "properties": {
-                                "node": {
-                                  "oneOf": [
-                                    {
-                                      "additionalProperties": false,
-                                      "properties": {
-                                        "id": {
-                                          "type": "string"
-                                        },
-                                        "kind": {
-                                          "const": "id"
-                                        }
-                                      },
-                                      "required": [
-                                        "id",
-                                        "kind"
-                                      ],
-                                      "type": "object"
-                                    },
-                                    {
-                                      "additionalProperties": false,
-                                      "properties": {
-                                        "alias": {
-                                          "type": "string"
-                                        },
-                                        "kind": {
-                                          "const": "alias"
-                                        }
-                                      },
-                                      "required": [
-                                        "alias",
-                                        "kind"
-                                      ],
-                                      "type": "object"
-                                    }
-                                  ]
-                                },
-                                "output": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "node",
-                                "output"
-                              ],
-                              "type": "object"
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "source"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "kind": {
-                              "const": "ordered_many"
-                            },
-                            "sources": {
-                              "items": {
-                                "additionalProperties": false,
-                                "properties": {
-                                  "node": {
-                                    "oneOf": [
-                                      {
-                                        "additionalProperties": false,
-                                        "properties": {
-                                          "id": {
-                                            "type": "string"
-                                          },
-                                          "kind": {
-                                            "const": "id"
-                                          }
-                                        },
-                                        "required": [
-                                          "id",
-                                          "kind"
-                                        ],
-                                        "type": "object"
-                                      },
-                                      {
-                                        "additionalProperties": false,
-                                        "properties": {
-                                          "alias": {
-                                            "type": "string"
-                                          },
-                                          "kind": {
-                                            "const": "alias"
-                                          }
-                                        },
-                                        "required": [
-                                          "alias",
-                                          "kind"
-                                        ],
-                                        "type": "object"
-                                      }
-                                    ]
-                                  },
-                                  "output": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "node",
-                                  "output"
-                                ],
-                                "type": "object"
-                              },
-                              "type": "array"
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "sources"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "input": {
-                      "type": "string"
-                    },
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "set_input"
-                    }
-                  },
-                  "required": [
-                    "binding",
-                    "input",
-                    "node",
-                    "op"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "input": {
-                      "type": "string"
-                    },
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "clear_input"
-                    }
-                  },
-                  "required": [
-                    "input",
-                    "node",
-                    "op"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "remove_node"
-                    }
-                  },
-                  "required": [
-                    "node",
-                    "op"
-                  ],
-                  "type": "object"
-                },
-                {
-                  "additionalProperties": false,
-                  "properties": {
-                    "node": {
-                      "oneOf": [
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "id"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "kind"
-                          ],
-                          "type": "object"
-                        },
-                        {
-                          "additionalProperties": false,
-                          "properties": {
-                            "alias": {
-                              "type": "string"
-                            },
-                            "kind": {
-                              "const": "alias"
-                            }
-                          },
-                          "required": [
-                            "alias",
-                            "kind"
-                          ],
-                          "type": "object"
-                        }
-                      ]
-                    },
-                    "op": {
-                      "const": "set_position"
-                    },
-                    "position": {
-                      "items": {
-                        "type": "number"
-                      },
-                      "maxItems": 2,
-                      "minItems": 2,
-                      "type": "array"
-                    }
-                  },
-                  "required": [
-                    "node",
-                    "op",
-                    "position"
-                  ],
-                  "type": "object"
-                }
-              ]
-            },
-            "maxItems": 128,
-            "minItems": 0,
-            "type": "array"
-          }
-        },
-        "required": [
-          "expected_revision",
-          "operations"
-        ],
-        "title": "WorkflowApplyPatchInput",
-        "type": "object"
-      },
-      "needs_approval": false,
-      "output_schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-          "aliases": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "alias": {
-                  "type": "string"
-                },
-                "node_id": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "alias",
-                "node_id"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "base_revision": {
-            "minimum": 0.0,
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "readiness_blockers": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "constraint": {
-                  "type": "string"
-                },
-                "pointer": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "constraint",
-                "pointer"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "workflow": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "aliases",
-          "base_revision",
-          "readiness_blockers",
-          "workflow"
-        ],
-        "title": "WorkflowEvaluatePatchOutput",
-        "type": "object"
-      },
-      "strict_json_schema": false,
-      "version": 2
-    },
-    {
-      "description": "Execute a previously prepared proposal.",
-      "effect": "prepared_approval_execution",
-      "id": "proposal_execute",
-      "input_schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-          "proposal_id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "proposal_id"
-        ],
-        "title": "PreparedInput",
-        "type": "object"
-      },
-      "needs_approval": true,
-      "output_schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-          "result": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "result"
-        ],
-        "title": "Output",
-        "type": "object"
-      },
-      "strict_json_schema": true,
-      "version": 3
-    },
-    {
-      "description": "Find a bounded set of exact workflow capabilities for a goal.",
-      "effect": "local_read",
-      "id": "capability_search",
-      "input_schema": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "additionalProperties": false,
-        "properties": {
-          "kinds": {
+          "catalog": true,
+          "requested_contract_refs": {
             "items": {
               "type": "string"
             },
@@ -1495,610 +48,2157 @@
               "array",
               "null"
             ]
-          },
-          "query": {
-            "type": "string"
           }
         },
         "required": [
-          "kinds",
-          "query"
+          "catalog"
         ],
-        "title": "CapabilitySearchInput",
+        "title": "CapabilityCatalogOutput",
+        "type": "object"
+      }
+    },
+    {
+      "id": "assistant.node_capability.describe@1",
+      "description": "Describe one to three exact Node Capability contracts.",
+      "effect": "authoritative_read",
+      "needs_approval": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "contract_refs": {
+            "items": {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "contract_refs"
+        ],
+        "title": "DescribeCapabilitiesInput",
         "type": "object"
       },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "catalog": true,
+          "requested_contract_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "catalog"
+        ],
+        "title": "CapabilityCatalogOutput",
+        "type": "object"
+      }
+    },
+    {
+      "id": "assistant.production_plan.get@1",
+      "description": "Read the Assistant-owned production plan.",
+      "effect": "authoritative_read",
       "needs_approval": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "title": "EmptyInput",
+        "type": "object"
+      },
       "output_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "definitions": {
-          "CapabilityPresentationDto": {
+          "PlanDto": {
             "additionalProperties": false,
-            "description": "Non-authoritative display metadata for one exact capability reference.",
-            "properties": {
-              "category": {
-                "description": "Presentation grouping.",
-                "type": "string"
-              },
-              "description": {
-                "description": "User-facing description.",
-                "type": "string"
-              },
-              "label": {
-                "description": "Short label shown in palettes and node headers.",
-                "type": "string"
-              },
-              "search_terms": {
-                "description": "Search terms used by discovery and UI filtering.",
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              }
-            },
-            "required": [
-              "category",
-              "description",
-              "label",
-              "search_terms"
-            ],
-            "type": "object"
-          },
-          "CapabilityRefDto": {
-            "additionalProperties": false,
-            "description": "Exact identity of one versioned workflow capability.",
             "properties": {
               "id": {
-                "description": "Stable capability identifier.",
                 "type": "string"
               },
-              "version": {
-                "description": "Exact semantic contract version.",
+              "items": {
+                "items": {
+                  "$ref": "#/definitions/PlanItemDto"
+                },
+                "type": "array"
+              },
+              "revision": {
+                "format": "uint64",
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              "title": {
                 "type": "string"
               }
             },
             "required": [
               "id",
-              "version"
+              "items",
+              "revision",
+              "title"
             ],
             "type": "object"
           },
-          "CapabilitySelectorDto": {
-            "additionalProperties": false,
-            "description": "Workflow-facing modality and mode selecting one exact capability.",
-            "properties": {
-              "mode": {
-                "description": "Discriminator persisted in `params.mode`.",
-                "type": "string"
-              },
-              "type_id": {
-                "description": "Output modality persisted as the Workflow node type.",
-                "type": "string"
-              }
-            },
-            "required": [
-              "mode",
-              "type_id"
-            ],
-            "type": "object"
-          },
-          "CapabilityStatusDto": {
+          "PlanItemDto": {
             "additionalProperties": false,
             "properties": {
-              "availability": {
-                "enum": [
-                  "available",
-                  "unavailable",
-                  "degraded"
-                ],
+              "goal": {
                 "type": "string"
               },
-              "provider_health": {
+              "id": {
+                "type": "string"
+              },
+              "note": {
                 "type": [
                   "string",
                   "null"
                 ]
               },
-              "reason": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "status_revision": {
-                "minimum": 0.0,
-                "type": "integer"
+              "state": {
+                "$ref": "#/definitions/PlanItemStateDto"
               }
             },
             "required": [
-              "availability",
-              "provider_health",
-              "reason",
-              "status_revision"
+              "goal",
+              "id",
+              "state"
             ],
             "type": "object"
           },
-          "CapabilitySummaryDto": {
-            "additionalProperties": false,
-            "description": "A compact palette result containing presentation and live status only.",
-            "properties": {
-              "contextual_creation": {
-                "additionalProperties": false,
-                "description": "Context route required instead of ordinary palette addition.",
-                "properties": {
-                  "route": {
-                    "description": "Stable application route identifier.",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "route"
-                ],
-                "type": "object"
-              },
-              "presentation": {
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/CapabilityPresentationDto"
-                  }
-                ],
-                "description": "Non-authoritative display metadata."
-              },
-              "reference": {
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/CapabilityRefDto"
-                  }
-                ],
-                "description": "Exact capability identity that may be loaded into the editor."
-              },
-              "selector": {
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/CapabilitySelectorDto"
-                  }
-                ],
-                "description": "Workflow selector for this exact capability."
-              },
-              "status": {
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/CapabilityStatusDto"
-                  }
-                ],
-                "description": "Current availability metadata."
-              }
-            },
-            "required": [
-              "contextual_creation",
-              "presentation",
-              "reference",
-              "selector",
-              "status"
+          "PlanItemStateDto": {
+            "enum": [
+              "pending",
+              "in_progress",
+              "blocked",
+              "completed"
             ],
-            "type": "object"
+            "type": "string"
           }
         },
-        "description": "Output for the bounded capability search operation.",
         "properties": {
-          "capabilities": {
-            "description": "At most [`MAX_SEARCH_RESULTS`] stable results.",
-            "items": {
-              "$ref": "#/definitions/CapabilitySummaryDto"
-            },
-            "type": "array"
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/PlanDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": [
-          "capabilities"
-        ],
-        "title": "CapabilitySearchOutput",
+        "title": "PlanOutput",
         "type": "object"
-      },
-      "strict_json_schema": true,
-      "version": 1
+      }
     },
     {
-      "description": "Describe up to three exact capabilities admitted by search or the current Workflow.",
-      "effect": "local_read",
-      "id": "capability_describe",
+      "id": "assistant.production_plan.create@1",
+      "description": "Create one Assistant-owned production plan.",
+      "effect": "assistant_state_mutation",
+      "needs_approval": false,
       "input_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "definitions": {
-          "CapabilityRefDto": {
+          "PlanItemInput": {
             "additionalProperties": false,
-            "description": "Exact identity of one versioned workflow capability.",
             "properties": {
-              "id": {
-                "description": "Stable capability identifier.",
+              "goal": {
+                "maxLength": 2000,
+                "minLength": 1,
                 "type": "string"
               },
-              "version": {
-                "description": "Exact semantic contract version.",
+              "id": {
+                "maxLength": 64,
+                "minLength": 1,
                 "type": "string"
               }
             },
             "required": [
-              "id",
-              "version"
+              "goal",
+              "id"
             ],
             "type": "object"
           }
         },
-        "description": "Input for exact capability description.",
         "properties": {
-          "refs": {
-            "description": "Exact refs returned by search or already present in the Workflow.",
+          "items": {
             "items": {
-              "$ref": "#/definitions/CapabilityRefDto"
+              "$ref": "#/definitions/PlanItemInput"
             },
-            "maxItems": 3,
+            "maxItems": 128,
             "type": "array"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
           }
         },
         "required": [
-          "refs"
+          "items",
+          "title"
         ],
-        "title": "CapabilityDescribeInput",
+        "title": "CreatePlanInput",
         "type": "object"
       },
-      "needs_approval": false,
       "output_schema": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
         "definitions": {
-          "CapabilityBundleDto": {
+          "PlanItemDto": {
             "additionalProperties": false,
-            "description": "One exact capability bundle returned to the React contract cache.",
             "properties": {
-              "contract": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/CapabilityContractDto"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Immutable contract when the exact registration is available."
+              "goal": {
+                "type": "string"
               },
-              "presentation": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/CapabilityPresentationDto"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Presentation metadata when the exact registration is available."
+              "id": {
+                "type": "string"
               },
-              "reference": {
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/CapabilityRefDto"
-                  }
-                ],
-                "description": "Exact capability identity."
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
-              "selector": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/CapabilitySelectorDto"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Workflow selector, absent only for an unknown exact reference."
-              },
-              "status": {
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/CapabilityStatusDto"
-                  }
-                ],
-                "description": "Availability and degradation reason."
+              "state": {
+                "$ref": "#/definitions/PlanItemStateDto"
               }
             },
             "required": [
-              "reference",
-              "status"
+              "goal",
+              "id",
+              "state"
             ],
             "type": "object"
           },
-          "CapabilityCardinalityDto": {
-            "oneOf": [
-              {
-                "enum": [
-                  "one"
-                ],
+          "PlanItemStateDto": {
+            "enum": [
+              "pending",
+              "in_progress",
+              "blocked",
+              "completed"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/definitions/PlanItemDto"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "items",
+          "revision",
+          "title"
+        ],
+        "title": "PlanDto",
+        "type": "object"
+      }
+    },
+    {
+      "id": "assistant.production_plan.replace@1",
+      "description": "CAS-replace the Assistant-owned production plan.",
+      "effect": "assistant_state_mutation",
+      "needs_approval": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "PlanItemInput": {
+            "additionalProperties": false,
+            "properties": {
+              "goal": {
+                "maxLength": 2000,
+                "minLength": 1,
                 "type": "string"
               },
+              "id": {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "goal",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "expected_revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/definitions/PlanItemInput"
+            },
+            "maxItems": 128,
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "items",
+          "title"
+        ],
+        "title": "ReplacePlanInput",
+        "type": "object"
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "PlanItemDto": {
+            "additionalProperties": false,
+            "properties": {
+              "goal": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "$ref": "#/definitions/PlanItemStateDto"
+              }
+            },
+            "required": [
+              "goal",
+              "id",
+              "state"
+            ],
+            "type": "object"
+          },
+          "PlanItemStateDto": {
+            "enum": [
+              "pending",
+              "in_progress",
+              "blocked",
+              "completed"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/definitions/PlanItemDto"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "items",
+          "revision",
+          "title"
+        ],
+        "title": "PlanDto",
+        "type": "object"
+      }
+    },
+    {
+      "id": "assistant.production_plan.update_item@1",
+      "description": "Transition one production-plan item.",
+      "effect": "assistant_state_mutation",
+      "needs_approval": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "PlanItemTransitionInput": {
+            "oneOf": [
               {
                 "additionalProperties": false,
                 "properties": {
-                  "many": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "maximum": {
-                        "minimum": 0.0,
-                        "type": [
-                          "integer",
-                          "null"
-                        ]
-                      },
-                      "minimum": {
-                        "minimum": 0.0,
-                        "type": "integer"
-                      }
-                    },
-                    "required": [
-                      "maximum",
-                      "minimum"
+                  "type": {
+                    "enum": [
+                      "start"
                     ],
-                    "type": "object"
-                  }
-                },
-                "required": [
-                  "many"
-                ],
-                "type": "object"
-              }
-            ]
-          },
-          "CapabilityContractDto": {
-            "additionalProperties": false,
-            "description": "Immutable execution contract for one exact capability reference.",
-            "properties": {
-              "contextual_creation": {
-                "additionalProperties": false,
-                "description": "Trusted application route required for contextual creation.",
-                "properties": {
-                  "route": {
-                    "description": "Stable application route identifier.",
                     "type": "string"
                   }
                 },
                 "required": [
-                  "route"
+                  "type"
                 ],
                 "type": "object"
               },
-              "default_params": {
-                "additionalProperties": true,
-                "description": "Canonical params used when no params are supplied.",
-                "type": "object"
-              },
-              "effects": {
-                "description": "Policy-relevant execution effects.",
-                "items": {
-                  "$ref": "#/definitions/CapabilityEffectDto"
-                },
-                "type": "array"
-              },
-              "inputs": {
-                "description": "Named input ports.",
-                "items": {
-                  "$ref": "#/definitions/CapabilityPortDto"
-                },
-                "type": "array"
-              },
-              "outputs": {
-                "description": "Named output ports.",
-                "items": {
-                  "$ref": "#/definitions/CapabilityPortDto"
-                },
-                "type": "array"
-              },
-              "params_schema": {
-                "description": "JSON Schema for the normalized params object."
-              },
-              "reference": {
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/CapabilityRefDto"
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "block"
+                    ],
+                    "type": "string"
                   }
+                },
+                "required": [
+                  "reason",
+                  "type"
                 ],
-                "description": "Exact capability identity represented by this contract."
-              }
-            },
-            "required": [
-              "contextual_creation",
-              "default_params",
-              "effects",
-              "inputs",
-              "outputs",
-              "params_schema",
-              "reference"
-            ],
-            "type": "object"
-          },
-          "CapabilityEffectDto": {
-            "description": "Effect classification owned by an immutable capability contract.",
-            "oneOf": [
-              {
-                "description": "Deterministic local transformation with no external effect.",
-                "enum": [
-                  "pure"
-                ],
-                "type": "string"
+                "type": "object"
               },
               {
-                "description": "Read from managed local state without contacting an external provider.",
-                "enum": [
-                  "local_read"
+                "additionalProperties": false,
+                "properties": {
+                  "acceptance_note": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "complete"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "acceptance_note",
+                  "type"
                 ],
-                "type": "string"
-              },
-              {
-                "description": "Provider, filesystem, or other external effect.",
-                "enum": [
-                  "external"
-                ],
-                "type": "string"
+                "type": "object"
               }
             ]
+          }
+        },
+        "properties": {
+          "expected_revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
           },
-          "CapabilityPortDto": {
+          "item_id": {
+            "type": "string"
+          },
+          "transition": {
+            "$ref": "#/definitions/PlanItemTransitionInput"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "item_id",
+          "transition"
+        ],
+        "title": "UpdatePlanItemInput",
+        "type": "object"
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "PlanItemDto": {
             "additionalProperties": false,
-            "description": "Execution port metadata exposed by a capability contract.",
             "properties": {
-              "cardinality": {
-                "allOf": [
-                  {
-                    "$ref": "#/definitions/CapabilityCardinalityDto"
-                  }
-                ],
-                "description": "Port cardinality and bounds."
-              },
-              "name": {
-                "description": "Stable named port.",
+              "goal": {
                 "type": "string"
               },
-              "port_type": {
-                "description": "Canonical engine port type in snake case.",
+              "id": {
                 "type": "string"
               },
-              "required": {
-                "description": "Whether the input must be connected or have a default.",
-                "type": "boolean"
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "$ref": "#/definitions/PlanItemStateDto"
               }
             },
             "required": [
-              "cardinality",
-              "name",
-              "port_type",
-              "required"
+              "goal",
+              "id",
+              "state"
             ],
             "type": "object"
           },
-          "CapabilityPresentationDto": {
+          "PlanItemStateDto": {
+            "enum": [
+              "pending",
+              "in_progress",
+              "blocked",
+              "completed"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/definitions/PlanItemDto"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "items",
+          "revision",
+          "title"
+        ],
+        "title": "PlanDto",
+        "type": "object"
+      }
+    },
+    {
+      "id": "assistant.workflow.evaluate_mutation@1",
+      "description": "Evaluate ordered Workflow mutations without persistence.",
+      "effect": "authoritative_read",
+      "needs_approval": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "AssistantCanvasPositionDto": {
             "additionalProperties": false,
-            "description": "Non-authoritative display metadata for one exact capability reference.",
+            "description": "Exact proposed canvas position.",
             "properties": {
-              "category": {
-                "description": "Presentation grouping.",
-                "type": "string"
+              "x": {
+                "description": "Horizontal coordinate.",
+                "format": "double",
+                "type": "number"
               },
-              "description": {
-                "description": "User-facing description.",
-                "type": "string"
-              },
-              "label": {
-                "description": "Short label shown in palettes and node headers.",
-                "type": "string"
-              },
-              "search_terms": {
-                "description": "Search terms used by discovery and UI filtering.",
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
+              "y": {
+                "description": "Vertical coordinate.",
+                "format": "double",
+                "type": "number"
               }
             },
             "required": [
-              "category",
-              "description",
-              "label",
-              "search_terms"
+              "x",
+              "y"
             ],
             "type": "object"
           },
-          "CapabilityRefDto": {
+          "AssistantCapabilityRefDto": {
             "additionalProperties": false,
-            "description": "Exact identity of one versioned workflow capability.",
+            "description": "Exact node-capability contract reference proposal.",
             "properties": {
               "id": {
-                "description": "Stable capability identifier.",
+                "description": "Canonical dot-separated capability ID.",
                 "type": "string"
               },
-              "version": {
-                "description": "Exact semantic contract version.",
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "version"
-            ],
-            "type": "object"
-          },
-          "CapabilitySelectorDto": {
-            "additionalProperties": false,
-            "description": "Workflow-facing modality and mode selecting one exact capability.",
-            "properties": {
-              "mode": {
-                "description": "Discriminator persisted in `params.mode`.",
-                "type": "string"
+              "major": {
+                "description": "Non-zero major version.",
+                "format": "uint16",
+                "minimum": 0.0,
+                "type": "integer"
               },
-              "type_id": {
-                "description": "Output modality persisted as the Workflow node type.",
-                "type": "string"
-              }
-            },
-            "required": [
-              "mode",
-              "type_id"
-            ],
-            "type": "object"
-          },
-          "CapabilityStatusDto": {
-            "additionalProperties": false,
-            "properties": {
-              "availability": {
-                "enum": [
-                  "available",
-                  "unavailable",
-                  "degraded"
-                ],
-                "type": "string"
-              },
-              "provider_health": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "reason": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "status_revision": {
+              "minor": {
+                "description": "Minor version.",
+                "format": "uint16",
                 "minimum": 0.0,
                 "type": "integer"
               }
             },
             "required": [
-              "availability",
-              "provider_health",
-              "reason",
-              "status_revision"
+              "id",
+              "major",
+              "minor"
             ],
             "type": "object"
+          },
+          "AssistantInputTargetDto": {
+            "additionalProperties": false,
+            "description": "Target node and declared input key.",
+            "properties": {
+              "input": {
+                "description": "Declared input key.",
+                "type": "string"
+              },
+              "node": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/AssistantNodeRefDto"
+                  }
+                ],
+                "description": "Existing or prior aliased target node."
+              }
+            },
+            "required": [
+              "input",
+              "node"
+            ],
+            "type": "object"
+          },
+          "AssistantNodeRefDto": {
+            "description": "Existing or earlier proposal-local node reference.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "description": "Existing Workflow node UUID text.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "id"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Alias introduced by an earlier Add Node proposal.",
+                "properties": {
+                  "alias": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "alias"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "alias",
+                  "kind"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "AssistantOutputSourceDto": {
+            "additionalProperties": false,
+            "description": "Source node and declared output key.",
+            "properties": {
+              "node": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/AssistantNodeRefDto"
+                  }
+                ],
+                "description": "Existing or prior aliased source node."
+              },
+              "output": {
+                "description": "Declared output key.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "node",
+              "output"
+            ],
+            "type": "object"
+          },
+          "AssistantParameterValueDto": {
+            "description": "Closed Node Capability parameter boundary values accepted from the Assistant tool.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "description": "Unsigned integer value.",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "unsigned_integer"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "format": "uint64",
+                    "minimum": 0.0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "UTF-8 text value.",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "text"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Capability-owned choice key.",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "choice"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Provider-independent Generation Profile reference.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "generation_profile"
+                    ],
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0.0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "version"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Managed Asset UUID text.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "managed_asset"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "AssistantWorkflowMutationProposalDto": {
+            "description": "One strict tagged proposal for a frozen Workflow mutation action.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "description": "Adds one exact capability node under a proposal-local alias.",
+                "properties": {
+                  "alias": {
+                    "description": "Alias available to later proposals.",
+                    "type": "string"
+                  },
+                  "capability": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantCapabilityRefDto"
+                      }
+                    ],
+                    "description": "Exact selected capability."
+                  },
+                  "parameters": {
+                    "additionalProperties": {
+                      "$ref": "#/definitions/AssistantParameterValueDto"
+                    },
+                    "description": "Complete tagged parameter map.",
+                    "type": "object"
+                  },
+                  "position": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantCanvasPositionDto"
+                      }
+                    ],
+                    "description": "Initial persisted canvas position."
+                  },
+                  "type": {
+                    "enum": [
+                      "add_node"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "alias",
+                  "capability",
+                  "parameters",
+                  "position",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Removes one existing or earlier aliased node.",
+                "properties": {
+                  "node": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantNodeRefDto"
+                      }
+                    ],
+                    "description": "Node to remove."
+                  },
+                  "type": {
+                    "enum": [
+                      "remove_node"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Replaces one node's complete parameter set.",
+                "properties": {
+                  "node": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantNodeRefDto"
+                      }
+                    ],
+                    "description": "Node to update."
+                  },
+                  "parameters": {
+                    "additionalProperties": {
+                      "$ref": "#/definitions/AssistantParameterValueDto"
+                    },
+                    "description": "Complete replacement parameter map.",
+                    "type": "object"
+                  },
+                  "type": {
+                    "enum": [
+                      "replace_node_parameters"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "parameters",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Replaces one node's capability and complete parameters.",
+                "properties": {
+                  "capability": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantCapabilityRefDto"
+                      }
+                    ],
+                    "description": "Exact replacement capability."
+                  },
+                  "node": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantNodeRefDto"
+                      }
+                    ],
+                    "description": "Node to update."
+                  },
+                  "parameters": {
+                    "additionalProperties": {
+                      "$ref": "#/definitions/AssistantParameterValueDto"
+                    },
+                    "description": "Complete replacement parameter map.",
+                    "type": "object"
+                  },
+                  "type": {
+                    "enum": [
+                      "select_node_capability"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "capability",
+                  "node",
+                  "parameters",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Replaces one node's canvas position.",
+                "properties": {
+                  "node": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantNodeRefDto"
+                      }
+                    ],
+                    "description": "Node to move."
+                  },
+                  "position": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantCanvasPositionDto"
+                      }
+                    ],
+                    "description": "Replacement position."
+                  },
+                  "type": {
+                    "enum": [
+                      "move_node"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "position",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Binds one role-free single input item.",
+                "properties": {
+                  "source": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantOutputSourceDto"
+                      }
+                    ],
+                    "description": "Exact source output."
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "bind_single_input"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Inserts one role-bearing ordered reference item.",
+                "properties": {
+                  "insertion_index": {
+                    "description": "Insertion index.",
+                    "format": "uint32",
+                    "minimum": 0.0,
+                    "type": "integer"
+                  },
+                  "role": {
+                    "description": "Capability-owned role key.",
+                    "type": "string"
+                  },
+                  "source": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantOutputSourceDto"
+                      }
+                    ],
+                    "description": "Exact source output."
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "insert_reference_item"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "insertion_index",
+                  "role",
+                  "source",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Reorders one existing reference item.",
+                "properties": {
+                  "input_item_id": {
+                    "description": "Stable input-item UUID text.",
+                    "type": "string"
+                  },
+                  "insertion_index_after_removal": {
+                    "description": "Index after first removing the item.",
+                    "format": "uint32",
+                    "minimum": 0.0,
+                    "type": "integer"
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "move_reference_item"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input_item_id",
+                  "insertion_index_after_removal",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Removes one stable input item.",
+                "properties": {
+                  "input_item_id": {
+                    "description": "Stable input-item UUID text.",
+                    "type": "string"
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "remove_input_item"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input_item_id",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Replaces one ordered item's role.",
+                "properties": {
+                  "input_item_id": {
+                    "description": "Stable input-item UUID text.",
+                    "type": "string"
+                  },
+                  "role": {
+                    "description": "Replacement capability-owned role key.",
+                    "type": "string"
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "set_input_item_role"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input_item_id",
+                  "role",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              }
+            ]
           }
         },
-        "description": "Output for exact capability description.",
         "properties": {
-          "capabilities": {
-            "description": "Descriptions in the same order as the requested refs.",
+          "base_workflow_revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "ordered_mutations": {
             "items": {
-              "$ref": "#/definitions/CapabilityBundleDto"
+              "$ref": "#/definitions/AssistantWorkflowMutationProposalDto"
             },
+            "maxItems": 128,
+            "minItems": 1,
             "type": "array"
           }
         },
         "required": [
-          "capabilities"
+          "base_workflow_revision",
+          "ordered_mutations"
         ],
-        "title": "CapabilityDescribeOutput",
+        "title": "WorkflowMutationsInput",
         "type": "object"
       },
-      "strict_json_schema": true,
-      "version": 1
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "ChangeStateDto": {
+            "enum": [
+              "proposed",
+              "review_rejected",
+              "awaiting_approval",
+              "rejected",
+              "applying",
+              "applied",
+              "apply_failed",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "approval_scope_id": {
+            "type": "string"
+          },
+          "base_workflow_revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "expires_at_epoch_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mutation_digest_hex": {
+            "type": "string"
+          },
+          "ordered_mutations": {
+            "items": true,
+            "type": "array"
+          },
+          "resulting_workflow_fingerprint_hex": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/definitions/ChangeStateDto"
+          }
+        },
+        "required": [
+          "approval_scope_id",
+          "base_workflow_revision",
+          "change_id",
+          "expires_at_epoch_ms",
+          "mutation_digest_hex",
+          "ordered_mutations",
+          "resulting_workflow_fingerprint_hex",
+          "state"
+        ],
+        "title": "ChangeOutput",
+        "type": "object"
+      }
+    },
+    {
+      "id": "assistant.workflow.propose_change@1",
+      "description": "Persist one immutable evaluated Workflow Change.",
+      "effect": "assistant_state_mutation",
+      "needs_approval": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "AssistantCanvasPositionDto": {
+            "additionalProperties": false,
+            "description": "Exact proposed canvas position.",
+            "properties": {
+              "x": {
+                "description": "Horizontal coordinate.",
+                "format": "double",
+                "type": "number"
+              },
+              "y": {
+                "description": "Vertical coordinate.",
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "type": "object"
+          },
+          "AssistantCapabilityRefDto": {
+            "additionalProperties": false,
+            "description": "Exact node-capability contract reference proposal.",
+            "properties": {
+              "id": {
+                "description": "Canonical dot-separated capability ID.",
+                "type": "string"
+              },
+              "major": {
+                "description": "Non-zero major version.",
+                "format": "uint16",
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              "minor": {
+                "description": "Minor version.",
+                "format": "uint16",
+                "minimum": 0.0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "id",
+              "major",
+              "minor"
+            ],
+            "type": "object"
+          },
+          "AssistantInputTargetDto": {
+            "additionalProperties": false,
+            "description": "Target node and declared input key.",
+            "properties": {
+              "input": {
+                "description": "Declared input key.",
+                "type": "string"
+              },
+              "node": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/AssistantNodeRefDto"
+                  }
+                ],
+                "description": "Existing or prior aliased target node."
+              }
+            },
+            "required": [
+              "input",
+              "node"
+            ],
+            "type": "object"
+          },
+          "AssistantNodeRefDto": {
+            "description": "Existing or earlier proposal-local node reference.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "description": "Existing Workflow node UUID text.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "id"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Alias introduced by an earlier Add Node proposal.",
+                "properties": {
+                  "alias": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "alias"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "alias",
+                  "kind"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "AssistantOutputSourceDto": {
+            "additionalProperties": false,
+            "description": "Source node and declared output key.",
+            "properties": {
+              "node": {
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/AssistantNodeRefDto"
+                  }
+                ],
+                "description": "Existing or prior aliased source node."
+              },
+              "output": {
+                "description": "Declared output key.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "node",
+              "output"
+            ],
+            "type": "object"
+          },
+          "AssistantParameterValueDto": {
+            "description": "Closed Node Capability parameter boundary values accepted from the Assistant tool.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "description": "Unsigned integer value.",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "unsigned_integer"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "format": "uint64",
+                    "minimum": 0.0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "UTF-8 text value.",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "text"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Capability-owned choice key.",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "choice"
+                    ],
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Provider-independent Generation Profile reference.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "generation_profile"
+                    ],
+                    "type": "string"
+                  },
+                  "version": {
+                    "format": "uint32",
+                    "minimum": 0.0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "version"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Managed Asset UUID text.",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "enum": [
+                      "managed_asset"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "type"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "AssistantWorkflowMutationProposalDto": {
+            "description": "One strict tagged proposal for a frozen Workflow mutation action.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "description": "Adds one exact capability node under a proposal-local alias.",
+                "properties": {
+                  "alias": {
+                    "description": "Alias available to later proposals.",
+                    "type": "string"
+                  },
+                  "capability": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantCapabilityRefDto"
+                      }
+                    ],
+                    "description": "Exact selected capability."
+                  },
+                  "parameters": {
+                    "additionalProperties": {
+                      "$ref": "#/definitions/AssistantParameterValueDto"
+                    },
+                    "description": "Complete tagged parameter map.",
+                    "type": "object"
+                  },
+                  "position": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantCanvasPositionDto"
+                      }
+                    ],
+                    "description": "Initial persisted canvas position."
+                  },
+                  "type": {
+                    "enum": [
+                      "add_node"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "alias",
+                  "capability",
+                  "parameters",
+                  "position",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Removes one existing or earlier aliased node.",
+                "properties": {
+                  "node": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantNodeRefDto"
+                      }
+                    ],
+                    "description": "Node to remove."
+                  },
+                  "type": {
+                    "enum": [
+                      "remove_node"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Replaces one node's complete parameter set.",
+                "properties": {
+                  "node": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantNodeRefDto"
+                      }
+                    ],
+                    "description": "Node to update."
+                  },
+                  "parameters": {
+                    "additionalProperties": {
+                      "$ref": "#/definitions/AssistantParameterValueDto"
+                    },
+                    "description": "Complete replacement parameter map.",
+                    "type": "object"
+                  },
+                  "type": {
+                    "enum": [
+                      "replace_node_parameters"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "parameters",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Replaces one node's capability and complete parameters.",
+                "properties": {
+                  "capability": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantCapabilityRefDto"
+                      }
+                    ],
+                    "description": "Exact replacement capability."
+                  },
+                  "node": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantNodeRefDto"
+                      }
+                    ],
+                    "description": "Node to update."
+                  },
+                  "parameters": {
+                    "additionalProperties": {
+                      "$ref": "#/definitions/AssistantParameterValueDto"
+                    },
+                    "description": "Complete replacement parameter map.",
+                    "type": "object"
+                  },
+                  "type": {
+                    "enum": [
+                      "select_node_capability"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "capability",
+                  "node",
+                  "parameters",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Replaces one node's canvas position.",
+                "properties": {
+                  "node": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantNodeRefDto"
+                      }
+                    ],
+                    "description": "Node to move."
+                  },
+                  "position": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantCanvasPositionDto"
+                      }
+                    ],
+                    "description": "Replacement position."
+                  },
+                  "type": {
+                    "enum": [
+                      "move_node"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "node",
+                  "position",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Binds one role-free single input item.",
+                "properties": {
+                  "source": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantOutputSourceDto"
+                      }
+                    ],
+                    "description": "Exact source output."
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "bind_single_input"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Inserts one role-bearing ordered reference item.",
+                "properties": {
+                  "insertion_index": {
+                    "description": "Insertion index.",
+                    "format": "uint32",
+                    "minimum": 0.0,
+                    "type": "integer"
+                  },
+                  "role": {
+                    "description": "Capability-owned role key.",
+                    "type": "string"
+                  },
+                  "source": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantOutputSourceDto"
+                      }
+                    ],
+                    "description": "Exact source output."
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "insert_reference_item"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "insertion_index",
+                  "role",
+                  "source",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Reorders one existing reference item.",
+                "properties": {
+                  "input_item_id": {
+                    "description": "Stable input-item UUID text.",
+                    "type": "string"
+                  },
+                  "insertion_index_after_removal": {
+                    "description": "Index after first removing the item.",
+                    "format": "uint32",
+                    "minimum": 0.0,
+                    "type": "integer"
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "move_reference_item"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input_item_id",
+                  "insertion_index_after_removal",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Removes one stable input item.",
+                "properties": {
+                  "input_item_id": {
+                    "description": "Stable input-item UUID text.",
+                    "type": "string"
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "remove_input_item"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input_item_id",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "Replaces one ordered item's role.",
+                "properties": {
+                  "input_item_id": {
+                    "description": "Stable input-item UUID text.",
+                    "type": "string"
+                  },
+                  "role": {
+                    "description": "Replacement capability-owned role key.",
+                    "type": "string"
+                  },
+                  "target": {
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssistantInputTargetDto"
+                      }
+                    ],
+                    "description": "Exact target input."
+                  },
+                  "type": {
+                    "enum": [
+                      "set_input_item_role"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "input_item_id",
+                  "role",
+                  "target",
+                  "type"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "properties": {
+          "base_workflow_revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "ordered_mutations": {
+            "items": {
+              "$ref": "#/definitions/AssistantWorkflowMutationProposalDto"
+            },
+            "maxItems": 128,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "base_workflow_revision",
+          "ordered_mutations"
+        ],
+        "title": "WorkflowMutationsInput",
+        "type": "object"
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "ChangeStateDto": {
+            "enum": [
+              "proposed",
+              "review_rejected",
+              "awaiting_approval",
+              "rejected",
+              "applying",
+              "applied",
+              "apply_failed",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "approval_scope_id": {
+            "type": "string"
+          },
+          "base_workflow_revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "expires_at_epoch_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mutation_digest_hex": {
+            "type": "string"
+          },
+          "ordered_mutations": {
+            "items": true,
+            "type": "array"
+          },
+          "resulting_workflow_fingerprint_hex": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/definitions/ChangeStateDto"
+          }
+        },
+        "required": [
+          "approval_scope_id",
+          "base_workflow_revision",
+          "change_id",
+          "expires_at_epoch_ms",
+          "mutation_digest_hex",
+          "ordered_mutations",
+          "resulting_workflow_fingerprint_hex",
+          "state"
+        ],
+        "title": "ChangeOutput",
+        "type": "object"
+      }
+    },
+    {
+      "id": "assistant.workflow.get_change@1",
+      "description": "Read one exact persisted Workflow Change.",
+      "effect": "authoritative_read",
+      "needs_approval": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "change_id": {
+            "maxLength": 36,
+            "minLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "change_id"
+        ],
+        "title": "WorkflowChangeInput",
+        "type": "object"
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "ChangeStateDto": {
+            "enum": [
+              "proposed",
+              "review_rejected",
+              "awaiting_approval",
+              "rejected",
+              "applying",
+              "applied",
+              "apply_failed",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "approval_scope_id": {
+            "type": "string"
+          },
+          "base_workflow_revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "expires_at_epoch_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mutation_digest_hex": {
+            "type": "string"
+          },
+          "ordered_mutations": {
+            "items": true,
+            "type": "array"
+          },
+          "resulting_workflow_fingerprint_hex": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/definitions/ChangeStateDto"
+          }
+        },
+        "required": [
+          "approval_scope_id",
+          "base_workflow_revision",
+          "change_id",
+          "expires_at_epoch_ms",
+          "mutation_digest_hex",
+          "ordered_mutations",
+          "resulting_workflow_fingerprint_hex",
+          "state"
+        ],
+        "title": "ChangeOutput",
+        "type": "object"
+      }
+    },
+    {
+      "id": "assistant.workflow.request_apply@1",
+      "description": "Request human approval for one exact reviewed Workflow Change.",
+      "effect": "human_approval_request",
+      "needs_approval": true,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "properties": {
+          "change_id": {
+            "maxLength": 36,
+            "minLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "change_id"
+        ],
+        "title": "WorkflowChangeInput",
+        "type": "object"
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false,
+        "definitions": {
+          "ChangeStateDto": {
+            "enum": [
+              "proposed",
+              "review_rejected",
+              "awaiting_approval",
+              "rejected",
+              "applying",
+              "applied",
+              "apply_failed",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "properties": {
+          "approval_scope_id": {
+            "type": "string"
+          },
+          "base_workflow_revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "change_id": {
+            "type": "string"
+          },
+          "expires_at_epoch_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mutation_digest_hex": {
+            "type": "string"
+          },
+          "ordered_mutations": {
+            "items": true,
+            "type": "array"
+          },
+          "resulting_workflow_fingerprint_hex": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/definitions/ChangeStateDto"
+          }
+        },
+        "required": [
+          "approval_scope_id",
+          "base_workflow_revision",
+          "change_id",
+          "expires_at_epoch_ms",
+          "mutation_digest_hex",
+          "ordered_mutations",
+          "resulting_workflow_fingerprint_hex",
+          "state"
+        ],
+        "title": "ChangeOutput",
+        "type": "object"
+      }
     }
   ]
 }

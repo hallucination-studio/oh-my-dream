@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   api,
   type AssistantContext,
-  type AssistantPendingApproval,
-  type ResponsesStreamEvent,
+  type AssistantPendingWorkflowChange,
+  type AssistantPresentationEvent,
   type WorkflowApi,
   type WorkflowHead,
 } from "../api/index.ts";
@@ -14,12 +14,7 @@ import {
 } from "./StrongAssistantTask.tsx";
 import {
   appendAssistantToken,
-  functionCallFromEvent,
-  planItemFromCall,
-  responseError,
   setStepState,
-  upsertPlanItem,
-  upsertRunItem,
   type AssistantStreamItem,
 } from "./assistantStream.ts";
 
@@ -46,7 +41,6 @@ export function AssistantDock({
   apiClient = api,
   getContext = GET_EMPTY_CONTEXT,
   beforeSend = PASS_BARRIER,
-  onWorkflowHead,
 }: {
   onClose: () => void;
   apiClient?: WorkflowApi;
@@ -60,11 +54,12 @@ export function AssistantDock({
     text: "Ready",
     connected: true,
   });
-  const [pendingApproval, setPendingApproval] = useState<AssistantPendingApproval | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<AssistantPendingWorkflowChange | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const streamRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const sendingRef = useRef(false);
+  const presentationSequenceRef = useRef(new Map<string, number>());
 
   // Keep the newest content in view as it streams in.
   useEffect(() => {
@@ -77,69 +72,71 @@ export function AssistantDock({
   useEffect(() => {
     const projectId = getContext().project_id;
     if (projectId) {
-      void apiClient.getPendingAssistantApproval(projectId).then(setPendingApproval).catch(() => {});
+      void apiClient.assistantGetPendingWorkflowChange(projectId).then(setPendingApproval).catch(() => {});
     }
   }, [apiClient, getContext]);
 
-  const handleEvent = (event: ResponsesStreamEvent) => {
-    switch (event.type) {
-      case "response.output_text.delta":
-        if (typeof event.delta === "string") {
-          const delta = event.delta;
-          setItems((current) => appendAssistantToken(current, delta));
-        }
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void apiClient.observeAssistantPresentationEvents((event) => {
+      if (!disposed) handleEvent(event);
+    }).then((value) => {
+      if (disposed) value();
+      else unlisten = value;
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [apiClient, getContext]);
+
+  const handleEvent = (event: AssistantPresentationEvent) => {
+    const sequence = Number(event.sequence);
+    const previous = presentationSequenceRef.current.get(event.invocation_id) ?? 0;
+    if (!Number.isSafeInteger(sequence) || sequence !== previous + 1) {
+      const projectId = getContext().project_id;
+      if (projectId) {
+        void apiClient.assistantGetPendingWorkflowChange(projectId).then(setPendingApproval);
+      }
+      return;
+    }
+    presentationSequenceRef.current.set(event.invocation_id, sequence);
+    switch (event.kind) {
+      case "text_delta":
+        setItems((current) => appendAssistantToken(current, event.text));
         break;
-      case "response.output_item.added": {
-        const call = functionCallFromEvent(event);
-        if (call) {
+      case "tool_activity":
+        if (event.state === "started") {
           setItems((current) => [
             ...current,
-            { kind: "step", callId: call.callId, capability: call.name, state: "running" },
+            { kind: "step", callId: event.tool_id, capability: event.tool_id, state: "running" },
           ]);
-        }
-        break;
-      }
-      case "response.output_item.done": {
-        const call = functionCallFromEvent(event);
-        if (call) {
-          setItems((current) => setStepState(current, call.callId, "done"));
-          const plan = planItemFromCall(call);
-          if (plan) setItems((current) => upsertPlanItem(current, plan));
-        }
-        break;
-      }
-      case "assistant.workflow_run.started":
-        if (typeof event.run_id === "string") {
-          setItems((current) => upsertRunItem(current, event.run_id as string, "running", "Starting"));
-        }
-        break;
-      case "assistant.workflow_run.progress":
-        if (typeof event.run_id === "string" && typeof event.node_id === "string") {
-          const progress = typeof event.progress === "number" ? ` · ${Math.round(event.progress * 100)}%` : "";
+        } else {
           setItems((current) =>
-            upsertRunItem(current, event.run_id as string, "running", `${event.node_id}${progress}`),
+            setStepState(current, event.tool_id, event.state === "completed" ? "done" : "error")
           );
         }
         break;
-      case "assistant.workflow_run.succeeded":
-      case "assistant.workflow_run.cancelled":
-      case "assistant.workflow_run.failed":
-        if (typeof event.run_id === "string") {
-          const state = event.type.slice("assistant.workflow_run.".length) as
-            | "succeeded"
-            | "cancelled"
-            | "failed";
-          const detail = typeof event.reason === "string" ? event.reason : "Workflow run complete";
-          setItems((current) => upsertRunItem(current, event.run_id as string, state, detail));
+      case "workflow_change_ready": {
+        const projectId = getContext().project_id;
+        if (projectId) {
+          void apiClient.assistantGetPendingWorkflowChange(projectId).then((change) => {
+            if (change?.workflow_change_id === event.workflow_change_id) {
+              setPendingApproval(change);
+              setStatus((current) => ({ ...current, text: "Waiting for approval" }));
+            }
+          });
         }
         break;
-      case "response.completed":
+      }
+      case "invocation_completed":
+        presentationSequenceRef.current.delete(event.invocation_id);
         setStatus((current) => ({ ...current, text: "Ready" }));
         break;
-      case "response.failed":
-      case "response.incomplete":
-      case "error":
-        setStatus((current) => ({ ...current, text: responseError(event) }));
+      case "invocation_failed":
+        presentationSequenceRef.current.delete(event.invocation_id);
+        setStatus((current) => ({ ...current, text: event.error.message }));
         break;
     }
   };
@@ -157,31 +154,17 @@ export function AssistantDock({
       const { project_id, ...workspace } = context;
       if (!project_id) throw new Error("Open a project before using the assistant.");
       setStatus({ text: "Thinking", connected: true });
-      const workflowHead = await apiClient.sendAssistant(
-        {
-          project_id,
-          ...workspace,
-          text,
-        },
-        handleEvent,
-      );
-      if (workflowHead !== null) {
-        await onWorkflowHead?.(workflowHead);
-      }
+      await apiClient.assistantSendMessage({
+        project_id,
+        ...workspace,
+        workflow_revision: workspace.workflow_revision?.toString() ?? null,
+        text,
+      });
       setStatus((current) => ({ ...current, text: "Ready" }));
       setDraft("");
     } catch (error: unknown) {
       const message = String(error);
-      if (message.includes("ASSISTANT_APPROVAL_DEFERRED")) {
-        const projectId = getContext().project_id;
-        setPendingApproval(
-          projectId ? await apiClient.getPendingAssistantApproval(projectId) : null,
-        );
-        setStatus((current) => ({ ...current, text: "Waiting for approval" }));
-        setDraft("");
-      } else {
-        setStatus((current) => ({ ...current, text: message }));
-      }
+      setStatus((current) => ({ ...current, text: message }));
       composerRef.current?.focus();
     } finally {
       sendingRef.current = false;
@@ -193,27 +176,21 @@ export function AssistantDock({
     setApprovalBusy(true);
     setStatus((current) => ({ ...current, text: approved ? "Applying" : "Rejecting" }));
     try {
-      const workflowHead = await apiClient.decideAssistantApproval(
-        {
-          project_id: pendingApproval.project_id,
-          approval_scope_id: pendingApproval.approval_scope_id,
-          candidate_digest: pendingApproval.candidate_digest,
-          approved,
-        },
-        handleEvent,
-      );
-      if (workflowHead !== null) await onWorkflowHead?.(workflowHead);
+      await apiClient.assistantDecideWorkflowChange({
+        project_id: pendingApproval.project_id,
+        workflow_change_id: pendingApproval.workflow_change_id,
+        approval_scope_id: pendingApproval.approval_scope_id,
+        mutation_digest_hex: pendingApproval.mutation_digest_hex,
+        decision: approved ? "approve" : "reject",
+      });
       setPendingApproval(null);
       setStatus((current) => ({ ...current, text: approved ? "Applied" : "Rejected" }));
     } catch (error: unknown) {
       const message = String(error);
-      if (message.includes("ASSISTANT_APPROVAL_DEFERRED")) {
-        const replacement = await apiClient.getPendingAssistantApproval(pendingApproval.project_id);
-        setPendingApproval(replacement);
-        setStatus((current) => ({ ...current, text: "Repair waiting for approval" }));
-      } else {
-        setStatus((current) => ({ ...current, text: message }));
-      }
+      const replacement =
+        await apiClient.assistantGetPendingWorkflowChange(pendingApproval.project_id);
+      setPendingApproval(replacement);
+      setStatus((current) => ({ ...current, text: message }));
     } finally {
       setApprovalBusy(false);
     }

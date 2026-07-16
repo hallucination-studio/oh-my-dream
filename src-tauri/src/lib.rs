@@ -10,13 +10,19 @@ pub mod asset_storage_adapters;
 pub mod assistant;
 pub mod assistant_adapters;
 pub mod assistant_approval;
+pub mod assistant_command_dto;
 pub mod assistant_commands;
+pub mod assistant_commands_v5;
 pub mod assistant_model_runner;
 pub mod assistant_operations;
+pub mod assistant_presentation;
+pub mod assistant_process_command;
 pub mod assistant_repair;
 mod assistant_review_bridge;
+pub mod assistant_reviewer_protocol;
 pub mod assistant_runtime;
 pub mod assistant_sidecar;
+pub mod assistant_tool_runtime;
 pub mod assistant_transport;
 pub mod assistant_workflow_bridge;
 pub mod backend_settings_adapter;
@@ -58,10 +64,8 @@ pub mod workflow_storage_adapters;
 pub mod workspace_snapshot;
 
 use asset_commands::{asset_get, asset_import, asset_issue_preview, asset_list};
-use commands::{
-    assistant_decide_approval, assistant_get_pending_approval, assistant_send,
-    get_assistant_config, get_capability_catalog, get_providers, set_active_provider,
-    set_assistant_config, set_provider_key,
+use assistant_commands_v5::{
+    assistant_decide_workflow_change, assistant_get_pending_workflow_change, assistant_send_message,
 };
 use node_capability_commands::{generation_profile_list_for_capability, node_capability_list};
 use project_commands::{project_create, project_get, project_list, project_open, project_rename};
@@ -120,13 +124,15 @@ pub fn run() -> tauri::Result<()> {
             let state = state::AppState::from_app_handle(app.handle())
                 .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
             app.manage(state);
+            let worker = project_commands.post_commit_worker.clone();
             app.manage(project_commands);
+            tauri::async_runtime::spawn(run_post_commit_worker(worker));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            assistant_send,
-            assistant_get_pending_approval,
-            assistant_decide_approval,
+            assistant_send_message,
+            assistant_get_pending_workflow_change,
+            assistant_decide_workflow_change,
             asset_import,
             asset_get,
             asset_list,
@@ -147,14 +153,24 @@ pub fn run() -> tauri::Result<()> {
             workflow_get_run,
             workflow_list_run_events,
             workflow_get_node_presentation,
-            get_providers,
-            set_active_provider,
-            set_provider_key,
-            get_capability_catalog,
-            get_assistant_config,
-            set_assistant_config,
         ])
         .run(tauri::generate_context!())
+}
+
+async fn run_post_commit_worker(worker: post_commit_worker::DesktopPostCommitEffectWorker) {
+    use post_commit_worker::DesktopPostCommitWorkerStep;
+    while !worker.is_cancelled() {
+        match worker.run_effect_batch().await {
+            Ok(steps) if steps.iter().all(|step| *step == DesktopPostCommitWorkerStep::Idle) => {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                tracing::error!(?error, "Desktop post-commit worker iteration failed");
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            }
+        }
+    }
 }
 
 fn init_logging() {

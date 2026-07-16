@@ -1,61 +1,53 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
 const invokeMock = vi.fn();
+const listenMock = vi.fn();
 
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: invokeMock,
-  Channel: class<T> {
-    onmessage = (_event: T) => {};
-  },
-}));
+vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
+vi.mock("@tauri-apps/api/event", () => ({ listen: listenMock }));
 
-beforeEach(() => invokeMock.mockReset());
-
-it("loads the exact pending reviewed Assistant candidate", async () => {
-  const { tauriApi } = await import("./tauriApi.ts");
-  const approval = {
-    project_id: "project-1",
-    approval_scope_id: "scope-1",
-    user_intent: "Build a film",
-    candidate_digest: "sha256:candidate",
-    reviewer_version: "reviewer-v1",
-    evidence_hash: "sha256:evidence",
-    review_summary: "Ready to apply",
-    review_findings: [],
-    effect: "apply_reviewed_workflow_candidate",
-    workflow: { version: "1.0", project_id: "project-1", nodes: [] },
-    readiness_blockers: [],
-    assets: [],
-  };
-  invokeMock.mockResolvedValueOnce(approval);
-
-  await expect(tauriApi.getPendingAssistantApproval("project-1")).resolves.toEqual(approval);
-  expect(invokeMock).toHaveBeenCalledWith("assistant_get_pending_approval", {
-    project_id: "project-1",
-  });
+beforeEach(() => {
+  invokeMock.mockReset();
+  listenMock.mockReset();
 });
 
-it("propagates pending approval command errors", async () => {
+it("uses the three canonical Assistant commands", async () => {
   const { tauriApi } = await import("./tauriApi.ts");
-  invokeMock.mockRejectedValueOnce(new Error("ASSISTANT_APPROVAL_NOT_FOUND"));
-  await expect(tauriApi.getPendingAssistantApproval("project-1")).rejects.toThrow(
-    "ASSISTANT_APPROVAL_NOT_FOUND",
+  invokeMock.mockResolvedValue({});
+
+  await tauriApi.assistantSendMessage({
+    project_id: "10000000-0000-4000-8000-000000000001",
+    workflow_present: false,
+    workflow_revision: null,
+    selected_node_ids: [],
+    selected_asset_ids: [],
+    text: "Build a film",
+  });
+  await tauriApi.assistantGetPendingWorkflowChange("10000000-0000-4000-8000-000000000001");
+  await tauriApi.assistantDecideWorkflowChange({
+    project_id: "10000000-0000-4000-8000-000000000001",
+    workflow_change_id: "20000000-0000-4000-8000-000000000001",
+    approval_scope_id: "30000000-0000-4000-8000-000000000001",
+    mutation_digest_hex: "00".repeat(32),
+    decision: "approve",
+  });
+
+  expect(invokeMock.mock.calls.map(([command]) => command)).toEqual([
+    "assistant_send_message",
+    "assistant_get_pending_workflow_change",
+    "assistant_decide_workflow_change",
+  ]);
+});
+
+it("subscribes only to the typed presentation event", async () => {
+  const { tauriApi } = await import("./tauriApi.ts");
+  const unlisten = vi.fn();
+  listenMock.mockResolvedValue(unlisten);
+  const observer = vi.fn();
+
+  await expect(tauriApi.observeAssistantPresentationEvents(observer)).resolves.toBe(unlisten);
+  expect(listenMock).toHaveBeenCalledWith(
+    "assistant-presentation-event-v1",
+    expect.any(Function),
   );
-});
-
-it("resumes the exact pending approval scope", async () => {
-  const { tauriApi } = await import("./tauriApi.ts");
-  const input = {
-    project_id: "project-1",
-    approval_scope_id: "scope-1",
-    candidate_digest: "sha256:candidate",
-    approved: true,
-  };
-  invokeMock.mockResolvedValueOnce(null);
-
-  await expect(tauriApi.decideAssistantApproval(input, vi.fn())).resolves.toBeNull();
-  expect(invokeMock).toHaveBeenCalledWith("assistant_decide_approval", {
-    input,
-    on_event: expect.anything(),
-  });
 });
