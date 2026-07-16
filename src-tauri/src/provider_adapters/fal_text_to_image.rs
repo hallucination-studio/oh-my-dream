@@ -26,7 +26,7 @@ use sha2::{Digest, Sha256};
 
 use super::fal::{
     FalGenerationProviderAccount, FalHttpResponse, FalHttpTransportInterface, FalQueueMethod,
-    FalQueueRequest, FalTransportError, ReqwestFalHttpTransport, status_is_success,
+    FalQueueRequest, FalTransportError, ReqwestFalHttpTransportAdapterImpl, status_is_success,
 };
 use crate::credential_repository::{
     GenerationProviderCredentialId, GenerationProviderCredentialRepositoryError,
@@ -68,7 +68,7 @@ impl FalTextToImageProviderRouteImpl {
         credential_id: GenerationProviderCredentialId,
         repository: Arc<dyn GenerationProviderCredentialRepositoryInterface>,
     ) -> Result<Self, NodeCapabilityProviderFailure> {
-        let transport = ReqwestFalHttpTransport::try_new().map_err(|_| {
+        let transport = ReqwestFalHttpTransportAdapterImpl::try_new().map_err(|_| {
             failure(NodeCapabilityProviderFailureCategory::ProviderUnavailable, false)
         })?;
         Ok(Self {

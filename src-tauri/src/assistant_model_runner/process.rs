@@ -25,7 +25,7 @@ impl AssistantSidecarCommandProcessLauncherImpl {
     }
 }
 
-struct StdioProtocolProcess {
+struct StdioAssistantProtocolProcessImpl {
     child: Child,
     stdin: Option<BufWriter<ChildStdin>>,
     stdout: BufReader<ChildStdout>,
@@ -52,7 +52,7 @@ impl AssistantProtocolProcessLauncherInterface for AssistantSidecarCommandProces
             terminate_child(&mut child).await;
             return Err(AssistantApplicationError::ModelUnavailable);
         };
-        Ok(Box::new(StdioProtocolProcess {
+        Ok(Box::new(StdioAssistantProtocolProcessImpl {
             child,
             stdin: Some(BufWriter::new(stdin)),
             stdout: BufReader::new(stdout),
@@ -106,7 +106,7 @@ impl AssistantProtocolProcessLauncherInterface
 }
 
 #[async_trait]
-impl AssistantProtocolProcessInterface for StdioProtocolProcess {
+impl AssistantProtocolProcessInterface for StdioAssistantProtocolProcessImpl {
     async fn read_assistant_protocol_line(&mut self) -> Result<Vec<u8>, AssistantApplicationError> {
         let mut encoded = Vec::new();
         let mut bounded = (&mut self.stdout)

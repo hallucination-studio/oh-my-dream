@@ -88,11 +88,11 @@ pub(super) trait FalHttpTransportInterface: Send + Sync {
     ) -> Result<FalHttpResponse, FalTransportError>;
 }
 
-pub(super) struct ReqwestFalHttpTransport {
+pub(super) struct ReqwestFalHttpTransportAdapterImpl {
     queue_client: reqwest::Client,
 }
 
-impl ReqwestFalHttpTransport {
+impl ReqwestFalHttpTransportAdapterImpl {
     pub(super) fn try_new() -> Result<Self, reqwest::Error> {
         let queue_client = reqwest::Client::builder()
             .https_only(true)
@@ -104,7 +104,7 @@ impl ReqwestFalHttpTransport {
 }
 
 #[async_trait]
-impl FalHttpTransportInterface for ReqwestFalHttpTransport {
+impl FalHttpTransportInterface for ReqwestFalHttpTransportAdapterImpl {
     async fn send_queue_request(
         &self,
         request: FalQueueRequest,

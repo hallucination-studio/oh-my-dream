@@ -15,6 +15,8 @@ const ASSISTANT_WORKFLOW_BRIDGE: &str =
     include_str!("../src/assistant_workflow_bridge/workflow.rs");
 const ASSISTANT_WORKSPACE_BRIDGE: &str =
     include_str!("../src/assistant_workflow_bridge/workspace.rs");
+const FAL_TRANSPORT: &str = include_str!("../src/provider_adapters/fal.rs");
+const ASSISTANT_PROCESS: &str = include_str!("../src/assistant_model_runner/process.rs");
 const UI_API: &str = include_str!("../../ui/src/api/types.ts");
 const UI_TAURI: &str = include_str!("../../ui/src/api/tauriApi.ts");
 
@@ -90,6 +92,14 @@ fn workspace_library_substitution_traits_use_interface_suffixes() {
     collect_trait_name_violations(&workspace_root.join("crates"), &mut violations);
 
     assert_eq!(violations, Vec::<String>::new());
+}
+
+#[test]
+fn active_private_boundary_implementations_use_impl_suffixes() {
+    assert!(FAL_TRANSPORT.contains("ReqwestFalHttpTransportAdapterImpl"));
+    assert!(!FAL_TRANSPORT.contains("struct ReqwestFalHttpTransport {"));
+    assert!(ASSISTANT_PROCESS.contains("StdioAssistantProtocolProcessImpl"));
+    assert!(!ASSISTANT_PROCESS.contains("struct StdioProtocolProcess {"));
 }
 
 fn registered_commands() -> usize {
