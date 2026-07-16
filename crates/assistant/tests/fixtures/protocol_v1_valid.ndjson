@@ -1,0 +1,3 @@
+{"protocol_version":1,"invocation_id":"03000000-0000-4000-8000-000000000003","direction_sequence":1,"kind":"InvocationAccepted","payload":{"agent_id":"workflow_coauthor@1"}}
+{"protocol_version":1,"invocation_id":"03000000-0000-4000-8000-000000000003","direction_sequence":2,"kind":"ModelOutputDelta","payload":{"text":"Working"}}
+{"protocol_version":1,"invocation_id":"03000000-0000-4000-8000-000000000003","direction_sequence":3,"kind":"InvocationCompleted","payload":{"final_text":"Done"}}
