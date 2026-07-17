@@ -32,6 +32,19 @@ fn creates_and_reopens_the_current_hard_cut_epoch() {
 }
 
 #[test]
+fn holds_exclusive_process_lock_for_connection_lifetime() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("metadata.sqlite");
+    let owner = open_metadata_sqlite(&path).unwrap();
+    let contender = Connection::open(&path).unwrap();
+    contender.busy_timeout(Duration::ZERO).unwrap();
+
+    assert!(contender.execute_batch("BEGIN IMMEDIATE; ROLLBACK;").is_err());
+    drop(owner);
+    contender.execute_batch("BEGIN IMMEDIATE; ROLLBACK;").unwrap();
+}
+
+#[test]
 fn refuses_a_prior_epoch_without_mutating_it() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("metadata.sqlite");

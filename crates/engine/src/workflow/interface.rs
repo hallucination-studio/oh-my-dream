@@ -78,6 +78,36 @@ pub enum WorkflowApplicationError {
     /// A terminal Task notification does not match its exact frozen origin or prior outcome.
     #[error("Workflow Generation Task completion conflicts with the Run")]
     WorkflowGenerationTaskCompletionConflict,
+    /// Task recovery evidence was absent or contradicted an exact waiting origin.
+    #[error("Workflow Generation Task recovery read failed")]
+    WorkflowGenerationTaskRecoveryReadFailure,
+}
+
+/// Task-owned durable evidence projected for one exact Workflow node execution at startup.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WorkflowGenerationTaskRecoveryObservation {
+    /// Queued Task and unconsumed Submit effect prove safe pre-handoff replay.
+    QueuedPreHandoff,
+    /// A non-terminal Task owns continued external work.
+    Active,
+    /// A terminal Task still owns an unconsumed Workflow notification.
+    TerminalNotificationPending,
+    /// The terminal Task notification was already durably consumed.
+    NotificationCompleted,
+    /// No Task exists for the exact origin.
+    Absent,
+    /// Task identity, state, or outbox evidence is contradictory.
+    Corrupt,
+}
+
+/// Exact Task recovery evidence consumed by Workflow startup classification.
+#[async_trait]
+pub trait WorkflowGenerationTaskRecoveryReaderInterface: Send + Sync {
+    /// Reads one exact Running or waiting node execution origin.
+    async fn read_workflow_generation_task_recovery(
+        &self,
+        origin: &super::WorkflowGenerationTaskOrigin,
+    ) -> Result<WorkflowGenerationTaskRecoveryObservation, WorkflowApplicationError>;
 }
 
 /// Atomic Workflow creation commit and its replay evidence.

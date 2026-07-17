@@ -66,11 +66,21 @@ pub(crate) fn open_metadata_sqlite(path: &Path) -> Result<Connection, MetadataSq
     )
     .map_err(|source| sqlite("open", source))?;
     configure_connection(&connection)?;
+    acquire_process_lock(&connection)?;
     validate_or_initialize_epoch(&connection, existed_non_empty)?;
     verify_integrity(&connection)?;
     create_current_schema(&connection)?;
     restrict_permissions(path)?;
     Ok(connection)
+}
+
+fn acquire_process_lock(connection: &Connection) -> Result<(), MetadataSqliteError> {
+    connection
+        .pragma_update(None, "locking_mode", "EXCLUSIVE")
+        .map_err(|source| sqlite("configure exclusive process lock", source))?;
+    connection
+        .execute_batch("BEGIN EXCLUSIVE; COMMIT;")
+        .map_err(|source| sqlite("acquire exclusive process lock", source))
 }
 
 #[cfg(unix)]

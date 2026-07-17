@@ -2,6 +2,10 @@ use std::sync::{Arc, Mutex};
 
 use assets::asset::domain::AssetMediaKind;
 use engine::node_capability::{WorkflowNodeExecutionId, WorkflowRunId};
+use engine::workflow::{
+    WorkflowGenerationTaskOrigin, WorkflowGenerationTaskRecoveryObservation,
+    WorkflowGenerationTaskRecoveryReaderInterface,
+};
 use engine::workflow_graph::{WorkflowId, WorkflowNodeId};
 use nodes::{GenerationProfileId, GenerationProfileRef, GenerationProfileVersion};
 use projects::project::domain::ProjectId;
@@ -100,6 +104,144 @@ async fn create_rejects_idempotency_and_origin_conflicts() {
             .await,
         Err(GenerationTaskRepositoryError::OriginConflict)
     );
+}
+
+#[tokio::test]
+async fn restart_recovery_classifies_submit_poll_and_notification_windows() {
+    let (_, repository) = setup();
+    let mut pre_submit = task(180, 1, 100, "pre-submit", "restart-pre-submit");
+    repository
+        .create_generation_task(
+            &pre_submit,
+            effect(&pre_submit, GenerationTaskEffectKind::SubmitTask, 100),
+        )
+        .await
+        .unwrap();
+    repository.claim_next_generation_task_effect(time(100)).await.unwrap().unwrap();
+    assert_eq!(
+        recovery(&repository, &pre_submit).await,
+        WorkflowGenerationTaskRecoveryObservation::Corrupt
+    );
+    repository.reset_claimed_generation_task_effects().await.unwrap();
+    assert_eq!(
+        recovery(&repository, &pre_submit).await,
+        WorkflowGenerationTaskRecoveryObservation::QueuedPreHandoff
+    );
+    repository.claim_next_generation_task_effect(time(100)).await.unwrap().unwrap();
+
+    let queued_revision = pre_submit.revision().get();
+    pre_submit.begin_submission(time(101)).unwrap();
+    repository
+        .save_generation_task(&pre_submit, queued_revision, GenerationTaskOutboxChanges::default())
+        .await
+        .unwrap();
+    repository.reset_claimed_generation_task_effects().await.unwrap();
+    assert_eq!(
+        recovery(&repository, &pre_submit).await,
+        WorkflowGenerationTaskRecoveryObservation::Active
+    );
+    let submit = repository.claim_next_generation_task_effect(time(101)).await.unwrap().unwrap();
+    let submitting_revision = pre_submit.revision().get();
+    pre_submit
+        .accept_remote_submission(
+            GenerationProviderTaskHandle::try_new("mock:restart-handle").unwrap(),
+            time(102),
+        )
+        .unwrap();
+    repository
+        .save_generation_task(
+            &pre_submit,
+            submitting_revision,
+            GenerationTaskOutboxChanges {
+                consume: Some(submit.claim()),
+                enqueue: vec![effect(&pre_submit, GenerationTaskEffectKind::PollTask, 103)],
+            },
+        )
+        .await
+        .unwrap();
+    repository.claim_next_generation_task_effect(time(103)).await.unwrap().unwrap();
+    repository.reset_claimed_generation_task_effects().await.unwrap();
+    assert_eq!(
+        recovery(&repository, &pre_submit).await,
+        WorkflowGenerationTaskRecoveryObservation::Active
+    );
+
+    let mut terminal = task(181, 1, 100, "terminal", "restart-terminal");
+    repository
+        .create_generation_task(
+            &terminal,
+            effect(&terminal, GenerationTaskEffectKind::SubmitTask, 100),
+        )
+        .await
+        .unwrap();
+    let terminal_submit =
+        repository.claim_next_generation_task_effect(time(100)).await.unwrap().unwrap();
+    let expected = terminal.revision().get();
+    terminal.request_cancellation(time(101)).unwrap();
+    repository
+        .save_generation_task(
+            &terminal,
+            expected,
+            GenerationTaskOutboxChanges {
+                consume: Some(terminal_submit.claim()),
+                enqueue: vec![effect(&terminal, GenerationTaskEffectKind::NotifyWorkflow, 101)],
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        recovery(&repository, &terminal).await,
+        WorkflowGenerationTaskRecoveryObservation::TerminalNotificationPending
+    );
+    let notify = repository.claim_next_generation_task_effect(time(101)).await.unwrap().unwrap();
+    repository
+        .save_generation_task(
+            &terminal,
+            terminal.revision().get(),
+            GenerationTaskOutboxChanges {
+                consume: Some(notify.claim()),
+                enqueue: vec![effect(&terminal, GenerationTaskEffectKind::NotifyWorkflow, 102)],
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        recovery(&repository, &terminal).await,
+        WorkflowGenerationTaskRecoveryObservation::TerminalNotificationPending
+    );
+    let replayed_notify =
+        repository.claim_next_generation_task_effect(time(102)).await.unwrap().unwrap();
+    repository
+        .save_generation_task(
+            &terminal,
+            terminal.revision().get(),
+            GenerationTaskOutboxChanges {
+                consume: Some(replayed_notify.claim()),
+                enqueue: Vec::new(),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        recovery(&repository, &terminal).await,
+        WorkflowGenerationTaskRecoveryObservation::NotificationCompleted
+    );
+}
+
+async fn recovery(
+    repository: &SqliteGenerationTaskRepositoryAdapterImpl,
+    task: &GenerationTaskAggregate,
+) -> WorkflowGenerationTaskRecoveryObservation {
+    let origin = WorkflowGenerationTaskOrigin {
+        project_id: task.origin().project_id(),
+        workflow_id: task.origin().workflow_id(),
+        workflow_revision: task.origin().workflow_revision(),
+        workflow_run_id: task.origin().workflow_run_id(),
+        workflow_node_id: task.origin().workflow_node_id(),
+        node_execution_id: task.origin().workflow_node_execution_id(),
+        capability_contract_ref: task.origin().capability_contract_ref().clone(),
+    };
+    repository.read_workflow_generation_task_recovery(&origin).await.unwrap()
 }
 
 #[tokio::test]

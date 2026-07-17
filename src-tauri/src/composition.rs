@@ -160,7 +160,7 @@ pub struct DesktopApplicationHost {
 
 impl DesktopApplicationHost {
     /// Completes ordered recovery before any command registration becomes reachable.
-    pub async fn recover_before_accepting_commands(&self) -> Result<(), DesktopCompositionError> {
+    async fn recover_before_accepting_commands(&self) -> Result<(), DesktopCompositionError> {
         self.startup_recovery
             .recover_before_accepting_commands()
             .await
@@ -206,6 +206,7 @@ struct DesktopInfrastructureComposition {
     publisher: Arc<dyn WorkflowRunEventPublisherInterface>,
     node_capabilities: Arc<WorkflowNodeCapabilityRegistry>,
     generation_task_effect_worker: DesktopTaskWorker,
+    task_repository: Arc<SqliteGenerationTaskRepositoryAdapterImpl>,
 }
 
 const EXACT_NODE_CAPABILITY_REFS: [&str; 7] = [
@@ -293,6 +294,7 @@ impl DesktopCompositionRoot {
             &node_composition,
             &config,
         )?;
+        let task_repository = Arc::new(node_composition.task_repository.clone());
         let publisher: Arc<dyn WorkflowRunEventPublisherInterface> =
             Arc::new(TauriWorkflowRunEventPublisherAdapterImpl::new(emitter));
         let business =
@@ -307,6 +309,7 @@ impl DesktopCompositionRoot {
                 publisher,
                 node_capabilities: node_composition.registry,
                 generation_task_effect_worker,
+                task_repository,
             },
             business,
         )
@@ -326,6 +329,7 @@ impl DesktopCompositionRoot {
             publisher,
             node_capabilities,
             generation_task_effect_worker,
+            task_repository,
         } = infrastructure;
         let instance_id = DesktopApplicationInstanceId::from_uuid(Uuid::new_v4())
             .map_err(|_| DesktopCompositionError::Worker)?;
@@ -346,9 +350,15 @@ impl DesktopCompositionRoot {
         let workflow_recovery = Arc::new(DesktopWorkflowRestartRecoveryAdapterImpl::new(
             workflow_repository.clone(),
             business.workflow_restart_interrupter,
+            task_repository.clone(),
         ));
-        let startup_recovery =
-            DesktopStartupRecovery::new(instance_id, outbox, workflow_recovery, clock);
+        let startup_recovery = DesktopStartupRecovery::new(
+            instance_id,
+            outbox,
+            workflow_recovery,
+            clock,
+            task_repository,
+        );
         let assistant_commands_enabled =
             assistant_commands_enabled(&config, settings.as_ref()).await?;
         let host = DesktopApplicationHost {

@@ -9,18 +9,20 @@ use engine::node_capability::{
     WorkflowNodeCapabilityRegistry, WorkflowNodeExecutionId, WorkflowRunId,
 };
 use engine::workflow::{
-    WorkflowAggregateRepositoryInterface, WorkflowApplicationError, WorkflowClockInterface,
+    WorkflowAggregateRepositoryInterface, WorkflowApplicationError,
+    WorkflowClassifyRunsAfterRestartUseCase, WorkflowClockInterface,
     WorkflowCompleteGenerationTaskCommand, WorkflowCompleteGenerationTaskOutcome,
     WorkflowCompleteGenerationTaskUseCase, WorkflowCreateCommandHash, WorkflowCreateReceipt,
     WorkflowCreationCommit, WorkflowExecuteRunEffect, WorkflowGenerationTaskCompletionCommit,
     WorkflowGenerationTaskCompletionId, WorkflowGenerationTaskCompletionOutcome,
     WorkflowGenerationTaskFailure, WorkflowGenerationTaskOrigin,
+    WorkflowGenerationTaskRecoveryObservation, WorkflowGenerationTaskRecoveryReaderInterface,
     WorkflowIdentityGeneratorInterface, WorkflowLoadKey, WorkflowManagedMediaPreviewSource,
     WorkflowMediaPreview, WorkflowMediaPreviewIssuerInterface, WorkflowMutationCommit,
     WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt, WorkflowRunAggregate,
     WorkflowRunEvent, WorkflowRunEventPublisherInterface, WorkflowRunLoadKey,
-    WorkflowRunRepositoryInterface, WorkflowRunRequestId, WorkflowRunScope, WorkflowRunState,
-    WorkflowRunTime, WorkflowStartRunCommand,
+    WorkflowRunRepositoryInterface, WorkflowRunRequestId, WorkflowRunRestartDisposition,
+    WorkflowRunScope, WorkflowRunState, WorkflowRunTime, WorkflowStartRunCommand,
 };
 use engine::workflow_graph::{
     WorkflowAggregate, WorkflowAggregateRestoreData, WorkflowCreatedAt, WorkflowId,
@@ -493,6 +495,84 @@ async fn generation_task_completion_commits_once_and_schedules_downstream_work()
         ))
     );
     assert!(fake.has_execute_effect(run_id));
+}
+
+struct RecoveryReaderFakeImpl(WorkflowGenerationTaskRecoveryObservation);
+
+#[async_trait]
+impl WorkflowGenerationTaskRecoveryReaderInterface for RecoveryReaderFakeImpl {
+    async fn read_workflow_generation_task_recovery(
+        &self,
+        _: &WorkflowGenerationTaskOrigin,
+    ) -> Result<WorkflowGenerationTaskRecoveryObservation, WorkflowApplicationError> {
+        Ok(self.0)
+    }
+}
+
+#[tokio::test]
+async fn restart_classification_distinguishes_safe_handoff_unsafe_work_and_corruption() {
+    let running = restart_run(false);
+    let waiting = restart_run(true);
+
+    assert_eq!(
+        WorkflowClassifyRunsAfterRestartUseCase::new(Arc::new(RecoveryReaderFakeImpl(
+            WorkflowGenerationTaskRecoveryObservation::QueuedPreHandoff,
+        )))
+        .classify_workflow_run_after_restart(&running)
+        .await
+        .unwrap(),
+        WorkflowRunRestartDisposition::ReplaySafe
+    );
+    assert_eq!(
+        WorkflowClassifyRunsAfterRestartUseCase::new(Arc::new(RecoveryReaderFakeImpl(
+            WorkflowGenerationTaskRecoveryObservation::Absent,
+        )))
+        .classify_workflow_run_after_restart(&running)
+        .await
+        .unwrap(),
+        WorkflowRunRestartDisposition::InterruptUnsafe
+    );
+    assert_eq!(
+        WorkflowClassifyRunsAfterRestartUseCase::new(Arc::new(RecoveryReaderFakeImpl(
+            WorkflowGenerationTaskRecoveryObservation::TerminalNotificationPending,
+        )))
+        .classify_workflow_run_after_restart(&waiting)
+        .await
+        .unwrap(),
+        WorkflowRunRestartDisposition::ReplaySafe
+    );
+    assert_eq!(
+        WorkflowClassifyRunsAfterRestartUseCase::new(Arc::new(RecoveryReaderFakeImpl(
+            WorkflowGenerationTaskRecoveryObservation::NotificationCompleted,
+        )))
+        .classify_workflow_run_after_restart(&waiting)
+        .await
+        .unwrap_err(),
+        WorkflowApplicationError::WorkflowGenerationTaskRecoveryReadFailure
+    );
+}
+
+fn restart_run(waiting: bool) -> WorkflowRunAggregate {
+    let execution_id = WorkflowNodeExecutionId::from_uuid(uuid(52)).unwrap();
+    let mut run = super::workflow_run_domain::queued_run(
+        WorkflowRunId::from_uuid(uuid(50)).unwrap(),
+        project_id(51),
+        workflow_id(53),
+        WorkflowRunScope::WholeWorkflow,
+        vec![(engine::workflow_graph::WorkflowNodeId::from_uuid(uuid(54)).unwrap(), execution_id)],
+        WorkflowRunTime::from_utc_milliseconds(1).unwrap(),
+    )
+    .unwrap();
+    run.start(WorkflowRunTime::from_utc_milliseconds(2).unwrap()).unwrap();
+    run.start_node(execution_id, WorkflowRunTime::from_utc_milliseconds(3).unwrap()).unwrap();
+    if waiting {
+        run.wait_node_for_external_completion(
+            execution_id,
+            WorkflowRunTime::from_utc_milliseconds(4).unwrap(),
+        )
+        .unwrap();
+    }
+    run
 }
 
 #[test]

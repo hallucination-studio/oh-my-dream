@@ -1,6 +1,7 @@
 //! SQLite persistence for the Generation Task aggregate and its closed outbox.
 
 mod outbox;
+mod recovery;
 mod schema;
 mod task_sql;
 mod translator;

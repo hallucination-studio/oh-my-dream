@@ -16,23 +16,48 @@ use crate::post_commit_effect::{
 
 struct FakeWorkflowRecoveryImpl {
     actions: Arc<Mutex<Vec<&'static str>>>,
+    effect_recovery: DesktopWorkflowEffectRecovery,
 }
 
 #[async_trait]
 impl DesktopWorkflowRestartRecoveryInterface for FakeWorkflowRecoveryImpl {
-    async fn interrupt_all_non_terminal_workflow_runs(
+    async fn classify_all_non_terminal_workflow_runs(
         &self,
     ) -> Result<(), DesktopWorkflowRestartRecoveryError> {
-        self.actions.lock().expect("actions").push("interrupt");
+        self.actions.lock().expect("actions").push("classify");
         Ok(())
     }
 
-    async fn workflow_effect_abandon_reason(
+    async fn workflow_effect_recovery(
         &self,
         _run_id: WorkflowRunId,
-    ) -> Result<DesktopPostCommitEffectAbandonReason, DesktopWorkflowRestartRecoveryError> {
+    ) -> Result<DesktopWorkflowEffectRecovery, DesktopWorkflowRestartRecoveryError> {
         self.actions.lock().expect("actions").push("observe_workflow");
-        Ok(DesktopPostCommitEffectAbandonReason::WorkflowInterruptedByRestart)
+        Ok(self.effect_recovery)
+    }
+}
+
+struct FakeTaskOutboxImpl {
+    actions: Arc<Mutex<Vec<&'static str>>>,
+}
+
+#[async_trait]
+impl tasks::generation_task::GenerationTaskOutboxReaderInterface for FakeTaskOutboxImpl {
+    async fn claim_next_generation_task_effect(
+        &self,
+        _: tasks::generation_task::GenerationTaskTimestamp,
+    ) -> Result<
+        Option<tasks::generation_task::GenerationTaskClaimedEffect>,
+        tasks::generation_task::GenerationTaskRepositoryError,
+    > {
+        unreachable!("normal claims are not startup recovery")
+    }
+
+    async fn reset_claimed_generation_task_effects(
+        &self,
+    ) -> Result<u64, tasks::generation_task::GenerationTaskRepositoryError> {
+        self.actions.lock().expect("actions").push("reset_tasks");
+        Ok(1)
     }
 }
 
@@ -160,14 +185,28 @@ async fn interrupts_runs_before_replaying_only_asset_and_assistant_claims() {
             records: Mutex::new(Some(records)),
             actions: Arc::clone(&actions),
         }),
-        Arc::new(FakeWorkflowRecoveryImpl { actions: Arc::clone(&actions) }),
+        Arc::new(FakeWorkflowRecoveryImpl {
+            actions: Arc::clone(&actions),
+            effect_recovery: DesktopWorkflowEffectRecovery::Abandon(
+                DesktopPostCommitEffectAbandonReason::WorkflowInterruptedByRestart,
+            ),
+        }),
         Arc::new(FakeClockImpl),
+        Arc::new(FakeTaskOutboxImpl { actions: Arc::clone(&actions) }),
     );
 
     assert_eq!(recovery.recover_before_accepting_commands().await, Ok(()));
     assert_eq!(
         *actions.lock().expect("actions"),
-        vec!["interrupt", "list", "observe_workflow", "abandon_workflow", "replay", "replay"]
+        vec![
+            "reset_tasks",
+            "classify",
+            "list",
+            "observe_workflow",
+            "abandon_workflow",
+            "replay",
+            "replay"
+        ]
     );
 }
 
@@ -186,13 +225,61 @@ async fn rejects_ready_non_workflow_effect_without_mutating_it() {
             )])),
             actions: Arc::clone(&actions),
         }),
-        Arc::new(FakeWorkflowRecoveryImpl { actions }),
+        Arc::new(FakeWorkflowRecoveryImpl {
+            actions,
+            effect_recovery: DesktopWorkflowEffectRecovery::Abandon(
+                DesktopPostCommitEffectAbandonReason::WorkflowInterruptedByRestart,
+            ),
+        }),
         Arc::new(FakeClockImpl),
+        Arc::new(FakeTaskOutboxImpl { actions: Arc::new(Mutex::new(Vec::new())) }),
     );
 
     assert_eq!(
         recovery.recover_before_accepting_commands().await,
         Err(DesktopStartupRecoveryError::InvalidRecord)
+    );
+}
+
+#[tokio::test]
+async fn replays_prior_claim_for_safe_run_and_repeated_startup_is_idempotent() {
+    let actions = Arc::new(Mutex::new(Vec::new()));
+    let prior = instance_id(90);
+    let recovery = DesktopStartupRecovery::new(
+        instance_id(91),
+        Arc::new(FakeOutboxImpl {
+            records: Mutex::new(Some(vec![record(
+                5,
+                DesktopPostCommitEffect::Workflow(WorkflowExecuteRunEffect {
+                    workflow_run_id: WorkflowRunId::from_uuid(uuid(25)).expect("run"),
+                }),
+                claimed(prior),
+            )])),
+            actions: Arc::clone(&actions),
+        }),
+        Arc::new(FakeWorkflowRecoveryImpl {
+            actions: Arc::clone(&actions),
+            effect_recovery: DesktopWorkflowEffectRecovery::ReplaySafe,
+        }),
+        Arc::new(FakeClockImpl),
+        Arc::new(FakeTaskOutboxImpl { actions: Arc::clone(&actions) }),
+    );
+
+    recovery.recover_before_accepting_commands().await.unwrap();
+    recovery.recover_before_accepting_commands().await.unwrap();
+
+    assert_eq!(
+        *actions.lock().expect("actions"),
+        vec![
+            "reset_tasks",
+            "classify",
+            "list",
+            "observe_workflow",
+            "replay",
+            "reset_tasks",
+            "classify",
+            "list",
+        ]
     );
 }
 

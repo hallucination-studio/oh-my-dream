@@ -4,11 +4,13 @@ use async_trait::async_trait;
 use engine::{
     node_capability::WorkflowRunId,
     workflow::{
-        WorkflowApplicationError, WorkflowClockInterface, WorkflowExecuteRunUseCase,
+        WorkflowApplicationError, WorkflowClassifyRunsAfterRestartUseCase, WorkflowClockInterface,
+        WorkflowExecuteRunUseCase, WorkflowGenerationTaskRecoveryReaderInterface,
         WorkflowRunEventPublisherInterface, WorkflowRunFailure, WorkflowRunLoadKey,
-        WorkflowRunRepositoryInterface, WorkflowRunState,
+        WorkflowRunRepositoryInterface, WorkflowRunRestartDisposition, WorkflowRunState,
     },
 };
+use tasks::generation_task::GenerationTaskOutboxReaderInterface;
 
 use crate::post_commit_effect::{
     DesktopApplicationInstanceId, DesktopPostCommitEffect, DesktopPostCommitEffectAbandonReason,
@@ -24,19 +26,28 @@ use super::{DesktopPostCommitWorkerClockError, DesktopPostCommitWorkerClockInter
 #[error("Desktop Workflow restart recovery failed")]
 pub struct DesktopWorkflowRestartRecoveryError;
 
+/// Recovery action for one durable Workflow execution effect.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DesktopWorkflowEffectRecovery {
+    /// The owning Run remains non-terminal and its effect must remain executable.
+    ReplaySafe,
+    /// The owning Run is terminal and the stale effect must be abandoned.
+    Abandon(DesktopPostCommitEffectAbandonReason),
+}
+
 /// Workflow-owned facts required by Desktop startup recovery.
 #[async_trait]
 pub trait DesktopWorkflowRestartRecoveryInterface: Send + Sync {
-    /// Idempotently marks every non-terminal Run interrupted before effect recovery begins.
-    async fn interrupt_all_non_terminal_workflow_runs(
+    /// Classifies every non-terminal Run and interrupts only unsafe in-process work.
+    async fn classify_all_non_terminal_workflow_runs(
         &self,
     ) -> Result<(), DesktopWorkflowRestartRecoveryError>;
 
-    /// Confirms the Run is terminal and selects its closed effect-abandon reason.
-    async fn workflow_effect_abandon_reason(
+    /// Selects replay for an active safe Run or a terminal abandon reason.
+    async fn workflow_effect_recovery(
         &self,
         run_id: WorkflowRunId,
-    ) -> Result<DesktopPostCommitEffectAbandonReason, DesktopWorkflowRestartRecoveryError>;
+    ) -> Result<DesktopWorkflowEffectRecovery, DesktopWorkflowRestartRecoveryError>;
 }
 
 /// One-Run interruption boundary consumed by the Desktop recovery adapter.
@@ -53,6 +64,7 @@ pub trait DesktopWorkflowRunRestartInterrupterInterface: Send + Sync {
 pub struct DesktopWorkflowRestartRecoveryAdapterImpl {
     repository: Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
     interrupter: Arc<dyn DesktopWorkflowRunRestartInterrupterInterface>,
+    task_recovery: Arc<dyn WorkflowGenerationTaskRecoveryReaderInterface>,
 }
 
 impl DesktopWorkflowRestartRecoveryAdapterImpl {
@@ -61,16 +73,18 @@ impl DesktopWorkflowRestartRecoveryAdapterImpl {
     pub fn new(
         repository: Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
         interrupter: Arc<dyn DesktopWorkflowRunRestartInterrupterInterface>,
+        task_recovery: Arc<dyn WorkflowGenerationTaskRecoveryReaderInterface>,
     ) -> Self {
-        Self { repository, interrupter }
+        Self { repository, interrupter, task_recovery }
     }
 }
 
 #[async_trait]
 impl DesktopWorkflowRestartRecoveryInterface for DesktopWorkflowRestartRecoveryAdapterImpl {
-    async fn interrupt_all_non_terminal_workflow_runs(
+    async fn classify_all_non_terminal_workflow_runs(
         &self,
     ) -> Result<(), DesktopWorkflowRestartRecoveryError> {
+        let classifier = WorkflowClassifyRunsAfterRestartUseCase::new(self.task_recovery.clone());
         let mut after = None;
         loop {
             let run_ids = self
@@ -79,10 +93,23 @@ impl DesktopWorkflowRestartRecoveryInterface for DesktopWorkflowRestartRecoveryA
                 .await
                 .map_err(|_| DesktopWorkflowRestartRecoveryError)?;
             for run_id in &run_ids {
-                self.interrupter
-                    .interrupt_workflow_run_after_restart(*run_id)
+                let run = self
+                    .repository
+                    .load_workflow_run(WorkflowRunLoadKey::Run(*run_id))
                     .await
-                    .map_err(|_| DesktopWorkflowRestartRecoveryError)?;
+                    .map_err(|_| DesktopWorkflowRestartRecoveryError)?
+                    .ok_or(DesktopWorkflowRestartRecoveryError)?;
+                if classifier
+                    .classify_workflow_run_after_restart(&run)
+                    .await
+                    .map_err(|_| DesktopWorkflowRestartRecoveryError)?
+                    == WorkflowRunRestartDisposition::InterruptUnsafe
+                {
+                    self.interrupter
+                        .interrupt_workflow_run_after_restart(*run_id)
+                        .await
+                        .map_err(|_| DesktopWorkflowRestartRecoveryError)?;
+                }
             }
             let Some(last) = run_ids.last().copied() else {
                 return Ok(());
@@ -91,10 +118,10 @@ impl DesktopWorkflowRestartRecoveryInterface for DesktopWorkflowRestartRecoveryA
         }
     }
 
-    async fn workflow_effect_abandon_reason(
+    async fn workflow_effect_recovery(
         &self,
         run_id: WorkflowRunId,
-    ) -> Result<DesktopPostCommitEffectAbandonReason, DesktopWorkflowRestartRecoveryError> {
+    ) -> Result<DesktopWorkflowEffectRecovery, DesktopWorkflowRestartRecoveryError> {
         let run = self
             .repository
             .load_workflow_run(WorkflowRunLoadKey::Run(run_id))
@@ -102,13 +129,15 @@ impl DesktopWorkflowRestartRecoveryInterface for DesktopWorkflowRestartRecoveryA
             .map_err(|_| DesktopWorkflowRestartRecoveryError)?
             .ok_or(DesktopWorkflowRestartRecoveryError)?;
         if matches!(run.state(), WorkflowRunState::Queued | WorkflowRunState::Running) {
-            return Err(DesktopWorkflowRestartRecoveryError);
+            return Ok(DesktopWorkflowEffectRecovery::ReplaySafe);
         }
-        Ok(if run.failure() == Some(&WorkflowRunFailure::InterruptedByRestart) {
-            DesktopPostCommitEffectAbandonReason::WorkflowInterruptedByRestart
-        } else {
-            DesktopPostCommitEffectAbandonReason::OwningStateAlreadyTerminal
-        })
+        Ok(DesktopWorkflowEffectRecovery::Abandon(
+            if run.failure() == Some(&WorkflowRunFailure::InterruptedByRestart) {
+                DesktopPostCommitEffectAbandonReason::WorkflowInterruptedByRestart
+            } else {
+                DesktopPostCommitEffectAbandonReason::OwningStateAlreadyTerminal
+            },
+        ))
     }
 }
 
@@ -152,6 +181,7 @@ pub struct DesktopStartupRecovery {
     outbox: Arc<dyn DesktopPostCommitEffectOutboxInterface>,
     workflow: Arc<dyn DesktopWorkflowRestartRecoveryInterface>,
     clock: Arc<dyn DesktopPostCommitWorkerClockInterface>,
+    task_outbox: Arc<dyn GenerationTaskOutboxReaderInterface>,
 }
 
 impl DesktopStartupRecovery {
@@ -162,16 +192,21 @@ impl DesktopStartupRecovery {
         outbox: Arc<dyn DesktopPostCommitEffectOutboxInterface>,
         workflow: Arc<dyn DesktopWorkflowRestartRecoveryInterface>,
         clock: Arc<dyn DesktopPostCommitWorkerClockInterface>,
+        task_outbox: Arc<dyn GenerationTaskOutboxReaderInterface>,
     ) -> Self {
-        Self { instance_id, outbox, workflow, clock }
+        Self { instance_id, outbox, workflow, clock, task_outbox }
     }
 
-    /// Interrupts Runs first, then independently repairs every recoverable effect page.
+    /// Resets Task claims, classifies Runs, then repairs every recoverable Desktop effect page.
     pub async fn recover_before_accepting_commands(
         &self,
     ) -> Result<(), DesktopStartupRecoveryError> {
+        self.task_outbox
+            .reset_claimed_generation_task_effects()
+            .await
+            .map_err(|_| DesktopStartupRecoveryError::Outbox)?;
         self.workflow
-            .interrupt_all_non_terminal_workflow_runs()
+            .classify_all_non_terminal_workflow_runs()
             .await
             .map_err(|_| DesktopStartupRecoveryError::Workflow)?;
         let limit = DesktopPostCommitRecoveryLimit::from_u8(100)
@@ -199,20 +234,38 @@ impl DesktopStartupRecovery {
     ) -> Result<(), DesktopStartupRecoveryError> {
         match record.effect() {
             DesktopPostCommitEffect::Workflow(effect) => {
-                let reason = self
+                let recovery = self
                     .workflow
-                    .workflow_effect_abandon_reason(effect.workflow_run_id)
+                    .workflow_effect_recovery(effect.workflow_run_id)
                     .await
                     .map_err(|_| DesktopStartupRecoveryError::Workflow)?;
-                self.outbox
-                    .recover_abandoned_post_commit_effect(
-                        record.effect_id(),
-                        record.state(),
-                        self.timestamp()?,
-                        reason,
-                    )
-                    .await
-                    .map_err(|_| DesktopStartupRecoveryError::Outbox)
+                match (recovery, record.state()) {
+                    (
+                        DesktopWorkflowEffectRecovery::ReplaySafe,
+                        DesktopPostCommitEffectState::Ready,
+                    ) => Ok(()),
+                    (
+                        DesktopWorkflowEffectRecovery::ReplaySafe,
+                        DesktopPostCommitEffectState::Claimed { instance_id, .. },
+                    ) => self
+                        .outbox
+                        .recover_replayable_post_commit_effect(record.effect_id(), instance_id)
+                        .await
+                        .map_err(|_| DesktopStartupRecoveryError::Outbox),
+                    (DesktopWorkflowEffectRecovery::Abandon(reason), state) => self
+                        .outbox
+                        .recover_abandoned_post_commit_effect(
+                            record.effect_id(),
+                            state,
+                            self.timestamp()?,
+                            reason,
+                        )
+                        .await
+                        .map_err(|_| DesktopStartupRecoveryError::Outbox),
+                    (DesktopWorkflowEffectRecovery::ReplaySafe, _) => {
+                        Err(DesktopStartupRecoveryError::InvalidRecord)
+                    }
+                }
             }
             DesktopPostCommitEffect::Asset(_) | DesktopPostCommitEffect::Assistant(_) => {
                 let DesktopPostCommitEffectState::Claimed { instance_id, .. } = record.state()

@@ -92,6 +92,12 @@ where
         self.cancellation_requested.store(true, Ordering::Release);
     }
 
+    /// Reports whether graceful cancellation has been requested.
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.cancellation_requested.load(Ordering::Acquire)
+    }
+
     /// Claims serially, then joins every execution admitted to this batch.
     pub async fn run_effect_batch(
         &self,

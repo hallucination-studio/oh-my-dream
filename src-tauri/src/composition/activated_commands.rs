@@ -265,8 +265,10 @@ async fn dependencies(
         Arc::new(DesktopWorkflowRestartRecoveryAdapterImpl::new(
             workflow_repository.clone(),
             workflow_executor,
+            Arc::new(node_composition.task_repository.clone()),
         )),
         worker_clock.clone(),
+        Arc::new(node_composition.task_repository.clone()),
     )
     .recover_before_accepting_commands()
     .await

@@ -85,7 +85,9 @@ use workflow_mutation_commands::workflow_apply_mutation;
 /// Runs the Tauri application.
 pub fn run() -> tauri::Result<()> {
     init_logging();
-    tauri::Builder::default()
+    let runtime = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let setup_runtime = runtime.clone();
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .register_asynchronous_uri_scheme_protocol(
             "desktop-asset",
@@ -103,7 +105,7 @@ pub fn run() -> tauri::Result<()> {
                 });
             },
         )
-        .setup(|app| {
+        .setup(move |app| {
             let app_data_root = app
                 .handle()
                 .path()
@@ -130,8 +132,12 @@ pub fn run() -> tauri::Result<()> {
             let worker = project_commands.post_commit_worker.clone();
             let task_worker = project_commands.generation_task_effect_worker.clone();
             app.manage(project_commands);
-            tauri::async_runtime::spawn(run_post_commit_worker(worker));
-            tauri::async_runtime::spawn(run_generation_task_effect_worker(task_worker));
+            let post_join = tauri::async_runtime::spawn(run_post_commit_worker(worker.clone()));
+            let task_join =
+                tauri::async_runtime::spawn(run_generation_task_effect_worker(task_worker.clone()));
+            *setup_runtime.lock().map_err(|_| "worker runtime lock failed")? = Some(
+                DesktopWorkerRuntime { post_worker: worker, task_worker, post_join, task_join },
+            );
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -159,12 +165,40 @@ pub fn run() -> tauri::Result<()> {
             workflow_list_run_events,
             workflow_get_node_presentation,
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?;
+    let exit_runtime = runtime.clone();
+    app.run(move |_, event| {
+        if matches!(event, tauri::RunEvent::ExitRequested { .. })
+            && let Ok(locked) = exit_runtime.lock()
+            && let Some(runtime) = locked.as_ref()
+        {
+            runtime.post_worker.cancel();
+            runtime.task_worker.cancel();
+        }
+    });
+    if let Some(runtime) = runtime.lock().ok().and_then(|mut value| value.take()) {
+        tauri::async_runtime::block_on(async {
+            if let Err(error) = runtime.post_join.await {
+                tracing::error!(?error, "Desktop post-commit worker join failed");
+            }
+            if let Err(error) = runtime.task_join.await {
+                tracing::error!(?error, "Generation Task effect worker join failed");
+            }
+        });
+    }
+    Ok(())
+}
+
+struct DesktopWorkerRuntime {
+    post_worker: post_commit_worker::DesktopPostCommitEffectWorker,
+    task_worker: composition::DesktopTaskWorker,
+    post_join: tauri::async_runtime::JoinHandle<()>,
+    task_join: tauri::async_runtime::JoinHandle<()>,
 }
 
 async fn run_generation_task_effect_worker(worker: composition::DesktopTaskWorker) {
     use generation_task_effect_worker::GenerationTaskEffectWorkerStep;
-    loop {
+    while !worker.is_cancelled() {
         match worker.run_effect_batch().await {
             Ok(steps) if steps.iter().all(|step| *step == GenerationTaskEffectWorkerStep::Idle) => {
                 tokio::time::sleep(std::time::Duration::from_millis(50)).await;
