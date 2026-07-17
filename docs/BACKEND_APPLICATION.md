@@ -199,7 +199,9 @@ interface over `GenerationTaskStartUseCase`. It translates the exact execution o
 request but does not expose a repository or provider adapter to node code.
 
 `GenerationTaskEffectWorkerImpl` consumes only `SubmitTask`, `PollTask`, `CancelRemoteTask`, and
-`NotifyWorkflow` from `generation_task_outbox`. Submit/poll/cancel calls occur outside SQLite
+`NotifyWorkflow` from `generation_task_outbox`. It claims serially and executes on the bounded
+in-flight pool sized by `generation_task_effect_concurrency`, with at most one in-flight effect per
+task, as frozen in `BACKEND_TASK.md`. Submit/poll/cancel calls occur outside SQLite
 transactions. Each result is committed with optimistic revision and the current effect consumed or
 rescheduled atomically. Delayed polls and startup claim reset are task-delivery semantics, not Desktop
 post-commit effects or a generic scheduler.
@@ -455,9 +457,11 @@ adapters without starting Tauri.
 `DesktopBackendConfig` schema version `2` is stored in `metadata.sqlite` and loaded through
 `DesktopBackendConfigRepositoryInterface`. `DesktopBackendConfig` contains exactly
 `sqlite_busy_timeout_ms`, `post_commit_effect_concurrency`, `workflow_run_concurrency`,
-`workflow_node_concurrency`, `asset_reconciliation_policy`, `asset_preview_policy`,
-`generation_provider_routes`, `assistant_model`, and `assistant_protocol_budgets`. Defaults for the
-first four are 5,000, `4`, `1`, and `2`; concurrency is `1..=8`. The remaining nested values use
+`workflow_node_concurrency`, `generation_task_effect_concurrency`, `asset_reconciliation_policy`,
+`asset_preview_policy`, `generation_provider_routes`, `assistant_model`, and
+`assistant_protocol_budgets`. Defaults for the
+first five are 5,000, `4`, `1`, `2`, and `4`; every concurrency bound is `1..=8`. The remaining
+nested values use
 their owner-document exact fields, defaults, and maxima and cannot weaken or exceed them. Locations
 are derived from the OS application-data root and are not config fields.
 
@@ -579,7 +583,8 @@ belongs to V3 and is not fixed here.
 - preview tests cover Project isolation, expiry, MIME, Range, and path non-disclosure;
 - composition tests assert exactly seven active Node Capabilities, configured provider composites,
   and the exact three active profile routes;
-- Assistant E2E proves proposal -> review -> approval -> canonical apply -> canonical Run -> repair;
+- Assistant E2E proves proposal -> review -> approval -> canonical apply -> canonical Run -> repair
+  when the Assistant implementation track starts (design intent until then);
 - contract fixtures prove Rust, Python, and TypeScript DTO/schema alignment.
 
 ## Post-MVP

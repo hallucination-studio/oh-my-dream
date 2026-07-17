@@ -447,6 +447,10 @@ exactly `Accepted | AlreadyCancelled | RemoteAbsent`. A remote poller must retur
 terminal outcome for the same persisted handle through the task deadline.
 There is no optional execution method, `supports_*` probe, or `Unsupported` result. Absence of Voice
 means `capabilities.voice` is `None`, so Voice Settings choices cannot be derived for that provider.
+The `Immediate` execution composition and the Text focused contract are reserved, not frozen: no
+shipped MVP route exercises them. Their names and shapes are recorded so later work does not invent
+second ones, but their semantics bind only when the first exercising route ships with
+implementation and contract tests in the same change.
 
 `GenerationProviderContract` is a safe projection mechanically derived by the registry from provider
 identity and the focused contracts inside `GenerationProviderCapabilities`; a provider never
@@ -614,10 +618,20 @@ unconsumed SubmitTask, and no handle replays Workflow to finish handoff; other R
 durable handoff still use `InterruptedByRestart`.
 
 The completion interface returns exactly `Applied`, `AlreadyApplied`, or `OriginTerminal`; all three
-consume `NotifyWorkflow`. Only a transient storage error reschedules it. A terminal notification has
+consume `NotifyWorkflow`, and consumption commits strictly after the Workflow completion commit has
+returned, so a terminal task with a consumed notification proves its node outcome was durably
+committed first. A transient storage error reschedules it, and so does a Workflow completion
+revision conflict: bounded in-flight execution lets `NotifyWorkflow` effects for different tasks in
+the same Run race on one `WorkflowRunAggregate`, the first commit wins, and the rescheduled loser
+converges to `Applied`, `AlreadyApplied`, or `OriginTerminal` on replay. A terminal notification has
 no delivery-attempt exhaustion path: it remains durable until one of those three outcomes commits.
 Its diagnostic attempt counter saturates at `u32::MAX` and never controls delivery. Corrupt identity
 or result data fails startup and is never silently abandoned.
+
+`GenerationTaskOriginStateReaderInterface` and `GenerationTaskWorkflowCompletionInterface` are the
+only Workflow-to-Task crossing points. Every future generation-adjacent feature extends one of
+these two contracts; introducing a third crossing point requires a new reviewed architecture
+decision.
 
 ## 11. Consumer-owned persistence ports
 
@@ -651,8 +665,8 @@ result, consumed outbox work, and new outbox work. The Desktop task-start bridge
 currently selected Mock binding and copies its exact profile/provider/route tuple into the Task;
 later Settings changes affect only later resolutions. Consuming, completing, or rescheduling work
 requires the effect ID to remain `Claimed` and the aggregate revision to match. The process lock,
-single worker, bounded provider calls, and startup-only claim reset ensure that no live worker is
-reclaimed concurrently. `GenerationTaskOutboxReaderInterface` claims at most one due effect and
+single claiming worker, bounded in-flight executions, and startup-only claim reset ensure that no
+live worker is reclaimed concurrently. `GenerationTaskOutboxReaderInterface` claims at most one due effect and
 reschedules safe transient delivery errors. `GenerationTaskRepositoryFakeImpl` and
 `SqliteGenerationTaskRepositoryAdapterImpl` run the same idempotency, concurrency, transaction,
 ordering, and pagination contract tests.
@@ -702,10 +716,17 @@ Fields: `id` PK, `task_id` FK, `kind`, `payload_json`, `deduplication_key`, `ava
 `PollTask`, `CancelRemoteTask`, and `NotifyWorkflow`; states are `Ready`, `Claimed`, and `Completed`.
 
 Desktop holds an OS-level exclusive lock for the database lifetime and starts exactly one task
-worker. The worker claims at most one due `Ready` row. Graceful shutdown joins that worker before
-releasing the lock. After an abnormal exit, acquiring the lock proves that no prior process worker
-can still commit, so startup resets every `Claimed` row to `Ready`. There is no lease, renewal,
-fencing token, active-worker registry, or same-process reclaim path in the MVP.
+worker. That worker is the only claimer and claims due `Ready` rows one at a time, but it executes
+claimed effects on a bounded in-flight pool (`generation_task_effect_concurrency`, default `4`,
+bounds `1..=8`) so one slow provider call or media download never blocks polling, submission, or
+cancellation of other tasks. At most one effect per task is in flight; a due row whose task already
+has an active execution is skipped until that execution commits. Each execution is bounded by the
+smaller of its route operation deadline and the remaining task budget, so a hung call cannot leak
+its slot, and each execution commits its own atomic aggregate/outbox transition. Graceful shutdown
+joins every in-flight execution before releasing the lock. After an abnormal exit, acquiring the
+lock proves that no prior process worker can still commit, so startup resets every `Claimed` row to
+`Ready`. There is no lease, renewal, fencing token, active-worker registry, or same-process reclaim
+path in the MVP.
 
 Outbox payloads contain task/message identifiers only. Workers load the aggregate from the repository; prompts, asset URLs, Provider requests, and signed output URLs are never copied into outbox rows.
 

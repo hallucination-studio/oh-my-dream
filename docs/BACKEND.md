@@ -176,13 +176,20 @@ Mock route before MVP release. Production provider adapters are a separately rev
 | Generation Task | one Text/Image/Video/Voice task lifecycle, provider-level composition over focused capabilities, submit/poll/finalize outbox, progress, Workflow-owned cancellation, restart recovery, get/list | standalone creation, independent cancellation, retry attempts, archive, retention, webhooks |
 | Provider | one Mock composite with exact routes for three active model operations and frozen task contracts | production adapters, failover after acceptance, billing, arbitrary vendor options |
 | Asset | import, get/list, node-output write, resolve, preview, Pending reconciliation | delete, archive, tags, search, export, derivatives, garbage collection |
-| Assistant | durable non-executable plan, candidate, review, human decision, exact apply, canonical Run, reviewed repair | plan-as-queue scheduler, unreviewed apply/repair, parallel approvals, distributed Sessions |
+| Assistant (design intent, reserved) | durable non-executable plan, candidate, review, human decision, exact apply, canonical Run, reviewed repair | plan-as-queue scheduler, unreviewed apply/repair, parallel approvals, distributed Sessions |
 | Desktop | commands, DTOs, closed post-commit and Generation Task workers, durable event repair, preview protocol, composition | generic job host, server mode, plugins, distributed workers |
 | Storage | SQLite metadata/config/plaintext credentials, managed files, staging | cloud sync, multi-writer coordination, credential/media encryption, backup/restore UI |
 
 Roadmap capability names remain in `BACKEND_CAPABILITIES.md` so their semantics and names are not
 invented ad hoc later. They enter the active registry only through a new reviewed MVP or release
 decision with implementation and contract tests.
+
+Freeze discipline: a public surface is frozen only when the same change exercises it with
+implementation and contract tests. An unexercised surface is at most reserved — its name is
+recorded so later work does not invent a second one, but its semantics bind nothing. Currently
+reserved, not frozen: the provider `Immediate` execution composition, the Text focused provider
+contract, and the complete Assistant context (`BACKEND_ASSISTANT.md`). Feature expansion beyond
+the registered MVP surface requires a new reviewed decision.
 
 ## Public Boundary Naming
 
@@ -391,6 +398,9 @@ The architecture is closed only when:
 10. architecture tests reject inward concrete dependencies, duplicate semantic owners, generic jobs, unregistered
    MVP capabilities, and concrete construction outside the composition root;
 11. `./scripts/e2e.sh` passes.
+
+Item 7 binds when the Assistant implementation track starts (see the freeze discipline above);
+core-pipeline closure comprises the remaining items.
 
 ## Deferred Architecture
 

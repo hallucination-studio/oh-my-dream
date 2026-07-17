@@ -1,6 +1,9 @@
 # Backend Assistant Architecture
 
-> Status: frozen Strong Assistant MVP architecture
+> Status: design intent — not frozen. This document binds no current build task; it is re-reviewed
+> against the then-current model SDK and re-frozen only when the Assistant implementation track
+> starts, after the core pipeline closes (`tasks/todo.md` C4). Pinned external versions
+> (`openai-agents`, native model IDs) are expectations, not commitments.
 > Owner: Assistant business capability in Rust; model loop in the Python adapter
 > Scope: plan, propose, review, approve, apply, run, observe, and propose repair
 
