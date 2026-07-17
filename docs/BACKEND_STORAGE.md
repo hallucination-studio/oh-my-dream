@@ -52,7 +52,7 @@ application cache, or cross-device synchronization in the MVP.
 | `WorkflowRunAggregate`, frozen plan, node executions, outputs, and event delivery state | SQLite |
 | Workflow Run request hashes and admission receipts | SQLite |
 | `GenerationTaskAggregate`, immutable request/target, remote handle, optional result, and revision | SQLite |
-| closed Generation Task submit/poll/cancel/notify effects and lease state | SQLite |
+| closed Generation Task submit/poll/cancel/notify effects and claim state | SQLite |
 | `AssetAggregate`, node-output keys, and content finalization | SQLite |
 | `AssistantProductionPlanAggregate` and items | SQLite |
 | `AssistantWorkflowChangeAggregate`, review, decision, and Run link | SQLite |
@@ -167,8 +167,8 @@ The Generation Task row stores one optional tagged result: either bounded inline
 reference from finalization. Row constraints require a representation matching the request kind,
 and the named translator restores the matching `GenerationTaskResult` variant.
 `SqliteGenerationTaskOutboxRow` stores one of `SubmitTask`, `PollTask`, `CancelRemoteTask`, or
-`NotifyWorkflow`, plus availability time, bounded delivery count, lease, completion, and safe last
-failure. The payload contains identifiers only. Unique origin/idempotency and provider-handle
+`NotifyWorkflow`, plus availability time, `Ready | Claimed | Completed`, bounded delivery count,
+completion, and safe last failure. The payload contains identifiers only. Unique origin/idempotency and provider-handle
 indexes prevent duplicate local tasks and ambiguous lookup. Exact schema and transaction semantics
 are owned by `BACKEND_TASK.md`.
 
@@ -341,28 +341,24 @@ The physical rows are exact:
 
 | Table | Key and payload |
 | --- | --- |
-| `desktop_backend_config` | singleton key `1`, schema version, non-zero monotonic revision, canonical JSON blob `1..=262,144` bytes |
-| `generation_provider_settings_receipts` | request ID primary key, canonical action hash, committed config revision, and sanitized result snapshot |
-| `generation_provider_credentials` | composite primary key `(credential_id, revision)`, nullable plaintext secret blob `1..=16,384` bytes, and `is_active` with a unique partial index allowing at most one active revision per credential ID; null secret is a retained tombstone |
+| `desktop_backend_config` | singleton key `1`, schema version, non-zero monotonic revision, canonical JSON blob `1..=262,144` bytes, and nullable storage-only legacy JSON blob with the same bound |
+| `generation_provider_credentials` | legacy credential ID primary key and plaintext secret blob `1..=16,384` bytes; retained but inactive in the Mock MVP |
 | `assistant_model_credentials` | typed credential ID primary key, plaintext secret blob `1..=16,384` bytes |
 
-Saving config or one credential is an atomic revisioned mutation. Provider credential replacement
-inserts a new immutable revision and atomically advances its active pointer. Generation Task
-admission compares the observed config revision and exact `is_active` credential revision in the
-same write transaction as Task insertion; mismatch retries resolution before any provider call.
-The exact ID/revision foreign key preserves the accepted snapshot but is not the concurrency guard.
-Settings deletion retires a revision;
-only after no other active Settings binding or non-terminal Task needs it are its secret bytes
-cleared while the tombstone row preserves every Task foreign key. Only an entirely unreferenced tombstone may be physically deleted. Loading
-an absent exact revision returns `NotFound`; loading a tombstone for an authenticated call returns
-`CredentialRetired`. The two credential tables cannot be queried through one broad
-interface or joined into config DTOs. Config initialization writes the frozen default only
-when the singleton row is absent; a corrupt, oversized, unsupported-version, or non-canonical row
-fails startup and is never silently replaced.
-Settings apply atomically compare-and-swaps the config revision, mutates any credential rows, and
-inserts its request receipt. A repeated request ID with the same canonical action hash returns the
-sanitized recorded result; a different hash is an idempotency conflict. Receipt rows never contain
-secret bytes.
+Settings apply atomically compare-and-swaps the config revision and changes only the selected Mock
+binding. Selecting the already-current binding returns `Unchanged` without a revision increment.
+Task admission copies the selected profile/provider/route tuple into the immutable Task target;
+Task persistence does not read or compare config or credential rows. Config initialization writes
+the frozen default only when the singleton row is absent; a corrupt, oversized, unsupported-version,
+or non-canonical row fails startup and is never silently replaced.
+
+The v1-to-v2 transaction validates the old canonical payload, copies those exact bytes into
+`legacy_config_json`, and only then writes the version-2 payload and schema version. Runtime code
+never interprets the retained provider endpoint/native-model fields, and later Settings updates do
+not clear or rewrite the retained bytes. The legacy provider credential
+table is likewise retained but inactive: Mock Settings cannot read or mutate it, and Generation
+Tasks cannot reference it. Production-provider credential semantics require a future reviewed
+migration rather than speculative revision/tombstone tables in this MVP.
 
 The database and parent data directory use private user-only permissions where the platform
 supports them. This reduces accidental disclosure but is not encryption: any process or user able
@@ -396,7 +392,7 @@ resolve private application-data locations
   -> construct Project and other repositories, managed-content adapters, and application use cases
   -> construct provider routes, Node Capabilities, Assistant adapter, and bridges
   -> validate the active Assistant contract epoch
-  -> replay bounded Asset finalization effects and reclaim prior-instance or expired Generation Task leases
+  -> replay bounded Asset finalization effects and reset prior-process Generation Task claims
   -> classify non-terminal Workflow Runs against exact durable task handoffs
   -> preserve waiting Runs, replay queued Runs, and interrupt only unsafe Runs
   -> replay Assistant Applying effects through idempotency receipts
@@ -420,9 +416,9 @@ Startup creates the current schema, applies known forward migrations transaction
 unsupported versions, and never deletes or silently recreates user data after integrity/migration
 failure. Assistant contract-epoch storage is a hard compatibility boundary and is never parsed by a
 new epoch.
-The Desktop backend-config v1-to-v2 translation is the exact Mock-binding migration owned by
-`BACKEND_APPLICATION.md`; it runs in the same transaction that advances the stored config schema
-version and does not delete retained credential rows.
+The Desktop backend-config v1-to-v2 translation is the exact non-destructive Mock-binding migration
+owned by `BACKEND_APPLICATION.md`; it retains the validated original config bytes in the same
+transaction that writes version 2 and does not modify retained provider credential rows.
 
 The hard-cut Desktop storage epoch is `1`: SQLite `application_id` is `0x4f4d4431` and
 `user_version` starts at `1`. An absent database is created at that pair; an existing non-empty
@@ -447,7 +443,7 @@ Verification proves:
 - Run admission receipt, transition/output/event atomicity, and event ordering;
 - Asset fault injection at every SQLite/filesystem boundary and node-output replay/conflict;
 - Assistant plan CAS, exact change reconstruction, Applying recovery, and Run-link idempotency;
-- Generation Task transaction/outbox atomicity, expired-lease recovery, query-by-ID resume, and
+- Generation Task transaction/outbox atomicity, startup claim reset, query-by-ID resume, and
   safe/unsafe Workflow restart classification;
 - SQLite configuration and plaintext credential round trip, isolation, deletion, and redaction
   from DTOs/errors/logs;

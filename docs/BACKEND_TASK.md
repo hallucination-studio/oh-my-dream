@@ -154,7 +154,7 @@ Rules:
 | `origin` | Required `project_id`, `workflow_id`, `workflow_run_id`, `workflow_node_id`, and `workflow_node_execution_id`. |
 | `idempotency` | Caller key plus canonical request hash. |
 | `request` | Immutable `GenerationRequest`. |
-| `target` | Immutable `GenerationProfileRef`, `GenerationProviderId`, `GenerationProviderRouteId`, and optional typed account/credential ID/revision binding required only by that route contract; no secret or provider options JSON. |
+| `target` | Immutable `GenerationProfileRef`, `GenerationProviderId`, and `GenerationProviderRouteId`; no secret, account, credential, or provider options JSON. |
 | `provider_deadline_at` | Persisted UTC-millisecond deadline derived once from task creation time and the frozen route budget. |
 | `state` | `GenerationTaskState`, the sole lifecycle semantic owner. |
 | `result` | Optional single `GenerationTaskResult`; set atomically with `Succeeded`. |
@@ -447,10 +447,8 @@ or an invalid focused contract is rejected when the immutable registry is constr
 Each `TextGenerationProviderContract`, `ImageGenerationProviderContract`,
 `VideoGenerationProviderContract`, and `VoiceGenerationProviderContract` contains its fixed kind
 and a non-empty set of `GenerationProviderRouteContract` values. A route contract exposes only its
-stable route ID, display name, exact compatible Generation Profile refs, and the closed safe
-configuration requirement `None | AccountCredential`. It never exposes an endpoint, native model
-ID, credential value or revision, implementation name, vendor configuration, or vendor DTO. All
-MVP Mock routes declare `None`.
+stable route ID, display name, and exact compatible Generation Profile refs. It never exposes an
+endpoint, native model ID, credential, implementation name, vendor configuration, or vendor DTO.
 
 `GenerationProviderRegistry` is a concrete immutable collection of
 `Arc<dyn GenerationProviderInterface>`. It validates unique provider IDs and builds typed lookup
@@ -465,15 +463,14 @@ persisted GenerationTaskTarget.provider_id
   -> GenerationProviderRegistry resolves GenerationProviderInterface
   -> GenerationTaskRequest kind selects exactly one typed capability contribution
   -> persisted route_id resolves Immediate, Remote, or CancellableRemote
-  -> typed request/handle and immutable account/credential references enter that execution only
+  -> typed request/handle enters that execution only
 ```
 
 A missing provider, missing kind contribution, incompatible route, or contract mismatch is a
 structured configuration/recovery error before an external call. UI and Settings receive only the
-safe contracts; they never receive the contribution trait objects or execution compositions.
-Admission requires no account/credential fields for a `None` route and requires all three exact
-account, credential ID, and credential revision fields for an `AccountCredential` route. Partial or
-extra bindings are rejected before Task creation; row restoration enforces the same closed shape.
+safe contracts; they never receive the contribution trait objects or execution compositions. Task
+admission copies the selected profile/provider/route tuple into the immutable target before any
+external call; row restoration enforces that closed shape.
 
 Each submit outcome is `Accepted`, type-specific `Completed`, or
 `Rejected(GenerationProviderFailure)`. Each remote poll outcome is `Pending`, type-specific
@@ -485,14 +482,9 @@ task-derived submission key where supported, return normalized outputs/handles, 
 credentials, signed URLs, raw payloads, and vendor error bodies out of DTOs and logs. A route that
 cannot return a durable handle may complete immediately but cannot claim restart-safe remote
 polling. MVP's Mock Remote contract guarantees that polling the same handle after completion returns
-the same terminal outcome until the task deadline.
-
-When a route requires credentials, recovery resolves the exact persisted credential ID and
-revision. Settings cannot delete a credential revision referenced by a non-terminal Generation
-Task; it returns `GenerationProviderCredentialInUse`. Mock targets have no credential binding.
-After referenced tasks are terminal, Settings may clear the secret while retaining an immutable
-credential-revision tombstone for the Task foreign key. No task row contains secret bytes or a
-secret digest.
+the same terminal outcome until the task deadline. Account selection, credential replacement, and
+credential-aware recovery for a production provider require a separately reviewed target-schema
+extension; the Mock MVP does not freeze speculative fields or lifecycle rules for them.
 
 MVP constructs only `MockGenerationProviderAdapterImpl`. A future production provider may
 contribute any non-empty subset without changing Generation Task semantics or these interfaces.
@@ -518,8 +510,9 @@ contribute any non-empty subset without changing Generation Task semantics or th
 9. Terminal failure atomically saves `Failed`, consumes the work message, and enqueues `NotifyWorkflow`.
 10. A transient origin read, Poll, Cancel, Asset finalization, or notification error reschedules the
     same safe message. An uncertain Immediate or Submit call atomically fails
-    `AmbiguousSubmission`, consumes `SubmitTask`, and enqueues `NotifyWorkflow`. Expired leases are
-    reclaimable under the fencing rules below.
+    `AmbiguousSubmission`, consumes `SubmitTask`, and enqueues `NotifyWorkflow`. A live process
+    never reclaims its worker's `Claimed` message; startup resets prior-process claims only after
+    acquiring the exclusive database lock.
 
 If the process crashes during finalization, the unconsumed message is reclaimed and the Asset sink
 is queried first by deterministic task/output key. `Available` completes without a provider call;
@@ -600,8 +593,9 @@ without changing the terminal task or deleting its durable Assets.
 The `generation_task_outbox` is capability-specific delayed work, not a fourth
 `DesktopPostCommitEffect`. `GenerationTaskEffectWorkerImpl` consumes only the four closed task
 effect kinds. It neither schedules Workflow graphs nor accepts arbitrary handlers or payloads.
-Desktop startup immediately recovers prior-instance task-effect leases and also recovers expired
-leases before accepting commands; it does not
+Desktop owns one database-wide process lock and runs exactly one Generation Task worker. Startup
+resets every prior-process `Claimed` task effect to `Ready` before accepting commands; the running
+process never reclaims work from its live worker. It does not
 interrupt a Run whose waiting Node Executions have either authoritative non-terminal Generation
 Tasks or terminal Generation Tasks with unprocessed `NotifyWorkflow`. A terminal task whose
 notification is already processed requires the node to be terminal; any other combination is
@@ -625,18 +619,11 @@ pub struct GenerationTaskOutboxChanges {
 
 pub struct GenerationTaskEffectClaim {
     pub effect_id: GenerationTaskEffectId,
-    pub owner: DesktopApplicationInstanceId,
-    pub fencing_token: GenerationTaskEffectFencingToken,
-}
-
-pub struct GenerationTaskAdmissionGuard {
-    pub backend_config_revision: u64,
-    pub active_credential_revision: Option<u64>,
 }
 
 pub trait GenerationTaskRepositoryInterface {
     async fn create_generation_task(&self, task: &GenerationTaskAggregate,
-        guard: GenerationTaskAdmissionGuard, message: GenerationTaskEffect)
+        message: GenerationTaskEffect)
         -> Result<GenerationTaskCreateResult, GenerationTaskRepositoryError>;
     async fn load_generation_task(&self, id: GenerationTaskId)
         -> Result<Option<GenerationTaskAggregate>, GenerationTaskRepositoryError>;
@@ -649,15 +636,14 @@ pub trait GenerationTaskRepositoryInterface {
 }
 ```
 
-`create_generation_task` compares the observed backend-config revision and, when required, the
-credential row's exact active revision in the same SQLite transaction that inserts the Task and
-Submit effect. A mismatch returns `AdmissionBindingChanged`; the use case re-resolves and retries
-before any provider call. `create_generation_task` and `save_generation_task` atomically persist aggregate state, the single
-result, consumed outbox work, and new outbox work. Consuming, completing, or rescheduling a claimed
-effect compares effect ID, owner, and its monotonically increasing fencing token. A stale worker
-whose lease was reclaimed cannot commit Task or outbox state even when it still holds an old task
-revision. `GenerationTaskOutboxReaderInterface` only claims due work, renews a live claim before its
-deadline, and reschedules transient delivery errors. `GenerationTaskRepositoryFakeImpl` and
+`create_generation_task` and `save_generation_task` atomically persist aggregate state, the single
+result, consumed outbox work, and new outbox work. The Desktop task-start bridge resolves one
+currently selected Mock binding and copies its exact profile/provider/route tuple into the Task;
+later Settings changes affect only later resolutions. Consuming, completing, or rescheduling work
+requires the effect ID to remain `Claimed` and the aggregate revision to match. The process lock,
+single worker, bounded provider calls, and startup-only claim reset ensure that no live worker is
+reclaimed concurrently. `GenerationTaskOutboxReaderInterface` claims at most one due effect and
+reschedules safe transient delivery errors. `GenerationTaskRepositoryFakeImpl` and
 `SqliteGenerationTaskRepositoryAdapterImpl` run the same idempotency, concurrency, transaction,
 ordering, and pagination contract tests.
 ID-only loading is reserved for trusted effect recovery after the Task ID is obtained from the
@@ -690,7 +676,7 @@ It never repeats submission.
 | Origin IDs | `BLOB` | Exact 16-byte Project, Workflow, Run, node, and Node Execution identities. |
 | `idempotency_key`, `request_hash` | `BLOB` | Unique `(project_id, idempotency_key)` and canonical SHA-256 request hash. |
 | `request_schema_version`, `request_kind`, `request_json` | `INTEGER`, `TEXT`, `TEXT` | Immutable domain request snapshot. |
-| profile, provider, route, nullable account, nullable credential ID/revision | bounded `TEXT`; `INTEGER` | Immutable non-secret target binding. |
+| profile, provider, route | bounded `TEXT` | Immutable non-secret target binding. |
 | `status` | `TEXT` with `CHECK` | Normalized task status. |
 | `progress_percent` | nullable `INTEGER` | Enforce `0..=100`. |
 | `remote_task_id` | nullable `TEXT` | Opaque polling/cancellation handle. |
@@ -701,18 +687,15 @@ It never repeats submission.
 
 ### `generation_task_outbox`
 
-Fields: `id` PK, `task_id` FK, `kind`, `payload_json`, `deduplication_key`, `available_at`,
-`delivery_attempts`, `locked_by`, `fencing_token`, `locked_until`, `processed_at`, `last_error`, and
-`created_at`. MVP kinds are `SubmitTask`, `PollTask`, `CancelRemoteTask`, and `NotifyWorkflow`.
+Fields: `id` PK, `task_id` FK, `kind`, `payload_json`, `deduplication_key`, `available_at`, `state`,
+`delivery_attempts`, `processed_at`, `last_error`, and `created_at`. MVP kinds are `SubmitTask`,
+`PollTask`, `CancelRemoteTask`, and `NotifyWorkflow`; states are `Ready`, `Claimed`, and `Completed`.
 
-`locked_by` is one `DesktopApplicationInstanceId`; `fencing_token` increases on every claim or
-reclaim and is never reused. A worker renews before `locked_until` when a bounded call can outlive
-the remaining lease. The process tracks active effect IDs and never reclaims one while its owning
-worker future is alive, even after wall-clock lease expiry. Desktop holds an
-OS-level exclusive lock for the database lifetime, so another process cannot start workers against
-the same database. Startup may reclaim prior-instance claims only while holding that lock; fencing
-still rejects a stale worker that survives an abnormal lock handoff. These two defenses prevent
-concurrent duplicate submission while allowing prompt crash recovery.
+Desktop holds an OS-level exclusive lock for the database lifetime and starts exactly one task
+worker. The worker claims at most one due `Ready` row. Graceful shutdown joins that worker before
+releasing the lock. After an abnormal exit, acquiring the lock proves that no prior process worker
+can still commit, so startup resets every `Claimed` row to `Ready`. There is no lease, renewal,
+fencing token, active-worker registry, or same-process reclaim path in the MVP.
 
 Outbox payloads contain task/message identifiers only. Workers load the aggregate from the repository; prompts, asset URLs, Provider requests, and signed output URLs are never copied into outbox rows.
 
@@ -764,13 +747,13 @@ state, not command transport errors.
 
 MVP requirements:
 
-- Provider credential secret bytes are resolved only inside adapters and never persisted in task or outbox rows; typed credential ID/revision references may be persisted in a Task target.
+- Task and outbox rows never contain provider credentials or credential references.
 - Do not log prompts, input content, signed URLs, response bodies, or API keys.
 - Remote media results enforce scheme/host policy, redirect/time/byte limits, MIME sniffing, and checksum validation.
 - Raw provider requests/responses are not persisted.
 - Structured tracing includes task ID, Workflow Run/Node Execution ID, provider ID, Generation
   Profile ref, normalized status, latency, and failure code.
-- Minimum counters cover queued, running, succeeded, failed, cancelled, delivery retry, and expired lease counts.
+- Minimum counters cover queued, running, succeeded, failed, cancelled, delivery retry, and startup claim-reset counts.
 
 Focused task/application tests cover all four request/output branches, including inline Text
 persistence and restart restore. Workflow E2E covers the three currently active provider-backed
@@ -784,11 +767,13 @@ Future observability may add cost metrics, provider dashboards, long-term event 
 1. Domain tests cover every legal/illegal transition, terminal immutability, progress monotonicity, output-kind validation, and cancel/complete races.
 2. Request tests cover all four variants, canonical hashing, invalid modes, and Asset
    snapshot mismatch.
-3. Repository contract tests cover atomic outbox consume/enqueue, stale-token fencing, optimistic conflicts, idempotency, cursor ordering, and expired lease recovery.
+3. Repository contract tests cover atomic outbox consume/enqueue, optimistic conflicts, idempotency, cursor ordering, single-worker claiming, and startup claim reset.
 4. Mock provider contract tests cover immediate, async, failure, idempotency, and repeatable terminal polling; a focused canceller fake separately proves the registered cancellation contract.
 5. Application tests cover immediate success, async success, terminal failure, bounded safe delivery retry, ambiguous crash during submit, crash after accepted-handle commit, crash during asset import, duplicate create, and cancellation races.
 6. Backend E2E covers Workflow node -> task -> deterministic provider -> Asset -> Workflow outcome
-   for image, audio, and video, including restart after accepted submission.
+   for image, audio, and video, including restart after accepted submission. One exact chained case
+   proves Text-to-Image output becomes the Image-to-Video input and the Workflow finishes with one
+   image Task/Asset and one video Task/Asset without duplicate submission.
 7. Tauri DTO fixtures and frontend contract tests are updated with command/DTO changes.
 
 ## 16. Implementation sequence
@@ -797,7 +782,7 @@ Future observability may add cost metrics, provider dashboards, long-term event 
 
 1. Add task domain types, state transitions, failures, events, and unit tests.
 2. Add application ports/use cases plus in-memory repository and Mock provider.
-3. Add the two SQLite tables, translators, fenced outbox leasing, and repository contract tests.
+3. Add the two SQLite tables, translators, single-worker claim protocol, and repository contract tests.
 4. Add worker/composition wiring and crash-recovery tests.
 5. Add the two Tauri commands, task-list projection, DTO fixtures, and frontend API tests.
 6. Run formatting, clippy, Rust tests, and the full E2E gate.

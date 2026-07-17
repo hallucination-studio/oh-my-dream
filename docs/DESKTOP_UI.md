@@ -50,8 +50,8 @@ is not success.
 - Desktop viewports from 1280x720 upward, with 1440x900 as the reference canvas.
 - Project selection, node library, graph editing, node configuration, Run monitoring, Asset
   inspection, Assistant co-authoring, and Settings using the existing command surface: Project,
-  Capability, Workflow, Run, Asset, and Assistant commands, plus the provider and assistant
-  configuration commands already exposed by the desktop backend.
+  Capability, Workflow, Run, Asset, and Assistant commands, plus provider/assistant configuration
+  and Generation Task get/list commands exposed by the desktop backend.
 - The exact seven Node Capabilities and the existing whole/through-node Run scopes.
 - Empty, editing, blocked, queued, running, succeeded, failed, cancelled, and stale
   presentation states mechanically derived from existing DTOs.
@@ -62,9 +62,9 @@ is not success.
 ### Out of scope
 
 - Mobile or touch-first layouts.
-- Multiple Workflows, Workflow history, retry-in-place, provider task/resume, cost accounting, or
-  provider-native progress.
-- New backend commands, DTO fields, business states, or compatibility rules.
+- Multiple Workflows, Workflow history, retry-in-place, cost accounting, provider-native task
+  controls, or provider-native progress.
+- Backend commands, DTO fields, business states, or compatibility rules beyond the frozen contracts.
 - Skills management and Developer mode in Settings: the reference mockup specifies them, but no
   backend command exists. Do not ship UI that implies these capabilities work.
 
@@ -78,6 +78,7 @@ UI copy names what the creator controls, never the internal boundary that carrie
 | Capability | Node type | What this step does. |
 | Workflow Run | Run | One execution of the current workflow revision. |
 | Node Execution | Step | The execution state of one node in the Run. |
+| Generation Task | Generation | Durable model work associated with one waiting Step. |
 | ThroughNode | Run to here | Run this node and every dependency it needs. |
 | WholeWorkflow | Run all | Run the complete workflow. |
 | Asset | Asset | A saved image, video, or audio result in this Project. |
@@ -143,7 +144,7 @@ patterns are adopted because they solve observed desktop usability problems:
 
 The following DVStudio patterns are deliberately not adopted:
 
-- provider task IDs, provider-native state synchronization, remote-task resume, or retry controls;
+- provider-native task IDs, provider-native state synchronization, or retry controls;
 - frontend-owned connection compatibility rules rather than engine-owned contract findings;
 - node type switching, copy, resize, or refresh actions absent from the current mutation surface;
 - unused-Asset analysis or metadata that existing Asset DTOs cannot establish;
@@ -250,12 +251,12 @@ Each option presents:
 - display name, such as `Fast image model`;
 - availability: `Ready` or the existing structured reason it cannot run.
 
-Provider IDs, credential IDs, and secrets are never displayed. If exactly one available model exists,
-it is selected by default and shown as a read-only row. If multiple available models exist, the
-choice stays inline in `Configure`. With no available model, the control reads `No generation model
-is available for this node type`, shows safe availability reasons when present, and the node is not
-ready to run. Model configuration UI is not implied because the current command surface does not
-provide it.
+Provider IDs, credential IDs, and secrets are never displayed. If exactly one structurally
+compatible model exists, it is selected by default and shown as a read-only row. If multiple
+compatible models exist, the choice stays inline in `Configure`. A compatible but unavailable or
+indeterminate model remains visible and disabled with its structured reason. With no compatible
+model, the control reads `No generation model supports this node type`, and the node is not ready
+to run.
 
 The frontend does not invent model compatibility. Options come only from
 `generation_profile_list_for_capability` for the selected exact capability.
@@ -284,14 +285,18 @@ One row per admitted Node Execution in deterministic plan order:
 [waiting ] Create video                    Step 3 of 3
 ```
 
-Rows show state and progress basis points when present. They do not show provider tasks, inferred
-progress, or an invented pending reason. Selecting a row selects its node and result.
+Rows show Workflow state and progress basis points when present. A waiting provider-backed row also
+loads its Project-scoped Generation Task projection and shows normalized task state, known progress,
+and safe failure information. It never infers progress or a pending reason and never displays the
+provider-native task ID. Selecting a row selects its node and result.
 
 The timeline is projected without creating another execution model:
 
 - `WorkflowRunDto.node_executions` supplies deterministic order, identities, state, and progress;
 - `WorkflowNodePresentationDto` supplies failure, block, stale, and output facts only when both its
   Run and node-execution identities match the displayed row;
+- `GenerationTaskDto` supplies durable generation state for the exact waiting node execution; it
+  does not replace Workflow state or decide whether the Step succeeded;
 - durable Run events trigger projection refreshes but never become a second authoritative state;
 - structured reasons are translated to creator-facing copy, with the original value available only
   in failure diagnostics.
@@ -509,7 +514,7 @@ Asset read-back, console output, and the accessibility tree. Full Cargo and E2E 
 ### Never
 
 - Reimplement Workflow compatibility or readiness rules in the frontend.
-- Display secrets, provider task IDs, managed paths, or preview tokens.
+- Display secrets, provider-native task IDs, managed paths, or preview tokens.
 - Render a media preview without a current typed output and preview URI.
 - Report a generated-media node as successfully producing zero outputs.
 - Present a Settings capability that has no backing command.
@@ -587,7 +592,7 @@ Only CSS-level and vocabulary-level patterns transfer from the Vue 3 reference:
 | Verb-first failure copy | Failure copy keeps the `Action · reason` shape already used in the Top Bar. |
 
 Not adopted: glow and bloom effects, L-shaped corner brackets, glass blur, sci-fi square radii,
-Canvas-2D edge rendering, the `Task`/`Blueprint Log` vocabulary, provider task panels, and
+Canvas-2D edge rendering, the `Task`/`Blueprint Log` vocabulary, provider-native task panels, and
 DVStudio's 240 px resizable nodes.
 
 ### Batch decisions

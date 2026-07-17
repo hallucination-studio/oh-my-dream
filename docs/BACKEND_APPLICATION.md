@@ -142,51 +142,39 @@ unless that exact tuple exists in the contract projection. React renders exactly
 provider without Voice, or without a Voice route compatible with the selected profile, cannot be
 selected and no failed call is needed to discover that fact.
 
-`GenerationProviderSettingsProfileDto` contains one `(profile, generationKind)` pair, its optional sanitized selected
-binding, and `providerChoices`. Each `GenerationProviderSettingsProviderChoiceDto` contains only
-provider ID/display name and a non-empty `routes` list; each route choice contains route ID/display
-name and the closed `None | AccountCredential` configuration requirement. The use case filters
-before DTO construction, orders profiles by profile ref, providers by provider ID, and routes by
-route ID, and rejects duplicate `(provider_id, kind, route_id)` keys.
-Consequently an unrelated capability can never bring a provider back into the current profile's
-choice list. The selected binding additionally exposes optional account ID, optional credential ID,
-and credential presence, never the secret or its internal revision.
+`GenerationProviderSettingsProfileDto` contains one `(profile, generationKind)` pair, its optional
+sanitized selected binding, and `providerChoices`. Each
+`GenerationProviderSettingsProviderChoiceDto` contains only provider ID/display name and a
+non-empty `routes` list; each route choice contains only route ID and display name. The use case
+filters before DTO construction, orders profiles by profile ref, providers by provider ID, and
+routes by route ID, and rejects duplicate `(provider_id, kind, route_id)` keys. Consequently an
+unrelated capability can never bring a provider back into the current profile's choice list.
 
 `GenerationProviderSettingsDto` contains non-zero `settingsRevision` plus the ordered profile-kind
-items. `GenerationProviderSettingsApplyRequestDto` contains a stable `requestId`,
-`expectedSettingsRevision`, and exactly one closed action:
+items. `GenerationProviderSettingsApplyRequestDto` contains `expectedSettingsRevision` and exactly
+one closed action:
 
 ```text
 SetBinding {
-  profileRef, generationKind, providerId, routeId,
-  accountId: optional,
-  credentialMutation: Unchanged | Replace { credentialId, secret }
+  profileRef, generationKind, providerId, routeId
 }
 RemoveBinding {
-  profileRef, generationKind,
-  credentialMutation: Keep | Retire
+  profileRef, generationKind
 }
 ```
 
-Apply compare-and-swaps the config revision and commits the binding, credential mutation, and
-request receipt atomically, then returns the complete Settings DTO with the new revision. A stale
-revision returns `CONFLICT`; replaying the same request ID and canonical action returns its prior
-result. `Unchanged` preserves the selected credential reference, `Replace` inserts a new immutable
-revision, and removal's `Keep | Retire` explicitly decides whether its readable credential remains
-available or follows the tombstone rules.
-A `Retire` action returns `GenerationProviderCredentialInUse` when another active Settings binding
-or non-terminal Task references that exact credential revision; it never silently breaks another
-profile.
-A route whose requirement is `None` requires null account ID and `Unchanged`; removing a binding
-without a credential requires `Keep`. All other combinations are rejected before persistence. Secret input is write-only and never appears in the
-result, receipt, config JSON, errors, or logs.
+Apply compare-and-swaps the config revision, commits the binding change, and returns the complete
+Settings DTO with the new revision. A stale revision returns `CONFLICT`; the UI reloads and asks the
+user to retry. Reapplying the already-current binding is a normal no-op result with no revision
+increment. The Mock MVP accepts no account or credential input. Production-provider account and
+credential mutation requires a separately reviewed Settings contract when such a provider is
+activated.
 
 `GenerationProviderSettingsRepositoryInterface`, owned by this Settings application capability,
 has exactly `load_generation_provider_settings_snapshot` and
 `apply_generation_provider_settings_mutation`. The latter accepts only the validated closed
-mutation, expected revision, request ID, and canonical action hash and returns
-`Committed | Replay | RevisionConflict | IdempotencyConflict`. Its SQLite adapter owns the atomic
-config/credential/receipt transaction; neither the use case nor a provider receives a connection.
+mutation and expected revision and returns `Committed | Unchanged | RevisionConflict`. Its SQLite
+adapter owns the config transaction; neither the use case nor a provider receives a connection.
 
 Settings DTOs expose no trait object, endpoint, native model, route implementation, remote task ID,
 secret, or `supports_*` boolean. The capability/route set is a safe contract projection used for
@@ -194,11 +182,12 @@ selection, not an optional execution method.
 
 The Node palette keeps `NodeCapabilityListUseCase` as the authoritative registry read. For each
 model-powered capability, React also consumes its authoritative
-`generation_profile_list_for_capability` result and offers that node only when at least one profile
-observation is `Available`. An empty list, all unavailable/indeterminate profiles, or a provider
-registry with no matching focused interface means the node is absent from the add menu. This is a
-presentation filter over returned readiness facts; it does not mutate the registry or reimplement
-profile compatibility. Existing saved nodes remain visible and explain their readiness issue.
+`generation_profile_list_for_capability` result. A non-empty compatible profile list proves
+structural support and keeps the node in the add menu. If every observation is `Unavailable` or
+`Indeterminate`, the node remains visible but disabled and presents the structured readiness
+reason. Only an empty compatible list or a provider registry with no matching focused interface
+makes the node absent. This presentation rule does not mutate the registry or reimplement profile
+compatibility. Existing saved nodes always remain visible and explain their readiness issue.
 
 The requesting Node Capability determines the generation kind; a profile may be compatible with
 more than one capability, so Settings persists kind as part of its mapping key. Kind is not an
@@ -212,7 +201,7 @@ request but does not expose a repository or provider adapter to node code.
 `GenerationTaskEffectWorkerImpl` consumes only `SubmitTask`, `PollTask`, `CancelRemoteTask`, and
 `NotifyWorkflow` from `generation_task_outbox`. Submit/poll/cancel calls occur outside SQLite
 transactions. Each result is committed with optimistic revision and the current effect consumed or
-rescheduled atomically. Delayed polls and expired leases are task-delivery semantics, not Desktop
+rescheduled atomically. Delayed polls and startup claim reset are task-delivery semantics, not Desktop
 post-commit effects or a generic scheduler.
 
 `DesktopGenerationTaskAssetSinkAdapterImpl` imports validated terminal media through canonical
@@ -344,8 +333,8 @@ prior-instance Claimed effect and every Ready Workflow effect, at most 100 per p
 creation time then effect ID. It includes the complete expected state required for recovery CAS;
 its opaque cursor encodes that exact `(created_at, effect_id)` tuple.
 
-Startup first acquires the OS-level exclusive database lock, then reclaims every prior-instance
-Generation Task lease plus expired leases owned by no live worker, and invokes
+Startup first acquires the OS-level exclusive database lock, resets every prior-process Generation
+Task effect from `Claimed` to `Ready`, and invokes
 `WorkflowClassifyRunsAfterRestartUseCase`. It preserves Runs with provable durable task handoff,
 replays every safe non-terminal Run, and invokes `WorkflowInterruptRunsAfterRestartUseCase` only for
 unsafe Runs. It then
@@ -437,7 +426,7 @@ durable authority; after a gap or restart React reloads pending change and canon
 
 ```text
 open/migrate SQLite and managed-content roots
-  -> construct SQLite backend-config and plaintext credential repositories
+  -> construct SQLite backend-config and Assistant plaintext credential repository
   -> load and validate DesktopBackendConfig
   -> construct Project, Workflow, Generation Task, Asset, and Assistant repositories
   -> construct Project use cases and DesktopProjectWorkflowBridgeAdapterImpl
@@ -449,7 +438,7 @@ open/migrate SQLite and managed-content roots
   -> construct exactly seven Node Capability implementations and one registry
   -> construct Workflow use cases, DesktopPostCommitEffectWorker, and GenerationTaskEffectWorkerImpl
   -> construct Assistant aggregates/use cases, Workflow bridges, and model runner adapter
-  -> reconcile Pending Assets, reclaim task leases, and classify non-terminal Runs
+  -> reconcile Pending Assets, reset prior-process task claims, and classify non-terminal Runs
   -> register commands, both closed effect workers, sidecar transport, and preview protocol
 ```
 
@@ -468,26 +457,22 @@ first four are 5,000, `4`, `1`, and `2`; concurrency is `1..=8`. The remaining n
 their owner-document exact fields, defaults, and maxima and cannot weaken or exceed them. Locations
 are derived from the OS application-data root and are not config fields.
 
-Each `generation_provider_routes` item has exactly `profile_ref`, `generation_kind`, `provider_id`, `route_id`, optional
-`account_id`, and optional `credential_id`. Both optional fields are absent for Mock routes and must
-be present together only when a future production route contract requires credentials. Credential
-revision is repository-owned recovery metadata, not user configuration. Endpoint, native model,
-operation deadline, polling bounds, response limits, and download host allowlist are typed constants
-owned by a shipped route implementation and never persisted as configuration.
+Each `generation_provider_routes` item has exactly `profile_ref`, `generation_kind`, `provider_id`,
+and `route_id`. Endpoint, native model, account, credential, operation deadline, polling bounds,
+response limits, and download host allowlist are not configuration fields. Adding a production
+provider may extend the Settings and Task target schemas only through a separately reviewed design.
 `assistant_protocol_budgets` has exactly
 `invocation_deadline_ms`, `frame_max_bytes`, `json_max_depth`, `event_max_count`,
 `tool_call_max_count`, `model_turn_max_count`, `direction_max_bytes`, `text_output_max_bytes`,
 `snapshot_max_bytes`, `candidate_max_bytes`, `continuation_max_bytes`, and `approval_expiry_ms`, with
 D0.5 exact values.
 
-There is at most one active `generation_provider_routes` item per `(profile_ref, generation_kind)`; its fields are
-one indivisible binding. The Settings UI selects provider and route and renders account and
-write-only credential fields only when that route's safe contract requires them; Mock routes render
-neither. A second account for the same profile is replacement, not another row.
-Duplicate mapping keys or duplicate bindings are rejected, so a selected profile/provider/route
-never has two possible account or credential targets.
+There is at most one active `generation_provider_routes` item per `(profile_ref, generation_kind)`;
+its fields are one indivisible binding. The Mock Settings UI selects or removes that provider/route
+binding and renders no account or credential fields. Duplicate mapping keys or duplicate bindings
+are rejected.
 
-The repository uses one canonical JSON payload of at most 256 KiB inside a versioned SQLite row.
+The repository uses one canonical JSON payload of at most 256 KiB inside a revisioned SQLite row.
 It rejects duplicate/unknown fields, wrong schema, Assistant native model overrides, credential
 values inside the config payload, and paths. An absent row yields and atomically stores the exact
 three `(profile, generation kind)`-to-Mock-route bindings from `BACKEND_PROVIDERS.md` and Assistant disabled. Its
@@ -495,45 +480,27 @@ Assistant default is schema `1`, enabled `false`,
 `assistant.workflow_coauthor@1`, and credential ID `assistant.openai.default`. Configuration is
 validated at startup, and every Settings mutation is validated against the same shipped provider/
 route contracts before its transaction commits. Provider composites and their shipped route
-registry are immutable and are not rebuilt after a Settings mutation. New task admission reads the
-committed active `(profile, generation kind)` mapping; existing tasks resolve only the request-derived kind plus their
-immutable persisted provider/route/account/credential-revision target. Missing provider credentials make only affected
-Generation Profiles unavailable; a missing Assistant
-credential disables only Assistant commands.
+registry are immutable and are not rebuilt after a Settings mutation. New task admission copies
+the currently selected `(profile, generation kind, provider, route)` tuple into the immutable Task
+target. A concurrent Settings change affects only a later binding resolution; the admitted Task
+continues with its copied target. A missing Assistant credential disables only Assistant commands.
 
-The version-1 migration preserves the validated concurrency, Asset, Assistant model, and Assistant
-protocol values; removes every legacy provider route field whose endpoint/native-model semantics no
-longer belong in configuration; installs the exact three version-2 Mock bindings; and atomically
-writes canonical version 2. Existing provider credential rows remain stored and redacted but are
-not referenced by Mock. Invalid version-1 data fails migration instead of being partially guessed.
+The version-1 migration validates and retains the exact original canonical payload in the storage-
+only `legacy_config_json` column before writing canonical version 2 with the exact three Mock
+bindings. Runtime code never reads provider endpoints or native models from that retained payload;
+it exists only for non-destructive rollback or a future explicit production-provider migration.
+Later Settings compare-and-swap updates change only revision and active version-2 JSON and never
+clear or rewrite `legacy_config_json`.
+Existing provider credential rows remain stored but are not composed into Mock, exposed by MVP
+Settings, or referenced by Generation Tasks. Invalid version-1 data fails migration instead of
+being partially guessed.
 
-Task admission reads the current route binding and, when required, resolves the credential's active
-immutable revision. Credential revisions are append-only rows keyed by `(credential_id, revision)`;
-the task row references that exact row. The use case passes the observed backend-config revision and
-active credential revision as `GenerationTaskAdmissionGuard`. Task creation atomically requires the
-config revision to remain current and the credential revision to remain active; mismatch returns
-`AdmissionBindingChanged`, re-resolves, and retries before any provider call. The foreign key then
-preserves the accepted snapshot but is not treated as the concurrency check. Mock admission uses
-the same config-revision guard with no credential revision.
-
-`GenerationProviderCredentialRepositoryInterface` and
-`AssistantModelCredentialRepositoryInterface` are separate consumer-owned interfaces even when one
-SQLite adapter implements both. Production secrets are stored as plaintext blobs in dedicated
-`metadata.sqlite` tables. This provides no encryption at rest: any actor able to read the database
-can read the credentials. Plaintext must still never enter the config payload, public DTOs, errors,
-or logs, and provider/Assistant consumers retain it only for one bounded authenticated call.
-
-Credential IDs follow lowercase dot-segment identity rules and are at most 128 bytes. Provider
-credential revisions are non-zero monotonic `u64` values. A production route/task loads an exact ID/revision;
-it never silently observes a replacement.
-`SqliteDesktopBackendSettingsAdapterImpl` implements the config repository plus both focused
-credential repositories. The two credential tables have independent namespaces. Replacement
-inserts a new immutable revision and atomically changes the active pointer. Settings deletion
-retires the active revision. While a non-terminal Generation Task references it, the secret remains
-readable and deletion returns `GenerationProviderCredentialInUse`; afterward the secret blob is
-cleared but the immutable tombstone row remains for the Task foreign key. Only an unreferenced
-tombstone row may be physically deleted.
-Interfaces never enumerate readable secrets. There is no JSON-file, platform-vault,
+`AssistantModelCredentialRepositoryInterface` remains the active plaintext credential boundary.
+Legacy provider credentials and Assistant credentials occupy separate SQLite tables. This provides
+no encryption at rest: any actor able to read the database can read them. Plaintext never enters
+the active config payload, public DTOs, errors, or logs. The Mock MVP defines no provider credential
+mutation interface, revision lifecycle, tombstone, or Task foreign key. Those semantics belong to
+the first separately reviewed production-provider design. There is no JSON-file, platform-vault,
 encrypted-column, or embedded-key fallback.
 
 ## Representation Boundaries
@@ -601,7 +568,7 @@ belongs to V3 and is not fixed here.
 - Project command/bridge tests cover create, rename, list, open, isolation, and one current Workflow;
 - use-case tests use fake interfaces without Tauri;
 - transaction tests prove every durable-before-effect ordering;
-- effect-worker tests cover the three Desktop effects, four task effects, leases, concurrency,
+- effect-worker tests cover the three Desktop effects, four task effects, single-worker claiming,
   cancellation, and restart policy;
 - bridge tests prove exact cross-context translation without copied semantics;
 - event tests cover sequence, emission failure, duplicate/gap repair, and terminal query;

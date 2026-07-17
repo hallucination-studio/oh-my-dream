@@ -346,7 +346,7 @@ URLs, playback state, and loaded credential values do not.
 | Workflow mutation | snapshot + revision + mutation receipt | return the committed result | retry by request ID |
 | Run admission | Run + executions + event + request receipt + execute effect | execute the Run | replay queued work or classify unsafe execution |
 | Run transition | transition + outputs + durable events | emit undispatched events | replay/query event rows |
-| Generation Task create/transition | task + optional result + consumed/enqueued task effect | submit, poll, cancel, finalize, or notify Workflow | reclaim a fenced effect and continue exact task |
+| Generation Task create/transition | task + optional result + consumed/enqueued task effect | submit, poll, cancel, finalize, or notify Workflow | reset a prior-process claim and continue the exact task |
 | Asset node output | Pending + finalization + output key + finalize effect | publish managed bytes | safely replay exact finalization |
 | Asset availability | Available transition + completed finalization | allow node output commit | verify exact digest/length |
 | Assistant decision | transition + apply effect | idempotent apply, resume, and Run effects | safely replay stable request IDs |

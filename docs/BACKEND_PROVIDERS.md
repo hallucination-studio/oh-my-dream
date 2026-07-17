@@ -87,7 +87,7 @@ crates/backends
   provider capability adapters, vendor routes, private protocol DTOs
              ^
 src-tauri
-  SQLite configuration/plaintext credential repositories, construction
+  SQLite configuration, Assistant credentials, and construction
 ```
 
 Recommended adapter layout:
@@ -256,8 +256,7 @@ metadata. The use case does not persist observations or substitute a profile.
 
 Provider Settings derive their selectable provider/route list from `GenerationProviderContract`.
 Each focused capability contract contains a non-empty set of safe route contracts; each route
-contract has its stable route ID, display name, exact compatible Generation Profile refs, and
-provider-neutral `None | AccountCredential` configuration requirement. For a
+contract has its stable route ID, display name, and exact compatible Generation Profile refs. For a
 Text profile the projection includes only compatible Text routes; Image includes only compatible
 Image routes; Video only compatible Video routes; speech/voice only compatible Voice routes.
 Applying a `(profile_ref, generation_kind, provider_id, route_id)` mapping absent from that exact
@@ -281,7 +280,7 @@ is admitted:
 | `Video(ImageToVideo)` | exact input Asset snapshot, optional prompt, `duration_seconds: 5 | 10` | one video |
 | `Voice(TextToSpeech)` | `text: WorkflowTextValue` | one Audio Asset |
 
-The immutable task target supplies the exact profile, route, account, and credential reference.
+The immutable task target supplies the exact profile, provider, and route reference.
 The stable `GenerationTaskId` becomes the native submission idempotency key where supported.
 Media outputs retain the frozen MIME and size limits: PNG up to 32 MiB, MP4 up to 512 MiB, and
 MPEG up to 64 MiB. Zero bytes, a second primary output, unknown length, mismatched facts, trailing
@@ -351,7 +350,7 @@ Workflow, Asset, Settings projection, or focused provider contracts.
 
 Provider construction rejects an empty capability product and any route ID reused
 across its focused capabilities. Settings validation rejects unknown or incompatible profiles,
-duplicate `(profile, generation kind)` mappings, and incomplete account/credential bindings. A missing mapping is represented by
+and duplicate `(profile, generation kind)` mappings. A missing mapping is represented by
 `NoConfiguredRoute`, not a placeholder implementation. Contract conformance is proved in tests,
 not represented as runtime configuration.
 
@@ -360,8 +359,8 @@ Composition maintains two distinct structures: the committed active
 read transactionally for new task admission, and the immutable shipped provider registry used for
 existing task bindings. Disabling or rebinding a profile affects future tasks but does not remove
 its shipped adapter from recovery. Recovery first resolves persisted provider ID, then request kind,
-then route ID through the matching focused interface, and supplies the persisted account/credential
-revision; it never consults the current profile selection. A software version may remove a shipped recovery
+then route ID through the matching focused interface; it never consults the current profile
+selection. A software version may remove a shipped recovery
 adapter only through an explicit migration/retirement decision that first proves no non-terminal
 task references it.
 
@@ -418,32 +417,15 @@ never creates an Asset; Generation Task finalization owns the call to its Asset 
 
 ## Credentials And Configuration
 
-Non-secret MVP configuration declares only the exact `(profile, generation kind)`-to-Mock-route selection. The Mock
-provider requires no account, credential, endpoint, native model, or route-specific configuration.
-The provider Settings contract can carry an optional typed account/credential binding for future
-production routes, but MVP neither requires nor fabricates one.
+Non-secret MVP configuration declares only the exact `(profile, generation kind)`-to-Mock-route
+selection. The Mock provider requires no account, credential, endpoint, native model, or
+route-specific configuration.
 
 Each production adapter must introduce its non-secret route configuration as a reviewed typed value
-owned by that adapter. No generic provider-options JSON exists, and no vendor configuration type is
-defined before its adapter is scheduled.
-
-`GenerationProviderCredentialRepositoryInterface` is owned by the Desktop
-provider-configuration consumer. Its production adapter stores the credential as plaintext in the
-dedicated generation-provider credential table in `metadata.sqlite`. The MVP provides no
-encryption at rest: an actor able to read that database can read the credential. The value is
-materialized as one short-lived `GenerationProviderCredentialSecret` for authenticated calls and
-never enters the config payload, public DTOs, domain objects, errors, or logs.
-
-Only `DesktopCompositionRoot` supplies the focused credential repository and constructs future
-production routes; only an authenticated route request loads the exact credential ID/revision
-secret. A missing or inaccessible credential makes only affected production profiles unavailable
-without preventing application startup. A constructed provider retains the repository handle but
-does not capture an account or credential binding; each immutable task target supplies its exact
-binding at call time.
-Immediately before an authenticated HTTP request the repository loads one
-`GenerationProviderCredentialSecret`, the transport attaches its vendor header, and the temporary
-buffer is zeroized where supported when that request is built. Route structs, clients, availability
-observations, and retry/poll state never retain or clone plaintext credentials.
+owned by that adapter. No generic provider-options JSON exists, and no vendor configuration,
+account, credential mutation, credential revision, or authenticated recovery contract is defined
+before its production adapter is scheduled. Existing plaintext provider credential rows are
+retained as inactive legacy data and never exposed by Mock Settings or loaded by the Mock registry.
 
 ## Failure Semantics
 
@@ -476,7 +458,5 @@ lets Workflow own the node/Run transition.
 - every registered route passes translation, malformed-response, deadline, and response-bound tests;
 - Immediate routes additionally pass equivalent-result rules, Remote routes pass submit/poll and
   ambiguous-submission rules, and only CancellableRemote routes run the cancellation contract suite;
-- credential repository contract tests freeze SQLite plaintext round trip, version retention,
-  namespace isolation, and redaction even though the MVP Mock route does not read credentials;
 - architecture tests reject node provider/model fields, broad provider interfaces, provider-owned
   task semantics, roadmap runtime interfaces, and construction outside composition.
