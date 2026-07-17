@@ -26,6 +26,12 @@ impl TextGenerationProviderResult {
     pub const fn content(&self) -> &GenerationTaskText {
         &self.0
     }
+
+    /// Consumes the provider result and returns exact generated Text.
+    #[must_use]
+    pub fn into_content(self) -> GenerationTaskText {
+        self.0
+    }
 }
 
 macro_rules! media_provider_result {

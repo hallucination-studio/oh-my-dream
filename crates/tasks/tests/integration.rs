@@ -1,3 +1,11 @@
+#[path = "application_effect_fakes.rs"]
+mod application_effect_fakes;
+#[path = "application_effects.rs"]
+mod application_effects;
+#[path = "application_queries.rs"]
+mod application_queries;
+#[path = "application_start.rs"]
+mod application_start;
 #[path = "provider_architecture.rs"]
 mod provider_architecture;
 #[path = "provider_contracts.rs"]
