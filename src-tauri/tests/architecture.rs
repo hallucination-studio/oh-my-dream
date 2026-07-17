@@ -55,6 +55,29 @@ fn active_runtime_excludes_replaced_authorities_and_commands() {
 }
 
 #[test]
+fn active_composition_uses_only_the_mock_task_path() {
+    let active = [LIB, COMPOSITION, ACTIVATED, NODE_COMPOSITION].join("\n");
+    for required in [
+        "MockGenerationProviderRegistryImpl",
+        "DesktopNodeCapabilityGenerationTaskStartAdapterImpl",
+        "DesktopGenerationTaskAssetSinkAdapterImpl",
+        "DesktopGenerationTaskOriginStateReaderAdapterImpl",
+        "DesktopGenerationTaskWorkflowCompletionAdapterImpl",
+        "GenerationTaskEffectWorkerImpl",
+    ] {
+        assert!(active.contains(required), "active composition misses {required}");
+    }
+    for prohibited in ["ProviderRouterImpl", "FalGeneration", "ElevenLabs", "InferenceBackend"] {
+        assert!(!active.contains(prohibited), "active composition contains {prohibited}");
+    }
+    assert!(
+        ACTIVATED.find("recover_before_accepting_commands").unwrap()
+            < ACTIVATED.find("DesktopPostCommitEffectWorker::try_new").unwrap(),
+        "startup recovery must complete before the post-commit worker is exposed"
+    );
+}
+
+#[test]
 fn assistant_boundaries_do_not_leak_secrets_paths_or_sdk_state() {
     let leak_surface = [ASSISTANT_DTO, ASSISTANT_PRESENTATION, UI_API, UI_TAURI].join("\n");
     for prohibited in [

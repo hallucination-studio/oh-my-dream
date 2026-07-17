@@ -91,6 +91,65 @@ async fn missing_generation_credential_does_not_disable_assistant_or_host() {
     assert!(host.config.generation_provider_routes.is_empty());
 }
 
+#[tokio::test]
+async fn activated_commands_expose_only_the_frozen_mock_provider_contract() {
+    let directory = tempdir().expect("directory");
+    let dependencies = DesktopCompositionRoot::compose_activated_commands(
+        DesktopApplicationPaths::from_application_data_root(directory.path()),
+    )
+    .await
+    .expect("activated commands");
+
+    assert_eq!(dependencies.generation_task_provider_contracts.len(), 1);
+    let contract = &dependencies.generation_task_provider_contracts[0];
+    assert_eq!(contract.provider_id().as_str(), "mock");
+    assert_eq!(contract.display_name().as_str(), "Mock");
+    assert!(contract.text().is_none());
+    assert_eq!(contract.image().expect("image capability").routes().len(), 1);
+    assert_eq!(contract.video().expect("video capability").routes().len(), 1);
+    assert_eq!(contract.voice().expect("voice capability").routes().len(), 1);
+    assert_eq!(
+        contract.image().unwrap().routes()[0].route_id().as_str(),
+        "mock.image.high-quality-general.v1"
+    );
+    assert_eq!(
+        contract.image().unwrap().routes()[0]
+            .compatible_generation_profiles()
+            .iter()
+            .next()
+            .unwrap()
+            .to_string(),
+        "image.high_quality_general@1"
+    );
+    assert_eq!(
+        contract.video().unwrap().routes()[0].route_id().as_str(),
+        "mock.video.cinematic-image-animation.v1"
+    );
+    assert_eq!(
+        contract.video().unwrap().routes()[0]
+            .compatible_generation_profiles()
+            .iter()
+            .next()
+            .unwrap()
+            .to_string(),
+        "video.cinematic_image_animation@1"
+    );
+    assert_eq!(
+        contract.voice().unwrap().routes()[0].route_id().as_str(),
+        "mock.voice.multilingual-narration.v1"
+    );
+    assert_eq!(
+        contract.voice().unwrap().routes()[0]
+            .compatible_generation_profiles()
+            .iter()
+            .next()
+            .unwrap()
+            .to_string(),
+        "speech.multilingual_narration@1"
+    );
+    assert_eq!(dependencies.node_capability_list.list_node_capabilities().len(), 7);
+}
+
 async fn compose(
     paths: DesktopApplicationPaths,
 ) -> Result<DesktopApplicationHost, DesktopCompositionError> {
