@@ -3862,6 +3862,7 @@ name = "tasks"
 version = "0.1.0"
 dependencies = [
  "assets",
+ "async-trait",
  "engine",
  "nodes",
  "projects",

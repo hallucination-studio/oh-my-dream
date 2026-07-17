@@ -13,6 +13,7 @@ path = "tests/integration.rs"
 
 [dependencies]
 assets.workspace = true
+async-trait.workspace = true
 engine.workspace = true
 nodes.workspace = true
 projects.workspace = true
