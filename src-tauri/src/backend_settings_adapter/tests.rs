@@ -12,6 +12,31 @@ async fn config_initializes_defaults_round_trips_and_rejects_corruption() {
 
     let default = adapter.load_or_initialize_desktop_backend_config().await.unwrap();
     assert_eq!(default, DesktopBackendConfig::default());
+    let (schema_version, encoded): (i64, Vec<u8>) = connection
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT schema_version, config_json FROM desktop_backend_config WHERE singleton_id = 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    let stored: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+    assert_eq!(schema_version, 2);
+    assert_eq!(stored["generation_provider_routes"].as_array().unwrap().len(), 3);
+    let has_legacy_column: bool = connection
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM pragma_table_info('desktop_backend_config')
+                WHERE name = 'legacy_config_json'
+             )",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(!has_legacy_column);
     let mut changed = default;
     changed.workflow_run_concurrency = 2;
     adapter.save_desktop_backend_config(changed.clone()).await.unwrap();
@@ -103,5 +128,28 @@ async fn readonly_database_maps_writes_to_permission_denied() {
             )
             .await,
         Err(GenerationProviderCredentialRepositoryError::PermissionDenied)
+    );
+}
+
+#[tokio::test]
+async fn current_config_rejects_noncanonical_bytes() {
+    let connection = connection();
+    let adapter =
+        SqliteDesktopBackendSettingsAdapterImpl::try_new(Arc::clone(&connection)).unwrap();
+    let mut encoded = current_config::encode(&DesktopBackendConfig::default()).unwrap();
+    encoded.push(b' ');
+    connection
+        .lock()
+        .unwrap()
+        .execute(
+            "INSERT INTO desktop_backend_config(singleton_id, schema_version, revision, config_json)
+             VALUES (1, 2, 1, ?1)",
+            [encoded],
+        )
+        .unwrap();
+
+    assert_eq!(
+        adapter.load_or_initialize_desktop_backend_config().await,
+        Err(DesktopBackendConfigRepositoryError::InvalidConfig)
     );
 }

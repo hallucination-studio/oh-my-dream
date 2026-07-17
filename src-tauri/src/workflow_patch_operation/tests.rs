@@ -69,7 +69,8 @@ fn request_hash_is_stable_for_the_same_typed_patch() {
 #[test]
 fn service_requires_a_real_project_before_mutating_authority() {
     let root = tempdir().expect("asset root");
-    let state = AppState::from_asset_root(root.path()).expect("app state");
+    let state = AppState::from_roots(root.path().join("assets"), root.path().join("config"))
+        .expect("app state");
     let service = WorkflowPatchService::from_state(&state);
     let error = service
         .apply(

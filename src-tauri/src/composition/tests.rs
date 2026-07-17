@@ -88,7 +88,7 @@ async fn missing_generation_credential_does_not_disable_assistant_or_host() {
     let host = compose(paths).await.expect("host");
 
     assert!(host.assistant_commands_enabled());
-    assert_eq!(host.config.generation_provider_routes.len(), 1);
+    assert!(host.config.generation_provider_routes.is_empty());
 }
 
 async fn compose(

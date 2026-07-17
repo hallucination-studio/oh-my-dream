@@ -88,7 +88,8 @@ fn invocation_keeps_user_text_and_selection_in_trusted_scope() {
 #[test]
 fn active_session_guard_rejects_only_the_same_session() {
     let root = tempdir().expect("root");
-    let state = AppState::from_asset_root(root.path()).expect("state");
+    let state = AppState::from_roots(root.path().join("assets"), root.path().join("config"))
+        .expect("state");
     let first = ActiveAssistantSession::acquire(&state, "session-1").expect("first");
     assert_eq!(
         ActiveAssistantSession::acquire(&state, "session-1").err(),

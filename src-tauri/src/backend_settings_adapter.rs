@@ -1,8 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use async_trait::async_trait;
-use rusqlite::{Connection, ErrorCode, OptionalExtension, TransactionBehavior, params};
-
 use crate::{
     credential_repository::{
         AssistantModelCredentialId, AssistantModelCredentialRepositoryError,
@@ -15,8 +12,13 @@ use crate::{
         DesktopBackendConfigRepositoryInterface,
     },
 };
+use async_trait::async_trait;
+use rusqlite::{Connection, ErrorCode, OptionalExtension, TransactionBehavior, params};
 
-const CONFIG_SCHEMA_VERSION: i64 = 1;
+const CONFIG_SCHEMA_VERSION: i64 = 2;
+
+#[path = "backend_settings_adapter/current_config.rs"]
+pub(crate) mod current_config;
 
 #[derive(Clone)]
 pub struct SqliteDesktopBackendSettingsAdapterImpl {
@@ -62,9 +64,7 @@ impl DesktopBackendConfigRepositoryInterface for SqliteDesktopBackendSettingsAda
         &self,
         config: DesktopBackendConfig,
     ) -> Result<(), DesktopBackendConfigRepositoryError> {
-        let encoded = config
-            .canonical_json()
-            .map_err(|_| DesktopBackendConfigRepositoryError::InvalidConfig)?;
+        let encoded = current_config::encode(&config)?;
         self.blocking(move |connection| {
             connection
                 .execute(
@@ -184,16 +184,11 @@ fn load_or_initialize_config(
         .optional()
         .map_err(config_sqlite_error)?;
     let config = match row {
-        Some((CONFIG_SCHEMA_VERSION, encoded)) => {
-            DesktopBackendConfig::from_canonical_json(&encoded)
-                .map_err(|_| DesktopBackendConfigRepositoryError::InvalidConfig)?
-        }
+        Some((CONFIG_SCHEMA_VERSION, encoded)) => current_config::project(&encoded)?,
         Some(_) => return Err(DesktopBackendConfigRepositoryError::InvalidConfig),
         None => {
             let config = DesktopBackendConfig::default();
-            let encoded = config
-                .canonical_json()
-                .map_err(|_| DesktopBackendConfigRepositoryError::InvalidConfig)?;
+            let encoded = current_config::encode(&config)?;
             transaction
                 .execute(
                     "INSERT INTO desktop_backend_config(singleton_id, schema_version, config_json)

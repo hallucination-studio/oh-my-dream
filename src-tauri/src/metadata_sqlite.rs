@@ -6,14 +6,15 @@ use std::time::Duration;
 use rusqlite::{Connection, OpenFlags};
 use thiserror::Error;
 
-const APPLICATION_ID: i32 = 0x4f4d4431;
-const CURRENT_USER_VERSION: i32 = 2;
+const APPLICATION_ID: i32 = 0x4f4d4432;
+const CURRENT_USER_VERSION: i32 = 1;
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(crate) const BACKEND_SETTINGS_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS desktop_backend_config (
     singleton_id INTEGER PRIMARY KEY NOT NULL CHECK(singleton_id = 1),
     schema_version INTEGER NOT NULL CHECK(schema_version > 0),
+    revision INTEGER NOT NULL DEFAULT 1 CHECK(revision > 0),
     config_json BLOB NOT NULL CHECK(length(config_json) BETWEEN 1 AND 262144)
 );
 CREATE TABLE IF NOT EXISTS generation_provider_credentials (
@@ -40,7 +41,7 @@ pub(crate) enum MetadataSqliteError {
     /// The database was created by a newer unsupported application version.
     #[error("unsupported metadata schema version {found}")]
     UnsupportedVersion { found: i32 },
-    /// SQLite rejected an open, configuration, integrity, or migration operation.
+    /// SQLite rejected an open, configuration, integrity, or schema operation.
     #[error("metadata storage unavailable during {operation}")]
     Sqlite {
         operation: &'static str,
@@ -55,7 +56,7 @@ pub(crate) enum MetadataSqliteError {
     PermissionDenied,
 }
 
-/// Opens or creates the one metadata database and applies known migrations.
+/// Opens or creates the metadata database for the current hard-cut epoch.
 pub(crate) fn open_metadata_sqlite(path: &Path) -> Result<Connection, MetadataSqliteError> {
     let existed_non_empty = path.metadata().map(|metadata| metadata.len() > 0).unwrap_or(false);
     prepare_private_file(path)?;
@@ -67,7 +68,7 @@ pub(crate) fn open_metadata_sqlite(path: &Path) -> Result<Connection, MetadataSq
     configure_connection(&connection)?;
     validate_or_initialize_epoch(&connection, existed_non_empty)?;
     verify_integrity(&connection)?;
-    apply_migrations(&connection)?;
+    create_current_schema(&connection)?;
     restrict_permissions(path)?;
     Ok(connection)
 }
@@ -128,7 +129,7 @@ fn validate_or_initialize_epoch(
             .pragma_update(None, "application_id", APPLICATION_ID)
             .map_err(|source| sqlite("write application ID", source))?;
         transaction
-            .pragma_update(None, "user_version", 1)
+            .pragma_update(None, "user_version", CURRENT_USER_VERSION)
             .map_err(|source| sqlite("write schema version", source))?;
         transaction.commit().map_err(|source| sqlite("commit epoch", source))?;
     }
@@ -142,23 +143,17 @@ fn verify_integrity(connection: &Connection) -> Result<(), MetadataSqliteError> 
     if result == "ok" { Ok(()) } else { Err(MetadataSqliteError::Corruption) }
 }
 
-fn apply_migrations(connection: &Connection) -> Result<(), MetadataSqliteError> {
+fn create_current_schema(connection: &Connection) -> Result<(), MetadataSqliteError> {
     let version = pragma_i32(connection, "user_version")?;
-    if version == CURRENT_USER_VERSION {
-        return Ok(());
-    }
-    if version != 1 {
+    if version != CURRENT_USER_VERSION {
         return Err(MetadataSqliteError::UnsupportedLegacyStorageEpoch);
     }
     let transaction =
-        connection.unchecked_transaction().map_err(|source| sqlite("begin migration", source))?;
+        connection.unchecked_transaction().map_err(|source| sqlite("begin schema", source))?;
     transaction
         .execute_batch(BACKEND_SETTINGS_SCHEMA)
         .map_err(|source| sqlite("create backend settings schema", source))?;
-    transaction
-        .pragma_update(None, "user_version", CURRENT_USER_VERSION)
-        .map_err(|source| sqlite("advance schema version", source))?;
-    transaction.commit().map_err(|source| sqlite("commit migration", source))
+    transaction.commit().map_err(|source| sqlite("commit schema", source))
 }
 
 fn pragma_i32(connection: &Connection, name: &'static str) -> Result<i32, MetadataSqliteError> {
@@ -184,82 +179,5 @@ fn restrict_permissions(_path: &Path) -> Result<(), MetadataSqliteError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
-
-    #[test]
-    fn creates_epoch_one_with_foreign_keys_and_private_permissions() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let path = directory.path().join("metadata.sqlite");
-        let connection = open_metadata_sqlite(&path).expect("database opens");
-
-        assert_eq!(pragma_i32(&connection, "application_id").unwrap(), APPLICATION_ID);
-        assert_eq!(pragma_i32(&connection, "user_version").unwrap(), CURRENT_USER_VERSION);
-        assert_eq!(pragma_i32(&connection, "foreign_keys").unwrap(), 1);
-        #[cfg(unix)]
-        assert_eq!(path.metadata().unwrap().permissions().mode() & 0o777, 0o600);
-    }
-
-    #[test]
-    fn refuses_non_empty_database_from_an_unknown_epoch_without_rewriting_it() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let path = directory.path().join("metadata.sqlite");
-        let connection = Connection::open(&path).expect("legacy database opens");
-        connection.execute("CREATE TABLE legacy(value TEXT)", []).unwrap();
-        drop(connection);
-
-        let error = open_metadata_sqlite(&path).unwrap_err();
-        assert!(matches!(error, MetadataSqliteError::UnsupportedLegacyStorageEpoch));
-        let connection = Connection::open(&path).unwrap();
-        let count: i64 = connection
-            .query_row("SELECT count(*) FROM sqlite_master WHERE name = 'legacy'", [], |row| {
-                row.get(0)
-            })
-            .unwrap();
-        assert_eq!(count, 1);
-    }
-
-    #[test]
-    fn refuses_a_newer_schema_version() {
-        let directory = tempfile::tempdir().expect("temporary directory");
-        let path = directory.path().join("metadata.sqlite");
-        let connection = Connection::open(&path).unwrap();
-        connection.pragma_update(None, "application_id", APPLICATION_ID).unwrap();
-        connection.pragma_update(None, "user_version", CURRENT_USER_VERSION + 1).unwrap();
-        drop(connection);
-
-        assert!(matches!(
-            open_metadata_sqlite(&path),
-            Err(MetadataSqliteError::UnsupportedVersion { found: 3 })
-        ));
-    }
-
-    #[test]
-    fn migrates_epoch_one_to_backend_settings_schema_two() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("metadata.sqlite");
-        let connection = Connection::open(&path).unwrap();
-        connection.pragma_update(None, "application_id", APPLICATION_ID).unwrap();
-        connection.pragma_update(None, "user_version", 1).unwrap();
-        drop(connection);
-
-        let connection = open_metadata_sqlite(&path).unwrap();
-        assert_eq!(pragma_i32(&connection, "user_version").unwrap(), 2);
-        for table in [
-            "desktop_backend_config",
-            "generation_provider_credentials",
-            "assistant_model_credentials",
-        ] {
-            let count: i64 = connection
-                .query_row(
-                    "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
-                    [table],
-                    |row| row.get(0),
-                )
-                .unwrap();
-            assert_eq!(count, 1);
-        }
-    }
-}
+#[path = "metadata_sqlite/tests.rs"]
+mod tests;
