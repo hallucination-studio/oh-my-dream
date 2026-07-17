@@ -245,7 +245,10 @@ Invariants:
 - Provider deadline never changes. Expiry fails `Queued` or `Running` with `Timeout`.
   `Submitting` is deliberately conservative: once that state commits, a crash, call error, or
   deadline cannot prove that the provider did not accept work, so it fails
-  `AmbiguousSubmission`. Expiry of `CancelRequested` commits `Cancelled` and records safe
+  `AmbiguousSubmission`. Deterministic Asset-key recovery runs first: a reclaimed `Submitting`
+  media task whose exact node-output Asset is already Available completes instead, and a Pending
+  finalization reschedules; only a task with no recoverable Asset fails `AmbiguousSubmission`.
+  Expiry of `CancelRequested` commits `Cancelled` and records safe
   remote-cancellation-unconfirmed telemetry.
 - Progress is optional `0..=100` and monotonic while running.
 - `Succeeded` requires exactly one result matching the request's result kind.
@@ -254,6 +257,9 @@ Invariants:
   attaching a result to the Task.
 - Terminal states never transition.
 - Cancellation is rejected only after a terminal state has committed.
+- `CancelRequested` transitions only to `Cancelled`. A permanent failure, exhausted delivery
+  budget, or deadline expiry observed while cancellation is pending converges to `Cancelled` with
+  safe telemetry; it never becomes `Failed`.
 - Optimistic revision serializes cancel/complete races: the first committed transition wins. A
   submit outcome that loses to `CancelRequested` is reconciled against the reloaded state; an
   accepted handle is attached only to drive cancellation and can never return to `Running`.
@@ -284,7 +290,11 @@ Every provider-work reschedule is capped by `provider_deadline_at`, checked `u32
 and the frozen 500..=5,000 millisecond poll bounds. Provider retry-after may delay within those
 bounds but cannot extend the task deadline. Deadline exhaustion transitions active generation once
 to `Failed { Timeout }` and enqueues `NotifyWorkflow`; `CancelRequested` instead becomes local
-`Cancelled` with the same notification. No task polls forever.
+`Cancelled` with the same notification. No task polls forever. The same deadline cap applies to
+every effect reschedule, including `SubmitTask` for a `Queued` task still waiting on Workflow
+handoff: a reschedule that would land at or past `provider_deadline_at` instead commits the
+terminal outcome — `Failed { Timeout }`, or `Cancelled` when cancellation is pending — and
+enqueues `NotifyWorkflow`.
 
 ## 9. Provider contracts
 

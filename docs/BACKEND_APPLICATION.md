@@ -312,6 +312,10 @@ pub enum DesktopPostCommitEffect {
 exactly `Ready`, `Claimed { instance_id, claimed_at }`, `Completed { completed_at }`, or
 `Abandoned { abandoned_at, reason }`. `claim_next_post_commit_effect` orders Ready effects by
 creation time then effect ID, atomically claims one, and increments a non-zero `u32` attempt count.
+A Workflow effect is claimable only while its Run has no other Claimed Workflow effect, so effects
+for the same Run execute serially and rely on optimistic revision only across restarts; different
+Runs proceed concurrently within the configured bound. A Run-revision conflict observed during
+effect execution is a transient consumer failure that releases the effect back to Ready.
 Completion and abandonment require the claiming instance. Startup resets claimed Asset and
 Assistant effects to Ready. Every safe non-terminal Workflow effect is replayed; the idempotent
 Workflow executor schedules any independent ready nodes and naturally no-ops when all active nodes

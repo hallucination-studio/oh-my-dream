@@ -180,7 +180,10 @@ identities, the revision, and one `AssetOriginNodeCapabilityContractRef`. The ca
 the D0.3 capability ID grammar and non-zero-major `{ u16 major, u16 minor }` version without owning
 capability semantics. `AssetOriginNodeOutputKey` uses the D0.3 1..=64-byte
 `[a-z][a-z0-9_]*` key grammar. `AssetNodeOutputKey` contains Run ID, node-execution ID, output key,
-and unrestricted `u32` ordinal; its Run and node-execution IDs must equal those in the producer.
+and a `u32` ordinal; its Run and node-execution IDs must equal those in the producer. The MVP
+freezes ordinal `0`: `BACKEND_CAPABILITIES.md` fixes Generation Task finalization to ordinal `0`,
+node-output origin construction rejects any other value, and non-zero ordinals await a reviewed
+multi-output contract.
 
 `AssetOriginGenerationProfileRef` mechanically stores a Generation Profile ID using the exact
 3..=128-byte dot-separated grammar from `BACKEND_PROVIDERS.md` and a non-zero `u32` version. It

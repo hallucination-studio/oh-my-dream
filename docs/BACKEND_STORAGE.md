@@ -387,18 +387,24 @@ the process-secret lifetime and the opaque managed-content read used after valid
 
 ```text
 resolve private application-data locations
+  -> acquire the held-open OS-exclusive data-root lock for the process lifetime
   -> open SQLite and apply known migrations
   -> load or initialize validated DesktopBackendConfig and credential repositories
   -> construct Project and other repositories, managed-content adapters, and application use cases
   -> construct provider routes, Node Capabilities, Assistant adapter, and bridges
   -> validate the active Assistant contract epoch
-  -> replay bounded Asset finalization effects and reset prior-process Generation Task claims
-  -> classify non-terminal Workflow Runs against exact durable task handoffs
+  -> reset prior-process Generation Task claims
+  -> reconcile bounded Pending Assets and classify non-terminal Workflow Runs against exact durable
+     task handoffs
   -> preserve waiting Runs, replay queued Runs, and interrupt only unsafe Runs
-  -> replay Assistant Applying effects through idempotency receipts
+  -> recover Asset finalization and Assistant Applying effects through idempotency receipts
   -> emit bounded undispatched Workflow Run events
   -> start the post-commit and Generation Task workers and accept commands
 ```
+
+[`BACKEND_APPLICATION.md`](BACKEND_APPLICATION.md#durable-state-before-effects) owns the exact
+recovery ordering and CAS semantics; this sequence is its storage-level summary, never an
+alternative order.
 
 An accepted Generation Task resumes only by its persisted remote handle and exact route binding.
 An ambiguous uncommitted submission is never blindly repeated. Pending Asset reconciliation is safe
@@ -407,7 +413,12 @@ and invokes canonical idempotent Workflow/Run admission.
 
 ## SQLite And Migration Policy
 
-One metadata database belongs to one Desktop data root and one writable process. Transactions are
+One metadata database belongs to one Desktop data root and one writable process. That rule is
+enforced mechanically: startup acquires one OS-level advisory exclusive lock on a dedicated lock
+file in the data root before any migration or recovery, holds it open for the entire process
+lifetime, and fails startup closed when it cannot be acquired. Holding this lock is the only proof
+that no prior-process worker can still commit, so every startup claim reset depends on it; graceful
+shutdown joins both effect workers before releasing it. Transactions are
 short; blocking SQL/filesystem work runs outside async runtime core threads. MVP requires foreign
 keys, parameterized statements, private permissions, bounded queries, a bounded busy timeout, and
 no application-managed pool or speculative WAL tuning.

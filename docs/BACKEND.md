@@ -225,6 +225,7 @@ Public methods state their action. Vague methods such as `execute`, `process`, `
 
 ```text
 DesktopCompositionRoot
+  -> acquire the held-open OS-exclusive data-root lock for the process lifetime
   -> open and migrate SQLite
   -> load and validate SQLite backend configuration
   -> construct focused SQLite plaintext credential repositories
@@ -286,8 +287,10 @@ workflow_start_run
   -> return before provider work starts
 ```
 
-`Unavailable` and `Indeterminate` profiles both block admission in the MVP. Execution checks again
-because availability can change after admission.
+`Unavailable` and `Indeterminate` profiles both block admission in the MVP. Run admission is the
+last availability check: after it, the immutable Task target is authoritative, task admission
+resolves only that structural binding, and neither execution nor recovery repeats the availability
+probe.
 
 ### Node Execution And Media Publication
 

@@ -215,8 +215,9 @@ Mock route is always `Available`; Mock performs no synthetic network or credenti
 
 `GenerationProfileListForCapabilityUseCase` joins definitions with current observations and returns
 only provider-independent metadata. In the MVP, both `Unavailable` and `Indeterminate` prevent Run
-admission. Task admission validates current availability and persists the exact provider/route
-target; kind remains authoritative in the closed task request variant. Recovery of an accepted task
+admission. Task admission resolves only the configured provider/route binding structurally through
+the immutable registry and persists that exact target; it performs no second availability probe,
+and kind remains authoritative in the closed task request variant. Recovery of an accepted task
 does not repeat the availability probe: it resolves the persisted provider + request kind + route
 contract and lets the poll call return its normalized outcome. Recovery never consults or
 substitutes the active Settings mapping. No route may silently substitute a different profile.
@@ -435,11 +436,37 @@ Profile failures are `GenerationProfileNotFound`, `GenerationProfileIncompatible
 `GenerationProviderFailure` categories are exactly `InvalidSemanticRequest`,
 `AuthenticationFailed`, `PermissionDenied`, `ContentPolicyRejected`, `RateLimited`,
 `ProviderUnavailable`, `DeadlineExceeded`, `ProviderRejected`, `InvalidResponse`,
-`DownloadRejected`, and `AmbiguousSubmission`. `RateLimited` and `ProviderUnavailable` permit retry
-only for polling an already accepted handle; no category permits automatic Immediate or Submit
-re-execution. `AmbiguousSubmission` and `DeadlineExceeded` are terminal. Optional retry time is
-valid only for a retryable poll outcome and must
-be in the future when returned. Provider strings never determine Workflow state.
+`DownloadRejected`, and `AmbiguousSubmission`. Every `GenerationProviderFailure` is a terminal
+generation outcome, including `RateLimited` and `ProviderUnavailable`; a retryable rate limit or
+outage on a poll or cancellation call is instead a transient `GenerationProviderCallError`, which
+reschedules the same accepted handle. No category permits automatic Immediate or Submit
+re-execution. `AmbiguousSubmission` is normally synthesized by the Generation Task application from
+an uncertain Immediate or Submit call error; a provider adapter declares it only when its own
+validated response proves acceptance cannot be known. Optional retry time belongs only to a
+transient `GenerationProviderCallError` and must be in the future when returned. Provider strings
+never determine Workflow state.
+
+The Generation Task application normalizes each provider failure category exactly once into the
+`GenerationTaskFailure` kind owned by `BACKEND_TASK.md`:
+
+| `GenerationProviderFailure` category | `GenerationTaskFailure` kind |
+| --- | --- |
+| `InvalidSemanticRequest` | `InvalidRequest` |
+| `AuthenticationFailed` | `Authentication` |
+| `PermissionDenied` | `PermissionDenied` |
+| `ContentPolicyRejected` | `ContentPolicy` |
+| `RateLimited` | `RateLimited` |
+| `ProviderUnavailable` | `ProviderUnavailable` |
+| `DeadlineExceeded` | `Timeout` |
+| `ProviderRejected` | `ProviderRejected` |
+| `InvalidResponse` | `InvalidProviderResponse` |
+| `DownloadRejected` | `InvalidProviderResponse` |
+| `AmbiguousSubmission` | `AmbiguousSubmission` |
+
+A permanent `GenerationProviderCallError` on a poll or cancellation call maps to
+`ProviderUnavailable`; an uncertain Immediate or Submit call error maps to `AmbiguousSubmission`;
+worker-observed deadline expiry maps to `Timeout`. `InputAssetUnavailable`, `OutputAssetImport`,
+and `Internal` are task-internal kinds with no provider origin.
 
 No database transaction remains open during any provider call. The Generation Task application
 translates one provider outcome into an aggregate transition; its Workflow notification bridge then
