@@ -44,8 +44,7 @@ fn c4_capabilities_publish_exact_contracts_and_normalize_only_frozen_defaults() 
     let image = TextToImageCapabilityImpl::try_new(
         catalog.clone(),
         available.clone(),
-        TextToImageProviderFakeImpl::try_new().unwrap(),
-        NodeCapabilityProducedMediaWriterFakeImpl::default(),
+        NodeCapabilityGenerationTaskStarterFakeImpl::default(),
     )
     .unwrap();
     assert_contract(&image, "image.generate_from_text", "prompt", "image");
@@ -61,8 +60,7 @@ fn c4_capabilities_publish_exact_contracts_and_normalize_only_frozen_defaults() 
         catalog.clone(),
         available.clone(),
         NodeCapabilityManagedMediaReaderFakeImpl::default(),
-        ImageToVideoProviderFakeImpl::try_new().unwrap(),
-        NodeCapabilityProducedMediaWriterFakeImpl::default(),
+        NodeCapabilityGenerationTaskStarterFakeImpl::default(),
     )
     .unwrap();
     assert_contract(&video, "video.generate_from_image", "image", "video");
@@ -75,8 +73,7 @@ fn c4_capabilities_publish_exact_contracts_and_normalize_only_frozen_defaults() 
     let speech = TextToSpeechCapabilityImpl::try_new(
         catalog,
         available,
-        TextToSpeechProviderFakeImpl::try_new().unwrap(),
-        NodeCapabilityProducedMediaWriterFakeImpl::default(),
+        NodeCapabilityGenerationTaskStarterFakeImpl::default(),
     )
     .unwrap();
     assert_contract(&speech, "audio.synthesize_speech_from_text", "text", "audio");
@@ -111,11 +108,11 @@ async fn generation_profile_readiness_maps_available_unavailable_indeterminate_a
 }
 
 #[tokio::test]
-async fn c4_capabilities_publish_one_typed_available_managed_output() {
+async fn generation_capabilities_return_only_durable_waiting() {
     let image_capability = text_to_image_with_state(GenerationProfileAvailabilityState::Available);
     let image_parameters = normalize_profile_only(&image_capability, image_profile());
     let image_inputs = text_inputs(&image_capability, "prompt", "draw a moon", 1);
-    let image_outputs = image_capability
+    let image_outcome = image_capability
         .execute_node_capability(execution_request(
             &image_capability,
             image_parameters,
@@ -123,24 +120,18 @@ async fn c4_capabilities_publish_one_typed_available_managed_output() {
             1,
         ))
         .await
-        .unwrap()
-        .into_completed_outputs()
         .unwrap();
-    assert!(matches!(
-        image_outputs.get(&NodeCapabilityOutputKey::new("image").unwrap()),
-        Some(WorkflowRuntimeValue::Image(_))
-    ));
+    assert_eq!(image_outcome, WorkflowNodeCapabilityExecutionOutcome::WaitingForGenerationTask);
 
     let speech_capability = TextToSpeechCapabilityImpl::try_new(
         catalog(),
         availability(GenerationProfileAvailabilityState::Available),
-        TextToSpeechProviderFakeImpl::try_new().unwrap(),
-        NodeCapabilityProducedMediaWriterFakeImpl::default(),
+        NodeCapabilityGenerationTaskStarterFakeImpl::default(),
     )
     .unwrap();
     let speech_parameters = normalize_profile_only(&speech_capability, speech_profile());
     let speech_inputs = text_inputs(&speech_capability, "text", "hello", 2);
-    let speech_outputs = speech_capability
+    let speech_outcome = speech_capability
         .execute_node_capability(execution_request(
             &speech_capability,
             speech_parameters,
@@ -148,13 +139,8 @@ async fn c4_capabilities_publish_one_typed_available_managed_output() {
             2,
         ))
         .await
-        .unwrap()
-        .into_completed_outputs()
         .unwrap();
-    assert!(matches!(
-        speech_outputs.get(&NodeCapabilityOutputKey::new("audio").unwrap()),
-        Some(WorkflowRuntimeValue::Audio(_))
-    ));
+    assert_eq!(speech_outcome, WorkflowNodeCapabilityExecutionOutcome::WaitingForGenerationTask);
 
     assert_image_to_video_output().await;
 }
@@ -176,36 +162,25 @@ async fn assert_image_to_video_output() {
         catalog(),
         availability(GenerationProfileAvailabilityState::Available),
         reader,
-        ImageToVideoProviderFakeImpl::try_new().unwrap(),
-        NodeCapabilityProducedMediaWriterFakeImpl::default(),
+        NodeCapabilityGenerationTaskStarterFakeImpl::default(),
     )
     .unwrap();
     let parameters = normalize_profile_only(&capability, video_profile());
     let inputs = image_and_prompt_inputs(&capability, reference, 3);
-    let outputs = capability
+    let outcome = capability
         .execute_node_capability(execution_request(&capability, parameters, inputs, 3))
         .await
-        .unwrap()
-        .into_completed_outputs()
         .unwrap();
-    assert!(matches!(
-        outputs.get(&NodeCapabilityOutputKey::new("video").unwrap()),
-        Some(WorkflowRuntimeValue::Video(_))
-    ));
+    assert_eq!(outcome, WorkflowNodeCapabilityExecutionOutcome::WaitingForGenerationTask);
 }
 
 fn text_to_image_with_state(
     state: GenerationProfileAvailabilityState,
-) -> TextToImageCapabilityImpl<
-    AvailabilityFakeImpl,
-    TextToImageProviderFakeImpl,
-    NodeCapabilityProducedMediaWriterFakeImpl,
-> {
+) -> TextToImageCapabilityImpl<AvailabilityFakeImpl, NodeCapabilityGenerationTaskStarterFakeImpl> {
     TextToImageCapabilityImpl::try_new(
         catalog(),
         availability(state),
-        TextToImageProviderFakeImpl::try_new().unwrap(),
-        NodeCapabilityProducedMediaWriterFakeImpl::default(),
+        NodeCapabilityGenerationTaskStarterFakeImpl::default(),
     )
     .unwrap()
 }

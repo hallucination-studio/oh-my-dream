@@ -74,6 +74,31 @@ fn capability_owned_modules_have_no_unsupported_or_concrete_adapter_escape_hatch
     }
 }
 
+#[test]
+fn migrated_generation_capabilities_have_only_task_start_and_media_read_boundaries() {
+    let root = manifest_dir().join("src");
+    for file in [
+        "text_to_image_capability.rs",
+        "image_to_video_capability.rs",
+        "text_to_speech_capability.rs",
+        "generation_capability_execution.rs",
+    ] {
+        let source = fs::read_to_string(root.join(file)).unwrap();
+        let code = code_without_line_comments(&source);
+        for forbidden in [
+            "ProviderInterface",
+            "ProviderRequest",
+            "ProducedMediaWriter",
+            "remote_task_id",
+            "vendor",
+            "AssetRepository",
+            "WorkflowRunAggregate",
+        ] {
+            assert!(!code.contains(forbidden), "{file} contains forbidden `{forbidden}`");
+        }
+    }
+}
+
 fn active_capability_sources() -> Vec<String> {
     let root = manifest_dir().join("src");
     let mut paths = fs::read_dir(&root)

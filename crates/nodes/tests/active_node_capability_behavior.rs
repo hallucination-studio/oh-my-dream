@@ -21,6 +21,7 @@ struct ActiveCapabilityBehaviorCase {
     inputs: WorkflowNodeInputSet,
     expected_output_key: NodeCapabilityOutputKey,
     expected_output_type: WorkflowDataType,
+    waits_for_generation_task: bool,
 }
 
 #[tokio::test]
@@ -52,21 +53,20 @@ async fn assert_active_capability_behavior(
 ) {
     let request =
         execution_request(case.capability.as_ref(), normalized.clone(), case.inputs.clone(), seed);
-    let output = case
-        .capability
-        .execute_node_capability(request)
-        .await
-        .unwrap()
-        .into_completed_outputs()
+    let outcome = case.capability.execute_node_capability(request).await.unwrap();
+    if case.waits_for_generation_task {
+        assert_eq!(outcome, WorkflowNodeCapabilityExecutionOutcome::WaitingForGenerationTask);
+    } else {
+        let output = outcome.into_completed_outputs().unwrap();
+        let value = output.get(&case.expected_output_key).unwrap().clone();
+        assert_eq!(value.data_type(), case.expected_output_type);
+        let expected = WorkflowNodeOutputSet::try_new(
+            case.capability.node_capability_contract(),
+            BTreeMap::from([(case.expected_output_key.clone(), value)]),
+        )
         .unwrap();
-    let value = output.get(&case.expected_output_key).unwrap().clone();
-    assert_eq!(value.data_type(), case.expected_output_type);
-    let expected = WorkflowNodeOutputSet::try_new(
-        case.capability.node_capability_contract(),
-        BTreeMap::from([(case.expected_output_key.clone(), value)]),
-    )
-    .unwrap();
-    assert_eq!(output, expected);
+        assert_eq!(output, expected);
+    }
 
     let mut invalid = execution_request(
         case.capability.as_ref(),
@@ -129,6 +129,7 @@ fn literal_case() -> ActiveCapabilityBehaviorCase {
         capability,
         expected_output_key: output_key("text"),
         expected_output_type: WorkflowDataType::Text,
+        waits_for_generation_task: false,
     }
 }
 
@@ -160,6 +161,7 @@ fn asset_case(
         capability,
         expected_output_key: output_key(output),
         expected_output_type: kind,
+        waits_for_generation_task: false,
     }
 }
 
@@ -168,8 +170,7 @@ fn text_to_image_case() -> ActiveCapabilityBehaviorCase {
         TextToImageCapabilityImpl::try_new(
             catalog(),
             GenerationProfileAlwaysAvailableFakeImpl,
-            TextToImageProviderFakeImpl::try_new().unwrap(),
-            NodeCapabilityProducedMediaWriterFakeImpl::default(),
+            NodeCapabilityGenerationTaskStarterFakeImpl::default(),
         )
         .unwrap(),
     );
@@ -187,8 +188,7 @@ fn text_to_speech_case() -> ActiveCapabilityBehaviorCase {
         TextToSpeechCapabilityImpl::try_new(
             catalog(),
             GenerationProfileAlwaysAvailableFakeImpl,
-            TextToSpeechProviderFakeImpl::try_new().unwrap(),
-            NodeCapabilityProducedMediaWriterFakeImpl::default(),
+            NodeCapabilityGenerationTaskStarterFakeImpl::default(),
         )
         .unwrap(),
     );
@@ -214,6 +214,7 @@ fn generation_text_case(
         capability,
         expected_output_key: output_key(output),
         expected_output_type: output_type,
+        waits_for_generation_task: true,
     }
 }
 
@@ -238,8 +239,7 @@ fn image_to_video_case() -> ActiveCapabilityBehaviorCase {
             catalog(),
             GenerationProfileAlwaysAvailableFakeImpl,
             reader,
-            ImageToVideoProviderFakeImpl::try_new().unwrap(),
-            NodeCapabilityProducedMediaWriterFakeImpl::default(),
+            NodeCapabilityGenerationTaskStarterFakeImpl::default(),
         )
         .unwrap(),
     );
@@ -266,6 +266,7 @@ fn image_to_video_case() -> ActiveCapabilityBehaviorCase {
         inputs,
         expected_output_key: output_key("video"),
         expected_output_type: WorkflowDataType::Video,
+        waits_for_generation_task: true,
     }
 }
 

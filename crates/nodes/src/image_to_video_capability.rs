@@ -5,40 +5,38 @@ use async_trait::async_trait;
 use engine::node_capability::*;
 
 use crate::generation_capability_execution::{
-    SelectedGenerationProfile, complete_single_output, generation_profile_readiness,
-    invalid_invocation, origin_matches_contract, provider_call_interruption,
-    selected_generation_profile, write_generated_media,
+    SelectedGenerationProfile, generation_profile_readiness, invalid_invocation,
+    origin_matches_contract, resolve_inputs_interruption, selected_generation_profile,
+    start_generation_task,
 };
 use crate::{
     GenerationProfileAvailabilityReaderInterface, GenerationProfileCatalog,
-    ImageToVideoDurationSeconds, ImageToVideoProviderInterface, ImageToVideoProviderRequest,
-    NodeCapabilityManagedMediaReadRequest, NodeCapabilityManagedMediaReadSelection,
-    NodeCapabilityManagedMediaReaderInterface, NodeCapabilityManagedMediaReference,
-    NodeCapabilityMediaBoundaryError, NodeCapabilityProducedMediaPayload,
-    NodeCapabilityProducedMediaProvenance, NodeCapabilityProducedMediaWriterInterface,
+    ImageToVideoDurationSeconds, NodeCapabilityGenerationTaskAssetSnapshot,
+    NodeCapabilityGenerationTaskRequest, NodeCapabilityGenerationTaskStartRequest,
+    NodeCapabilityGenerationTaskStarterInterface, NodeCapabilityManagedMediaReadRequest,
+    NodeCapabilityManagedMediaReadSelection, NodeCapabilityManagedMediaReaderInterface,
+    NodeCapabilityManagedMediaReference, NodeCapabilityMediaBoundaryError,
     NodeCapabilityReadableImageInput, NodeCapabilityReadableMediaInput,
 };
 
 /// Generates one managed Video from an exact managed Image and optional Text.
-pub struct ImageToVideoCapabilityImpl<R, A, P, W> {
+pub struct ImageToVideoCapabilityImpl<R, A, S> {
     generation_profile_catalog: Arc<GenerationProfileCatalog>,
     generation_profile_availability_reader: A,
     managed_media_reader: R,
-    image_to_video_provider: P,
-    produced_media_writer: W,
+    generation_task_starter: S,
     contract: NodeCapabilityContract,
     image_input_key: NodeCapabilityInputKey,
     output_key: NodeCapabilityOutputKey,
 }
 
-impl<R, A, P, W> ImageToVideoCapabilityImpl<R, A, P, W> {
+impl<R, A, S> ImageToVideoCapabilityImpl<R, A, S> {
     /// Builds the frozen `video.generate_from_image@1.0` capability.
     pub fn try_new(
         generation_profile_catalog: Arc<GenerationProfileCatalog>,
         generation_profile_availability_reader: A,
         managed_media_reader: R,
-        image_to_video_provider: P,
-        produced_media_writer: W,
+        generation_task_starter: S,
     ) -> Result<Self, NodeCapabilityContractError> {
         let image_input_key = NodeCapabilityInputKey::new("image")?;
         let output_key = NodeCapabilityOutputKey::new("video")?;
@@ -46,8 +44,7 @@ impl<R, A, P, W> ImageToVideoCapabilityImpl<R, A, P, W> {
             generation_profile_catalog,
             generation_profile_availability_reader,
             managed_media_reader,
-            image_to_video_provider,
-            produced_media_writer,
+            generation_task_starter,
             contract: image_to_video_contract(image_input_key.clone(), output_key.clone())?,
             image_input_key,
             output_key,
@@ -56,12 +53,11 @@ impl<R, A, P, W> ImageToVideoCapabilityImpl<R, A, P, W> {
 }
 
 #[async_trait]
-impl<R, A, P, W> WorkflowNodeCapabilityInterface for ImageToVideoCapabilityImpl<R, A, P, W>
+impl<R, A, S> WorkflowNodeCapabilityInterface for ImageToVideoCapabilityImpl<R, A, S>
 where
     R: NodeCapabilityManagedMediaReaderInterface,
     A: GenerationProfileAvailabilityReaderInterface,
-    P: ImageToVideoProviderInterface,
-    W: NodeCapabilityProducedMediaWriterInterface,
+    S: NodeCapabilityGenerationTaskStarterInterface,
 {
     fn node_capability_contract(&self) -> &NodeCapabilityContract {
         &self.contract
@@ -94,6 +90,9 @@ where
         &self,
         request: NodeCapabilityExecutionRequest,
     ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
+        if let Some(error) = resolve_inputs_interruption(&self.contract, &request) {
+            return Err(error);
+        }
         let Some(parameters) = image_to_video_parameters(&request.normalized_parameters) else {
             return Err(invalid_invocation(&self.contract, &request));
         };
@@ -104,50 +103,38 @@ where
             return Err(invalid_invocation(&self.contract, &request));
         }
         let readable_image = self.read_exact_input_image(&request, inputs.image).await?;
-        if let Some(error) = provider_call_interruption(&self.contract, &request) {
-            return Err(error);
-        }
-        let result = self
-            .image_to_video_provider
-            .generate_video_from_image(ImageToVideoProviderRequest::new(
-                parameters.selected_profile.profile_ref.clone(),
-                request.context.clone(),
-                readable_image,
-                inputs.prompt,
-                parameters.duration_seconds,
-            ))
-            .await;
-        if let Some(error) = provider_call_interruption(&self.contract, &request) {
-            return Err(error);
-        }
-        let payload = result.map_err(|failure| {
-            NodeCapabilityExecutionError::provider_call_failed(
+        let input_image =
+            NodeCapabilityGenerationTaskAssetSnapshot::image(readable_image.media_reference());
+        let start_request = NodeCapabilityGenerationTaskStartRequest::try_new(
+            request.context.clone(),
+            request.origin.clone(),
+            parameters.selected_profile.profile_ref,
+            NodeCapabilityGenerationTaskRequest::Video {
+                input_image,
+                prompt: inputs.prompt,
+                duration_seconds: parameters.duration_seconds,
+            },
+            self.output_key.clone(),
+            vec![input_image],
+        )
+        .map_err(|failure| {
+            NodeCapabilityExecutionError::generation_task_start_failed(
                 self.contract.contract_ref().clone(),
                 request.context.node_execution_id,
                 failure,
             )
         })?;
-        let provenance = NodeCapabilityProducedMediaProvenance::try_provider_derived(
-            vec![NodeCapabilityManagedMediaReference::Image(inputs.image)],
-            parameters.selected_profile.profile_ref,
-        )
-        .map_err(|_| self.invalid_media_write_request(&request))?;
-        let value = write_generated_media(
-            &self.produced_media_writer,
+        start_generation_task(
+            &self.generation_task_starter,
             &self.contract,
             &request,
-            &self.output_key,
-            "Generated Video",
-            provenance,
-            NodeCapabilityProducedMediaPayload::GeneratedVideo(payload),
+            start_request,
         )
-        .await?;
-        complete_single_output(&self.contract, &request, &self.output_key, value)
-            .map(WorkflowNodeCapabilityExecutionOutcome::Completed)
+        .await
     }
 }
 
-impl<R, A, P, W> ImageToVideoCapabilityImpl<R, A, P, W>
+impl<R, A, S> ImageToVideoCapabilityImpl<R, A, S>
 where
     R: NodeCapabilityManagedMediaReaderInterface,
 {
@@ -249,17 +236,6 @@ where
             request.context.node_execution_id,
             self.image_input_key.clone(),
             failure,
-        )
-    }
-
-    fn invalid_media_write_request(
-        &self,
-        request: &NodeCapabilityExecutionRequest,
-    ) -> NodeCapabilityExecutionError {
-        NodeCapabilityExecutionError::invalid_result_while_constructing_media_write(
-            self.contract.contract_ref().clone(),
-            request.context.node_execution_id,
-            self.output_key.clone(),
         )
     }
 }

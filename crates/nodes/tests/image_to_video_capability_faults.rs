@@ -131,7 +131,9 @@ async fn cancellation_precedes_deadline_before_image_reader_dispatch() {
         request_context(32, Instant::now(), cancellation),
     )
     .await;
-    assert_reader_error(&error, NodeCapabilityExecutionFailure::Cancelled, 32);
+    assert_eq!(error.stage(), NodeCapabilityExecutionStage::ResolveInputs);
+    assert_eq!(error.failure(), &NodeCapabilityExecutionFailure::Cancelled);
+    assert_eq!(error.target(), &NodeCapabilityExecutionTarget::Capability);
 }
 
 async fn execute_reader_outcome(
@@ -143,8 +145,7 @@ async fn execute_reader_outcome(
         catalog(),
         GenerationProfileAlwaysAvailableFakeImpl,
         FaultManagedImageReaderImpl { outcome, image, bytes: vec![4; 16] },
-        ImageToVideoProviderFakeImpl::try_new().unwrap(),
-        NodeCapabilityProducedMediaWriterFakeImpl::default(),
+        NodeCapabilityGenerationTaskStarterFakeImpl::default(),
     )
     .unwrap();
     let request = execution_request(&capability, context, image);

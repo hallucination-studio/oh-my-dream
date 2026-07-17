@@ -1,7 +1,9 @@
 use assets::asset::domain::{AssetContentDigest, AssetId, AssetMediaKind};
 use tasks::generation_task::*;
 
-use backends::mock_generation_provider::MockGenerationProviderAdapterImpl;
+use backends::mock_generation_provider::{
+    MockGenerationProviderAdapterImpl, MockGenerationProviderRegistryImpl,
+};
 
 #[test]
 fn mock_composite_contributes_exact_image_video_and_voice_contracts() {
@@ -23,6 +25,40 @@ fn mock_composite_contributes_exact_image_video_and_voice_contracts() {
         route_ids(contract.voice().unwrap().routes()),
         ["mock.voice.multilingual-narration.v1"]
     );
+}
+
+#[test]
+fn mock_registry_resolves_only_the_exact_profile_kind_and_route() {
+    let registry = MockGenerationProviderRegistryImpl::try_new().unwrap();
+    for (profile_id, kind, route_id) in [
+        (
+            "image.high_quality_general",
+            GenerationTaskRequestKind::Image,
+            "mock.image.high-quality-general.v1",
+        ),
+        (
+            "video.cinematic_image_animation",
+            GenerationTaskRequestKind::Video,
+            "mock.video.cinematic-image-animation.v1",
+        ),
+        (
+            "speech.multilingual_narration",
+            GenerationTaskRequestKind::Voice,
+            "mock.voice.multilingual-narration.v1",
+        ),
+    ] {
+        let profile = nodes::GenerationProfileRef::new(
+            nodes::GenerationProfileId::try_new(profile_id).unwrap(),
+            nodes::GenerationProfileVersion::try_new(1).unwrap(),
+        );
+        let target = registry.target_for_profile(&profile, kind).unwrap();
+        assert_eq!(target.provider_id().as_str(), "mock");
+        assert_eq!(target.route_id().as_str(), route_id);
+        assert_eq!(
+            registry.resolve_generation_provider_route(&target, kind).unwrap().request_kind(),
+            kind
+        );
+    }
 }
 
 #[tokio::test]

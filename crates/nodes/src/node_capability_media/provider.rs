@@ -3,36 +3,12 @@ use engine::node_capability::{
     NodeCapabilityProviderFailure, WorkflowNodeExecutionContext, WorkflowTextValue,
 };
 
-use crate::GenerationProfileRef;
+use crate::{GenerationProfileRef, ImageAspectRatio, ImageToVideoDurationSeconds};
 
 use super::{
     NodeCapabilityDeclaredMediaFacts, NodeCapabilityMediaKind, NodeCapabilityMediaSourceLease,
     NodeCapabilityMediaValueError, NodeCapabilityReadableImageInput, byte_length_within_kind_limit,
 };
-
-/// Provider-independent text-to-image aspect ratio.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ImageAspectRatio {
-    /// Square 1:1.
-    Square,
-    /// Landscape 4:3.
-    LandscapeFourByThree,
-    /// Portrait 3:4.
-    PortraitThreeByFour,
-    /// Landscape 16:9.
-    LandscapeSixteenByNine,
-    /// Portrait 9:16.
-    PortraitNineBySixteen,
-}
-
-/// Provider-independent image-to-video duration.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ImageToVideoDurationSeconds {
-    /// Five seconds.
-    Five,
-    /// Ten seconds.
-    Ten,
-}
 
 macro_rules! generated_payload {
     ($name:ident, $kind:expr, $mime_type:expr, $facts_pattern:pat) => {

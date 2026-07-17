@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::time::Instant;
 
 use engine::node_capability::*;
@@ -6,11 +5,8 @@ use engine::node_capability::*;
 use crate::{
     GenerationProfileAvailabilityReaderInterface, GenerationProfileAvailabilityRequest,
     GenerationProfileAvailabilityState, GenerationProfileCatalog, GenerationProfileLifecycleState,
-    GenerationProfileRef, NodeCapabilityMediaBoundaryError, NodeCapabilityMediaKind,
-    NodeCapabilityProducedMediaDisplayName, NodeCapabilityProducedMediaOutputKey,
-    NodeCapabilityProducedMediaPayload, NodeCapabilityProducedMediaProvenance,
-    NodeCapabilityProducedMediaReference, NodeCapabilityProducedMediaWriteRequest,
-    NodeCapabilityProducedMediaWriterInterface,
+    GenerationProfileRef, NodeCapabilityGenerationTaskStartRequest,
+    NodeCapabilityGenerationTaskStarterInterface,
 };
 
 pub(crate) struct SelectedGenerationProfile {
@@ -147,18 +143,18 @@ pub(crate) fn required_text_input(
     }
 }
 
-pub(crate) fn provider_call_interruption(
+pub(crate) fn resolve_inputs_interruption(
     contract: &NodeCapabilityContract,
     request: &NodeCapabilityExecutionRequest,
 ) -> Option<NodeCapabilityExecutionError> {
     if request.context.cancellation.is_cancelled() {
-        return Some(NodeCapabilityExecutionError::cancelled_while_calling_provider(
+        return Some(NodeCapabilityExecutionError::cancelled_while_resolving_inputs(
             contract.contract_ref().clone(),
             request.context.node_execution_id,
         ));
     }
     if request.context.deadline.is_reached_at(Instant::now()) {
-        return Some(NodeCapabilityExecutionError::deadline_exceeded_while_calling_provider(
+        return Some(NodeCapabilityExecutionError::deadline_exceeded_while_resolving_inputs(
             contract.contract_ref().clone(),
             request.context.node_execution_id,
         ));
@@ -166,168 +162,35 @@ pub(crate) fn provider_call_interruption(
     None
 }
 
-pub(crate) async fn write_generated_media<W>(
-    writer: &W,
+pub(crate) async fn start_generation_task<S>(
+    starter: &S,
     contract: &NodeCapabilityContract,
-    request: &NodeCapabilityExecutionRequest,
-    output_key: &NodeCapabilityOutputKey,
-    display_name: &str,
-    provenance: NodeCapabilityProducedMediaProvenance,
-    payload: NodeCapabilityProducedMediaPayload,
-) -> Result<WorkflowRuntimeValue, NodeCapabilityExecutionError>
+    execution_request: &NodeCapabilityExecutionRequest,
+    start_request: NodeCapabilityGenerationTaskStartRequest,
+) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError>
 where
-    W: NodeCapabilityProducedMediaWriterInterface,
+    S: NodeCapabilityGenerationTaskStarterInterface,
 {
-    let expected_kind = payload.media_kind();
-    let expected_digest = payload.digest();
-    let write_request = NodeCapabilityProducedMediaWriteRequest::try_new(
-        request.context.clone(),
-        request.origin.clone(),
-        NodeCapabilityProducedMediaOutputKey::new(
-            request.context.workflow_run_id,
-            request.context.node_execution_id,
-            output_key.clone(),
-            0,
-        ),
-        NodeCapabilityProducedMediaDisplayName::try_new(display_name).map_err(|_| {
-            invalid_result_while_constructing_media_write(contract, request, output_key)
-        })?,
-        provenance,
-        payload,
-    )
-    .map_err(|_| invalid_result_while_constructing_media_write(contract, request, output_key))?;
-    if let Some(error) = media_write_interruption(contract, request, output_key) {
-        return Err(error);
-    }
-    let result = writer.write_node_output_media(write_request).await;
-    if let Some(error) = media_write_interruption(contract, request, output_key) {
-        return Err(error);
-    }
-    let reference =
-        result.map_err(|error| media_write_boundary_error(contract, request, output_key, error))?;
-    produced_runtime_value(contract, request, output_key, expected_kind, expected_digest, reference)
-}
-
-pub(crate) fn complete_single_output(
-    contract: &NodeCapabilityContract,
-    request: &NodeCapabilityExecutionRequest,
-    output_key: &NodeCapabilityOutputKey,
-    value: WorkflowRuntimeValue,
-) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
-    WorkflowNodeOutputSet::try_new(contract, BTreeMap::from([(output_key.clone(), value)])).map_err(
-        |_| {
-            NodeCapabilityExecutionError::invalid_result_while_assembling_outputs(
-                contract.contract_ref().clone(),
-                request.context.node_execution_id,
-                output_key.clone(),
-            )
-        },
-    )
-}
-
-fn invalid_result_while_constructing_media_write(
-    contract: &NodeCapabilityContract,
-    request: &NodeCapabilityExecutionRequest,
-    output_key: &NodeCapabilityOutputKey,
-) -> NodeCapabilityExecutionError {
-    NodeCapabilityExecutionError::invalid_result_while_constructing_media_write(
-        contract.contract_ref().clone(),
-        request.context.node_execution_id,
-        output_key.clone(),
-    )
-}
-
-fn media_write_interruption(
-    contract: &NodeCapabilityContract,
-    request: &NodeCapabilityExecutionRequest,
-    output_key: &NodeCapabilityOutputKey,
-) -> Option<NodeCapabilityExecutionError> {
-    if request.context.cancellation.is_cancelled() {
-        return Some(NodeCapabilityExecutionError::cancelled_while_writing_output(
+    if execution_request.context.cancellation.is_cancelled() {
+        return Err(NodeCapabilityExecutionError::cancelled_while_starting_generation_task(
             contract.contract_ref().clone(),
-            request.context.node_execution_id,
-            output_key.clone(),
+            execution_request.context.node_execution_id,
         ));
     }
-    if request.context.deadline.is_reached_at(Instant::now()) {
-        return Some(NodeCapabilityExecutionError::deadline_exceeded_while_writing_output(
-            contract.contract_ref().clone(),
-            request.context.node_execution_id,
-            output_key.clone(),
-        ));
+    if execution_request.context.deadline.is_reached_at(Instant::now()) {
+        return Err(
+            NodeCapabilityExecutionError::deadline_exceeded_while_starting_generation_task(
+                contract.contract_ref().clone(),
+                execution_request.context.node_execution_id,
+            ),
+        );
     }
-    None
-}
-
-fn media_write_boundary_error(
-    contract: &NodeCapabilityContract,
-    request: &NodeCapabilityExecutionRequest,
-    output_key: &NodeCapabilityOutputKey,
-    error: NodeCapabilityMediaBoundaryError,
-) -> NodeCapabilityExecutionError {
-    match error {
-        NodeCapabilityMediaBoundaryError::Cancelled => {
-            NodeCapabilityExecutionError::cancelled_while_writing_output(
-                contract.contract_ref().clone(),
-                request.context.node_execution_id,
-                output_key.clone(),
-            )
-        }
-        NodeCapabilityMediaBoundaryError::DeadlineExceeded => {
-            NodeCapabilityExecutionError::deadline_exceeded_while_writing_output(
-                contract.contract_ref().clone(),
-                request.context.node_execution_id,
-                output_key.clone(),
-            )
-        }
-        NodeCapabilityMediaBoundaryError::Media(failure) => {
-            NodeCapabilityExecutionError::managed_media_output_write_failed(
-                contract.contract_ref().clone(),
-                request.context.node_execution_id,
-                output_key.clone(),
-                failure,
-            )
-        }
-    }
-}
-
-fn produced_runtime_value(
-    contract: &NodeCapabilityContract,
-    request: &NodeCapabilityExecutionRequest,
-    output_key: &NodeCapabilityOutputKey,
-    expected_kind: NodeCapabilityMediaKind,
-    expected_digest: crate::NodeCapabilityMediaContentDigest,
-    reference: NodeCapabilityProducedMediaReference,
-) -> Result<WorkflowRuntimeValue, NodeCapabilityExecutionError> {
-    let observed_kind = reference.media_kind();
-    let (fingerprint, value) = match reference {
-        NodeCapabilityProducedMediaReference::Image(value) => {
-            (value.content_fingerprint(), WorkflowRuntimeValue::Image(value))
-        }
-        NodeCapabilityProducedMediaReference::Video(value) => {
-            (value.content_fingerprint(), WorkflowRuntimeValue::Video(value))
-        }
-        NodeCapabilityProducedMediaReference::Audio(value) => {
-            (value.content_fingerprint(), WorkflowRuntimeValue::Audio(value))
-        }
-    };
-    let failure = if observed_kind != expected_kind {
-        Some(NodeCapabilityMediaFailure::KindMismatch {
-            expected: expected_kind.to_workflow_data_type(),
-            observed: observed_kind.to_workflow_data_type(),
-        })
-    } else if fingerprint.as_bytes() != expected_digest.as_bytes() {
-        Some(NodeCapabilityMediaFailure::DigestMismatch)
-    } else {
-        None
-    };
-    match failure {
-        Some(failure) => Err(NodeCapabilityExecutionError::managed_media_output_write_failed(
+    starter.start_generation_task(start_request).await.map_err(|failure| {
+        NodeCapabilityExecutionError::generation_task_start_failed(
             contract.contract_ref().clone(),
-            request.context.node_execution_id,
-            output_key.clone(),
+            execution_request.context.node_execution_id,
             failure,
-        )),
-        None => Ok(value),
-    }
+        )
+    })?;
+    Ok(WorkflowNodeCapabilityExecutionOutcome::WaitingForGenerationTask)
 }

@@ -280,6 +280,11 @@ fn encode_source(value: &NodeCapabilityExecutionFailure) -> ExecutionSourcePaylo
         NodeCapabilityExecutionFailure::Media(value) => {
             ExecutionSourcePayload::Media(encode_media_failure(*value))
         }
+        NodeCapabilityExecutionFailure::GenerationTaskStart(value) => {
+            ExecutionSourcePayload::GenerationTaskStart(encode_generation_task_start_failure(
+                *value,
+            ))
+        }
         NodeCapabilityExecutionFailure::Cancelled => ExecutionSourcePayload::Cancelled,
         NodeCapabilityExecutionFailure::DeadlineExceeded => {
             ExecutionSourcePayload::DeadlineExceeded
@@ -312,6 +317,11 @@ fn decode_source(
         ExecutionSourcePayload::Media(value) => {
             Ok(NodeCapabilityExecutionFailure::Media(decode_media_failure(value)))
         }
+        ExecutionSourcePayload::GenerationTaskStart(value) => {
+            Ok(NodeCapabilityExecutionFailure::GenerationTaskStart(
+                decode_generation_task_start_failure(value),
+            ))
+        }
         ExecutionSourcePayload::Cancelled => Ok(NodeCapabilityExecutionFailure::Cancelled),
         ExecutionSourcePayload::DeadlineExceeded => {
             Ok(NodeCapabilityExecutionFailure::DeadlineExceeded)
@@ -322,6 +332,7 @@ fn decode_source(
 fn encode_stage(value: NodeCapabilityExecutionStage) -> StagePayload {
     match value {
         NodeCapabilityExecutionStage::ResolveInputs => StagePayload::ResolveInputs,
+        NodeCapabilityExecutionStage::StartGenerationTask => StagePayload::StartGenerationTask,
         NodeCapabilityExecutionStage::CallProvider => StagePayload::CallProvider,
         NodeCapabilityExecutionStage::ValidateProviderResult => {
             StagePayload::ValidateProviderResult
@@ -334,6 +345,7 @@ fn encode_stage(value: NodeCapabilityExecutionStage) -> StagePayload {
 fn decode_stage(value: StagePayload) -> NodeCapabilityExecutionStage {
     match value {
         StagePayload::ResolveInputs => NodeCapabilityExecutionStage::ResolveInputs,
+        StagePayload::StartGenerationTask => NodeCapabilityExecutionStage::StartGenerationTask,
         StagePayload::CallProvider => NodeCapabilityExecutionStage::CallProvider,
         StagePayload::ValidateProviderResult => {
             NodeCapabilityExecutionStage::ValidateProviderResult

@@ -47,11 +47,30 @@ pub enum NodeCapabilityMediaFailure {
     FinalizationFailed,
 }
 
+/// Closed safe durable Generation Task start failure.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeCapabilityGenerationTaskStartFailure {
+    /// The translated request was not valid.
+    InvalidRequest,
+    /// The idempotency coordinates conflict with different facts.
+    Conflict,
+    /// Task admission is currently unavailable.
+    Unavailable,
+    /// Cancellation was observed before durable admission.
+    Cancelled,
+    /// Deadline was reached before durable admission.
+    DeadlineExceeded,
+    /// Durable Task persistence failed.
+    Persistence,
+}
+
 /// Stage at which exact capability execution failed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeCapabilityExecutionStage {
     /// Runtime input or external selection resolution.
     ResolveInputs,
+    /// Durable Generation Task admission.
+    StartGenerationTask,
     /// Exact provider interface invocation.
     CallProvider,
     /// Provider result validation.
@@ -86,6 +105,8 @@ pub enum NodeCapabilityExecutionFailure {
     Readiness(NodeCapabilityReadinessIssue),
     /// Provider boundary failed.
     Provider(NodeCapabilityProviderFailure),
+    /// Durable Generation Task admission failed safely.
+    GenerationTaskStart(NodeCapabilityGenerationTaskStartFailure),
     /// Managed-media boundary failed.
     Media(NodeCapabilityMediaFailure),
     /// Cancellation was observed.

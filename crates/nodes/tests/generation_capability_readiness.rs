@@ -181,14 +181,12 @@ fn capability(
     requests: Arc<Mutex<Vec<AvailabilityRequestSnapshot>>>,
 ) -> TextToImageCapabilityImpl<
     RecordingAvailabilityReaderImpl,
-    TextToImageProviderFakeImpl,
-    NodeCapabilityProducedMediaWriterFakeImpl,
+    NodeCapabilityGenerationTaskStarterFakeImpl,
 > {
     TextToImageCapabilityImpl::try_new(
         catalog(),
         RecordingAvailabilityReaderImpl { outcome, requests },
-        TextToImageProviderFakeImpl::try_new().unwrap(),
-        NodeCapabilityProducedMediaWriterFakeImpl::default(),
+        NodeCapabilityGenerationTaskStarterFakeImpl::default(),
     )
     .unwrap()
 }

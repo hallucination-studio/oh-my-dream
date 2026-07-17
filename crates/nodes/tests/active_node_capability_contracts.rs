@@ -62,8 +62,7 @@ fn active_capability_test_fixture() -> Vec<Arc<dyn WorkflowNodeCapabilityInterfa
             TextToImageCapabilityImpl::try_new(
                 catalog.clone(),
                 GenerationProfileAlwaysAvailableFakeImpl,
-                TextToImageProviderFakeImpl::try_new().unwrap(),
-                NodeCapabilityProducedMediaWriterFakeImpl::default(),
+                NodeCapabilityGenerationTaskStarterFakeImpl::default(),
             )
             .unwrap(),
         ),
@@ -72,8 +71,7 @@ fn active_capability_test_fixture() -> Vec<Arc<dyn WorkflowNodeCapabilityInterfa
                 catalog.clone(),
                 GenerationProfileAlwaysAvailableFakeImpl,
                 NodeCapabilityManagedMediaReaderFakeImpl::default(),
-                ImageToVideoProviderFakeImpl::try_new().unwrap(),
-                NodeCapabilityProducedMediaWriterFakeImpl::default(),
+                NodeCapabilityGenerationTaskStarterFakeImpl::default(),
             )
             .unwrap(),
         ),
@@ -81,8 +79,7 @@ fn active_capability_test_fixture() -> Vec<Arc<dyn WorkflowNodeCapabilityInterfa
             TextToSpeechCapabilityImpl::try_new(
                 catalog,
                 GenerationProfileAlwaysAvailableFakeImpl,
-                TextToSpeechProviderFakeImpl::try_new().unwrap(),
-                NodeCapabilityProducedMediaWriterFakeImpl::default(),
+                NodeCapabilityGenerationTaskStarterFakeImpl::default(),
             )
             .unwrap(),
         ),

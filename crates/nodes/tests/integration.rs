@@ -25,6 +25,8 @@ mod generation_capability_readiness;
 mod generation_profile_availability;
 #[path = "generation_profile_catalog.rs"]
 mod generation_profile_catalog;
+#[path = "generation_task_start_contract.rs"]
+mod generation_task_start_contract;
 #[path = "image_to_video_capability_faults.rs"]
 mod image_to_video_capability_faults;
 #[path = "image_to_video_capability_mapping.rs"]

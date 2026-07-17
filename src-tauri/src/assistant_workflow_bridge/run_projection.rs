@@ -163,6 +163,10 @@ fn failure_source(value: &NodeCapabilityExecutionFailure) -> Value {
         NodeCapabilityExecutionFailure::Media(failure) => {
             json!({"type": "media", "detail": media_failure(failure)})
         }
+        NodeCapabilityExecutionFailure::GenerationTaskStart(failure) => json!({
+            "type": "generation_task_start",
+            "category": generation_task_start_failure(*failure),
+        }),
         NodeCapabilityExecutionFailure::Cancelled => json!({"type": "cancelled"}),
         NodeCapabilityExecutionFailure::DeadlineExceeded => json!({"type": "deadline_exceeded"}),
     }
@@ -262,10 +266,20 @@ macro_rules! enum_tag {
 
 enum_tag!(execution_stage, engine::node_capability::NodeCapabilityExecutionStage, {
     engine::node_capability::NodeCapabilityExecutionStage::ResolveInputs => "resolve_inputs",
+    engine::node_capability::NodeCapabilityExecutionStage::StartGenerationTask => "start_generation_task",
     engine::node_capability::NodeCapabilityExecutionStage::CallProvider => "call_provider",
     engine::node_capability::NodeCapabilityExecutionStage::ValidateProviderResult => "validate_provider_result",
     engine::node_capability::NodeCapabilityExecutionStage::WriteManagedMedia => "write_managed_media",
     engine::node_capability::NodeCapabilityExecutionStage::AssembleOutputs => "assemble_outputs",
+});
+
+enum_tag!(generation_task_start_failure, engine::node_capability::NodeCapabilityGenerationTaskStartFailure, {
+    engine::node_capability::NodeCapabilityGenerationTaskStartFailure::InvalidRequest => "invalid_request",
+    engine::node_capability::NodeCapabilityGenerationTaskStartFailure::Conflict => "conflict",
+    engine::node_capability::NodeCapabilityGenerationTaskStartFailure::Unavailable => "unavailable",
+    engine::node_capability::NodeCapabilityGenerationTaskStartFailure::Cancelled => "cancelled",
+    engine::node_capability::NodeCapabilityGenerationTaskStartFailure::DeadlineExceeded => "deadline_exceeded",
+    engine::node_capability::NodeCapabilityGenerationTaskStartFailure::Persistence => "persistence",
 });
 
 enum_tag!(provider_category, NodeCapabilityProviderFailureCategory, {

@@ -2,6 +2,7 @@
 
 use async_trait::async_trait;
 use projects::project::domain::ProjectId;
+use std::sync::Arc;
 
 use super::provider::GenerationProviderRouteResolutionError;
 use crate::generation_task::application::{
@@ -78,6 +79,18 @@ pub trait GenerationProviderRegistryInterface: Send + Sync {
         target: &GenerationTaskTarget,
         request_kind: GenerationTaskRequestKind,
     ) -> Result<&GenerationProviderResolvedRoute, GenerationProviderRegistryError>;
+}
+
+impl<T: GenerationProviderRegistryInterface + ?Sized> GenerationProviderRegistryInterface
+    for Arc<T>
+{
+    fn resolve_generation_provider_route(
+        &self,
+        target: &GenerationTaskTarget,
+        request_kind: GenerationTaskRequestKind,
+    ) -> Result<&GenerationProviderResolvedRoute, GenerationProviderRegistryError> {
+        self.as_ref().resolve_generation_provider_route(target, request_kind)
+    }
 }
 
 /// Task-owned wall-clock boundary.

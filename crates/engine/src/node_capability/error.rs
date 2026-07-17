@@ -5,9 +5,9 @@ use thiserror::Error;
 use super::{
     NodeCapabilityContractRef, NodeCapabilityExecutionErrorConstructionError,
     NodeCapabilityExecutionFailure, NodeCapabilityExecutionStage, NodeCapabilityExecutionTarget,
-    NodeCapabilityInputKey, NodeCapabilityMediaFailure, NodeCapabilityOutputKey,
-    NodeCapabilityParameterKey, NodeCapabilityProviderFailure, WorkflowNodeExecutionId,
-    readiness_parameter_key,
+    NodeCapabilityGenerationTaskStartFailure, NodeCapabilityInputKey, NodeCapabilityMediaFailure,
+    NodeCapabilityOutputKey, NodeCapabilityParameterKey, NodeCapabilityProviderFailure,
+    WorkflowNodeExecutionId, readiness_parameter_key,
 };
 
 /// Structured safe failure returned by one capability execution.
@@ -237,6 +237,48 @@ impl NodeCapabilityExecutionError {
         )
     }
 
+    /// Creates one safe durable Generation Task admission failure.
+    #[must_use]
+    pub fn generation_task_start_failed(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+        failure: NodeCapabilityGenerationTaskStartFailure,
+    ) -> Self {
+        Self::operation_failure(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityExecutionStage::StartGenerationTask,
+            NodeCapabilityExecutionFailure::GenerationTaskStart(failure),
+            NodeCapabilityExecutionTarget::Capability,
+        )
+    }
+
+    /// Creates cancellation observed immediately before durable Task admission.
+    #[must_use]
+    pub fn cancelled_while_starting_generation_task(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+    ) -> Self {
+        Self::generation_task_start_failed(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityGenerationTaskStartFailure::Cancelled,
+        )
+    }
+
+    /// Creates deadline failure observed immediately before durable Task admission.
+    #[must_use]
+    pub fn deadline_exceeded_while_starting_generation_task(
+        contract_ref: NodeCapabilityContractRef,
+        node_execution_id: WorkflowNodeExecutionId,
+    ) -> Self {
+        Self::generation_task_start_failed(
+            contract_ref,
+            node_execution_id,
+            NodeCapabilityGenerationTaskStartFailure::DeadlineExceeded,
+        )
+    }
+
     /// Creates exact managed-media failure observed while writing one output.
     #[must_use]
     pub fn managed_media_output_write_failed(
@@ -327,6 +369,9 @@ impl NodeCapabilityExecutionError {
             NodeCapabilityExecutionStage::CallProvider => {
                 matches!(target, NodeCapabilityExecutionTarget::Capability)
             }
+            NodeCapabilityExecutionStage::StartGenerationTask => {
+                matches!(target, NodeCapabilityExecutionTarget::Capability)
+            }
             NodeCapabilityExecutionStage::ValidateProviderResult
             | NodeCapabilityExecutionStage::WriteManagedMedia => matches!(
                 target,
@@ -361,11 +406,15 @@ impl NodeCapabilityExecutionError {
             );
         let assemble_outputs_failure_shape = stage == NodeCapabilityExecutionStage::AssembleOutputs
             && failure != NodeCapabilityExecutionFailure::InvalidCapabilityResult;
+        let generation_task_start_failure_shape =
+            matches!(failure, NodeCapabilityExecutionFailure::GenerationTaskStart(_))
+                != (stage == NodeCapabilityExecutionStage::StartGenerationTask);
         if !valid_target
             || !readiness_target_matches
             || invalid_invocation_shape
             || invalid_result_shape
             || assemble_outputs_failure_shape
+            || generation_task_start_failure_shape
         {
             return Err(NodeCapabilityExecutionErrorConstructionError);
         }

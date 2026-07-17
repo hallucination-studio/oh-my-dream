@@ -13,6 +13,7 @@ use assets::asset::{
         AssetManagedContentStoreInterface, AssetMediaInspectorInterface, AssetRepositoryInterface,
     },
 };
+use backends::mock_generation_provider::MockGenerationProviderRegistryImpl;
 use backends::provider_routing::{
     ImageToVideoProviderRouteInterface, ImageToVideoProviderRouterImpl,
     ProviderRouterGenerationProfileAvailabilityReaderAdapterImpl,
@@ -23,8 +24,9 @@ use engine::node_capability::{WorkflowNodeCapabilityInterface, WorkflowNodeCapab
 use nodes::{
     GenerationProfileAvailabilityReaderInterface, GenerationProfileCatalog, GenerationProfileId,
     GenerationProfileRef, GenerationProfileVersion, ImageToVideoCapabilityImpl,
-    ProvideLiteralTextCapabilityImpl, ReadAudioAssetCapabilityImpl, ReadImageAssetCapabilityImpl,
-    ReadVideoAssetCapabilityImpl, TextToImageCapabilityImpl, TextToSpeechCapabilityImpl,
+    NodeCapabilityGenerationTaskStarterInterface, ProvideLiteralTextCapabilityImpl,
+    ReadAudioAssetCapabilityImpl, ReadImageAssetCapabilityImpl, ReadVideoAssetCapabilityImpl,
+    TextToImageCapabilityImpl, TextToSpeechCapabilityImpl,
 };
 use rusqlite::Connection;
 
@@ -45,6 +47,10 @@ use crate::{
     desktop_backend_config::{DesktopBackendConfig, GenerationProviderRouteConfig},
     desktop_bridges::DesktopWorkflowMediaPreviewAdapterImpl,
     desktop_node_capability_asset_bridge::DesktopNodeCapabilityAssetBridgeAdapterImpl,
+    generation_task_start_adapter::{
+        DesktopNodeCapabilityGenerationTaskStartAdapterImpl, SystemGenerationTaskClockAdapterImpl,
+    },
+    generation_task_storage_adapter::SqliteGenerationTaskRepositoryAdapterImpl,
     provider_adapters::{
         ElevenLabsTextToSpeechProviderRouteImpl, ElevenLabsVoiceId,
         FalImageToVideoProviderRouteImpl, FalTextToImageProviderRouteImpl,
@@ -72,7 +78,7 @@ pub(super) fn compose_node_capabilities(
     config: &DesktopBackendConfig,
 ) -> Result<DesktopNodeCapabilityComposition, DesktopCompositionError> {
     let assets =
-        compose_asset_bridge(connection, managed_content_root, media_inspector_executable)?;
+        compose_asset_bridge(connection.clone(), managed_content_root, media_inspector_executable)?;
     let (text_to_image, image_to_video, text_to_speech) =
         compose_provider_routers(settings, &config.generation_provider_routes)?;
     let availability = Arc::new(ProviderRouterGenerationProfileAvailabilityReaderAdapterImpl::new(
@@ -83,6 +89,18 @@ pub(super) fn compose_node_capabilities(
     let catalog = Arc::new(
         GenerationProfileCatalog::frozen_mvp().map_err(|_| DesktopCompositionError::Business)?,
     );
+    let task_repository = SqliteGenerationTaskRepositoryAdapterImpl::try_new(connection.clone())
+        .map_err(|_| DesktopCompositionError::Business)?;
+    let task_registry = Arc::new(
+        MockGenerationProviderRegistryImpl::try_new()
+            .map_err(|_| DesktopCompositionError::Business)?,
+    );
+    let task_starter: Arc<dyn NodeCapabilityGenerationTaskStarterInterface> =
+        Arc::new(DesktopNodeCapabilityGenerationTaskStartAdapterImpl::new(
+            task_repository,
+            task_registry,
+            SystemGenerationTaskClockAdapterImpl::default(),
+        ));
     let implementations: Vec<Arc<dyn WorkflowNodeCapabilityInterface>> = vec![
         Arc::new(
             ProvideLiteralTextCapabilityImpl::try_new()
@@ -104,8 +122,7 @@ pub(super) fn compose_node_capabilities(
             TextToImageCapabilityImpl::try_new(
                 catalog.clone(),
                 availability.clone(),
-                text_to_image,
-                assets.bridge.clone(),
+                task_starter.clone(),
             )
             .map_err(|_| DesktopCompositionError::Business)?,
         ),
@@ -114,8 +131,7 @@ pub(super) fn compose_node_capabilities(
                 catalog.clone(),
                 availability.clone(),
                 assets.bridge.clone(),
-                image_to_video,
-                assets.bridge.clone(),
+                task_starter.clone(),
             )
             .map_err(|_| DesktopCompositionError::Business)?,
         ),
@@ -123,8 +139,7 @@ pub(super) fn compose_node_capabilities(
             TextToSpeechCapabilityImpl::try_new(
                 catalog.clone(),
                 availability.clone(),
-                text_to_speech,
-                assets.bridge,
+                task_starter,
             )
             .map_err(|_| DesktopCompositionError::Business)?,
         ),

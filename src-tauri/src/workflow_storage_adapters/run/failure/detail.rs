@@ -1,6 +1,6 @@
 use engine::node_capability::{
-    NodeCapabilityGenerationProfileRefParameterValue, NodeCapabilityMediaFailure,
-    NodeCapabilityParameterKey, NodeCapabilityProviderFailureCategory,
+    NodeCapabilityGenerationProfileRefParameterValue, NodeCapabilityGenerationTaskStartFailure,
+    NodeCapabilityMediaFailure, NodeCapabilityParameterKey, NodeCapabilityProviderFailureCategory,
     NodeCapabilityReadinessCategory, NodeCapabilityReadinessIssue, NodeCapabilityReadinessTarget,
     WorkflowDataType, WorkflowManagedAssetIdBoundaryValue,
 };
@@ -12,6 +12,7 @@ use super::super::super::persistence;
 #[derive(Serialize, Deserialize)]
 pub(super) enum StagePayload {
     ResolveInputs,
+    StartGenerationTask,
     CallProvider,
     ValidateProviderResult,
     WriteManagedMedia,
@@ -37,8 +38,69 @@ pub(super) enum ExecutionSourcePayload {
         safe_retry_after_nanos: Option<u64>,
     },
     Media(MediaFailurePayload),
+    GenerationTaskStart(GenerationTaskStartFailurePayload),
     Cancelled,
     DeadlineExceeded,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(super) enum GenerationTaskStartFailurePayload {
+    InvalidRequest,
+    Conflict,
+    Unavailable,
+    Cancelled,
+    DeadlineExceeded,
+    Persistence,
+}
+
+pub(super) fn encode_generation_task_start_failure(
+    value: NodeCapabilityGenerationTaskStartFailure,
+) -> GenerationTaskStartFailurePayload {
+    match value {
+        NodeCapabilityGenerationTaskStartFailure::InvalidRequest => {
+            GenerationTaskStartFailurePayload::InvalidRequest
+        }
+        NodeCapabilityGenerationTaskStartFailure::Conflict => {
+            GenerationTaskStartFailurePayload::Conflict
+        }
+        NodeCapabilityGenerationTaskStartFailure::Unavailable => {
+            GenerationTaskStartFailurePayload::Unavailable
+        }
+        NodeCapabilityGenerationTaskStartFailure::Cancelled => {
+            GenerationTaskStartFailurePayload::Cancelled
+        }
+        NodeCapabilityGenerationTaskStartFailure::DeadlineExceeded => {
+            GenerationTaskStartFailurePayload::DeadlineExceeded
+        }
+        NodeCapabilityGenerationTaskStartFailure::Persistence => {
+            GenerationTaskStartFailurePayload::Persistence
+        }
+    }
+}
+
+pub(super) fn decode_generation_task_start_failure(
+    value: GenerationTaskStartFailurePayload,
+) -> NodeCapabilityGenerationTaskStartFailure {
+    match value {
+        GenerationTaskStartFailurePayload::InvalidRequest => {
+            NodeCapabilityGenerationTaskStartFailure::InvalidRequest
+        }
+        GenerationTaskStartFailurePayload::Conflict => {
+            NodeCapabilityGenerationTaskStartFailure::Conflict
+        }
+        GenerationTaskStartFailurePayload::Unavailable => {
+            NodeCapabilityGenerationTaskStartFailure::Unavailable
+        }
+        GenerationTaskStartFailurePayload::Cancelled => {
+            NodeCapabilityGenerationTaskStartFailure::Cancelled
+        }
+        GenerationTaskStartFailurePayload::DeadlineExceeded => {
+            NodeCapabilityGenerationTaskStartFailure::DeadlineExceeded
+        }
+        GenerationTaskStartFailurePayload::Persistence => {
+            NodeCapabilityGenerationTaskStartFailure::Persistence
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]

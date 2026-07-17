@@ -4,41 +4,36 @@ use async_trait::async_trait;
 use engine::node_capability::*;
 
 use crate::generation_capability_execution::{
-    complete_single_output, generation_profile_readiness, invalid_invocation,
-    origin_matches_contract, provider_call_interruption, required_text_input,
-    selected_generation_profile, write_generated_media,
+    generation_profile_readiness, invalid_invocation, origin_matches_contract, required_text_input,
+    resolve_inputs_interruption, selected_generation_profile, start_generation_task,
 };
 use crate::{
     GenerationProfileAvailabilityReaderInterface, GenerationProfileCatalog,
-    NodeCapabilityProducedMediaPayload, NodeCapabilityProducedMediaProvenance,
-    NodeCapabilityProducedMediaWriterInterface, TextToSpeechProviderInterface,
-    TextToSpeechProviderRequest,
+    NodeCapabilityGenerationTaskRequest, NodeCapabilityGenerationTaskStartRequest,
+    NodeCapabilityGenerationTaskStarterInterface,
 };
 
 /// Synthesizes one managed speech Audio value from structured Text.
-pub struct TextToSpeechCapabilityImpl<A, P, W> {
+pub struct TextToSpeechCapabilityImpl<A, S> {
     generation_profile_catalog: Arc<GenerationProfileCatalog>,
     generation_profile_availability_reader: A,
-    text_to_speech_provider: P,
-    produced_media_writer: W,
+    generation_task_starter: S,
     contract: NodeCapabilityContract,
     output_key: NodeCapabilityOutputKey,
 }
 
-impl<A, P, W> TextToSpeechCapabilityImpl<A, P, W> {
+impl<A, S> TextToSpeechCapabilityImpl<A, S> {
     /// Builds the frozen `audio.synthesize_speech_from_text@1.0` capability.
     pub fn try_new(
         generation_profile_catalog: Arc<GenerationProfileCatalog>,
         generation_profile_availability_reader: A,
-        text_to_speech_provider: P,
-        produced_media_writer: W,
+        generation_task_starter: S,
     ) -> Result<Self, NodeCapabilityContractError> {
         let output_key = NodeCapabilityOutputKey::new("audio")?;
         Ok(Self {
             generation_profile_catalog,
             generation_profile_availability_reader,
-            text_to_speech_provider,
-            produced_media_writer,
+            generation_task_starter,
             contract: text_to_speech_contract(output_key.clone())?,
             output_key,
         })
@@ -46,11 +41,10 @@ impl<A, P, W> TextToSpeechCapabilityImpl<A, P, W> {
 }
 
 #[async_trait]
-impl<A, P, W> WorkflowNodeCapabilityInterface for TextToSpeechCapabilityImpl<A, P, W>
+impl<A, S> WorkflowNodeCapabilityInterface for TextToSpeechCapabilityImpl<A, S>
 where
     A: GenerationProfileAvailabilityReaderInterface,
-    P: TextToSpeechProviderInterface,
-    W: NodeCapabilityProducedMediaWriterInterface,
+    S: NodeCapabilityGenerationTaskStarterInterface,
 {
     fn node_capability_contract(&self) -> &NodeCapabilityContract {
         &self.contract
@@ -81,6 +75,9 @@ where
         &self,
         request: NodeCapabilityExecutionRequest,
     ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
+        if let Some(error) = resolve_inputs_interruption(&self.contract, &request) {
+            return Err(error);
+        }
         let Some(selected_profile) = selected_generation_profile(&request.normalized_parameters, 1)
         else {
             return Err(invalid_invocation(&self.contract, &request));
@@ -91,39 +88,28 @@ where
         if request.inputs.len() != 1 || !origin_matches_contract(&self.contract, &request) {
             return Err(invalid_invocation(&self.contract, &request));
         }
-        if let Some(error) = provider_call_interruption(&self.contract, &request) {
-            return Err(error);
-        }
-        let result = self
-            .text_to_speech_provider
-            .synthesize_speech_from_text(TextToSpeechProviderRequest::new(
-                selected_profile.profile_ref.clone(),
-                request.context.clone(),
-                text,
-            ))
-            .await;
-        if let Some(error) = provider_call_interruption(&self.contract, &request) {
-            return Err(error);
-        }
-        let payload = result.map_err(|failure| {
-            NodeCapabilityExecutionError::provider_call_failed(
+        let start_request = NodeCapabilityGenerationTaskStartRequest::try_new(
+            request.context.clone(),
+            request.origin.clone(),
+            selected_profile.profile_ref,
+            NodeCapabilityGenerationTaskRequest::Voice { text },
+            self.output_key.clone(),
+            Vec::new(),
+        )
+        .map_err(|failure| {
+            NodeCapabilityExecutionError::generation_task_start_failed(
                 self.contract.contract_ref().clone(),
                 request.context.node_execution_id,
                 failure,
             )
         })?;
-        let value = write_generated_media(
-            &self.produced_media_writer,
+        start_generation_task(
+            &self.generation_task_starter,
             &self.contract,
             &request,
-            &self.output_key,
-            "Synthesized Speech",
-            NodeCapabilityProducedMediaProvenance::provider_generated(selected_profile.profile_ref),
-            NodeCapabilityProducedMediaPayload::SynthesizedSpeech(payload),
+            start_request,
         )
-        .await?;
-        complete_single_output(&self.contract, &request, &self.output_key, value)
-            .map(WorkflowNodeCapabilityExecutionOutcome::Completed)
+        .await
     }
 }
 

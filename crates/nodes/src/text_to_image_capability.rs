@@ -4,41 +4,37 @@ use async_trait::async_trait;
 use engine::node_capability::*;
 
 use crate::generation_capability_execution::{
-    SelectedGenerationProfile, complete_single_output, generation_profile_readiness,
-    invalid_invocation, origin_matches_contract, provider_call_interruption, required_text_input,
-    selected_generation_profile, write_generated_media,
+    SelectedGenerationProfile, generation_profile_readiness, invalid_invocation,
+    origin_matches_contract, required_text_input, resolve_inputs_interruption,
+    selected_generation_profile, start_generation_task,
 };
 use crate::{
     GenerationProfileAvailabilityReaderInterface, GenerationProfileCatalog, ImageAspectRatio,
-    NodeCapabilityProducedMediaPayload, NodeCapabilityProducedMediaProvenance,
-    NodeCapabilityProducedMediaWriterInterface, TextToImageProviderInterface,
-    TextToImageProviderRequest,
+    NodeCapabilityGenerationTaskRequest, NodeCapabilityGenerationTaskStartRequest,
+    NodeCapabilityGenerationTaskStarterInterface,
 };
 
 /// Generates one managed Image from structured Text.
-pub struct TextToImageCapabilityImpl<A, P, W> {
+pub struct TextToImageCapabilityImpl<A, S> {
     generation_profile_catalog: Arc<GenerationProfileCatalog>,
     generation_profile_availability_reader: A,
-    text_to_image_provider: P,
-    produced_media_writer: W,
+    generation_task_starter: S,
     contract: NodeCapabilityContract,
     output_key: NodeCapabilityOutputKey,
 }
 
-impl<A, P, W> TextToImageCapabilityImpl<A, P, W> {
+impl<A, S> TextToImageCapabilityImpl<A, S> {
     /// Builds the frozen `image.generate_from_text@1.0` capability.
     pub fn try_new(
         generation_profile_catalog: Arc<GenerationProfileCatalog>,
         generation_profile_availability_reader: A,
-        text_to_image_provider: P,
-        produced_media_writer: W,
+        generation_task_starter: S,
     ) -> Result<Self, NodeCapabilityContractError> {
         let output_key = NodeCapabilityOutputKey::new("image")?;
         Ok(Self {
             generation_profile_catalog,
             generation_profile_availability_reader,
-            text_to_image_provider,
-            produced_media_writer,
+            generation_task_starter,
             contract: text_to_image_contract(output_key.clone())?,
             output_key,
         })
@@ -46,11 +42,10 @@ impl<A, P, W> TextToImageCapabilityImpl<A, P, W> {
 }
 
 #[async_trait]
-impl<A, P, W> WorkflowNodeCapabilityInterface for TextToImageCapabilityImpl<A, P, W>
+impl<A, S> WorkflowNodeCapabilityInterface for TextToImageCapabilityImpl<A, S>
 where
     A: GenerationProfileAvailabilityReaderInterface,
-    P: TextToImageProviderInterface,
-    W: NodeCapabilityProducedMediaWriterInterface,
+    S: NodeCapabilityGenerationTaskStarterInterface,
 {
     fn node_capability_contract(&self) -> &NodeCapabilityContract {
         &self.contract
@@ -83,6 +78,9 @@ where
         &self,
         request: NodeCapabilityExecutionRequest,
     ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
+        if let Some(error) = resolve_inputs_interruption(&self.contract, &request) {
+            return Err(error);
+        }
         let Some(parameters) = text_to_image_parameters(&request.normalized_parameters) else {
             return Err(invalid_invocation(&self.contract, &request));
         };
@@ -92,42 +90,31 @@ where
         if request.inputs.len() != 1 || !origin_matches_contract(&self.contract, &request) {
             return Err(invalid_invocation(&self.contract, &request));
         }
-        if let Some(error) = provider_call_interruption(&self.contract, &request) {
-            return Err(error);
-        }
-        let result = self
-            .text_to_image_provider
-            .generate_image_from_text(TextToImageProviderRequest::new(
-                parameters.selected_profile.profile_ref.clone(),
-                request.context.clone(),
+        let start_request = NodeCapabilityGenerationTaskStartRequest::try_new(
+            request.context.clone(),
+            request.origin.clone(),
+            parameters.selected_profile.profile_ref,
+            NodeCapabilityGenerationTaskRequest::Image {
                 prompt,
-                parameters.aspect_ratio,
-            ))
-            .await;
-        if let Some(error) = provider_call_interruption(&self.contract, &request) {
-            return Err(error);
-        }
-        let payload = result.map_err(|failure| {
-            NodeCapabilityExecutionError::provider_call_failed(
+                aspect_ratio: parameters.aspect_ratio,
+            },
+            self.output_key.clone(),
+            Vec::new(),
+        )
+        .map_err(|failure| {
+            NodeCapabilityExecutionError::generation_task_start_failed(
                 self.contract.contract_ref().clone(),
                 request.context.node_execution_id,
                 failure,
             )
         })?;
-        let value = write_generated_media(
-            &self.produced_media_writer,
+        start_generation_task(
+            &self.generation_task_starter,
             &self.contract,
             &request,
-            &self.output_key,
-            "Generated Image",
-            NodeCapabilityProducedMediaProvenance::provider_generated(
-                parameters.selected_profile.profile_ref,
-            ),
-            NodeCapabilityProducedMediaPayload::GeneratedImage(payload),
+            start_request,
         )
-        .await?;
-        complete_single_output(&self.contract, &request, &self.output_key, value)
-            .map(WorkflowNodeCapabilityExecutionOutcome::Completed)
+        .await
     }
 }
 

@@ -25,6 +25,9 @@ pub enum MockGenerationProviderConstructionError {
     /// A frozen Generation Profile reference is invalid.
     #[error(transparent)]
     Profile(#[from] GenerationProfileError),
+    /// A frozen registry route or policy is inconsistent.
+    #[error(transparent)]
+    Registry(#[from] GenerationProviderRegistryError),
 }
 
 /// The only provider composite shipped by the MVP.
@@ -32,6 +35,118 @@ pub struct MockGenerationProviderAdapterImpl {
     provider_id: GenerationProviderId,
     display_name: GenerationProviderDisplayName,
     capabilities: GenerationProviderCapabilities,
+}
+
+/// Immutable exact registry for the three shipped Mock routes.
+pub struct MockGenerationProviderRegistryImpl {
+    routes: Vec<(GenerationTaskTarget, GenerationProviderResolvedRoute)>,
+}
+
+impl MockGenerationProviderRegistryImpl {
+    /// Builds the exact frozen profile/provider/route composition.
+    pub fn try_new() -> Result<Self, MockGenerationProviderConstructionError> {
+        let provider = MockGenerationProviderAdapterImpl::try_new()?;
+        let provider_id = provider.generation_provider_id().clone();
+        let capabilities = provider.generation_provider_capabilities();
+        let policy = GenerationProviderRoutePolicy::try_new(30_000, 500)?;
+        let image_route = GenerationProviderRouteId::try_new("mock.image.high-quality-general.v1")?;
+        let video_route =
+            GenerationProviderRouteId::try_new("mock.video.cinematic-image-animation.v1")?;
+        let voice_route =
+            GenerationProviderRouteId::try_new("mock.voice.multilingual-narration.v1")?;
+        let image = capabilities
+            .image()
+            .ok_or(GenerationProviderContractError::EmptyCapabilities)?
+            .resolve_image_generation_route(&image_route)
+            .map_err(|_| GenerationProviderContractError::RouteResolutionMismatch)?;
+        let video = capabilities
+            .video()
+            .ok_or(GenerationProviderContractError::EmptyCapabilities)?
+            .resolve_video_generation_route(&video_route)
+            .map_err(|_| GenerationProviderContractError::RouteResolutionMismatch)?;
+        let voice = capabilities
+            .voice()
+            .ok_or(GenerationProviderContractError::EmptyCapabilities)?
+            .resolve_voice_generation_route(&voice_route)
+            .map_err(|_| GenerationProviderContractError::RouteResolutionMismatch)?;
+        Ok(Self {
+            routes: vec![
+                (
+                    GenerationTaskTarget::new(
+                        profile("image.high_quality_general")?,
+                        provider_id.clone(),
+                        image_route,
+                    ),
+                    GenerationProviderResolvedRoute::Image { execution: image, policy },
+                ),
+                (
+                    GenerationTaskTarget::new(
+                        profile("video.cinematic_image_animation")?,
+                        provider_id.clone(),
+                        video_route,
+                    ),
+                    GenerationProviderResolvedRoute::Video { execution: video, policy },
+                ),
+                (
+                    GenerationTaskTarget::new(
+                        profile("speech.multilingual_narration")?,
+                        provider_id,
+                        voice_route,
+                    ),
+                    GenerationProviderResolvedRoute::Voice { execution: voice, policy },
+                ),
+            ],
+        })
+    }
+
+    /// Resolves the currently selected exact target for one profile and request kind.
+    pub fn target_for_profile(
+        &self,
+        profile_ref: &GenerationProfileRef,
+        request_kind: GenerationTaskRequestKind,
+    ) -> Result<GenerationTaskTarget, GenerationProviderRegistryError> {
+        self.routes
+            .iter()
+            .find(|(target, route)| {
+                target.generation_profile_ref() == profile_ref
+                    && route.request_kind() == request_kind
+            })
+            .map(|(target, _)| target.clone())
+            .ok_or(GenerationProviderRegistryError::RouteNotFound)
+    }
+}
+
+impl GenerationProviderRegistryInterface for MockGenerationProviderRegistryImpl {
+    fn resolve_generation_provider_route(
+        &self,
+        target: &GenerationTaskTarget,
+        request_kind: GenerationTaskRequestKind,
+    ) -> Result<&GenerationProviderResolvedRoute, GenerationProviderRegistryError> {
+        if target.provider_id().as_str() != "mock" {
+            return Err(GenerationProviderRegistryError::ProviderNotFound);
+        }
+        if let Some(route) =
+            self.routes.iter().find(|(registered, _)| registered == target).map(|(_, route)| route)
+        {
+            return if route.request_kind() == request_kind {
+                Ok(route)
+            } else {
+                Err(GenerationProviderRegistryError::RequestKindMismatch)
+            };
+        }
+        if self.routes.iter().any(|(_, route)| route.request_kind() == request_kind) {
+            Err(GenerationProviderRegistryError::RouteNotFound)
+        } else {
+            Err(GenerationProviderRegistryError::CapabilityNotFound)
+        }
+    }
+}
+
+fn profile(id: &str) -> Result<GenerationProfileRef, MockGenerationProviderConstructionError> {
+    Ok(GenerationProfileRef::new(
+        GenerationProfileId::try_new(id)?,
+        GenerationProfileVersion::try_new(1)?,
+    ))
 }
 
 impl MockGenerationProviderAdapterImpl {
