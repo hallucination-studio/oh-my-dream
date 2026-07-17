@@ -47,7 +47,26 @@ impl Default for DesktopBackendConfig {
             generation_task_effect_concurrency: 4,
             asset_reconciliation_policy: AssetReconciliationPolicy::default(),
             asset_preview_policy: AssetPreviewPolicy::default(),
-            generation_provider_routes: Vec::new(),
+            generation_provider_routes: vec![
+                GenerationProviderRouteConfig {
+                    profile_ref: "image.high_quality_general@1".to_owned(),
+                    generation_kind: "image".to_owned(),
+                    provider_id: "mock".to_owned(),
+                    route_id: "mock.image.high-quality-general.v1".to_owned(),
+                },
+                GenerationProviderRouteConfig {
+                    profile_ref: "speech.multilingual_narration@1".to_owned(),
+                    generation_kind: "voice".to_owned(),
+                    provider_id: "mock".to_owned(),
+                    route_id: "mock.voice.multilingual-narration.v1".to_owned(),
+                },
+                GenerationProviderRouteConfig {
+                    profile_ref: "video.cinematic_image_animation@1".to_owned(),
+                    generation_kind: "video".to_owned(),
+                    provider_id: "mock".to_owned(),
+                    route_id: "mock.video.cinematic-image-animation.v1".to_owned(),
+                },
+            ],
             assistant_model: AssistantModelConfig::default(),
             assistant_protocol_budgets: AssistantProtocolBudgets::default(),
         }
@@ -90,7 +109,7 @@ impl DesktopBackendConfig {
         let route_keys = self
             .generation_provider_routes
             .iter()
-            .map(|route| (&route.profile_ref, &route.route_id))
+            .map(|route| (&route.profile_ref, &route.generation_kind))
             .collect::<BTreeSet<_>>();
         let valid = self.sqlite_busy_timeout_ms == 5_000
             && concurrency.into_iter().all(|value| (1..=8).contains(&value))
@@ -147,62 +166,34 @@ impl AssetPreviewPolicy {
 #[serde(deny_unknown_fields)]
 pub struct GenerationProviderRouteConfig {
     pub profile_ref: String,
+    pub generation_kind: String,
+    pub provider_id: String,
     pub route_id: String,
-    pub account_id: String,
-    pub endpoint: String,
-    pub native_model_id: String,
-    pub credential_id: String,
-    pub operation_deadline_ms: u64,
-    pub poll_min_delay_ms: u64,
-    pub poll_max_delay_ms: u64,
-    pub download_host_allowlist: Vec<String>,
 }
 
 impl GenerationProviderRouteConfig {
-    fn is_valid(&self) -> bool {
-        let hosts = self.download_host_allowlist.iter().collect::<BTreeSet<_>>();
-        let hosts_valid = hosts.len() == self.download_host_allowlist.len()
-            && self.download_host_allowlist.windows(2).all(|pair| pair[0] < pair[1])
-            && self.download_host_allowlist.iter().all(|host| valid_host(host));
-        valid_identity(&self.account_id)
-            && valid_identity(&self.credential_id)
-            && hosts_valid
-            && self.matches_frozen_route()
-    }
-
-    fn matches_frozen_route(&self) -> bool {
-        match (self.profile_ref.as_str(), self.route_id.as_str()) {
-            ("image.high_quality_general@1", "fal.text_to_image") => {
-                self.account_id.starts_with("fal.")
-                    && !self.download_host_allowlist.is_empty()
-                    && self.endpoint
-                        == "https://queue.fal.run/fal-ai/flux-pro/kontext/text-to-image"
-                    && self.native_model_id == "fal-ai/flux-pro/kontext/text-to-image"
-                    && self.operation_deadline_ms == 180_000
-                    && self.poll_min_delay_ms == 500
-                    && self.poll_max_delay_ms == 5_000
-            }
-            ("video.cinematic_image_animation@1", "fal.image_to_video") => {
-                self.account_id.starts_with("fal.")
-                    && !self.download_host_allowlist.is_empty()
-                    && self.endpoint
-                        == "https://queue.fal.run/fal-ai/kling-video/v3/standard/image-to-video"
-                    && self.native_model_id == "fal-ai/kling-video/v3/standard/image-to-video"
-                    && self.operation_deadline_ms == 900_000
-                    && self.poll_min_delay_ms == 500
-                    && self.poll_max_delay_ms == 5_000
-            }
-            ("speech.multilingual_narration@1", "elevenlabs.text_to_speech") => {
-                self.account_id.starts_with("elevenlabs.")
-                    && valid_elevenlabs_endpoint(&self.endpoint)
-                    && self.native_model_id == "eleven_multilingual_v2"
-                    && self.operation_deadline_ms == 120_000
-                    && self.poll_min_delay_ms == 0
-                    && self.poll_max_delay_ms == 0
-                    && self.download_host_allowlist.is_empty()
-            }
-            _ => false,
-        }
+    pub(crate) fn is_valid(&self) -> bool {
+        matches!(
+            (
+                self.profile_ref.as_str(),
+                self.generation_kind.as_str(),
+                self.provider_id.as_str(),
+                self.route_id.as_str(),
+            ),
+            ("image.high_quality_general@1", "image", "mock", "mock.image.high-quality-general.v1")
+                | (
+                    "speech.multilingual_narration@1",
+                    "voice",
+                    "mock",
+                    "mock.voice.multilingual-narration.v1"
+                )
+                | (
+                    "video.cinematic_image_animation@1",
+                    "video",
+                    "mock",
+                    "mock.video.cinematic-image-animation.v1"
+                )
+        )
     }
 }
 
@@ -286,24 +277,4 @@ fn valid_identity(value: &str) -> bool {
                     character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
                 })
         })
-}
-
-fn valid_host(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 253
-        && value.is_ascii()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || b".-".contains(&byte))
-}
-
-fn valid_elevenlabs_endpoint(value: &str) -> bool {
-    let prefix = "https://api.elevenlabs.io/v1/text-to-speech/";
-    let suffix = "?output_format=mp3_44100_128";
-    value.strip_prefix(prefix).and_then(|value| value.strip_suffix(suffix)).is_some_and(|voice| {
-        (1..=128).contains(&voice.len())
-            && voice
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
-    })
 }

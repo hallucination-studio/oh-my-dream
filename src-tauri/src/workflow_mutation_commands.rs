@@ -366,12 +366,16 @@ mod tests {
     fn parameter_translation_uses_only_closed_tagged_boundary_values() {
         assert_eq!(
             parameter_value(ParameterValueDto::GenerationProfile {
-                profile_id: "fal.image_gen".to_owned(),
+                profile_id: "image.high_quality_general".to_owned(),
                 version: "1".to_owned(),
             })
             .unwrap(),
             NodeCapabilityParameterValue::GenerationProfile(
-                NodeCapabilityGenerationProfileRefParameterValue::new("fal.image_gen", 1).unwrap()
+                NodeCapabilityGenerationProfileRefParameterValue::new(
+                    "image.high_quality_general",
+                    1,
+                )
+                .unwrap()
             )
         );
         assert!(

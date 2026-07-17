@@ -128,7 +128,7 @@ async fn readonly_database_maps_writes_to_permission_denied() {
     assert_eq!(
         adapter
             .save_generation_provider_credential(
-                GenerationProviderCredentialId::new("fal.default").unwrap(),
+                GenerationProviderCredentialId::new("legacy.inactive").unwrap(),
                 GenerationProviderCredentialSecret::new(b"secret".to_vec()).unwrap(),
             )
             .await,
@@ -214,6 +214,15 @@ async fn provider_settings_cas_persists_restart_and_preserves_inactive_credentia
     let restarted =
         SqliteDesktopBackendSettingsAdapterImpl::try_new(Arc::clone(&connection)).unwrap();
     assert_eq!(restarted.load_generation_provider_settings_snapshot().await.unwrap(), removed);
+    assert_eq!(
+        restarted
+            .load_or_initialize_desktop_backend_config()
+            .await
+            .unwrap()
+            .generation_provider_routes
+            .len(),
+        2
+    );
     assert_eq!(
         restarted.load_generation_provider_credential(&credential_id).await.unwrap().as_bytes(),
         b"preserved"

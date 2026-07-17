@@ -11,7 +11,8 @@ fn defaults_match_the_frozen_non_secret_startup_contract() {
     assert_eq!(config.post_commit_effect_concurrency, 4);
     assert_eq!(config.workflow_run_concurrency, 1);
     assert_eq!(config.workflow_node_concurrency, 2);
-    assert!(config.generation_provider_routes.is_empty());
+    assert_eq!(config.generation_provider_routes.len(), 3);
+    assert_eq!(config.generation_provider_routes[0].provider_id, "mock");
     assert!(!config.assistant_model.enabled);
     assert_eq!(config.assistant_model.model_profile_ref, "assistant.workflow_coauthor@1");
     assert_eq!(config.assistant_model.credential_id, "assistant.openai.default");
@@ -32,6 +33,20 @@ fn config_rejects_unknown_secret_path_weakened_budget_and_duplicate_route_shapes
     config = DesktopBackendConfig::default();
     config.generation_provider_routes = vec![route.clone(), route];
     assert_eq!(config.validate(), Err(DesktopBackendConfigError::InvalidConfig));
+
+    let mut legacy = serde_json::to_value(DesktopBackendConfig::default()).unwrap();
+    legacy["generation_provider_routes"] = json!([{
+        "profile_ref": "image.high_quality_general@1",
+        "generation_kind": "image",
+        "provider_id": "mock",
+        "route_id": "mock.image.high-quality-general.v1",
+        "legacy_options": {"provider": "legacy"}
+    }]);
+    let legacy_bytes = serde_json::to_vec(&legacy).unwrap();
+    assert_eq!(
+        DesktopBackendConfig::from_canonical_json(&legacy_bytes),
+        Err(DesktopBackendConfigError::InvalidConfig)
+    );
 }
 
 #[test]
@@ -85,14 +100,8 @@ fn desktop_error_translation_exposes_only_closed_safe_fields() {
 fn route() -> GenerationProviderRouteConfig {
     GenerationProviderRouteConfig {
         profile_ref: "image.high_quality_general@1".to_owned(),
-        route_id: "fal.text_to_image".to_owned(),
-        account_id: "fal.default".to_owned(),
-        endpoint: "https://queue.fal.run/fal-ai/flux-pro/kontext/text-to-image".to_owned(),
-        native_model_id: "fal-ai/flux-pro/kontext/text-to-image".to_owned(),
-        credential_id: "fal.default".to_owned(),
-        operation_deadline_ms: 180_000,
-        poll_min_delay_ms: 500,
-        poll_max_delay_ms: 5_000,
-        download_host_allowlist: vec!["fal.media".to_owned()],
+        generation_kind: "image".to_owned(),
+        provider_id: "mock".to_owned(),
+        route_id: "mock.image.high-quality-general.v1".to_owned(),
     }
 }

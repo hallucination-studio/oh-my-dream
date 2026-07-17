@@ -9,7 +9,6 @@ use crate::{
         AssistantModelCredentialRepositoryInterface, AssistantModelCredentialSecret,
     },
     desktop_backend_config::DesktopBackendConfigRepositoryInterface,
-    desktop_backend_config::GenerationProviderRouteConfig,
     post_commit_effect::DesktopPostCommitEffect,
     post_commit_worker::DesktopPostCommitEffectExecutionOutcome,
     workflow_run_event_publisher::DesktopEventEmissionError,
@@ -80,15 +79,15 @@ async fn present_assistant_credential_enables_assistant_commands_without_retaini
 }
 
 #[tokio::test]
-async fn missing_generation_credential_does_not_disable_assistant_or_host() {
+async fn mock_generation_routes_do_not_require_credentials() {
     let directory = tempdir().expect("directory");
     let paths = DesktopApplicationPaths::from_application_data_root(directory.path());
-    seed_config(&paths, true, true).await;
+    seed_config(&paths, true).await;
 
     let host = compose(paths).await.expect("host");
 
     assert!(host.assistant_commands_enabled());
-    assert!(host.config.generation_provider_routes.is_empty());
+    assert_eq!(host.config.generation_provider_routes.len(), 3);
 }
 
 #[tokio::test]
@@ -167,14 +166,10 @@ async fn compose(
 }
 
 async fn seed_assistant_config(paths: &DesktopApplicationPaths, save_credential: bool) {
-    seed_config(paths, save_credential, false).await;
+    seed_config(paths, save_credential).await;
 }
 
-async fn seed_config(
-    paths: &DesktopApplicationPaths,
-    save_assistant_credential: bool,
-    include_generation_route_without_credential: bool,
-) {
+async fn seed_config(paths: &DesktopApplicationPaths, save_assistant_credential: bool) {
     std::fs::create_dir_all(&paths.config_root).expect("config root");
     let connection =
         open_metadata_sqlite(&metadata_sqlite_path(&paths.config_root)).expect("metadata");
@@ -183,20 +178,6 @@ async fn seed_config(
             .expect("settings");
     let mut config = DesktopBackendConfig::default();
     config.assistant_model.enabled = true;
-    if include_generation_route_without_credential {
-        config.generation_provider_routes.push(GenerationProviderRouteConfig {
-            profile_ref: "image.high_quality_general@1".to_owned(),
-            route_id: "fal.text_to_image".to_owned(),
-            account_id: "fal.default".to_owned(),
-            endpoint: "https://queue.fal.run/fal-ai/flux-pro/kontext/text-to-image".to_owned(),
-            native_model_id: "fal-ai/flux-pro/kontext/text-to-image".to_owned(),
-            credential_id: "fal.missing".to_owned(),
-            operation_deadline_ms: 180_000,
-            poll_min_delay_ms: 500,
-            poll_max_delay_ms: 5_000,
-            download_host_allowlist: vec!["v3.fal.media".to_owned()],
-        });
-    }
     settings.save_desktop_backend_config(config.clone()).await.expect("save config");
     if save_assistant_credential {
         settings

@@ -36,7 +36,6 @@ pub mod post_commit_effect;
 pub mod post_commit_worker;
 pub mod project_adapters;
 pub mod project_commands;
-pub mod provider_adapters;
 pub mod workflow_adapters;
 pub mod workflow_command_dto;
 pub mod workflow_commands;

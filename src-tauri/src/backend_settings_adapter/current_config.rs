@@ -10,7 +10,7 @@ use tasks::generation_task::{
 
 use crate::desktop_backend_config::{
     AssetPreviewPolicy, AssetReconciliationPolicy, AssistantModelConfig, AssistantProtocolBudgets,
-    DesktopBackendConfig, DesktopBackendConfigRepositoryError,
+    DesktopBackendConfig, DesktopBackendConfigRepositoryError, GenerationProviderRouteConfig,
 };
 
 const GENERATION_TASK_EFFECT_CONCURRENCY: u8 = 4;
@@ -42,7 +42,9 @@ pub(super) struct CurrentProviderBinding {
 pub(crate) fn encode(
     config: &DesktopBackendConfig,
 ) -> Result<Vec<u8>, DesktopBackendConfigRepositoryError> {
-    encode_with_bindings(config, expected_mock_bindings())
+    let bindings =
+        config.generation_provider_routes.iter().map(CurrentProviderBinding::from_config).collect();
+    encode_with_bindings(config, bindings)
 }
 
 pub(super) fn encode_with_bindings(
@@ -76,7 +78,11 @@ pub(super) fn project(
         generation_task_effect_concurrency: current.generation_task_effect_concurrency,
         asset_reconciliation_policy: current.asset_reconciliation_policy,
         asset_preview_policy: current.asset_preview_policy,
-        generation_provider_routes: Vec::new(),
+        generation_provider_routes: current
+            .generation_provider_routes
+            .into_iter()
+            .map(CurrentProviderBinding::into_config)
+            .collect(),
         assistant_model: current.assistant_model,
         assistant_protocol_budgets: current.assistant_protocol_budgets,
     };
@@ -108,6 +114,24 @@ pub(super) fn bindings(
 }
 
 impl CurrentProviderBinding {
+    fn from_config(route: &GenerationProviderRouteConfig) -> Self {
+        Self {
+            profile_ref: route.profile_ref.clone(),
+            generation_kind: route.generation_kind.clone(),
+            provider_id: route.provider_id.clone(),
+            route_id: route.route_id.clone(),
+        }
+    }
+
+    fn into_config(self) -> GenerationProviderRouteConfig {
+        GenerationProviderRouteConfig {
+            profile_ref: self.profile_ref,
+            generation_kind: self.generation_kind,
+            provider_id: self.provider_id,
+            route_id: self.route_id,
+        }
+    }
+
     pub(super) fn from_domain(binding: &GenerationProviderSettingsBinding) -> Self {
         Self {
             profile_ref: binding.profile_ref().to_string(),
@@ -185,17 +209,9 @@ const fn kind_name(value: GenerationTaskRequestKind) -> &'static str {
 }
 
 fn expected_mock_bindings() -> Vec<CurrentProviderBinding> {
-    [
-        ("image.high_quality_general@1", "image", "mock.image.high-quality-general.v1"),
-        ("speech.multilingual_narration@1", "voice", "mock.voice.multilingual-narration.v1"),
-        ("video.cinematic_image_animation@1", "video", "mock.video.cinematic-image-animation.v1"),
-    ]
-    .into_iter()
-    .map(|(profile_ref, generation_kind, route_id)| CurrentProviderBinding {
-        profile_ref: profile_ref.to_owned(),
-        generation_kind: generation_kind.to_owned(),
-        provider_id: "mock".to_owned(),
-        route_id: route_id.to_owned(),
-    })
-    .collect()
+    DesktopBackendConfig::default()
+        .generation_provider_routes
+        .iter()
+        .map(CurrentProviderBinding::from_config)
+        .collect()
 }

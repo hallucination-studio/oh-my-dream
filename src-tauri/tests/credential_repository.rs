@@ -92,20 +92,20 @@ impl GenerationProviderCredentialRepositoryInterface for GenerationRepositoryFak
 
 #[test]
 fn credential_ids_are_typed_isolated_and_secrets_are_redacted() {
-    let generation = GenerationProviderCredentialId::new("fal.primary").unwrap();
+    let generation = GenerationProviderCredentialId::new("legacy.primary").unwrap();
     let assistant = AssistantModelCredentialId::new("assistant.openai.default").unwrap();
     let secret = GenerationProviderCredentialSecret::new(b"private-key".to_vec()).unwrap();
 
-    assert_eq!(generation.as_str(), "fal.primary");
+    assert_eq!(generation.as_str(), "legacy.primary");
     assert_eq!(assistant.as_str(), "assistant.openai.default");
     assert!(!format!("{secret:?}").contains("private-key"));
-    assert!(GenerationProviderCredentialId::new("Fal Key").is_err());
+    assert!(GenerationProviderCredentialId::new("Legacy Key").is_err());
 }
 
 #[tokio::test]
 async fn generation_repository_contract_saves_loads_deletes_and_reports_not_found() {
     let repository = GenerationRepositoryFakeImpl::default();
-    let id = GenerationProviderCredentialId::new("fal.primary").unwrap();
+    let id = GenerationProviderCredentialId::new("legacy.primary").unwrap();
     repository
         .save_generation_provider_credential(
             id.clone(),

@@ -15,7 +15,6 @@ const ASSISTANT_WORKFLOW_BRIDGE: &str =
     include_str!("../src/assistant_workflow_bridge/workflow.rs");
 const ASSISTANT_WORKSPACE_BRIDGE: &str =
     include_str!("../src/assistant_workflow_bridge/workspace.rs");
-const FAL_TRANSPORT: &str = include_str!("../src/provider_adapters/fal.rs");
 const ASSISTANT_PROCESS: &str = include_str!("../src/assistant_model_runner/process.rs");
 const UI_API: &str = include_str!("../../ui/src/api/types.ts");
 const UI_TAURI: &str = include_str!("../../ui/src/api/tauriApi.ts");
@@ -67,7 +66,7 @@ fn active_composition_uses_only_the_mock_task_path() {
     ] {
         assert!(active.contains(required), "active composition misses {required}");
     }
-    for prohibited in ["ProviderRouterImpl", "FalGeneration", "ElevenLabs", "InferenceBackend"] {
+    for prohibited in ["ProviderRouterImpl", "VendorGeneration", "InferenceBackend"] {
         assert!(!active.contains(prohibited), "active composition contains {prohibited}");
     }
     assert!(
@@ -175,8 +174,9 @@ fn workspace_libraries_do_not_export_prohibited_standalone_names() {
 
 #[test]
 fn active_private_boundary_implementations_use_impl_suffixes() {
-    assert!(FAL_TRANSPORT.contains("ReqwestFalHttpTransportAdapterImpl"));
-    assert!(!FAL_TRANSPORT.contains("struct ReqwestFalHttpTransport {"));
+    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    assert!(!workspace_root.join("src-tauri/src/provider_adapters").exists());
+    assert!(!LIB.contains("pub mod provider_adapters"));
     assert!(ASSISTANT_PROCESS.contains("StdioAssistantProtocolProcessImpl"));
     assert!(!ASSISTANT_PROCESS.contains("struct StdioProtocolProcess {"));
 }

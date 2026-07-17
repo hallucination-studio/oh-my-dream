@@ -19,19 +19,19 @@ use nodes::{
 fn exact_operation_routers_accept_their_one_compatible_profile() {
     TextToImageProviderRouterImpl::try_new([(
         profile("image.high_quality_general"),
-        Arc::new(TextToImageRoute::new("fal.image.primary"))
+        Arc::new(TextToImageRoute::new("test.image.primary"))
             as Arc<dyn TextToImageProviderRouteInterface>,
     )])
     .unwrap();
     ImageToVideoProviderRouterImpl::try_new([(
         profile("video.cinematic_image_animation"),
-        Arc::new(ImageToVideoRoute::new("fal.video.primary"))
+        Arc::new(ImageToVideoRoute::new("test.video.primary"))
             as Arc<dyn ImageToVideoProviderRouteInterface>,
     )])
     .unwrap();
     TextToSpeechProviderRouterImpl::try_new([(
         profile("speech.multilingual_narration"),
-        Arc::new(TextToSpeechRoute::new("elevenlabs.speech.primary"))
+        Arc::new(TextToSpeechRoute::new("test.speech.primary"))
             as Arc<dyn TextToSpeechProviderRouteInterface>,
     )])
     .unwrap();
@@ -43,12 +43,12 @@ fn router_rejects_duplicate_profile_mappings_before_building_its_map() {
     let result = TextToImageProviderRouterImpl::try_new([
         (
             profile_ref.clone(),
-            Arc::new(TextToImageRoute::new("fal.image.first"))
+            Arc::new(TextToImageRoute::new("test.image.first"))
                 as Arc<dyn TextToImageProviderRouteInterface>,
         ),
         (
             profile_ref,
-            Arc::new(TextToImageRoute::new("fal.image.second"))
+            Arc::new(TextToImageRoute::new("test.image.second"))
                 as Arc<dyn TextToImageProviderRouteInterface>,
         ),
     ]);
@@ -62,12 +62,12 @@ fn router_rejects_duplicate_route_ids_even_across_invalid_profile_entries() {
     let result = TextToImageProviderRouterImpl::try_new([
         (
             profile("image.high_quality_general"),
-            Arc::new(TextToImageRoute::new("fal.shared"))
+            Arc::new(TextToImageRoute::new("test.shared"))
                 as Arc<dyn TextToImageProviderRouteInterface>,
         ),
         (
             profile("video.cinematic_image_animation"),
-            Arc::new(TextToImageRoute::new("fal.shared"))
+            Arc::new(TextToImageRoute::new("test.shared"))
                 as Arc<dyn TextToImageProviderRouteInterface>,
         ),
     ]);
@@ -80,7 +80,7 @@ fn router_rejects_duplicate_route_ids_even_across_invalid_profile_entries() {
 fn router_rejects_unknown_and_operation_incompatible_profiles() {
     let unknown = TextToImageProviderRouterImpl::try_new([(
         profile("image.unknown"),
-        Arc::new(TextToImageRoute::new("fal.image.unknown"))
+        Arc::new(TextToImageRoute::new("test.image.unknown"))
             as Arc<dyn TextToImageProviderRouteInterface>,
     )]);
     let Err(error) = unknown else { panic!("unknown profile was accepted") };
@@ -88,7 +88,7 @@ fn router_rejects_unknown_and_operation_incompatible_profiles() {
 
     let incompatible = TextToImageProviderRouterImpl::try_new([(
         profile("video.cinematic_image_animation"),
-        Arc::new(TextToImageRoute::new("fal.image.incompatible"))
+        Arc::new(TextToImageRoute::new("test.image.incompatible"))
             as Arc<dyn TextToImageProviderRouteInterface>,
     )]);
     let Err(error) = incompatible else { panic!("incompatible profile was accepted") };
