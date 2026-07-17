@@ -34,6 +34,8 @@ mod contract;
 mod credential_repository;
 #[path = "dto.rs"]
 mod dto;
+#[path = "generation_task_chained_e2e.rs"]
+mod generation_task_chained_e2e;
 #[path = "post_commit_effect_outbox.rs"]
 mod post_commit_effect_outbox;
 #[path = "post_commit_effect_values.rs"]

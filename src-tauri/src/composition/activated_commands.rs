@@ -156,8 +156,6 @@ pub(super) async fn compose(
         connection.clone(),
         paths.managed_content_root,
         paths.media_inspector_executable,
-        settings.clone(),
-        &config,
     )?;
     let workflow_repository = Arc::new(
         SqliteWorkflowRunRepositoryAdapterImpl::try_new(

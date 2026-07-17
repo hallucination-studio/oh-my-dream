@@ -14,24 +14,20 @@ use assets::asset::{
         AssetManagedContentStoreInterface, AssetMediaInspectorInterface, AssetRepositoryInterface,
     },
 };
-use backends::mock_generation_provider::MockGenerationProviderRegistryImpl;
-use backends::provider_routing::{
-    ImageToVideoProviderRouteInterface, ImageToVideoProviderRouterImpl,
-    ProviderRouterGenerationProfileAvailabilityReaderAdapterImpl,
-    TextToImageProviderRouteInterface, TextToImageProviderRouterImpl,
-    TextToSpeechProviderRouteInterface, TextToSpeechProviderRouterImpl,
+use backends::mock_generation_provider::{
+    GenerationProviderRegistryProfileAvailabilityReaderAdapterImpl,
+    MockGenerationProviderRegistryImpl,
 };
 use engine::node_capability::{WorkflowNodeCapabilityInterface, WorkflowNodeCapabilityRegistry};
 use nodes::{
-    GenerationProfileAvailabilityReaderInterface, GenerationProfileCatalog, GenerationProfileId,
-    GenerationProfileRef, GenerationProfileVersion, ImageToVideoCapabilityImpl,
-    NodeCapabilityGenerationTaskStarterInterface, ProvideLiteralTextCapabilityImpl,
-    ReadAudioAssetCapabilityImpl, ReadImageAssetCapabilityImpl, ReadVideoAssetCapabilityImpl,
-    TextToImageCapabilityImpl, TextToSpeechCapabilityImpl,
+    GenerationProfileAvailabilityReaderInterface, GenerationProfileCatalog,
+    ImageToVideoCapabilityImpl, NodeCapabilityGenerationTaskStarterInterface,
+    ProvideLiteralTextCapabilityImpl, ReadAudioAssetCapabilityImpl, ReadImageAssetCapabilityImpl,
+    ReadVideoAssetCapabilityImpl, TextToImageCapabilityImpl, TextToSpeechCapabilityImpl,
 };
 use rusqlite::Connection;
 
-use super::{DesktopCompositionError, SqliteDesktopBackendSettingsAdapterImpl};
+use super::DesktopCompositionError;
 use crate::{
     asset_adapters::{
         ImageAndFfprobeAssetMediaInspectorAdapterImpl, SystemAssetClockAdapterImpl,
@@ -42,20 +38,12 @@ use crate::{
         LocalFilesystemAssetManagedContentStoreAdapterImpl,
         SqliteAssetIngestTransactionAdapterImpl, SqliteAssetRepositoryAdapterImpl,
     },
-    credential_repository::{
-        GenerationProviderCredentialId, GenerationProviderCredentialRepositoryInterface,
-    },
-    desktop_backend_config::{DesktopBackendConfig, GenerationProviderRouteConfig},
     desktop_bridges::DesktopWorkflowMediaPreviewAdapterImpl,
     desktop_node_capability_asset_bridge::DesktopNodeCapabilityAssetBridgeAdapterImpl,
     generation_task_start_adapter::{
         DesktopNodeCapabilityGenerationTaskStartAdapterImpl, SystemGenerationTaskClockAdapterImpl,
     },
     generation_task_storage_adapter::SqliteGenerationTaskRepositoryAdapterImpl,
-    provider_adapters::{
-        ElevenLabsTextToSpeechProviderRouteImpl, ElevenLabsVoiceId,
-        FalImageToVideoProviderRouteImpl, FalTextToImageProviderRouteImpl,
-    },
 };
 
 pub(super) struct DesktopNodeCapabilityComposition {
@@ -79,18 +67,9 @@ pub(super) fn compose_node_capabilities(
     connection: Arc<Mutex<Connection>>,
     managed_content_root: PathBuf,
     media_inspector_executable: PathBuf,
-    settings: Arc<SqliteDesktopBackendSettingsAdapterImpl>,
-    config: &DesktopBackendConfig,
 ) -> Result<DesktopNodeCapabilityComposition, DesktopCompositionError> {
     let assets =
         compose_asset_bridge(connection.clone(), managed_content_root, media_inspector_executable)?;
-    let (text_to_image, image_to_video, text_to_speech) =
-        compose_provider_routers(settings, &config.generation_provider_routes)?;
-    let availability = Arc::new(ProviderRouterGenerationProfileAvailabilityReaderAdapterImpl::new(
-        text_to_image.clone(),
-        image_to_video.clone(),
-        text_to_speech.clone(),
-    ));
     let catalog = Arc::new(
         GenerationProfileCatalog::frozen_mvp().map_err(|_| DesktopCompositionError::Business)?,
     );
@@ -99,6 +78,9 @@ pub(super) fn compose_node_capabilities(
     let task_registry = Arc::new(
         MockGenerationProviderRegistryImpl::try_new()
             .map_err(|_| DesktopCompositionError::Business)?,
+    );
+    let availability = Arc::new(
+        GenerationProviderRegistryProfileAvailabilityReaderAdapterImpl::new(task_registry.clone()),
     );
     let task_starter: Arc<dyn NodeCapabilityGenerationTaskStarterInterface> =
         Arc::new(DesktopNodeCapabilityGenerationTaskStartAdapterImpl::new(
@@ -260,85 +242,4 @@ fn compose_asset_bridge(
         recover_node_output,
         record_node_output: record,
     })
-}
-
-type ProviderRouters = (
-    Arc<TextToImageProviderRouterImpl>,
-    Arc<ImageToVideoProviderRouterImpl>,
-    Arc<TextToSpeechProviderRouterImpl>,
-);
-
-fn compose_provider_routers(
-    settings: Arc<SqliteDesktopBackendSettingsAdapterImpl>,
-    routes: &[GenerationProviderRouteConfig],
-) -> Result<ProviderRouters, DesktopCompositionError> {
-    let credentials: Arc<dyn GenerationProviderCredentialRepositoryInterface> = settings;
-    let mut image_routes = Vec::new();
-    let mut video_routes = Vec::new();
-    let mut speech_routes = Vec::new();
-    for route in routes {
-        let profile = profile_ref(&route.profile_ref)?;
-        let credential = GenerationProviderCredentialId::new(route.credential_id.clone())
-            .map_err(|_| DesktopCompositionError::Config)?;
-        match route.route_id.as_str() {
-            "fal.text_to_image" => image_routes.push((
-                profile,
-                Arc::new(
-                    FalTextToImageProviderRouteImpl::try_new(credential, credentials.clone())
-                        .map_err(|_| DesktopCompositionError::Business)?,
-                ) as Arc<dyn TextToImageProviderRouteInterface>,
-            )),
-            "fal.image_to_video" => video_routes.push((
-                profile,
-                Arc::new(
-                    FalImageToVideoProviderRouteImpl::try_new(credential, credentials.clone())
-                        .map_err(|_| DesktopCompositionError::Business)?,
-                ) as Arc<dyn ImageToVideoProviderRouteInterface>,
-            )),
-            "elevenlabs.text_to_speech" => speech_routes.push((
-                profile,
-                Arc::new(
-                    ElevenLabsTextToSpeechProviderRouteImpl::try_new(
-                        credential,
-                        credentials.clone(),
-                        voice_id(route)?,
-                    )
-                    .map_err(|_| DesktopCompositionError::Business)?,
-                ) as Arc<dyn TextToSpeechProviderRouteInterface>,
-            )),
-            _ => return Err(DesktopCompositionError::Config),
-        }
-    }
-    Ok((
-        Arc::new(
-            TextToImageProviderRouterImpl::try_new(image_routes)
-                .map_err(|_| DesktopCompositionError::Business)?,
-        ),
-        Arc::new(
-            ImageToVideoProviderRouterImpl::try_new(video_routes)
-                .map_err(|_| DesktopCompositionError::Business)?,
-        ),
-        Arc::new(
-            TextToSpeechProviderRouterImpl::try_new(speech_routes)
-                .map_err(|_| DesktopCompositionError::Business)?,
-        ),
-    ))
-}
-
-fn profile_ref(value: &str) -> Result<GenerationProfileRef, DesktopCompositionError> {
-    let (id, version) = value.split_once('@').ok_or(DesktopCompositionError::Config)?;
-    Ok(GenerationProfileRef::new(
-        GenerationProfileId::try_new(id).map_err(|_| DesktopCompositionError::Config)?,
-        GenerationProfileVersion::try_new(
-            version.parse().map_err(|_| DesktopCompositionError::Config)?,
-        )
-        .map_err(|_| DesktopCompositionError::Config)?,
-    ))
-}
-
-fn voice_id(
-    route: &GenerationProviderRouteConfig,
-) -> Result<ElevenLabsVoiceId, DesktopCompositionError> {
-    let value = route.endpoint.rsplit('/').next().ok_or(DesktopCompositionError::Config)?;
-    ElevenLabsVoiceId::try_new(value.to_owned()).map_err(|_| DesktopCompositionError::Config)
 }

@@ -276,8 +276,6 @@ impl DesktopCompositionRoot {
             Arc::clone(&connection),
             paths.managed_content_root,
             paths.media_inspector_executable,
-            Arc::clone(&settings),
-            &config,
         )?;
         if !has_exact_node_capabilities(&node_composition.registry) {
             return Err(DesktopCompositionError::Business);

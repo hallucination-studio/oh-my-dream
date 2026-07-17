@@ -21,17 +21,16 @@ const UI_API: &str = include_str!("../../ui/src/api/types.ts");
 const UI_TAURI: &str = include_str!("../../ui/src/api/tauriApi.ts");
 
 #[test]
-fn active_boundary_has_exact_23_7_3_3_4_counts() {
+fn active_boundary_has_exact_23_7_1_3_4_counts() {
     assert_eq!(registered_commands(), 23);
     assert_eq!(quoted_values(COMPOSITION, "EXACT_NODE_CAPABILITY_REFS").len(), 7);
-    assert_exact_names(
-        NODE_COMPOSITION,
-        [
-            "TextToImageProviderRouterImpl",
-            "ImageToVideoProviderRouterImpl",
-            "TextToSpeechProviderRouterImpl",
-        ],
+    assert_eq!(
+        NODE_COMPOSITION
+            .matches("GenerationProviderRegistryProfileAvailabilityReaderAdapterImpl")
+            .count(),
+        2
     );
+    assert!(!NODE_COMPOSITION.contains("ProviderRouterImpl"));
     assert_eq!(enum_variants(POST_COMMIT_EFFECT, "DesktopPostCommitEffect").len(), 3);
     assert_eq!(enum_variants(NODE_PRESENTATION, "WorkflowNodePresentationShell").len(), 4);
 }
@@ -138,13 +137,6 @@ fn quoted_values(source: &str, constant: &str) -> BTreeSet<String> {
         .and_then(|value| value.split("];").next())
         .expect("constant body");
     body.lines().filter_map(|line| line.split('"').nth(1)).map(str::to_owned).collect()
-}
-
-fn assert_exact_names<const N: usize>(source: &str, names: [&str; N]) {
-    for name in names {
-        assert_eq!(source.matches(name).count(), 3, "unexpected {name} wiring count");
-    }
-    assert_eq!(source.matches("ProviderRouterImpl").count(), N * 3);
 }
 
 fn enum_variants(source: &str, name: &str) -> BTreeSet<String> {

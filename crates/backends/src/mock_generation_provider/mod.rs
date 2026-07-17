@@ -8,6 +8,9 @@ use nodes::{
 };
 use tasks::generation_task::*;
 
+mod availability;
+pub use availability::*;
+
 const COMPLETION_OFFSET_MILLISECONDS: i64 = 1_000;
 
 /// Construction failure for the immutable Mock provider graph.

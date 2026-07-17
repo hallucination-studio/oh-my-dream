@@ -43,8 +43,8 @@ async fn lists_exact_seven_contracts_and_only_compatible_profile() {
     .expect("profiles");
     assert_eq!(profiles.len(), 1);
     assert_eq!(profiles[0].profile_ref, "image.high_quality_general@1");
-    assert_eq!(profiles[0].availability.state, "unavailable");
-    assert_eq!(profiles[0].availability.reason.as_deref(), Some("no_configured_route"));
+    assert_eq!(profiles[0].availability.state, "available");
+    assert_eq!(profiles[0].availability.reason, None);
 }
 
 #[tokio::test]

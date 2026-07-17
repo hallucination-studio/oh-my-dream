@@ -1,7 +1,19 @@
 use assets::asset::domain::{AssetContentDigest, AssetId, AssetMediaKind};
+use engine::node_capability::{
+    NodeCapabilityContractId, NodeCapabilityContractRef, NodeCapabilityContractVersion,
+};
+use nodes::{
+    GenerationProfileAvailabilityReaderInterface, GenerationProfileAvailabilityRequest,
+    GenerationProfileAvailabilityState, GenerationProfileUnavailableReason,
+};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tasks::generation_task::*;
 
 use backends::mock_generation_provider::{
+    GenerationProviderRegistryProfileAvailabilityReaderAdapterImpl,
     MockGenerationProviderAdapterImpl, MockGenerationProviderRegistryImpl,
 };
 
@@ -59,6 +71,31 @@ fn mock_registry_resolves_only_the_exact_profile_kind_and_route() {
             kind
         );
     }
+}
+
+#[tokio::test]
+async fn mock_registry_availability_reports_exact_routes_and_structured_absence() {
+    let registry = Arc::new(MockGenerationProviderRegistryImpl::try_new().unwrap());
+    let reader = GenerationProviderRegistryProfileAvailabilityReaderAdapterImpl::new(registry);
+    let observations = reader
+        .read_generation_profile_availability(
+            GenerationProfileAvailabilityRequest::try_new(
+                capability_ref("image.generate_from_text"),
+                vec![profile("video.cinematic_image_animation")],
+                Instant::now() + Duration::from_secs(1),
+            )
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(matches!(
+        observations[0].state(),
+        GenerationProfileAvailabilityState::Unavailable {
+            reason: GenerationProfileUnavailableReason::NoConfiguredRoute,
+            retry_after: None,
+        }
+    ));
 }
 
 #[tokio::test]
@@ -350,6 +387,20 @@ fn now_milliseconds() -> i64 {
 
 fn route_id(value: &str) -> GenerationProviderRouteId {
     GenerationProviderRouteId::try_new(value).unwrap()
+}
+
+fn profile(value: &str) -> nodes::GenerationProfileRef {
+    nodes::GenerationProfileRef::new(
+        nodes::GenerationProfileId::try_new(value).unwrap(),
+        nodes::GenerationProfileVersion::try_new(1).unwrap(),
+    )
+}
+
+fn capability_ref(value: &str) -> NodeCapabilityContractRef {
+    NodeCapabilityContractRef::new(
+        NodeCapabilityContractId::new(value).unwrap(),
+        NodeCapabilityContractVersion::new(1, 0).unwrap(),
+    )
 }
 
 fn route_ids(routes: &[GenerationProviderRouteContract]) -> Vec<&str> {
