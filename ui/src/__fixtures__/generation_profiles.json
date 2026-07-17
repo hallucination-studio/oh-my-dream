@@ -3,9 +3,9 @@
     "availability": {
       "expires_at_epoch_ms": "30000",
       "observed_at_epoch_ms": "0",
-      "reason": "no_configured_route",
+      "reason": null,
       "retry_after_epoch_ms": null,
-      "state": "unavailable"
+      "state": "available"
     },
     "display_name": "High Quality Image",
     "profile_ref": "image.high_quality_general@1"

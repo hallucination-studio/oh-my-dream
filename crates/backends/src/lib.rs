@@ -15,6 +15,7 @@ pub mod task;
 pub mod traits;
 
 pub mod deterministic_provider;
+pub mod generation_provider_settings;
 pub mod local;
 pub mod mock;
 pub mod mock_generation_provider;

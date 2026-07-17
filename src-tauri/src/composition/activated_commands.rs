@@ -3,6 +3,9 @@ use std::sync::{Arc, Mutex};
 use assets::asset::application::{
     AssetGetUseCase, AssetImportUseCase, AssetIssuePreviewUseCase, AssetListUseCase,
 };
+use backends::generation_provider_settings::{
+    GenerationProviderSettingsApplyUseCase, GenerationProviderSettingsGetUseCase,
+};
 use engine::node_capability::WorkflowNodeCapabilityRegistry;
 use engine::workflow::{
     WorkflowApplyMutationUseCase, WorkflowCancelRunUseCase, WorkflowCheckReadinessUseCase,
@@ -75,6 +78,12 @@ pub struct DesktopActivatedCommandDependencies {
     pub node_capabilities: Arc<WorkflowNodeCapabilityRegistry>,
     /// Compatible Generation Profile list and availability boundary.
     pub generation_profile_list: Arc<GenerationProfileListForCapabilityUseCase>,
+    /// Sanitized Mock provider Settings query boundary.
+    pub generation_provider_settings_get:
+        Arc<GenerationProviderSettingsGetUseCase<SqliteDesktopBackendSettingsAdapterImpl>>,
+    /// Revision-CAS Mock provider Settings mutation boundary.
+    pub generation_provider_settings_apply:
+        Arc<GenerationProviderSettingsApplyUseCase<SqliteDesktopBackendSettingsAdapterImpl>>,
     /// Idempotent current Workflow creation boundary.
     pub workflow_create:
         Arc<WorkflowCreateUseCase<WorkflowRepository, WorkflowClock, WorkflowIdentities>>,
@@ -218,6 +227,15 @@ async fn dependencies(
         config,
     } = input;
     let repository_interface: Arc<dyn ProjectRepositoryInterface> = repository;
+    let settings = input_settings(&connection)?;
+    let generation_provider_settings_get = Arc::new(GenerationProviderSettingsGetUseCase::new(
+        settings.clone(),
+        node_composition.task_provider_contracts.clone(),
+    ));
+    let generation_provider_settings_apply = Arc::new(GenerationProviderSettingsApplyUseCase::new(
+        settings,
+        node_composition.task_provider_contracts.clone(),
+    ));
     let clock = Arc::new(SystemProjectClockAdapterImpl);
     let get_current = Arc::new(WorkflowGetCurrentUseCase::new(workflow_repository.clone()));
     let summary: Arc<dyn ProjectWorkflowSummaryReaderInterface> =
@@ -299,6 +317,8 @@ async fn dependencies(
             node_composition.catalog,
             node_composition.availability_reader,
         )),
+        generation_provider_settings_get,
+        generation_provider_settings_apply,
         workflow_create: Arc::new(WorkflowCreateUseCase::new(
             workflow_repository.clone(),
             workflow_clock.clone(),
@@ -349,4 +369,12 @@ async fn dependencies(
         generation_task_effect_worker,
         _metadata_connection: connection,
     })
+}
+
+fn input_settings(
+    connection: &Arc<Mutex<Connection>>,
+) -> Result<Arc<SqliteDesktopBackendSettingsAdapterImpl>, DesktopCompositionError> {
+    SqliteDesktopBackendSettingsAdapterImpl::try_new(connection.clone())
+        .map(Arc::new)
+        .map_err(|_| DesktopCompositionError::Config)
 }

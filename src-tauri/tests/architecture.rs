@@ -21,8 +21,8 @@ const UI_API: &str = include_str!("../../ui/src/api/types.ts");
 const UI_TAURI: &str = include_str!("../../ui/src/api/tauriApi.ts");
 
 #[test]
-fn active_boundary_has_exact_23_7_1_3_4_counts() {
-    assert_eq!(registered_commands(), 23);
+fn active_boundary_has_exact_25_7_1_3_4_counts() {
+    assert_eq!(registered_commands(), 25);
     assert_eq!(quoted_values(COMPOSITION, "EXACT_NODE_CAPABILITY_REFS").len(), 7);
     assert_eq!(
         NODE_COMPOSITION

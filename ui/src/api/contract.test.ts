@@ -7,6 +7,7 @@ import progressFixture from "../__fixtures__/node_progress_event.json";
 import openProjectFixture from "../__fixtures__/open_project.json";
 import nodeCapabilitiesFixture from "../__fixtures__/node_capabilities.json";
 import generationProfilesFixture from "../__fixtures__/generation_profiles.json";
+import generationProviderSettingsFixture from "../__fixtures__/generation_provider_settings.json";
 import projectFixture from "../__fixtures__/project.json";
 import workflowFixture from "../__fixtures__/workflow.json";
 import workflowRunFixture from "../__fixtures__/workflow_run.json";
@@ -19,6 +20,7 @@ import type {
   CapabilityCatalog,
   OpenProjectResult,
   Project,
+  GenerationProviderSettingsDto,
 } from "./types.ts";
 import type { NodeProgressEvent } from "../workflow/types.ts";
 
@@ -32,6 +34,7 @@ describe("backend DTO fixtures", () => {
     expect(isOpenProject(openProjectFixture)).toBe(true);
     expect(isNodeCapabilityList(nodeCapabilitiesFixture)).toBe(true);
     expect(isGenerationProfileList(generationProfilesFixture)).toBe(true);
+    expect(isGenerationProviderSettings(generationProviderSettingsFixture)).toBe(true);
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
     expect(isCapabilityCatalog(capabilityCatalogFixture)).toBe(true);
     if (!isAssistantApprovalFixture(assistantApprovalFixture)) {
@@ -71,6 +74,34 @@ function isAssistantApprovalFixture(value: unknown): value is {
     typeof decision.approval_scope_id === "string" &&
     typeof decision.mutation_digest_hex === "string" &&
     (decision.decision === "approve" || decision.decision === "reject")
+  );
+}
+
+function isGenerationProviderSettings(value: unknown): value is GenerationProviderSettingsDto {
+  if (!isRecord(value) || typeof value.settings_revision !== "string" || !Array.isArray(value.profiles)) {
+    return false;
+  }
+  const encoded = JSON.stringify(value);
+  if (/credential|account|endpoint|native_model|remote_task|supports_/.test(encoded)) return false;
+  return value.profiles.length === 3 && value.profiles.every((profile) =>
+    isRecord(profile) &&
+    typeof profile.profile_ref === "string" &&
+    ["text", "image", "video", "voice"].includes(String(profile.generation_kind)) &&
+    (profile.selected_binding === null ||
+      (isRecord(profile.selected_binding) &&
+        typeof profile.selected_binding.provider_id === "string" &&
+        typeof profile.selected_binding.route_id === "string")) &&
+    Array.isArray(profile.provider_choices) &&
+    profile.provider_choices.every((provider) =>
+      isRecord(provider) &&
+      typeof provider.provider_id === "string" &&
+      typeof provider.display_name === "string" &&
+      Array.isArray(provider.routes) &&
+      provider.routes.length > 0 &&
+      provider.routes.every((route) =>
+        isRecord(route) && typeof route.route_id === "string" && typeof route.display_name === "string"
+      )
+    )
   );
 }
 

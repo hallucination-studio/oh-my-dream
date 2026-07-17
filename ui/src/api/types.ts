@@ -62,6 +62,55 @@ export interface GenerationProfileForCapability {
   };
 }
 
+export type GenerationKind = "text" | "image" | "video" | "voice";
+
+export interface GenerationProviderSettingsBindingDto {
+  provider_id: string;
+  route_id: string;
+}
+
+export interface GenerationProviderSettingsRouteChoiceDto {
+  route_id: string;
+  display_name: string;
+}
+
+export interface GenerationProviderSettingsProviderChoiceDto {
+  provider_id: string;
+  display_name: string;
+  routes: GenerationProviderSettingsRouteChoiceDto[];
+}
+
+export interface GenerationProviderSettingsProfileDto {
+  profile_ref: string;
+  generation_kind: GenerationKind;
+  selected_binding: GenerationProviderSettingsBindingDto | null;
+  provider_choices: GenerationProviderSettingsProviderChoiceDto[];
+}
+
+export interface GenerationProviderSettingsDto {
+  settings_revision: string;
+  profiles: GenerationProviderSettingsProfileDto[];
+}
+
+export type GenerationProviderSettingsActionDto =
+  | {
+      kind: "set_binding";
+      profile_ref: string;
+      generation_kind: GenerationKind;
+      provider_id: string;
+      route_id: string;
+    }
+  | {
+      kind: "remove_binding";
+      profile_ref: string;
+      generation_kind: GenerationKind;
+    };
+
+export interface GenerationProviderSettingsApplyRequestDto {
+  expected_settings_revision: string;
+  action: GenerationProviderSettingsActionDto;
+}
+
 export interface WorkflowHead {
   project_id: string;
   revision: number;

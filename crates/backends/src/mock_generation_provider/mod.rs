@@ -42,6 +42,7 @@ pub struct MockGenerationProviderAdapterImpl {
 
 /// Immutable exact registry for the three shipped Mock routes.
 pub struct MockGenerationProviderRegistryImpl {
+    contract: GenerationProviderContract,
     routes: Vec<(GenerationTaskTarget, GenerationProviderResolvedRoute)>,
 }
 
@@ -49,6 +50,7 @@ impl MockGenerationProviderRegistryImpl {
     /// Builds the exact frozen profile/provider/route composition.
     pub fn try_new() -> Result<Self, MockGenerationProviderConstructionError> {
         let provider = MockGenerationProviderAdapterImpl::try_new()?;
+        let contract = GenerationProviderContract::from_provider(&provider);
         let provider_id = provider.generation_provider_id().clone();
         let capabilities = provider.generation_provider_capabilities();
         let policy = GenerationProviderRoutePolicy::try_new(30_000, 500)?;
@@ -73,6 +75,7 @@ impl MockGenerationProviderRegistryImpl {
             .resolve_voice_generation_route(&voice_route)
             .map_err(|_| GenerationProviderContractError::RouteResolutionMismatch)?;
         Ok(Self {
+            contract,
             routes: vec![
                 (
                     GenerationTaskTarget::new(
@@ -100,6 +103,12 @@ impl MockGenerationProviderRegistryImpl {
                 ),
             ],
         })
+    }
+
+    /// Returns the safe contract projection for Settings choices.
+    #[must_use]
+    pub const fn generation_provider_contract(&self) -> &GenerationProviderContract {
+        &self.contract
     }
 
     /// Resolves the currently selected exact target for one profile and request kind.

@@ -59,6 +59,8 @@ pub(super) struct DesktopNodeCapabilityComposition {
     pub(super) asset_finalizer: Arc<AssetFinalizeContentUseCase>,
     pub(super) task_repository: SqliteGenerationTaskRepositoryAdapterImpl,
     pub(super) task_provider_registry: Arc<MockGenerationProviderRegistryImpl>,
+    pub(super) task_provider_contracts:
+        Arc<Vec<tasks::generation_task::GenerationProviderContract>>,
     pub(super) asset_recover_node_output: Arc<AssetRecoverNodeOutputUseCase>,
     pub(super) asset_record_node_output: Arc<AssetRecordNodeOutputUseCase>,
 }
@@ -79,6 +81,8 @@ pub(super) fn compose_node_capabilities(
         MockGenerationProviderRegistryImpl::try_new()
             .map_err(|_| DesktopCompositionError::Business)?,
     );
+    let task_provider_contracts =
+        Arc::new(vec![task_registry.generation_provider_contract().clone()]);
     let availability = Arc::new(
         GenerationProviderRegistryProfileAvailabilityReaderAdapterImpl::new(task_registry.clone()),
     );
@@ -148,6 +152,7 @@ pub(super) fn compose_node_capabilities(
         asset_finalizer: assets.finalizer,
         task_repository,
         task_provider_registry: task_registry,
+        task_provider_contracts,
         asset_recover_node_output: assets.recover_node_output,
         asset_record_node_output: assets.record_node_output,
     })

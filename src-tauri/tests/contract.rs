@@ -9,6 +9,11 @@ use oh_my_dream_tauri::{
         DesktopPickedAssetImportSource,
     },
     composition::{DesktopApplicationPaths, DesktopCompositionRoot},
+    generation_provider_settings_commands::{
+        GenerationProviderSettingsBindingDto, GenerationProviderSettingsDto,
+        GenerationProviderSettingsProfileDto, GenerationProviderSettingsProviderChoiceDto,
+        GenerationProviderSettingsRouteChoiceDto,
+    },
     node_capability_commands::{
         GenerationProfileListForCapabilityRequestDto, generation_profile_list_with_dependencies,
         node_capability_list_with_dependencies,
@@ -47,6 +52,7 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let assistant_operations = assistant_operation_contract::fixture();
     let assistant_approval = assistant_approval_contract::fixture();
     let (node_capabilities, generation_profiles) = node_capability_fixtures();
+    let generation_provider_settings = generation_provider_settings_fixture();
 
     assert_eq!(workflow.workflow.workflow_id, "123e4567-e89b-42d3-a456-426600000010");
     assert_eq!(workflow_run.workflow_revision, "1");
@@ -128,6 +134,53 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     write_fixture("assistant_approval.json", &assistant_approval);
     write_fixture("node_capabilities.json", &node_capabilities);
     write_fixture("generation_profiles.json", &generation_profiles);
+    write_fixture("generation_provider_settings.json", &generation_provider_settings);
+}
+
+fn generation_provider_settings_fixture() -> GenerationProviderSettingsDto {
+    GenerationProviderSettingsDto {
+        settings_revision: "1".to_owned(),
+        profiles: [
+            (
+                "image.high_quality_general@1",
+                "image",
+                "mock.image.high-quality-general.v1",
+                "High Quality General Image",
+            ),
+            (
+                "speech.multilingual_narration@1",
+                "voice",
+                "mock.voice.multilingual-narration.v1",
+                "Multilingual Narration",
+            ),
+            (
+                "video.cinematic_image_animation@1",
+                "video",
+                "mock.video.cinematic-image-animation.v1",
+                "Cinematic Image Animation",
+            ),
+        ]
+        .into_iter()
+        .map(|(profile_ref, generation_kind, route_id, route_name)| {
+            GenerationProviderSettingsProfileDto {
+                profile_ref: profile_ref.to_owned(),
+                generation_kind: generation_kind.to_owned(),
+                selected_binding: Some(GenerationProviderSettingsBindingDto {
+                    provider_id: "mock".to_owned(),
+                    route_id: route_id.to_owned(),
+                }),
+                provider_choices: vec![GenerationProviderSettingsProviderChoiceDto {
+                    provider_id: "mock".to_owned(),
+                    display_name: "Mock".to_owned(),
+                    routes: vec![GenerationProviderSettingsRouteChoiceDto {
+                        route_id: route_id.to_owned(),
+                        display_name: route_name.to_owned(),
+                    }],
+                }],
+            }
+        })
+        .collect(),
+    }
 }
 
 fn node_capability_fixtures() -> (serde_json::Value, serde_json::Value) {

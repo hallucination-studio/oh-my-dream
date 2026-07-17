@@ -1,0 +1,65 @@
+{
+  "settings_revision": "1",
+  "profiles": [
+    {
+      "profile_ref": "image.high_quality_general@1",
+      "generation_kind": "image",
+      "selected_binding": {
+        "provider_id": "mock",
+        "route_id": "mock.image.high-quality-general.v1"
+      },
+      "provider_choices": [
+        {
+          "provider_id": "mock",
+          "display_name": "Mock",
+          "routes": [
+            {
+              "route_id": "mock.image.high-quality-general.v1",
+              "display_name": "High Quality General Image"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "profile_ref": "speech.multilingual_narration@1",
+      "generation_kind": "voice",
+      "selected_binding": {
+        "provider_id": "mock",
+        "route_id": "mock.voice.multilingual-narration.v1"
+      },
+      "provider_choices": [
+        {
+          "provider_id": "mock",
+          "display_name": "Mock",
+          "routes": [
+            {
+              "route_id": "mock.voice.multilingual-narration.v1",
+              "display_name": "Multilingual Narration"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "profile_ref": "video.cinematic_image_animation@1",
+      "generation_kind": "video",
+      "selected_binding": {
+        "provider_id": "mock",
+        "route_id": "mock.video.cinematic-image-animation.v1"
+      },
+      "provider_choices": [
+        {
+          "provider_id": "mock",
+          "display_name": "Mock",
+          "routes": [
+            {
+              "route_id": "mock.video.cinematic-image-animation.v1",
+              "display_name": "Cinematic Image Animation"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

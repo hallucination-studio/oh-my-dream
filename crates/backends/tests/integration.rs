@@ -1,5 +1,7 @@
 #[path = "deterministic_provider.rs"]
 mod deterministic_provider;
+#[path = "generation_provider_settings.rs"]
+mod generation_provider_settings;
 #[path = "mock.rs"]
 mod mock;
 #[path = "mock_generation_provider.rs"]

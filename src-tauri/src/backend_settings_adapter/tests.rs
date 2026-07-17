@@ -1,4 +1,9 @@
 use super::*;
+use backends::generation_provider_settings::{
+    GenerationProviderSettingsMutation, GenerationProviderSettingsMutationResult,
+    GenerationProviderSettingsRepositoryInterface,
+};
+use tasks::generation_task::GenerationTaskRequestKind;
 
 fn connection() -> Arc<Mutex<Connection>> {
     Arc::new(Mutex::new(Connection::open_in_memory().unwrap()))
@@ -152,4 +157,78 @@ async fn current_config_rejects_noncanonical_bytes() {
         adapter.load_or_initialize_desktop_backend_config().await,
         Err(DesktopBackendConfigRepositoryError::InvalidConfig)
     );
+}
+
+#[tokio::test]
+async fn provider_settings_cas_persists_restart_and_preserves_inactive_credentials() {
+    let connection = connection();
+    let adapter =
+        SqliteDesktopBackendSettingsAdapterImpl::try_new(Arc::clone(&connection)).unwrap();
+    let credential_id = GenerationProviderCredentialId::new("legacy.inactive").unwrap();
+    adapter
+        .save_generation_provider_credential(
+            credential_id.clone(),
+            GenerationProviderCredentialSecret::new(b"preserved".to_vec()).unwrap(),
+        )
+        .await
+        .unwrap();
+    let initial = adapter.load_generation_provider_settings_snapshot().await.unwrap();
+    assert_eq!(initial.revision().get(), 1);
+    assert_eq!(initial.bindings().len(), 3);
+    let image = initial
+        .bindings()
+        .iter()
+        .find(|binding| binding.generation_kind() == GenerationTaskRequestKind::Image)
+        .unwrap()
+        .clone();
+    let removal = GenerationProviderSettingsMutation::RemoveBinding {
+        profile_ref: image.profile_ref().clone(),
+        generation_kind: image.generation_kind(),
+    };
+
+    let GenerationProviderSettingsMutationResult::Committed(removed) = adapter
+        .apply_generation_provider_settings_mutation(initial.revision(), removal.clone())
+        .await
+        .unwrap()
+    else {
+        panic!("committed removal")
+    };
+    assert_eq!(removed.revision().get(), 2);
+    assert_eq!(removed.bindings().len(), 2);
+    assert_eq!(
+        adapter
+            .apply_generation_provider_settings_mutation(initial.revision(), removal.clone())
+            .await
+            .unwrap(),
+        GenerationProviderSettingsMutationResult::RevisionConflict
+    );
+    assert!(matches!(
+        adapter
+            .apply_generation_provider_settings_mutation(removed.revision(), removal)
+            .await
+            .unwrap(),
+        GenerationProviderSettingsMutationResult::Unchanged(snapshot)
+            if snapshot.revision() == removed.revision()
+    ));
+
+    let restarted =
+        SqliteDesktopBackendSettingsAdapterImpl::try_new(Arc::clone(&connection)).unwrap();
+    assert_eq!(restarted.load_generation_provider_settings_snapshot().await.unwrap(), removed);
+    assert_eq!(
+        restarted.load_generation_provider_credential(&credential_id).await.unwrap().as_bytes(),
+        b"preserved"
+    );
+
+    let GenerationProviderSettingsMutationResult::Committed(restored) = restarted
+        .apply_generation_provider_settings_mutation(
+            removed.revision(),
+            GenerationProviderSettingsMutation::SetBinding(image),
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("committed restore")
+    };
+    assert_eq!(restored.revision().get(), 3);
+    assert_eq!(restored.bindings().len(), 3);
 }

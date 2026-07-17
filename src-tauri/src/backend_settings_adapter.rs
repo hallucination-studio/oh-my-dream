@@ -19,6 +19,8 @@ const CONFIG_SCHEMA_VERSION: i64 = 2;
 
 #[path = "backend_settings_adapter/current_config.rs"]
 pub(crate) mod current_config;
+#[path = "backend_settings_adapter/provider_settings.rs"]
+mod provider_settings;
 
 #[derive(Clone)]
 pub struct SqliteDesktopBackendSettingsAdapterImpl {
@@ -64,21 +66,8 @@ impl DesktopBackendConfigRepositoryInterface for SqliteDesktopBackendSettingsAda
         &self,
         config: DesktopBackendConfig,
     ) -> Result<(), DesktopBackendConfigRepositoryError> {
-        let encoded = current_config::encode(&config)?;
-        self.blocking(move |connection| {
-            connection
-                .execute(
-                    "INSERT INTO desktop_backend_config(singleton_id, schema_version, config_json)
-                     VALUES (1, ?1, ?2)
-                     ON CONFLICT(singleton_id) DO UPDATE SET
-                     schema_version = excluded.schema_version,
-                     config_json = excluded.config_json",
-                    params![CONFIG_SCHEMA_VERSION, encoded],
-                )
-                .map(|_| ())
-                .map_err(config_sqlite_error)
-        })
-        .await?
+        self.blocking(move |connection| save_config_preserving_settings(connection, &config))
+            .await?
     }
 }
 
@@ -201,6 +190,45 @@ fn load_or_initialize_config(
     };
     transaction.commit().map_err(config_sqlite_error)?;
     Ok(config)
+}
+
+fn save_config_preserving_settings(
+    connection: &mut Connection,
+    config: &DesktopBackendConfig,
+) -> Result<(), DesktopBackendConfigRepositoryError> {
+    let transaction = connection
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(config_sqlite_error)?;
+    let row = provider_settings::current_config_row(&transaction).map_err(config_sqlite_error)?;
+    match row {
+        Some((CONFIG_SCHEMA_VERSION, revision, current)) => {
+            let bindings = current_config::bindings(&current)?;
+            let encoded = current_config::encode_with_bindings(config, bindings)?;
+            let next = revision
+                .checked_add(1)
+                .ok_or(DesktopBackendConfigRepositoryError::InvalidConfig)?;
+            transaction
+                .execute(
+                    "UPDATE desktop_backend_config SET revision = ?1, config_json = ?2
+                     WHERE singleton_id = 1 AND revision = ?3",
+                    params![next, encoded, revision],
+                )
+                .map_err(config_sqlite_error)?;
+        }
+        Some(_) => return Err(DesktopBackendConfigRepositoryError::InvalidConfig),
+        None => {
+            let encoded = current_config::encode(config)?;
+            transaction
+                .execute(
+                    "INSERT INTO desktop_backend_config(
+                         singleton_id, schema_version, revision, config_json
+                     ) VALUES (1, ?1, 1, ?2)",
+                    params![CONFIG_SCHEMA_VERSION, encoded],
+                )
+                .map_err(config_sqlite_error)?;
+        }
+    }
+    transaction.commit().map_err(config_sqlite_error)
 }
 
 #[derive(Clone, Copy)]

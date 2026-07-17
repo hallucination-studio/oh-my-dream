@@ -8,6 +8,8 @@ pub enum DesktopErrorCode {
     ProjectRevisionConflict,
     ProjectMutationConflict,
     NodeCapabilityInvalidRequest,
+    GenerationProviderSettingsInvalidRequest,
+    GenerationProviderSettingsRevisionConflict,
     WorkflowInvalidRequest,
     WorkflowNotFound,
     WorkflowRevisionConflict,
@@ -110,6 +112,14 @@ fn safe_error(code: DesktopErrorCode) -> (&'static str, &'static str) {
         DesktopErrorCode::NodeCapabilityInvalidRequest => {
             ("node_capability.invalid_request", "The Node Capability request was invalid.")
         }
+        DesktopErrorCode::GenerationProviderSettingsInvalidRequest => (
+            "generation_provider_settings.invalid_request",
+            "The Generation Provider Settings request was invalid.",
+        ),
+        DesktopErrorCode::GenerationProviderSettingsRevisionConflict => (
+            "generation_provider_settings.revision_conflict",
+            "Generation Provider Settings changed. Reload and try again.",
+        ),
         DesktopErrorCode::WorkflowInvalidRequest => {
             ("workflow.invalid_request", "The Workflow request was invalid.")
         }

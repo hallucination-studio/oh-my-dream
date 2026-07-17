@@ -36,6 +36,7 @@ pub mod desktop_backend_config;
 pub mod desktop_bridges;
 pub mod desktop_node_capability_asset_bridge;
 pub mod dto;
+pub mod generation_provider_settings_commands;
 pub mod generation_task_asset_sink_adapter;
 pub mod generation_task_effect_worker;
 pub mod generation_task_origin_state_adapter;
@@ -72,6 +73,9 @@ pub mod workspace_snapshot;
 use asset_commands::{asset_get, asset_import, asset_issue_preview, asset_list};
 use assistant_commands_v5::{
     assistant_decide_workflow_change, assistant_get_pending_workflow_change, assistant_send_message,
+};
+use generation_provider_settings_commands::{
+    generation_provider_settings_apply, generation_provider_settings_get,
 };
 use node_capability_commands::{generation_profile_list_for_capability, node_capability_list};
 use project_commands::{project_create, project_get, project_list, project_open, project_rename};
@@ -155,6 +159,8 @@ pub fn run() -> tauri::Result<()> {
             project_open,
             node_capability_list,
             generation_profile_list_for_capability,
+            generation_provider_settings_get,
+            generation_provider_settings_apply,
             workflow_create,
             workflow_get_current,
             workflow_apply_mutation,
