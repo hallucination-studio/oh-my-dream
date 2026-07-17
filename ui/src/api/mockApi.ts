@@ -4,405 +4,352 @@
 // not running inside a Tauri window.
 
 import type {
-  OutputRef,
-  RunOutput,
-  RunOutputs,
-  RunTerminalStatus,
-  Workflow,
-} from "../workflow/types.ts";
-import type {
-  AssetDto,
-  AssistantConfig,
-  AssistantConfigInput,
-  CapabilityBundle,
-  CapabilityCatalog,
   CapabilityRef,
-  CapabilitySearchPage,
-  CapabilitySearchRequest,
-  RunHandle,
-  RunObserver,
+  GenerationProfileForCapability,
+  Project,
+  NodeCapabilityContractDto,
   WorkflowApi,
-  WorkflowApplyPatchInput,
-  WorkflowApplyPatchOutput,
-  WorkflowHead,
-  WorkflowNodeRef,
-  WorkflowPatchBinding,
-  WorkflowPatchOutputRef,
+  WorkflowDto,
+  WorkflowMutationActionDto,
+  WorkflowNodePresentationDto,
+  WorkflowRunDto,
+  WorkflowRunEventPageDto,
+  WorkflowRunScopeDto,
+  WorkflowWithReadinessDto,
 } from "./types.ts";
-import capabilityCatalogFixture from "../__fixtures__/capability_catalog.json";
-import { createRunId } from "./runId.ts";
 import {
-  decideAssistantApproval,
-  getPendingAssistantApproval,
-  sendAssistant,
+  assistantDecideWorkflowChange,
+  assistantGetPendingWorkflowChange,
+  assistantSendMessage,
+  observeAssistantPresentationEvents,
 } from "./mockAssistant.ts";
+import {
+  mockAssetGet,
+  mockAssetImport,
+  mockAssetIssuePreview,
+  mockAssetList,
+} from "./mockAssets.ts";
+import nodeCapabilitiesFixture from "../__fixtures__/node_capabilities.json";
 
-const STEP_MS = 400;
-const mockHeads = new Map<string, WorkflowHead>();
-const MOCK_PROJECT_ID = "mock-project";
+const mockCanonicalWorkflows = new Map<string, WorkflowDto>();
+const mockRuns = new Map<string, WorkflowRunDto>();
+const mockRunEvents = new Map<
+  string,
+  import("./types.ts").DurableWorkflowRunEventDto[]
+>();
+const mockRunObservers = new Set<
+  (event: import("./types.ts").DurableWorkflowRunEventDto) => void
+>();
+const MOCK_PROJECT_ID = "10000000-0000-4000-8000-000000000001";
 const MOCK_PROJECT_NAME = "Mock Project";
-let mockAssistantConfig: AssistantConfig = {
-  enabled: false,
-  base_url: "https://api.openai.com/v1",
-  model: "gpt-5.4",
-  has_key: false,
-};
-
-function outputForNodeType(
-  type: string,
-  nodeId: string,
-): { name: string; output: RunOutput } | null {
-  switch (type) {
-    case "TextToImage":
-      return { name: "image", output: { kind: "image", value: `mock://image/${nodeId}` } };
-    case "ImageToVideo":
-      return { name: "video", output: { kind: "video", value: `mock://video/${nodeId}` } };
-    case "TextToAudio":
-      return { name: "audio", output: { kind: "audio", value: `mock://audio/${nodeId}` } };
-    case "TextPrompt":
-      return { name: "text", output: { kind: "string", value: `mock://text/${nodeId}` } };
-    default:
-      return null;
-  }
-}
-
-/**
- * Simulates executing `workflow`, emitting running/succeeded transitions.
- * Nodes run in array order (a stand-in for the engine's topological order).
- * Outputs use the same nested nodeId -> outputName shape as the real backend.
- */
-function runWorkflow(workflow: Workflow, observe: RunObserver): RunHandle {
-  return new MockWorkflowRun(workflow, observe).handle();
-}
-
-class MockWorkflowRun {
-  private readonly runId = createRunId();
-  private readonly timers: ReturnType<typeof setTimeout>[] = [];
-  private readonly outputs: RunOutputs = {};
-  private started = false;
-  private cancelRequested = false;
-  private terminal = false;
-
-  constructor(
-    private readonly workflow: Workflow,
-    private readonly observe: RunObserver,
-  ) {
-    this.schedule(() => this.start(), 0);
-  }
-
-  handle(): RunHandle {
-    return { runId: this.runId, cancel: () => this.cancel() };
-  }
-
-  private start(): void {
-    this.started = true;
-    if (this.cancelRequested) {
-      this.finish({ state: "cancelled" });
-      return;
-    }
-    if (this.workflow.nodes.length === 0) {
-      this.finish({ state: "succeeded", outputs: this.outputs });
-      return;
-    }
-    this.workflow.nodes.forEach((node, index) => {
-      this.schedule(() => this.runNode(node.id, node.type, index), STEP_MS * (index + 1));
-    });
-  }
-
-  private runNode(nodeId: string, nodeType: string, index: number): void {
-    if (this.terminal || this.cancelRequested) return;
-    this.observe.onProgress({ nodeId, progress: 0.5, nodeState: "running" });
-    const produced = outputForNodeType(nodeType, nodeId);
-    if (produced) {
-      this.outputs[nodeId] = { [produced.name]: produced.output };
-    }
-    this.observe.onProgress({ nodeId, progress: 1, nodeState: "done" });
-    if (index === this.workflow.nodes.length - 1) {
-      this.finish({ state: "succeeded", outputs: this.outputs });
-    }
-  }
-
-  private cancel(): void {
-    if (this.terminal || this.cancelRequested) return;
-    this.cancelRequested = true;
-    this.observe.onStatus({ state: "cancelling" });
-    if (!this.started) return;
-    this.clearTimers();
-    this.schedule(() => this.finish({ state: "cancelled" }), 0);
-  }
-
-  private finish(status: RunTerminalStatus): void {
-    if (this.terminal) return;
-    this.terminal = true;
-    this.clearTimers();
-    this.observe.onStatus(status);
-  }
-
-  private schedule(callback: () => void, delay: number): void {
-    this.timers.push(setTimeout(callback, delay));
-  }
-
-  private clearTimers(): void {
-    this.timers.forEach(clearTimeout);
-  }
-}
-
-// The mock has no persistent store; asset listing is empty until a real backend
-// is present. This keeps the interface total rather than throwing.
-async function listAssets(): Promise<AssetDto[]> {
-  return [];
-}
-
-async function assetsRoot(): Promise<string | null> {
-  return null;
-}
-
-async function getAsset(id: string): Promise<AssetDto> {
-  throw new Error(`Mock backend has no asset store; cannot fetch asset ${id}`);
-}
+const mockProjects = new Map<string, Project>([
+  [MOCK_PROJECT_ID, mockProject(MOCK_PROJECT_ID, MOCK_PROJECT_NAME)],
+]);
 
 async function listProjects() {
-  return [{ id: MOCK_PROJECT_ID, name: MOCK_PROJECT_NAME, created_at: 0 }];
+  return [...mockProjects.values()];
 }
 
 async function createProject(name: string) {
-  return { id: MOCK_PROJECT_ID, name, created_at: 0 };
+  const project = mockProject(MOCK_PROJECT_ID, name);
+  mockProjects.set(project.id, project);
+  return project;
+}
+
+async function getProject(id: string) {
+  const project = mockProjects.get(id);
+  if (!project) throw new Error(`Project ${id} was not found`);
+  return project;
+}
+
+async function renameProject(project: Project, name: string) {
+  const renamed = { ...project, name, revision: String(Number(project.revision) + 1) };
+  mockProjects.set(renamed.id, renamed);
+  return renamed;
 }
 
 async function openProject(id: string) {
+  const project = await getProject(id);
   return {
-    project: { id, name: MOCK_PROJECT_NAME, created_at: 0 },
-    workflow_head: mockHeads.get(id) ?? null,
+    project,
+    current_workflow_summary: null,
   };
 }
 
-async function searchCapabilities(request: CapabilitySearchRequest): Promise<CapabilitySearchPage> {
-  const query = request.query.trim().toLowerCase();
-  const category = request.category?.trim().toLowerCase() || null;
-  const typeId = request.type_id?.trim() || null;
-  const offset = Number(request.cursor ?? "0");
-  const limit = Math.min(Math.max(request.limit ?? 24, 1), 24);
-  const entries = mockCatalog().capabilities
-    .filter((entry) => category === null || entry.presentation.category === category)
-    .filter((entry) => typeId === null || entry.selector.type_id === typeId)
-    .filter((entry) => {
-      if (!query) return true;
-      const fields = [
-        entry.contract.reference.id,
-        entry.presentation.label,
-        entry.presentation.description,
-        entry.presentation.category,
-        ...entry.presentation.search_terms,
-      ].map((field) => field.toLowerCase());
-      return query.split(/\s+/).every((term) => fields.some((field) => field.includes(term)));
-    })
-    .map(({ selector, contract, presentation, status }) => ({
-      selector,
-      reference: contract.reference,
-      presentation,
-      contextual_creation: contract.contextual_creation,
-      status,
-    }));
-  const page = entries.slice(offset, offset + limit);
-  return {
-    capabilities: page,
-    next_cursor: offset + page.length < entries.length ? String(offset + page.length) : null,
+async function nodeCapabilityList(): Promise<NodeCapabilityContractDto[]> {
+  return structuredClone(nodeCapabilitiesFixture) as NodeCapabilityContractDto[];
+}
+
+async function generationProfileListForCapability(
+  _reference: CapabilityRef,
+): Promise<GenerationProfileForCapability[]> {
+  return [];
+}
+
+async function workflowCreate(projectId: string): Promise<WorkflowDto> {
+  const existing = mockCanonicalWorkflows.get(projectId);
+  if (existing) return structuredClone(existing);
+  const now = String(Date.now());
+  const workflow: WorkflowDto = {
+    schema_version: 1,
+    workflow_id: crypto.randomUUID(),
+    project_id: projectId,
+    revision: "1",
+    created_at_epoch_ms: now,
+    updated_at_epoch_ms: now,
+    nodes: [],
+    input_bindings: [],
   };
+  mockCanonicalWorkflows.set(projectId, workflow);
+  return structuredClone(workflow);
 }
 
-async function getCapabilityBundles(refs: CapabilityRef[]): Promise<{ capabilities: CapabilityBundle[] }> {
-  const catalog = mockCatalog();
-  return {
-    capabilities: refs.map((reference) => {
-      const entry = catalog.capabilities.find(
-        (candidate) =>
-          candidate.contract.reference.id === reference.id &&
-          candidate.contract.reference.version === reference.version,
-      );
-      return entry
-        ? {
-            selector: entry.selector,
-            reference,
-            contract: entry.contract,
-            presentation: entry.presentation,
-            status: entry.status,
-          }
-        : {
-            selector: null,
-            reference,
-            contract: null,
-            presentation: null,
-            status: {
-              availability: "degraded" as const,
-              reason: "exact capability version is unavailable",
-              provider_health: null,
-              status_revision: 0,
-            },
-          };
-    }),
-  };
+async function workflowGetCurrent(projectId: string): Promise<WorkflowWithReadinessDto> {
+  const workflow = mockCanonicalWorkflows.get(projectId);
+  if (!workflow) throw new Error("workflow.not_found");
+  return { workflow: structuredClone(workflow), readiness: { state: "ready" } };
 }
 
-function mockCatalog(): CapabilityCatalog {
-  return capabilityCatalogFixture as unknown as CapabilityCatalog;
-}
-
-async function applyWorkflowPatch(
+async function workflowApplyMutation(
   projectId: string,
-  _requestId: string,
-  input: WorkflowApplyPatchInput,
-): Promise<WorkflowApplyPatchOutput> {
-  const current = mockHeads.get(projectId) ?? null;
-  if ((current?.revision ?? null) !== input.expected_revision) {
-    throw new Error("WORKFLOW_REVISION_CONFLICT");
+  workflowId: string,
+  baseRevision: string,
+  actions: WorkflowMutationActionDto[],
+): Promise<WorkflowWithReadinessDto> {
+  const current = (await workflowGetCurrent(projectId)).workflow;
+  if (current.workflow_id !== workflowId || current.revision !== baseRevision) {
+    throw new Error("workflow.revision_conflict");
   }
-  const workflow = structuredClone(
-    current?.workflow ?? { version: "1.0", project_id: projectId, nodes: [] },
-  );
-  const aliases = new Map<string, string>();
-  for (const operation of input.operations) {
-    if (operation.op === "add_node") {
-      const nodeId = nextMockNodeId(workflow);
-      aliases.set(operation.alias, nodeId);
-      workflow.nodes.push({
-        id: nodeId,
-        type: operation.capability.id,
-        contract_version: operation.capability.version,
-        params: operation.params,
-        inputs: {},
-        ...(operation.position === null ? {} : { position: operation.position }),
-      });
-      continue;
-    }
-    const nodeId = resolveMockNode(operation.node, aliases);
-    const node = workflow.nodes.find((candidate) => candidate.id === nodeId);
-    if (!node) throw new Error("NODE_NOT_FOUND");
-    if (operation.op === "replace_params") node.params = operation.params;
-    if (operation.op === "set_position") node.position = operation.position;
-    if (operation.op === "clear_input") delete node.inputs[operation.input];
-    if (operation.op === "set_input") {
-      node.inputs[operation.input] = mockBinding(operation.binding, workflow, aliases);
-    }
-    if (operation.op === "remove_node") {
-      workflow.nodes = workflow.nodes.filter((candidate) => candidate.id !== nodeId);
-      removeMockBindings(workflow, nodeId);
-    }
-  }
-  if (input.operations.length === 0 && current === null) {
-    return patchOutput(null, aliases, false);
-  }
-  const next = { project_id: projectId, revision: (current?.revision ?? 0) + 1, workflow };
-  mockHeads.set(projectId, next);
-  return patchOutput(next, aliases, true);
+  const workflow = structuredClone(current);
+  for (const action of actions) applyCanonicalAction(workflow, action);
+  workflow.revision = String(Number(workflow.revision) + 1);
+  workflow.updated_at_epoch_ms = String(Date.now());
+  mockCanonicalWorkflows.set(projectId, workflow);
+  return { workflow: structuredClone(workflow), readiness: { state: "ready" } };
 }
 
-function nextMockNodeId(workflow: Workflow): string {
-  let index = 1;
-  while (workflow.nodes.some((node) => node.id === `n${index}`)) index += 1;
-  return `n${index}`;
-}
-
-function resolveMockNode(node: WorkflowNodeRef, aliases: Map<string, string>): string {
-  if (node.kind === "id") return node.id;
-  const resolved = aliases.get(node.alias);
-  if (!resolved) throw new Error("ALIAS_NOT_FOUND");
-  return resolved;
-}
-
-function mockBinding(
-  binding: WorkflowPatchBinding,
-  workflow: Workflow,
-  aliases: Map<string, string>,
+async function workflowCheckReadiness(
+  projectId: string,
+  workflowId: string,
 ) {
-  const outputRef = (source: WorkflowPatchOutputRef) => {
-    const nodeId = resolveMockNode(source.node, aliases);
-    const sourceNode = workflow.nodes.find((node) => node.id === nodeId);
-    if (!sourceNode) throw new Error("NODE_NOT_FOUND");
-    const declared = outputForNodeType(sourceNode.type, nodeId);
-    if (declared?.name !== source.output) throw new Error("OUTPUT_NOT_DECLARED");
-    return { node_id: nodeId, output: source.output };
-  };
-  return binding.kind === "single"
-    ? { kind: "single" as const, source: outputRef(binding.source) }
-    : { kind: "ordered_many" as const, sources: binding.sources.map(outputRef) };
+  const current = await workflowGetCurrent(projectId);
+  if (current.workflow.workflow_id !== workflowId) throw new Error("workflow.not_found");
+  return current.readiness;
 }
 
-function removeMockBindings(workflow: Workflow, nodeId: string): void {
-  for (const node of workflow.nodes) {
-    for (const [input, binding] of Object.entries(node.inputs)) {
-      const refs: OutputRef[] = Array.isArray(binding)
-        ? [binding]
-        : "kind" in binding
-          ? binding.kind === "ordered_many"
-            ? binding.sources
-            : [binding.source]
-          : [binding];
-      const sources = refs.map((source) =>
-        Array.isArray(source) ? source[0] : source.node_id,
-      );
-      if (sources.includes(nodeId)) delete node.inputs[input];
-    }
+async function workflowStartRun(
+  projectId: string,
+  workflowId: string,
+  workflowRevision: string,
+  scope: WorkflowRunScopeDto,
+): Promise<WorkflowRunDto> {
+  const workflow = (await workflowGetCurrent(projectId)).workflow;
+  const now = String(Date.now());
+  const run: WorkflowRunDto = {
+    workflow_run_id: crypto.randomUUID(),
+    project_id: projectId,
+    workflow_id: workflowId,
+    workflow_revision: workflowRevision,
+    scope,
+    state: "queued",
+    created_at_epoch_ms: now,
+    updated_at_epoch_ms: now,
+    node_executions: workflow.nodes.map((node) => ({
+      node_id: node.node_id,
+      node_execution_id: crypto.randomUUID(),
+      state: "pending",
+      progress_basis_points: null,
+    })),
+  };
+  mockRuns.set(run.workflow_run_id, run);
+  mockRunEvents.set(run.workflow_run_id, []);
+  queueMicrotask(() => executeMockRun(run.workflow_run_id));
+  return structuredClone(run);
+}
+
+async function workflowCancelRun(
+  _projectId: string,
+  workflowRunId: string,
+): Promise<WorkflowRunDto> {
+  const run = requireMockRun(workflowRunId);
+  const cancelled = { ...run, state: "cancelled" as const, updated_at_epoch_ms: String(Date.now()) };
+  mockRuns.set(workflowRunId, cancelled);
+  appendMockRunEvent(workflowRunId, { type: "run_cancelled" });
+  return structuredClone(cancelled);
+}
+
+async function workflowGetRun(
+  _projectId: string,
+  workflowRunId: string,
+): Promise<WorkflowRunDto> {
+  return structuredClone(requireMockRun(workflowRunId));
+}
+
+async function workflowListRunEvents(
+  _projectId: string,
+  workflowRunId: string,
+  afterSequence: string | null = null,
+  limit = 500,
+): Promise<WorkflowRunEventPageDto> {
+  const after = BigInt(afterSequence ?? "0");
+  const matching = (mockRunEvents.get(workflowRunId) ?? []).filter(
+    (event) => BigInt(event.sequence) > after,
+  );
+  const events = matching.slice(0, limit);
+  return {
+    events: structuredClone(events),
+    next_sequence:
+      matching.length > limit ? events.at(-1)?.sequence ?? null : null,
+  };
+}
+
+async function observeWorkflowRunEvents(
+  observer: (event: import("./types.ts").DurableWorkflowRunEventDto) => void,
+): Promise<() => void> {
+  mockRunObservers.add(observer);
+  return () => mockRunObservers.delete(observer);
+}
+
+async function workflowGetNodePresentation(
+  projectId: string,
+  workflowId: string,
+  nodeId: string,
+): Promise<WorkflowNodePresentationDto> {
+  const workflow = (await workflowGetCurrent(projectId)).workflow;
+  if (workflow.workflow_id !== workflowId) throw new Error("workflow.not_found");
+  const node = workflow.nodes.find((candidate) => candidate.node_id === nodeId);
+  if (!node) throw new Error("workflow.node_not_found");
+  const kind = node.capability_id.startsWith("image.")
+    ? "image"
+    : node.capability_id.startsWith("video.")
+      ? "video"
+      : node.capability_id.startsWith("audio.")
+        ? "audio"
+        : "text";
+  return {
+    node_id: nodeId,
+    current_revision: workflow.revision,
+    capability_id: node.capability_id,
+    capability_version: node.capability_version,
+    readiness: { state: "ready" },
+    latest_execution: null,
+    presentation: kind === "text"
+      ? { kind: "text", value: null }
+      : { kind, value: null, preview_uri: null },
+  };
+}
+
+function requireMockRun(id: string): WorkflowRunDto {
+  const run = mockRuns.get(id);
+  if (!run) throw new Error("workflow_run.not_found");
+  return run;
+}
+
+function executeMockRun(runId: string): void {
+  const run = requireMockRun(runId);
+  if (run.state === "cancelled") return;
+  appendMockRunEvent(runId, { type: "run_queued" });
+  for (const execution of run.node_executions) {
+    appendMockRunEvent(runId, {
+      type: "node_started",
+      node_execution_id: execution.node_execution_id,
+    });
+    appendMockRunEvent(runId, {
+      type: "node_succeeded",
+      node_execution_id: execution.node_execution_id,
+      outputs: [],
+    });
+  }
+  const succeeded = { ...run, state: "succeeded" as const, updated_at_epoch_ms: String(Date.now()) };
+  mockRuns.set(runId, succeeded);
+  appendMockRunEvent(runId, { type: "run_succeeded" });
+}
+
+function appendMockRunEvent(
+  runId: string,
+  payload: import("./types.ts").JsonObject & { type: string },
+): void {
+  const events = mockRunEvents.get(runId) ?? [];
+  const event = {
+    workflow_run_id: runId,
+    sequence: String(events.length + 1),
+    occurred_at_epoch_ms: String(Date.now()),
+    payload,
+  };
+  events.push(event);
+  mockRunEvents.set(runId, events);
+  for (const observer of mockRunObservers) observer(structuredClone(event));
+}
+
+function applyCanonicalAction(workflow: WorkflowDto, action: WorkflowMutationActionDto): void {
+  if (action.kind === "add_node") {
+    workflow.nodes.push({
+      node_id: action.node_id,
+      capability_id: action.capability.id,
+      capability_version: action.capability.version,
+      parameters: action.parameters,
+      canvas_position: action.canvas_position,
+    });
+  } else if (action.kind === "remove_node") {
+    workflow.nodes = workflow.nodes.filter((node) => node.node_id !== action.node_id);
+    workflow.input_bindings = workflow.input_bindings.filter(
+      (binding) =>
+        binding.target_node_id !== action.node_id &&
+        binding.items.every((item) => item.source_node_id !== action.node_id),
+    );
+  } else if (action.kind === "replace_node_parameters") {
+    requireCanonicalNode(workflow, action.node_id).parameters = action.parameters;
+  } else if (action.kind === "select_node_capability") {
+    const node = requireCanonicalNode(workflow, action.node_id);
+    node.capability_id = action.capability.id;
+    node.capability_version = action.capability.version;
+    node.parameters = action.parameters;
+  } else if (action.kind === "move_node") {
+    requireCanonicalNode(workflow, action.node_id).canvas_position = action.canvas_position;
   }
 }
 
-function patchOutput(
-  workflowHead: WorkflowHead | null,
-  aliases: Map<string, string>,
-  changed: boolean,
-): WorkflowApplyPatchOutput {
+function requireCanonicalNode(workflow: WorkflowDto, id: string) {
+  const node = workflow.nodes.find((candidate) => candidate.node_id === id);
+  if (!node) throw new Error("workflow.node_not_found");
+  return node;
+}
+
+function mockProject(id: string, name: string): Project {
   return {
-    workflow_head: workflowHead,
-    aliases: [...aliases].map(([alias, node_id]) => ({ alias, node_id })),
-    readiness_blockers: [],
-    changed,
-    deduplicated: false,
-    undo_id: changed && workflowHead ? `mock-undo-${workflowHead.revision}` : null,
+    id,
+    name,
+    revision: "1",
+    created_at_epoch_ms: "0",
+    updated_at_epoch_ms: "0",
   };
 }
 
-async function getProviders() {
-  return [{ id: "mock", name: "Mock", active: true, has_key: false }];
-}
-
-async function setActiveProvider(): Promise<void> {}
-
-async function setProviderKey(): Promise<void> {}
-
-async function getAssistantConfig(): Promise<AssistantConfig> {
-  return { ...mockAssistantConfig };
-}
-
-async function setAssistantConfig(input: AssistantConfigInput): Promise<void> {
-  mockAssistantConfig = {
-    enabled: input.enabled,
-    base_url: input.base_url,
-    model: input.model,
-    has_key:
-      input.clear_api_key
-        ? false
-        : input.api_key === null
-          ? mockAssistantConfig.has_key
-          : input.api_key.length > 0,
-  };
-}
 
 export const mockApi: WorkflowApi = {
-  runWorkflow,
-  assetsRoot,
-  listAssets,
-  getAsset,
+  assetImport: mockAssetImport,
+  assetGet: mockAssetGet,
+  assetList: mockAssetList,
+  assetIssuePreview: mockAssetIssuePreview,
   listProjects,
   createProject,
+  getProject,
+  renameProject,
   openProject,
-  searchCapabilities,
-  getCapabilityBundles,
-  applyWorkflowPatch,
-  getProviders,
-  setActiveProvider,
-  setProviderKey,
-  getAssistantConfig,
-  setAssistantConfig,
-  sendAssistant,
-  getPendingAssistantApproval,
-  decideAssistantApproval,
+  nodeCapabilityList,
+  generationProfileListForCapability,
+  workflowCreate,
+  workflowGetCurrent,
+  workflowApplyMutation,
+  workflowCheckReadiness,
+  workflowStartRun,
+  workflowCancelRun,
+  workflowGetRun,
+  workflowListRunEvents,
+  observeWorkflowRunEvents,
+  workflowGetNodePresentation,
+  assistantSendMessage,
+  assistantGetPendingWorkflowChange,
+  assistantDecideWorkflowChange,
+  observeAssistantPresentationEvents,
 };

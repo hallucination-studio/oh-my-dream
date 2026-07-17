@@ -9,7 +9,6 @@ import type {
   CapabilitySummary,
   JsonValue,
 } from "../api/types.ts";
-import type { CapabilityCacheSnapshot } from "../workflow/contractCache.ts";
 import type { PortType } from "../workflow/types.ts";
 
 export interface PortSpec {
@@ -95,11 +94,6 @@ export function recoveryNodeSpec(reference: CapabilityRef, reason: string): Node
   });
 }
 
-/** Projects every loaded exact bundle, including degraded placeholders. */
-export function nodeSpecsFromSnapshot(snapshot: CapabilityCacheSnapshot): NodeTypeSpec[] {
-  return [...snapshot.bundles.values()].map(nodeSpecFromBundle);
-}
-
 /** Projects whether the ordinary palette path can create this capability. */
 export function paletteCreation(summary: CapabilitySummary): {
   canAdd: boolean;
@@ -112,24 +106,6 @@ export function paletteCreation(summary: CapabilitySummary): {
 /** Contextual capabilities are reached from their trusted route, not the generic palette. */
 export function isPaletteVisible(summary: CapabilitySummary): boolean {
   return summary.contextual_creation === null;
-}
-
-/** Resolves a node's persisted exact ref from the cache snapshot. */
-export function findNodeType(
-  type: string,
-  contractVersion: string | undefined,
-  params: Record<string, unknown>,
-  snapshot: CapabilityCacheSnapshot,
-): NodeTypeSpec | undefined {
-  const version = contractVersion ?? "1.0";
-  const mode = typeof params.mode === "string" ? params.mode : null;
-  const bundle = [...snapshot.bundles.values()].find((candidate) =>
-    candidate.reference.version === version && (
-      candidate.reference.id === type ||
-      (mode !== null && candidate.selector?.type_id === type && candidate.selector.mode === mode)
-    )
-  );
-  return bundle ? nodeSpecFromBundle(bundle) : undefined;
 }
 
 /** Builds canonical params for a mode while preserving only shared fields. */

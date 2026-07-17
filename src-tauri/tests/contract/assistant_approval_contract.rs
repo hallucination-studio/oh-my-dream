@@ -1,38 +1,38 @@
-use oh_my_dream_tauri::assistant_commands::{
-    AssistantApprovalDecisionInput, AssistantPendingApprovalDto,
+use oh_my_dream_tauri::assistant_command_dto::{
+    AssistantDecideWorkflowChangeRequestDto, AssistantPendingWorkflowChangeDto,
+    AssistantWorkflowChangeDecisionDto, AssistantWorkflowChangeLineageDto,
+    AssistantWorkflowChangeStateDto,
 };
-use serde_json::json;
 
 #[derive(serde::Serialize)]
 pub struct AssistantApprovalFixture {
-    pending: AssistantPendingApprovalDto,
-    decision: AssistantApprovalDecisionInput,
+    pending: AssistantPendingWorkflowChangeDto,
+    decision: AssistantDecideWorkflowChangeRequestDto,
 }
 
 pub fn fixture() -> AssistantApprovalFixture {
     AssistantApprovalFixture {
-        pending: AssistantPendingApprovalDto {
-            project_id: "project-1".to_owned(),
-            approval_scope_id: "scope-1".to_owned(),
-            user_intent: "Build a film".to_owned(),
-            candidate_digest: "sha256:candidate".to_owned(),
-            reviewer_version: "reviewer-v1".to_owned(),
-            evidence_hash: "sha256:evidence".to_owned(),
-            review_summary: "Ready to apply".to_owned(),
-            review_findings: vec!["Matches the requested production".to_owned()],
-            effect: "apply_reviewed_workflow_candidate".to_owned(),
-            workflow: json!({"version":"1.0","project_id":"project-1","nodes":[]}),
-            readiness_blockers: json!([]),
-            assets: vec![oh_my_dream_tauri::assistant_commands::ApprovalAssetDto {
-                asset_id: "asset-1".to_owned(),
-                kind: "video".to_owned(),
-            }],
+        pending: AssistantPendingWorkflowChangeDto {
+            workflow_change_id: "20000000-0000-4000-8000-000000000001".to_owned(),
+            project_id: "10000000-0000-4000-8000-000000000001".to_owned(),
+            base_workflow_revision: "1".to_owned(),
+            mutation_digest_hex: "00".repeat(32),
+            approval_scope_id: "30000000-0000-4000-8000-000000000001".to_owned(),
+            expires_at_epoch_ms: "1000".to_owned(),
+            state: AssistantWorkflowChangeStateDto::AwaitingApproval,
+            lineage: AssistantWorkflowChangeLineageDto::UserMessage {
+                invocation_id: "40000000-0000-4000-8000-000000000001".to_owned(),
+                intent: "Build a film".to_owned(),
+            },
+            mutations: vec![serde_json::json!({"type":"add_node"})],
+            readiness_issues: Vec::new(),
         },
-        decision: AssistantApprovalDecisionInput {
-            project_id: "project-1".to_owned(),
-            approval_scope_id: "scope-1".to_owned(),
-            candidate_digest: "sha256:candidate".to_owned(),
-            approved: true,
+        decision: AssistantDecideWorkflowChangeRequestDto {
+            project_id: "10000000-0000-4000-8000-000000000001".to_owned(),
+            workflow_change_id: "20000000-0000-4000-8000-000000000001".to_owned(),
+            approval_scope_id: "30000000-0000-4000-8000-000000000001".to_owned(),
+            mutation_digest_hex: "00".repeat(32),
+            decision: AssistantWorkflowChangeDecisionDto::Approve,
         },
     }
 }

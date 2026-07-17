@@ -42,7 +42,7 @@ def invoke_payload(
 async def run_agent(
     frames: list[tuple[FrameKind, dict[str, object]]], model: Any
 ) -> list[Frame]:
-    from assistant.stdio_app import AgentStdioApp
+    from assistant.tests.legacy_stdio_app import AgentStdioApp
 
     output = RecordingWriter()
     await AgentStdioApp(
@@ -156,7 +156,7 @@ async def resume_agent(
 
 class AgentTransportTests(unittest.IsolatedAsyncioTestCase):
     async def test_production_stdio_entrypoint_has_no_fixture_mode(self) -> None:
-        from assistant.stdio_app import run
+        from assistant.tests.legacy_stdio_app import run
 
         self.assertEqual(list(inspect.signature(run).parameters), [])
 
@@ -308,7 +308,7 @@ class AgentTransportTests(unittest.IsolatedAsyncioTestCase):
             sum(frame.kind is FrameKind.TOOL_REQUEST for frame in resumed_frames), 1
         )
     async def test_rejected_approval_completes_without_executing_tool(self) -> None:
-        from assistant.stdio_app import AgentStdioApp
+        from assistant.tests.legacy_stdio_app import AgentStdioApp
 
         with tempfile.TemporaryDirectory() as directory:
             session_path = str(Path(directory) / "rejected.sqlite3")

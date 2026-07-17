@@ -1,7 +1,8 @@
 use engine::{
-    InputBinding, InputPort, Node, NodeInputs, NodeParams, NodeRef, NodeRegistry, NodeRunContext,
-    NodeRunError, NodeRunResult, OutputPort, OutputRef, PatchOutputRef, PortCardinality, PortType,
-    Workflow, WorkflowNode, WorkflowPatch, WorkflowPatchOperation, apply_workflow_patch,
+    InputBinding, InputPort, NodeInputs, NodeInterface, NodeParams, NodeRef, NodeRegistry,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, OutputRef, PatchOutputRef,
+    PortCardinality, PortType, Workflow, WorkflowNode, WorkflowPatch, WorkflowPatchOperation,
+    apply_workflow_patch,
 };
 use std::collections::BTreeMap;
 
@@ -59,7 +60,7 @@ fn patch_registry() -> NodeRegistry {
     registry.register(
         "MultiOutput",
         Box::new(|_| {
-            Ok(Box::new(MultiOutputNode {
+            Ok(Box::new(MultiOutputNodeImpl {
                 outputs: vec![
                     OutputPort { name: "first".to_owned(), port_type: PortType::String },
                     OutputPort { name: "second".to_owned(), port_type: PortType::String },
@@ -70,7 +71,7 @@ fn patch_registry() -> NodeRegistry {
     registry.register(
         "TextTarget",
         Box::new(|_| {
-            Ok(Box::new(TextTargetNode {
+            Ok(Box::new(TextTargetNodeImpl {
                 inputs: vec![InputPort {
                     name: "text".to_owned(),
                     port_type: PortType::String,
@@ -109,11 +110,11 @@ fn patch_workflow() -> Workflow {
     }
 }
 
-struct MultiOutputNode {
+struct MultiOutputNodeImpl {
     outputs: Vec<OutputPort>,
 }
 
-impl Node for MultiOutputNode {
+impl NodeInterface for MultiOutputNodeImpl {
     fn type_id(&self) -> &str {
         "MultiOutput"
     }
@@ -129,17 +130,17 @@ impl Node for MultiOutputNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext<'_>,
+        _context: &mut NodeRunContextImpl<'_>,
     ) -> Result<NodeRunResult, NodeRunError> {
         unreachable!("patch tests do not execute nodes")
     }
 }
 
-struct TextTargetNode {
+struct TextTargetNodeImpl {
     inputs: Vec<InputPort>,
 }
 
-impl Node for TextTargetNode {
+impl NodeInterface for TextTargetNodeImpl {
     fn type_id(&self) -> &str {
         "TextTarget"
     }
@@ -155,7 +156,7 @@ impl Node for TextTargetNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext<'_>,
+        _context: &mut NodeRunContextImpl<'_>,
     ) -> Result<NodeRunResult, NodeRunError> {
         unreachable!("patch tests do not execute nodes")
     }

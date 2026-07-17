@@ -3,6 +3,7 @@
 
 import type { NodeTypeSpec } from "../nodes/catalog.ts";
 import { ParameterInput } from "../nodes/ParameterInput.tsx";
+import { GenerationProfileSelector } from "./GenerationProfileSelector.tsx";
 import { nodeAccent } from "../nodes/typeColor.ts";
 import "./inspector.css";
 
@@ -20,12 +21,14 @@ export function InspectorPanel({
   onModeChange = () => undefined,
   onParamChange,
   onOpenAssets = () => undefined,
+  onRunThroughNode = () => undefined,
 }: {
   node: SelectedNode | null;
   modeOptions?: NodeTypeSpec[];
   onModeChange?: (mode: string) => void;
   onParamChange: (nodeId: string, name: string, value: unknown) => void;
   onOpenAssets?: () => void;
+  onRunThroughNode?: (nodeId: string) => void;
 }) {
   if (!node) {
     return (
@@ -47,6 +50,9 @@ export function InspectorPanel({
   const accent = spec ? nodeAccent(spec.outputs, spec.inputs) : "var(--ink-3)";
   const produces = spec && spec.outputs.some((o) => ["image", "video", "audio"].includes(o.type));
   const isAsset = spec?.contextualCreationRoute === "asset_library";
+  const isGeneration = spec?.ref.id === "image.generate_from_text"
+    || spec?.ref.id === "video.generate_from_image"
+    || spec?.ref.id === "audio.synthesize_speech_from_text";
 
   return (
     <aside className="insp">
@@ -91,11 +97,26 @@ export function InspectorPanel({
         </div>
       )}
 
+      {isGeneration && spec ? (
+        <label className="insp__field">
+          <span className="insp__label">Generation profile</span>
+          <GenerationProfileSelector
+            capability={spec.ref}
+            value={typeof node.params.generation_profile_ref === "string"
+              ? node.params.generation_profile_ref
+              : ""}
+            onChange={(value) => onParamChange(node.id, "generation_profile_ref", value)}
+          />
+        </label>
+      ) : null}
+
       {!isAsset && spec && spec.params.length > 0 ? (
         <>
           <p className="insp__grp">Parameters</p>
           <div className="insp__fields">
-            {spec.params.map((param) => (
+            {spec.params
+              .filter((param) => !isGeneration || param.name !== "generation_profile_ref")
+              .map((param) => (
               <label key={param.name} className="insp__field">
                 <span className="insp__label">{param.label}</span>
                 <ParameterInput
@@ -105,7 +126,7 @@ export function InspectorPanel({
                   onChange={(value) => onParamChange(node.id, param.name, value)}
                 />
               </label>
-            ))}
+              ))}
           </div>
         </>
       ) : !isAsset ? (
@@ -117,6 +138,9 @@ export function InspectorPanel({
           Generated media saves to the Library automatically, tagged with this project and prompt.
         </div>
       )}
+      <button className="insp__asset-action" onClick={() => onRunThroughNode(node.id)}>
+        Run through this node
+      </button>
     </aside>
   );
 }

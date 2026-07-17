@@ -14,11 +14,16 @@ pub mod request;
 pub mod task;
 pub mod traits;
 
+pub mod deterministic_provider;
 pub mod local;
 pub mod mock;
+pub mod provider_routing;
 
-pub use error::{BackendError, Result};
-pub use mock::MockBackend;
-pub use request::{ImageToVideoRequest, TextToAudioRequest, TextToImageRequest};
+pub use error::{BackendError, BackendResult};
+pub use mock::MockBackendImpl;
+pub use request::{
+    ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest,
+    TextToAudioRequest, TextToImageRequest,
+};
 pub use task::{TaskHandle, TaskProgress, TaskStatus};
-pub use traits::InferenceBackend;
+pub use traits::InferenceBackendInterface;

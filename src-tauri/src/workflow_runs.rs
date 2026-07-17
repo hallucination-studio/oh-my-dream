@@ -1,13 +1,13 @@
 use engine::{
-    CancellationSignal, EngineError, Executor, NodeProgressEvent, NodeRegistry, ResultCache,
-    RunOutputs, Workflow,
+    CancellationSignalInterface, EngineError, NodeProgressEvent, NodeRegistry, ResultCache,
+    RunOutputs, Workflow, WorkflowGraphExecutor,
 };
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicBool, AtomicU64, Ordering},
+    atomic::{AtomicBool, Ordering},
 };
 use thiserror::Error;
 use tracing::error;
@@ -37,10 +37,6 @@ impl RunId {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-
-    fn legacy(sequence: u64) -> Self {
-        Self(format!("legacy:{sequence}"))
     }
 }
 
@@ -129,7 +125,6 @@ pub struct WorkflowRuns {
     registry: Arc<NodeRegistry>,
     active: Mutex<ActiveRuns>,
     caches: Mutex<HashMap<String, Arc<Mutex<ResultCache>>>>,
-    legacy_sequence: AtomicU64,
 }
 
 impl WorkflowRuns {
@@ -140,7 +135,6 @@ impl WorkflowRuns {
             registry,
             active: Mutex::new(ActiveRuns::default()),
             caches: Mutex::new(HashMap::new()),
-            legacy_sequence: AtomicU64::new(0),
         }
     }
 
@@ -171,7 +165,7 @@ impl WorkflowRuns {
             .map_err(|_| WorkflowRunsError::ProjectCacheLock { project_id: project_id.clone() })?;
         let cancellation = Arc::clone(&registration.cancellation);
         let mut sink_available = true;
-        let result = Executor::new(&self.registry).execute_interruptible(
+        let result = WorkflowGraphExecutor::new(&self.registry).execute_interruptible(
             &workflow,
             &mut cache,
             cancellation.as_ref(),
@@ -214,18 +208,6 @@ impl WorkflowRuns {
         Ok(active.by_project_id.get(project_id).map(|key| key.run_id.clone()))
     }
 
-    pub(crate) fn run_legacy(
-        self: &Arc<Self>,
-        workflow: Workflow,
-        sink: &mut dyn WorkflowRunEventSink,
-    ) -> Result<WorkflowRunOutcome, WorkflowRunsError> {
-        let sequence = self
-            .legacy_sequence
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| value.checked_add(1))
-            .map_err(|_| WorkflowRunsError::GenerationExhausted)?;
-        self.run(RunId::legacy(sequence), workflow, sink)
-    }
-
     fn register(
         self: &Arc<Self>,
         run_id: RunId,
@@ -241,7 +223,7 @@ impl WorkflowRuns {
         let generation = active.next_generation;
         active.next_generation =
             generation.checked_add(1).ok_or(WorkflowRunsError::GenerationExhausted)?;
-        let cancellation = Arc::new(RunCancellation::default());
+        let cancellation = Arc::new(RunCancellationImpl::default());
         let key =
             ActiveKey { run_id: run_id.clone(), project_id: project_id.to_owned(), generation };
         active.by_run_id.insert(
@@ -297,7 +279,7 @@ struct ActiveRuns {
 struct ActiveRun {
     project_id: String,
     generation: u64,
-    cancellation: Arc<RunCancellation>,
+    cancellation: Arc<RunCancellationImpl>,
 }
 
 impl ActiveRun {
@@ -316,7 +298,7 @@ struct ActiveKey {
 struct RunRegistration {
     owner: Arc<WorkflowRuns>,
     key: ActiveKey,
-    cancellation: Arc<RunCancellation>,
+    cancellation: Arc<RunCancellationImpl>,
     active: bool,
 }
 
@@ -367,17 +349,17 @@ impl Drop for RunRegistration {
 }
 
 #[derive(Default)]
-struct RunCancellation {
+struct RunCancellationImpl {
     requested: AtomicBool,
 }
 
-impl RunCancellation {
+impl RunCancellationImpl {
     fn request(&self) {
         self.requested.store(true, Ordering::SeqCst);
     }
 }
 
-impl CancellationSignal for RunCancellation {
+impl CancellationSignalInterface for RunCancellationImpl {
     fn is_cancelled(&self) -> bool {
         self.requested.load(Ordering::SeqCst)
     }

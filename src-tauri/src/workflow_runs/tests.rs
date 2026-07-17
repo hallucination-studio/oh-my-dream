@@ -3,8 +3,8 @@ use super::{
     WorkflowRunOutcome, WorkflowRuns, WorkflowRunsError,
 };
 use engine::{
-    EngineError, InputPort, Node, NodeRegistry, NodeRunContext, NodeRunError, NodeRunResult,
-    OutputPort, PortType, RunOutputs, Value, Workflow, WorkflowNode,
+    EngineError, InputPort, NodeInterface, NodeRegistry, NodeRunContextImpl, NodeRunError,
+    NodeRunResult, OutputPort, PortType, RunOutputs, Workflow, WorkflowNode, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::{Arc, Barrier, mpsc};
@@ -210,7 +210,7 @@ fn immediate_node_service() -> Arc<WorkflowRuns> {
     registry.register(
         "Immediate",
         Box::new(|_| {
-            Ok(Box::new(ImmediateNode {
+            Ok(Box::new(ImmediateNodeImpl {
                 outputs: vec![OutputPort { name: "text".to_owned(), port_type: PortType::String }],
             }))
         }),
@@ -286,11 +286,11 @@ impl WorkflowRunEventSink for ProgressFailingSink {
     }
 }
 
-struct ImmediateNode {
+struct ImmediateNodeImpl {
     outputs: Vec<OutputPort>,
 }
 
-impl Node for ImmediateNode {
+impl NodeInterface for ImmediateNodeImpl {
     fn type_id(&self) -> &str {
         "Immediate"
     }
@@ -306,11 +306,11 @@ impl Node for ImmediateNode {
     fn run(
         &self,
         _inputs: &engine::NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         Ok(NodeRunResult::new(BTreeMap::from([(
             "text".to_owned(),
-            Value::String("done".to_owned()),
+            WorkflowNodeValue::String("done".to_owned()),
         )])))
     }
 }

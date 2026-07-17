@@ -1,5 +1,4 @@
-// Workflow types mirroring the engine's serialized format (docs/DESIGN.md §5).
-// The UI edits this shape; on submit it is what will be sent to the backend.
+// React editor view models. Canonical DTO translation lives only in canonical.ts.
 
 export type PortType = "string" | "image" | "video" | "audio" | "model" | "int" | "float";
 
@@ -74,7 +73,7 @@ export interface RunOutput {
 }
 
 /**
- * Nested run outputs, matching the backend `run_workflow` DTO exactly:
+ * Nested legacy Assistant outputs retained until the V5 presentation hard cut:
  * nodeId -> outputName -> RunOutput. The engine can expose several named
  * outputs per node, so we preserve output names rather than flattening.
  */

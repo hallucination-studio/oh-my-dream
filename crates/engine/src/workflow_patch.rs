@@ -193,7 +193,7 @@ fn instantiate(
     node: &WorkflowNode,
     index: usize,
     pointer: &str,
-) -> Result<Box<dyn crate::Node>, WorkflowPatchError> {
+) -> Result<Box<dyn crate::NodeInterface>, WorkflowPatchError> {
     registry
         .instantiate_workflow_node(&node.id, &node.type_id, &node.contract_version, &node.params)
         .map_err(|error| {

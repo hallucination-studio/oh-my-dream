@@ -7,9 +7,9 @@
 //! synchronous capability contracts whose adapters own any async cloud work.
 
 use crate::error::EngineError;
-use crate::executor::{CancellationSignal, NodeExecutionState, NodeProgressEvent};
+use crate::executor::{CancellationSignalInterface, NodeExecutionState, NodeProgressEvent};
 use crate::port::{PortCardinality, PortType};
-use crate::value::{NodeInputs, Value, ValueMap};
+use crate::value::{NodeInputs, ValueMap, WorkflowNodeValue};
 
 /// Declaration of a single input port on a node.
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub struct InputPort {
     /// Whether the port must be satisfied (by a wire or a default) to run.
     pub required: bool,
     /// Optional default value used when the port is left unconnected.
-    pub default: Option<Value>,
+    pub default: Option<WorkflowNodeValue>,
 }
 
 /// Declaration of a single output port on a node.
@@ -39,7 +39,7 @@ pub struct OutputPort {
 ///
 /// Implementations are constructed from their serialized `params` by a factory
 /// registered in the [`crate::registry::NodeRegistry`].
-pub trait Node: Send + Sync {
+pub trait NodeInterface: Send + Sync {
     /// Stable identifier of this node's type (matches the workflow `type`).
     fn type_id(&self) -> &str;
 
@@ -59,7 +59,7 @@ pub trait Node: Send + Sync {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext<'_>,
+        context: &mut NodeRunContextImpl<'_>,
     ) -> std::result::Result<NodeRunResult, NodeRunError>;
 
     /// Looks up an output port declaration by name.
@@ -111,21 +111,21 @@ impl NodeRunResult {
 }
 
 /// Synchronous context passed into a running node.
-pub struct NodeRunContext<'a> {
+pub struct NodeRunContextImpl<'a> {
     node_id: &'a str,
     project_id: &'a str,
     workflow_snapshot: &'a serde_json::Value,
-    cancellation: &'a dyn CancellationSignal,
+    cancellation: &'a dyn CancellationSignalInterface,
     observer: &'a mut dyn FnMut(&NodeProgressEvent),
 }
 
-impl<'a> NodeRunContext<'a> {
+impl<'a> NodeRunContextImpl<'a> {
     /// Creates a context for `node_id`.
     pub(crate) fn new(
         node_id: &'a str,
         project_id: &'a str,
         workflow_snapshot: &'a serde_json::Value,
-        cancellation: &'a dyn CancellationSignal,
+        cancellation: &'a dyn CancellationSignalInterface,
         observer: &'a mut dyn FnMut(&NodeProgressEvent),
     ) -> Self {
         Self { node_id, project_id, workflow_snapshot, cancellation, observer }

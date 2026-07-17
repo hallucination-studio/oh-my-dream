@@ -13,10 +13,13 @@ pub mod error;
 pub mod executor;
 pub mod graph;
 pub mod node;
+pub mod node_capability;
 pub mod port;
 pub mod registry;
 mod validation;
 pub mod value;
+pub mod workflow;
+pub mod workflow_graph;
 pub mod workflow_patch;
 
 pub use cache::ResultCache;
@@ -25,17 +28,19 @@ pub use capability::{
     CapabilityRegistration, CapabilityRegistry, CapabilityRegistryError, CapabilitySelector,
     ContextualCreation, DEFAULT_CAPABILITY_VERSION,
 };
-pub use error::{EngineError, Result};
+pub use error::{EngineError, EngineResult};
 pub use executor::{
-    CancellationSignal, Executor, NodeExecutionState, NodeProgressEvent, RunOutputs,
+    CancellationSignalInterface, NodeExecutionState, NodeProgressEvent, RunOutputs,
+    WorkflowGraphExecutor,
 };
 pub use graph::{InputBinding, OutputRef, Workflow, WorkflowNode};
 pub use node::{
-    InputPort, Node, NodeRunContext, NodeRunError, NodeRunResult, OutputPort, cancelled_node_run,
+    InputPort, NodeInterface, NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort,
+    cancelled_node_run,
 };
 pub use port::{PortCardinality, PortType};
 pub use registry::{NodeFactory, NodeParams, NodeRegistry};
-pub use value::{InputValue, NodeInputs, Value, ValueMap};
+pub use value::{InputValue, NodeInputs, ValueMap, WorkflowNodeValue};
 pub use workflow_patch::{
     MAX_WORKFLOW_PATCH_BYTES, MAX_WORKFLOW_PATCH_OPERATIONS, NodeRef, PatchOutputRef,
     WorkflowDiagnostic, WorkflowPatch, WorkflowPatchError, WorkflowPatchOperation,

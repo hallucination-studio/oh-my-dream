@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Workflow } from "./types.ts";
-import type { WorkspaceController } from "./workspaceController.ts";
+interface WorkflowPersistenceController {
+  enqueueDraft: (workflow: Workflow) => Promise<void>;
+  noteDraft: (workflow: Workflow) => number;
+  runAfterBarrier: (
+    reason: "close",
+    action: () => undefined,
+  ) => Promise<undefined>;
+  hasPendingWork: () => boolean;
+  failure: () => unknown;
+}
 
 const AUTOSAVE_DELAY_MS = 200;
 
 export function useWorkflowPersistence(
   workflow: Workflow | null,
-  controller: WorkspaceController,
+  controller: WorkflowPersistenceController,
   onError: (error: unknown) => void,
 ) {
   const persistedWorkflows = useRef(new Map<string, string>());

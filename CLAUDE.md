@@ -16,12 +16,13 @@ Positioning:
 
 - **Local client**: a desktop app for individual creators (Tauri is the plan).
 - **No login**: no account system; usable out of the box.
-- **No GPU on our side**: the machine runs no model inference. All generation happens through **cloud vendor APIs** (e.g. fal.ai, Replicate). The inference layer is a pluggable abstraction that **keeps an interface open for future local inference**, but that is not implemented now.
+- **No GPU on our side**: the machine runs no model inference. MVP generation happens through exact capability-owned provider interfaces and cloud-vendor routes. Do not introduce a broad inference interface or a speculative local-inference boundary.
 - **Minimal by design**: build only what the core pipeline needs; do not reproduce all of ComfyUI's nodes and features.
 
 First capabilities to build: text-to-image, image-to-video, a visual node workbench, and an asset library.
 
-Architecture and requirement breakdown: see [docs/DESIGN.md](docs/DESIGN.md).
+Repository map: [docs/DESIGN.md](docs/DESIGN.md). Frozen backend architecture and MVP scope:
+[docs/BACKEND.md](docs/BACKEND.md). Backend names: [docs/BACKEND_GLOSSARY.md](docs/BACKEND_GLOSSARY.md).
 
 ## Tech stack
 
@@ -58,8 +59,8 @@ Architecture and requirement breakdown: see [docs/DESIGN.md](docs/DESIGN.md).
 
 ### Logging — clear and mandatory
 
-- **Always log.** Every meaningful step logs: cloud-API calls (request start, task id, polling, completion/failure), node execution start/end, cache hits, asset writes. Do not leave code paths silent.
-- **Be explicit.** A log line must be understandable on its own: state what happened, to which entity (node id, task id, asset id), and the relevant values. No bare "error" or "done".
+- **Always log.** Every meaningful step logs: cloud-API calls, profile routing, polling, node execution, Asset writes, post-commit effects, and failures. Do not leave code paths silent.
+- **Be explicit.** A log line must be understandable on its own: state what happened, to which entity (Workflow Run ID, node execution ID, Asset ID), and the relevant values. No bare "error" or "done".
 - **Use levels correctly**: `error` for failures needing attention, `warn` for recoverable anomalies, `info` for lifecycle/business milestones, `debug`/`trace` for diagnostics. Use structured logging (the `tracing` crate).
 - **Log where you handle, propagate where you don't.** Log an error at the layer that finally handles it — do not log-and-rethrow at every level (double logging). But never let an error pass through completely unlogged.
 - **Never log secrets** (API keys, tokens).
@@ -67,8 +68,10 @@ Architecture and requirement breakdown: see [docs/DESIGN.md](docs/DESIGN.md).
 ### Layering discipline
 
 - `engine` is pure logic: it must **not** depend on UI, network, filesystem, or any specific cloud vendor.
-- Inference backends are abstracted behind a trait; vendor implementations do not know about each other.
-- Cloud vendor API keys and other secrets **never enter the repo** — use environment variables / local config.
+- Each exact model operation uses its own consumer-owned provider interface; there is no broad inference-backend interface.
+- Exported substitution traits end in `Interface`; every concrete implementation ends in `Impl`,
+  using `CapabilityImpl`, `AdapterImpl`, `RouterImpl`, or `RouteImpl` where applicable.
+- Cloud vendor API keys and other secrets **never enter the repo or plaintext configuration**. Production uses the operating-system credential facility; environment variables are development-only and ephemeral.
 
 ## Verification
 
@@ -90,8 +93,8 @@ It runs the whole Rust workspace (`cargo test --workspace`), then the frontend t
 
 ### Test layers
 
-- **Rust unit/integration** (`crates/*/tests/`, `src-tauri/tests/`) — engine executor, mock backend, asset store, node pipeline.
-- **Backend E2E** (`src-tauri/tests/e2e.rs`) — the whole `run_workflow` path: cache reuse, failure propagation, type-mismatch rejection, asset snapshot read-back.
+- **Rust unit/integration** (`crates/*/tests/`, `src-tauri/tests/`) — Workflow execution, deterministic provider routes, Asset adapters, and Node Capability pipelines.
+- **Backend E2E** (`src-tauri/tests/e2e.rs`) — the whole Workflow Run path: idempotent admission, failure propagation, cancellation, restart interruption, typed-input rejection, and Asset read-back.
 - **Cross-language contract** — `src-tauri/tests/contract.rs` writes fixtures to `ui/src/__fixtures__/`; `ui/src/api/contract.test.ts` validates them. This guards the frontend TS types against the backend DTO shapes so they cannot drift.
 - **Frontend** (Vitest + jsdom, `ui/**/*.test.ts(x)`) — serialization, wiring validation, mock API, API selection, App run flow.
 
@@ -99,11 +102,11 @@ It runs the whole Rust workspace (`cargo test --workspace`), then the frontend t
 
 Update tests in the **same change** that causes the need — never defer:
 
-- **Changing a Tauri command signature or a DTO** (`RunWorkflowResultDto`, `AssetDto`, the nested run-output shape) → regenerate fixtures via `contract.rs` and update `contract.test.ts` and the affected frontend types. A DTO change with stale fixtures is a broken contract.
-- **Adding/changing a node type, port, or the `Workflow` JSON schema** → update the engine/nodes tests and the frontend `serialize`/`validate` tests that mirror them.
+- **Changing a Tauri command signature or a DTO** (`WorkflowRunDto`, `AssetDto`, the nested node-output shape) → regenerate fixtures via `contract.rs` and update `contract.test.ts` and the affected frontend types. A DTO change with stale fixtures is a broken contract.
+- **Adding/changing a Node Capability contract, interface, or the `Workflow` JSON schema** → update the engine/nodes tests and the frontend `serialize`/`validate` tests that mirror them.
 - **Adding a Tauri command** → add a backend test for it, plus a `WorkflowApi` test if the frontend calls it.
-- **Changing error / cancellation / cache behavior** → extend the backend E2E cases asserting propagation, cancellation, and cache reuse.
+- **Changing error / cancellation / restart / idempotency behavior** → extend the backend E2E cases asserting those outcomes and post-commit effect recovery.
 - **Fixing a bug** → add a regression test that fails before the fix and passes after.
-- **Swapping the mock backend for a real provider** → keep the mock-backed tests green (they are the deterministic contract) and add provider tests behind their own gate.
+- **Adding/changing a production provider route** → keep deterministic route contract tests green and add vendor-route tests behind their own gate.
 
 Every such change must leave `./scripts/e2e.sh` green.

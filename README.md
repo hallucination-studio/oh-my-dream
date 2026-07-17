@@ -6,8 +6,9 @@ frontend and a Tauri desktop shell.
 The in-app Assistant is an SDK-managed production agent that iteratively plans,
 builds, reviews, and repairs the Project's single editable Workflow. Product code
 provides trusted tools and lifecycle facts; it does not implement a separate
-shot or model/tool loop. See [`docs/ASSISTANT.md`](docs/ASSISTANT.md) for the
-implemented MVP architecture and boundaries.
+shot or model/tool loop. See
+[`docs/BACKEND_ASSISTANT.md`](docs/BACKEND_ASSISTANT.md) for the frozen MVP
+architecture and boundaries.
 
 ## Prerequisites
 

@@ -82,6 +82,6 @@ def _build_function_tool(
         description=cast(str, operation["description"]),
         params_json_schema=cast(dict[str, Any], operation["input_schema"]),
         on_invoke_tool=invoke,
-        strict_json_schema=cast(bool, operation["strict_json_schema"]),
+        strict_json_schema=cast(bool, operation.get("strict_json_schema", False)),
         needs_approval=needs_approval,
     )

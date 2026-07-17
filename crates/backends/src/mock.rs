@@ -6,21 +6,24 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::{debug, info};
 
-use crate::error::{BackendError, Result};
-use crate::request::{ImageToVideoRequest, TextToAudioRequest, TextToImageRequest};
+use crate::error::{BackendError, BackendResult};
+use crate::request::{
+    ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest,
+    TextToAudioRequest, TextToImageRequest,
+};
 use crate::task::{TaskHandle, TaskProgress, TaskStatus};
-use crate::traits::InferenceBackend;
+use crate::traits::InferenceBackendInterface;
 
 const BACKEND_NAME: &str = "mock";
 
 /// A deterministic local backend with no network or provider credentials.
-pub struct MockBackend {
+pub struct MockBackendImpl {
     state: Mutex<MockState>,
     submitted_tasks: AtomicUsize,
     failure_reason: Option<String>,
 }
 
-impl MockBackend {
+impl MockBackendImpl {
     /// Creates a mock backend whose tasks eventually succeed.
     #[must_use]
     pub fn new() -> Self {
@@ -47,7 +50,7 @@ impl MockBackend {
         self.submitted_tasks.load(Ordering::Relaxed)
     }
 
-    fn submit(&self, kind: TaskKind) -> Result<TaskHandle> {
+    fn submit(&self, kind: TaskKind) -> BackendResult<TaskHandle> {
         let mut state = self.lock_state()?;
         state.next_id += 1;
         let task_id = format!("task-{}", state.next_id);
@@ -58,7 +61,7 @@ impl MockBackend {
         Ok(TaskHandle { backend: BACKEND_NAME.to_owned(), task_id })
     }
 
-    fn lock_state(&self) -> Result<std::sync::MutexGuard<'_, MockState>> {
+    fn lock_state(&self) -> BackendResult<std::sync::MutexGuard<'_, MockState>> {
         self.state.lock().map_err(|_| BackendError::InvalidRequest {
             backend: BACKEND_NAME.to_owned(),
             reason: "mock backend state lock was poisoned".to_owned(),
@@ -66,31 +69,45 @@ impl MockBackend {
     }
 }
 
-impl Default for MockBackend {
+impl Default for MockBackendImpl {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[async_trait]
-impl InferenceBackend for MockBackend {
+impl InferenceBackendInterface for MockBackendImpl {
     fn name(&self) -> &str {
         BACKEND_NAME
     }
 
-    async fn text_to_image(&self, _request: TextToImageRequest) -> Result<TaskHandle> {
+    async fn text_to_image(&self, _request: TextToImageRequest) -> BackendResult<TaskHandle> {
         self.submit(TaskKind::TextToImage)
     }
 
-    async fn image_to_video(&self, _request: ImageToVideoRequest) -> Result<TaskHandle> {
+    async fn reference_image_generation(
+        &self,
+        _request: ReferenceImageGenerationRequest,
+    ) -> BackendResult<TaskHandle> {
+        self.submit(TaskKind::ReferenceImageGeneration)
+    }
+
+    async fn image_to_video(&self, _request: ImageToVideoRequest) -> BackendResult<TaskHandle> {
         self.submit(TaskKind::ImageToVideo)
     }
 
-    async fn text_to_audio(&self, _request: TextToAudioRequest) -> Result<TaskHandle> {
+    async fn reference_video_generation(
+        &self,
+        _request: ReferenceVideoGenerationRequest,
+    ) -> BackendResult<TaskHandle> {
+        self.submit(TaskKind::ReferenceVideoGeneration)
+    }
+
+    async fn text_to_audio(&self, _request: TextToAudioRequest) -> BackendResult<TaskHandle> {
         self.submit(TaskKind::TextToAudio)
     }
 
-    async fn poll(&self, handle: &TaskHandle) -> Result<TaskStatus> {
+    async fn poll(&self, handle: &TaskHandle) -> BackendResult<TaskStatus> {
         let failure_reason = self.failure_reason.clone();
         let mut state = self.lock_state()?;
         let task = lookup_task(&mut state, handle)?;
@@ -109,7 +126,7 @@ impl InferenceBackend for MockBackend {
         Ok(status_for_poll(handle, task))
     }
 
-    async fn cancel(&self, handle: &TaskHandle) -> Result<()> {
+    async fn cancel(&self, handle: &TaskHandle) -> BackendResult<()> {
         let mut state = self.lock_state()?;
         let task = lookup_task(&mut state, handle)?;
         task.cancelled = true;
@@ -133,7 +150,9 @@ struct MockTask {
 #[derive(Clone, Copy)]
 enum TaskKind {
     TextToImage,
+    ReferenceImageGeneration,
     ImageToVideo,
+    ReferenceVideoGeneration,
     TextToAudio,
 }
 
@@ -141,13 +160,18 @@ impl TaskKind {
     fn as_path(self) -> &'static str {
         match self {
             Self::TextToImage => "text-to-image",
+            Self::ReferenceImageGeneration => "reference-image-generation",
             Self::ImageToVideo => "image-to-video",
+            Self::ReferenceVideoGeneration => "reference-video-generation",
             Self::TextToAudio => "text-to-audio",
         }
     }
 }
 
-fn lookup_task<'a>(state: &'a mut MockState, handle: &TaskHandle) -> Result<&'a mut MockTask> {
+fn lookup_task<'a>(
+    state: &'a mut MockState,
+    handle: &TaskHandle,
+) -> BackendResult<&'a mut MockTask> {
     if handle.backend != BACKEND_NAME {
         return Err(unknown_task(&handle.task_id));
     }
@@ -186,7 +210,9 @@ impl TaskKind {
     fn cost_micro_usd(self) -> i64 {
         match self {
             Self::TextToImage => 250,
+            Self::ReferenceImageGeneration => 400,
             Self::ImageToVideo => 900,
+            Self::ReferenceVideoGeneration => 1_200,
             Self::TextToAudio => 125,
         }
     }

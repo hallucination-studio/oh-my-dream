@@ -1,6 +1,6 @@
 //! Pure capability identity, contract, and exact-resolution primitives.
 
-use crate::node::{Node, NodeRunError};
+use crate::node::{NodeInterface, NodeRunError};
 use crate::port::PortCardinality;
 use crate::registry::{NodeFactory, NodeParams};
 use serde::{Deserialize, Serialize};
@@ -54,7 +54,7 @@ impl CapabilitySelector {
 pub struct CapabilityPort {
     /// Stable named port.
     pub name: String,
-    /// Value type carried by the port.
+    /// WorkflowNodeValue type carried by the port.
     pub port_type: crate::PortType,
     /// Port cardinality.
     pub cardinality: PortCardinality,
@@ -276,7 +276,7 @@ impl CapabilityRegistration {
     }
 
     /// Constructs an executable node from canonical params.
-    pub fn instantiate(&self, params: &NodeParams) -> Result<Box<dyn Node>, NodeRunError> {
+    pub fn instantiate(&self, params: &NodeParams) -> Result<Box<dyn NodeInterface>, NodeRunError> {
         (self.factory)(params)
     }
 }

@@ -1,11 +1,12 @@
 mod executor_support;
 
 use engine::{
-    CapabilityEffect, EngineError, Executor, InputBinding, NodeExecutionState, NodeParams,
-    NodeRegistry, OutputRef, PortType, ResultCache, Value, Workflow, WorkflowNode,
+    CapabilityEffect, EngineError, InputBinding, NodeExecutionState, NodeParams, NodeRegistry,
+    OutputRef, PortType, ResultCache, Workflow, WorkflowGraphExecutor, WorkflowNode,
+    WorkflowNodeValue,
 };
 use executor_support::{
-    FailingNode, RunCounters, TestCancellation, capability_effect_registry,
+    FailingNodeImpl, RunCounters, TestCancellationImpl, capability_effect_registry,
     commit_then_cancel_registry, event_summary, fail_then_cancel_registry, linear_workflow,
     local_read_workflow, ordered_video_workflow, registry, single_node_workflow,
 };
@@ -22,12 +23,13 @@ fn executes_text_prompt_uppercase_collect_workflow() {
     let workflow = linear_workflow("hello");
     let mut cache = ResultCache::new();
 
-    let outputs =
-        Executor::new(&registry).execute(&workflow, &mut cache).expect("workflow should execute");
+    let outputs = WorkflowGraphExecutor::new(&registry)
+        .execute(&workflow, &mut cache)
+        .expect("workflow should execute");
 
     assert_eq!(
         outputs.get("collect").and_then(|values| values.get("text")),
-        Some(&Value::String("HELLO".to_owned()))
+        Some(&WorkflowNodeValue::String("HELLO".to_owned()))
     );
 }
 
@@ -37,7 +39,7 @@ fn reuses_cached_node_outputs_on_second_run() {
     let registry = registry(counters.clone());
     let workflow = linear_workflow("hello");
     let mut cache = ResultCache::new();
-    let executor = Executor::new(&registry);
+    let executor = WorkflowGraphExecutor::new(&registry);
 
     executor.execute(&workflow, &mut cache).expect("first run should execute");
     executor.execute(&workflow, &mut cache).expect("second run should execute");
@@ -57,7 +59,7 @@ fn local_read_reruns_while_unchanged_downstream_output_is_cached() {
     );
     let workflow = local_read_workflow();
     let mut cache = ResultCache::new();
-    let executor = Executor::new(&registry);
+    let executor = WorkflowGraphExecutor::new(&registry);
 
     executor.execute(&workflow, &mut cache).expect("first run should execute");
     executor.execute(&workflow, &mut cache).expect("second run should resolve local state");
@@ -74,7 +76,7 @@ fn local_read_observes_unavailability_after_a_successful_run() {
         capability_effect_registry(counters, Arc::clone(&available), CapabilityEffect::LocalRead);
     let workflow = local_read_workflow();
     let mut cache = ResultCache::new();
-    let executor = Executor::new(&registry);
+    let executor = WorkflowGraphExecutor::new(&registry);
 
     executor.execute(&workflow, &mut cache).expect("available source should execute");
     available.store(false, Ordering::SeqCst);
@@ -92,7 +94,7 @@ fn pure_and_external_capabilities_retain_cache_reuse() {
         let registry =
             capability_effect_registry(counters.clone(), Arc::new(AtomicBool::new(true)), effect);
         let mut cache = ResultCache::new();
-        let executor = Executor::new(&registry);
+        let executor = WorkflowGraphExecutor::new(&registry);
 
         executor.execute(&local_read_workflow(), &mut cache).expect("first run should execute");
         executor.execute(&local_read_workflow(), &mut cache).expect("second run should use cache");
@@ -106,7 +108,7 @@ fn reordered_many_input_reruns_only_the_affected_downstream_node() {
     let counters = RunCounters::default();
     let registry = registry(counters.clone());
     let mut cache = ResultCache::new();
-    let executor = Executor::new(&registry);
+    let executor = WorkflowGraphExecutor::new(&registry);
 
     executor
         .execute(&ordered_video_workflow(false), &mut cache)
@@ -130,7 +132,7 @@ fn emits_running_and_done_events_with_node_costs() {
     let mut cache = ResultCache::new();
     let mut events = Vec::new();
 
-    Executor::new(&registry)
+    WorkflowGraphExecutor::new(&registry)
         .execute_with_observer(&workflow, &mut cache, &mut |event| events.push(event.clone()))
         .expect("workflow should execute");
 
@@ -153,7 +155,7 @@ fn emits_cached_events_with_cached_cost_without_rerunning_nodes() {
     let registry = registry(counters.clone());
     let workflow = linear_workflow("hello");
     let mut cache = ResultCache::new();
-    let executor = Executor::new(&registry);
+    let executor = WorkflowGraphExecutor::new(&registry);
 
     executor.execute(&workflow, &mut cache).expect("first run should execute");
     let mut events = Vec::new();
@@ -183,7 +185,7 @@ fn does_not_reuse_cached_outputs_across_projects() {
     let mut second = linear_workflow("hello");
     second.project_id = "project-b".to_owned();
     let mut cache = ResultCache::new();
-    let executor = Executor::new(&registry);
+    let executor = WorkflowGraphExecutor::new(&registry);
 
     executor.execute(&first, &mut cache).expect("first project should execute");
     executor.execute(&second, &mut cache).expect("second project should execute");
@@ -202,7 +204,7 @@ fn preserves_each_project_cache_namespace() {
     let mut second = linear_workflow("hello");
     second.project_id = "project-b".to_owned();
     let mut cache = ResultCache::new();
-    let executor = Executor::new(&registry);
+    let executor = WorkflowGraphExecutor::new(&registry);
 
     executor.execute(&first, &mut cache).expect("first project should execute");
     executor.execute(&second, &mut cache).expect("second project should execute");
@@ -219,9 +221,9 @@ fn cancellation_stops_before_the_next_node() {
     let registry = registry(counters.clone());
     let workflow = linear_workflow("hello");
     let mut cache = ResultCache::new();
-    let cancellation = TestCancellation::default();
+    let cancellation = TestCancellationImpl::default();
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute_interruptible(&workflow, &mut cache, &cancellation, &mut |event| {
             if event.node_id == "prompt" && event.state == NodeExecutionState::Done {
                 cancellation.cancel();
@@ -237,21 +239,23 @@ fn cancellation_stops_before_the_next_node() {
 
 #[test]
 fn successful_final_node_commit_wins_over_late_cancellation() {
-    let cancellation = Arc::new(TestCancellation::default());
+    let cancellation = Arc::new(TestCancellationImpl::default());
     let runs = Arc::new(AtomicUsize::new(0));
     let registry = commit_then_cancel_registry(Arc::clone(&cancellation), Arc::clone(&runs));
     let workflow = single_node_workflow("CommitThenCancel");
     let mut cache = ResultCache::new();
     let mut events = Vec::new();
 
-    let outputs = Executor::new(&registry)
+    let outputs = WorkflowGraphExecutor::new(&registry)
         .execute_interruptible(&workflow, &mut cache, cancellation.as_ref(), &mut |event| {
             events.push(event.clone());
         })
         .expect("successful node return should commit the final result");
-    Executor::new(&registry).execute(&workflow, &mut cache).expect("cache should be reusable");
+    WorkflowGraphExecutor::new(&registry)
+        .execute(&workflow, &mut cache)
+        .expect("cache should be reusable");
 
-    assert_eq!(outputs["commit"]["text"], Value::String("committed".to_owned()));
+    assert_eq!(outputs["commit"]["text"], WorkflowNodeValue::String("committed".to_owned()));
     assert_eq!(runs.load(Ordering::SeqCst), 1);
     assert_eq!(
         event_summary(&events),
@@ -264,11 +268,11 @@ fn successful_final_node_commit_wins_over_late_cancellation() {
 
 #[test]
 fn node_failure_wins_over_concurrent_cancellation() {
-    let cancellation = Arc::new(TestCancellation::default());
+    let cancellation = Arc::new(TestCancellationImpl::default());
     let registry = fail_then_cancel_registry(Arc::clone(&cancellation));
     let mut events = Vec::new();
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute_interruptible(
             &single_node_workflow("FailThenCancel"),
             &mut ResultCache::new(),
@@ -290,7 +294,7 @@ fn node_failure_wins_over_concurrent_cancellation() {
 #[test]
 fn emits_error_event_before_returning_node_failure() {
     let mut registry = NodeRegistry::new();
-    registry.register("Failing", Box::new(|_| Ok(Box::new(FailingNode))));
+    registry.register("Failing", Box::new(|_| Ok(Box::new(FailingNodeImpl))));
     let workflow = Workflow {
         version: "1.0".to_owned(),
         project_id: "default".to_owned(),
@@ -306,7 +310,7 @@ fn emits_error_event_before_returning_node_failure() {
     let mut cache = ResultCache::new();
     let mut events = Vec::new();
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute_with_observer(&workflow, &mut cache, &mut |event| events.push(event.clone()))
         .expect_err("node should fail");
 
@@ -331,7 +335,7 @@ fn rejects_cycles_before_execution() {
     );
     let workflow = Workflow { version: "1.0".to_owned(), project_id: "default".to_owned(), nodes };
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow, &mut ResultCache::new())
         .expect_err("cycle should fail");
 
@@ -368,7 +372,7 @@ fn rejects_type_mismatches_while_building_plan() {
         ],
     };
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow, &mut ResultCache::new())
         .expect_err("type mismatch should fail");
 

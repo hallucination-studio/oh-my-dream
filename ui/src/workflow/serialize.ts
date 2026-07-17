@@ -1,6 +1,4 @@
-// Converts the React Flow node/edge state into the engine's Workflow JSON
-// (docs/DESIGN.md §5). Kept separate so the serialization contract lives in one
-// place and can be unit-tested independently of the canvas.
+// Converts React Flow state into the editor view consumed by canonical.ts.
 
 import type { Edge, Node } from "@xyflow/react";
 import type { FlowNodeData } from "../nodes/WorkflowFlowNode.tsx";

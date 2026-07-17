@@ -3,8 +3,8 @@ use crate::params::{canonicalize_mode, reject_unknown_params, string_param};
 use crate::ports::output;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use tracing::info;
@@ -41,7 +41,7 @@ pub(crate) fn registration() -> CapabilityRegistration {
             vec!["prompt".to_owned(), "text".to_owned()],
         ),
         Box::new(normalize_params),
-        Box::new(|params| TextPromptNode::from_params(params).map(boxed_node).map_err(boxed)),
+        Box::new(|params| TextPromptNodeImpl::from_params(params).map(boxed_node).map_err(boxed)),
     )
     .with_selector(CapabilitySelector::new("Text", MODE))
 }
@@ -55,12 +55,12 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     Ok(normalized)
 }
 
-struct TextPromptNode {
+struct TextPromptNodeImpl {
     prompt: String,
     outputs: Vec<OutputPort>,
 }
 
-impl TextPromptNode {
+impl TextPromptNodeImpl {
     fn from_params(params: &NodeParams) -> Result<Self, crate::error::NodesError> {
         Ok(Self {
             prompt: string_param(params, &["text", "prompt"], "")?,
@@ -69,7 +69,7 @@ impl TextPromptNode {
     }
 }
 
-impl Node for TextPromptNode {
+impl NodeInterface for TextPromptNodeImpl {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -85,16 +85,16 @@ impl Node for TextPromptNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         info!(type_id = TYPE_ID, "text prompt node produced text");
         Ok(NodeRunResult::new(BTreeMap::from([(
             "text".to_owned(),
-            Value::String(self.prompt.clone()),
+            WorkflowNodeValue::String(self.prompt.clone()),
         )])))
     }
 }
 
-fn boxed_node(node: TextPromptNode) -> Box<dyn Node> {
+fn boxed_node(node: TextPromptNodeImpl) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

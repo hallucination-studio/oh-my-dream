@@ -34,6 +34,8 @@ fn capability_catalog_keeps_contract_presentation_and_status_independent() {
             ("AudioAssetSource", "1.0"),
             ("ImageAssetSource", "1.0"),
             ("ImageToVideo", "1.0"),
+            ("ReferenceImageGeneration", "1.0"),
+            ("ReferenceVideoGeneration", "1.0"),
             ("TextPrompt", "1.0"),
             ("TextToAudio", "1.0"),
             ("TextToImage", "1.0"),
@@ -164,11 +166,13 @@ fn palette_search_is_paged_and_only_returns_current_summaries() {
         &state,
     )
     .expect("search next capability page");
-    assert_eq!(second.capabilities.len(), 2);
-    assert_eq!(second.capabilities[0].reference.id, "VideoAssetSource");
-    assert_eq!(second.capabilities[0].selector.mode, "asset");
-    assert_eq!(second.capabilities[1].reference.id, "VideoConcat");
-    assert_eq!(second.capabilities[1].selector.mode, "concat");
+    assert_eq!(second.capabilities.len(), 3);
+    assert_eq!(second.capabilities[0].reference.id, "ReferenceVideoGeneration");
+    assert_eq!(second.capabilities[0].selector.mode, "references");
+    assert_eq!(second.capabilities[1].reference.id, "VideoAssetSource");
+    assert_eq!(second.capabilities[1].selector.mode, "asset");
+    assert_eq!(second.capabilities[2].reference.id, "VideoConcat");
+    assert_eq!(second.capabilities[2].selector.mode, "concat");
     assert!(second.next_cursor.is_none());
 }
 

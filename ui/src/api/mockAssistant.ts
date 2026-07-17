@@ -1,49 +1,74 @@
 import type {
   AssistantApprovalDecisionInput,
-  AssistantPendingApproval,
+  AssistantPendingWorkflowChange,
+  AssistantPresentationEvent,
   AssistantSendInput,
-  ResponsesStreamEvent,
-  WorkflowHead,
+  AssistantSendMessageResult,
+  AssistantWorkflowChangeDecisionResult,
 } from "./types.ts";
 
-let pendingApproval: AssistantPendingApproval | null = null;
+let pendingChange: AssistantPendingWorkflowChange | null = null;
+const observers = new Set<(event: AssistantPresentationEvent) => void>();
+const INVOCATION_ID = "90000000-0000-4000-8000-000000000001";
 
-export function primeMockAssistantApproval(approval: AssistantPendingApproval | null): void {
-  pendingApproval = approval;
+export function primeMockAssistantApproval(
+  change: AssistantPendingWorkflowChange | null,
+): void {
+  pendingChange = change;
 }
 
-export async function sendAssistant(
+export async function assistantSendMessage(
   input: AssistantSendInput,
-  onEvent: (event: ResponsesStreamEvent) => void,
-): Promise<WorkflowHead | null> {
+): Promise<AssistantSendMessageResult> {
   if (!input.project_id) throw new Error("Open a project before using the assistant");
-  onEvent({
-    type: "response.output_text.delta",
-    delta: "Mock assistant is available only for transport previews.",
+  emit({
+    invocation_id: INVOCATION_ID,
+    sequence: "1",
+    kind: "text_delta",
+    text: "Mock assistant is available only for transport previews.",
   });
-  onEvent({ type: "response.completed" });
-  return null;
+  emit({ invocation_id: INVOCATION_ID, sequence: "2", kind: "invocation_completed" });
+  return {
+    invocation_id: INVOCATION_ID,
+    final_text: "Mock assistant is available only for transport previews.",
+  };
 }
 
-export async function getPendingAssistantApproval(): Promise<AssistantPendingApproval | null> {
-  return pendingApproval;
+export async function assistantGetPendingWorkflowChange(): Promise<
+  AssistantPendingWorkflowChange | null
+> {
+  return pendingChange;
 }
 
-export async function decideAssistantApproval(
-  _input: AssistantApprovalDecisionInput,
-  onEvent: (event: ResponsesStreamEvent) => void,
-): Promise<WorkflowHead | null> {
-  if (pendingApproval === null) throw new Error("ASSISTANT_APPROVAL_NOT_FOUND");
-  if (pendingApproval.project_id !== _input.project_id) {
-    throw new Error("ASSISTANT_APPROVAL_SCOPE_MISMATCH");
+export async function assistantDecideWorkflowChange(
+  input: AssistantApprovalDecisionInput,
+): Promise<AssistantWorkflowChangeDecisionResult> {
+  if (pendingChange === null) throw new Error("assistant.not_found");
+  if (
+    pendingChange.project_id !== input.project_id
+    || pendingChange.workflow_change_id !== input.workflow_change_id
+    || pendingChange.approval_scope_id !== input.approval_scope_id
+    || pendingChange.mutation_digest_hex !== input.mutation_digest_hex
+  ) {
+    throw new Error("assistant.approval_mismatch");
   }
-  if (pendingApproval.approval_scope_id !== _input.approval_scope_id) {
-    throw new Error("ASSISTANT_APPROVAL_STALE");
-  }
-  if (pendingApproval.candidate_digest !== _input.candidate_digest) {
-    throw new Error("ASSISTANT_APPROVAL_STALE");
-  }
-  pendingApproval = null;
-  onEvent({ type: "response.completed" });
-  return null;
+  pendingChange = {
+    ...pendingChange,
+    state: input.decision === "approve" ? "applying" : "rejected",
+  };
+  return {
+    workflow_change_id: pendingChange.workflow_change_id,
+    state: pendingChange.state,
+  };
+}
+
+export async function observeAssistantPresentationEvents(
+  onEvent: (event: AssistantPresentationEvent) => void,
+): Promise<() => void> {
+  observers.add(onEvent);
+  return () => observers.delete(onEvent);
+}
+
+function emit(event: AssistantPresentationEvent): void {
+  for (const observer of observers) observer(event);
 }

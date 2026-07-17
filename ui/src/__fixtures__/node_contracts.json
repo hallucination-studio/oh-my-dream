@@ -76,6 +76,48 @@
       ]
     },
     {
+      "type_id": "ReferenceImageGeneration",
+      "inputs": [
+        {
+          "name": "images",
+          "port_type": "image",
+          "required": true
+        },
+        {
+          "name": "prompt",
+          "port_type": "string",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "port_type": "image"
+        }
+      ]
+    },
+    {
+      "type_id": "ReferenceVideoGeneration",
+      "inputs": [
+        {
+          "name": "images",
+          "port_type": "image",
+          "required": true
+        },
+        {
+          "name": "prompt",
+          "port_type": "string",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "port_type": "video"
+        }
+      ]
+    },
+    {
       "type_id": "TextPrompt",
       "inputs": [],
       "outputs": [

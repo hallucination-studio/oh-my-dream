@@ -4,12 +4,14 @@ use crate::params::{
     canonicalize_mode, optional_param, reject_unknown_params, string_param, text_input,
 };
 use crate::ports::{output, required_input};
-use crate::{GenerationContext, SharedAssetStore, TextToAudioGenerator, TextToAudioRequest};
+use crate::{
+    GenerationContextInterface, SharedAssetStore, TextToAudioGeneratorInterface, TextToAudioRequest,
+};
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -19,7 +21,7 @@ const TYPE_ID: &str = "TextToAudio";
 const MODE: &str = "text";
 
 pub(crate) fn registration(
-    generator: Arc<dyn TextToAudioGenerator>,
+    generator: Arc<dyn TextToAudioGeneratorInterface>,
     store: SharedAssetStore,
 ) -> CapabilityRegistration {
     let contract = CapabilityContract::new(
@@ -51,7 +53,7 @@ pub(crate) fn registration(
         ),
         Box::new(normalize_params),
         Box::new(move |params| {
-            TextToAudioNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))
+            TextToAudioNodeImpl::from_params(params, Arc::clone(&generator), Arc::clone(&store))
                 .map(boxed_node)
                 .map_err(boxed)
         }),
@@ -72,8 +74,8 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     Ok(normalized)
 }
 
-struct TextToAudioNode {
-    generator: Arc<dyn TextToAudioGenerator>,
+struct TextToAudioNodeImpl {
+    generator: Arc<dyn TextToAudioGeneratorInterface>,
     store: SharedAssetStore,
     model: String,
     seed: Option<u64>,
@@ -81,10 +83,10 @@ struct TextToAudioNode {
     outputs: Vec<OutputPort>,
 }
 
-impl TextToAudioNode {
+impl TextToAudioNodeImpl {
     fn from_params(
         params: &NodeParams,
-        generator: Arc<dyn TextToAudioGenerator>,
+        generator: Arc<dyn TextToAudioGeneratorInterface>,
         store: SharedAssetStore,
     ) -> Result<Self, NodesError> {
         Ok(Self {
@@ -102,7 +104,7 @@ impl TextToAudioNode {
     }
 }
 
-impl Node for TextToAudioNode {
+impl NodeInterface for TextToAudioNodeImpl {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -118,7 +120,7 @@ impl Node for TextToAudioNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;
         info!(type_id = TYPE_ID, "generating audio from text");
@@ -126,7 +128,7 @@ impl Node for TextToAudioNode {
             .generator
             .generate(self.request(prompt), context)
             .map_err(|source| generation_error("generate audio", source))?;
-        GenerationContext::ensure_active(context)
+        GenerationContextInterface::ensure_active(context)
             .map_err(|source| generation_error("generate audio", source))?;
         let asset = store_generated_asset(
             &self.store,
@@ -142,12 +144,12 @@ impl Node for TextToAudioNode {
         )
         .map_err(boxed)?;
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("audio".to_owned(), Value::Audio(asset.id))]),
+            outputs: BTreeMap::from([("audio".to_owned(), WorkflowNodeValue::Audio(asset.id))]),
             cost: output.cost,
         })
     }
 }
 
-fn boxed_node(node: TextToAudioNode) -> Box<dyn Node> {
+fn boxed_node(node: TextToAudioNodeImpl) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

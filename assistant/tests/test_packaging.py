@@ -35,10 +35,10 @@ def test_legacy_runtime_modules_and_tests_are_removed():
         assert not (ASSISTANT_ROOT / path).exists()
 
 
-def test_package_entrypoint_only_forwards_to_stdio_runtime():
+def test_package_entrypoint_only_forwards_to_protocol_v1_runtime():
     entrypoint = (ASSISTANT_ROOT / "__main__.py").read_text(encoding="utf-8")
 
-    assert "stdio_app" in entrypoint
+    assert "protocol_v1_app" in entrypoint
     assert "server" not in entrypoint
 
 

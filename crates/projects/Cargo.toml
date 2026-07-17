@@ -1,0 +1,21 @@
+[package]
+name = "projects"
+description = "oh-my-dream Project domain and application capability."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+autotests = false
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+[dependencies]
+async-trait.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

@@ -1,9 +1,9 @@
 import { addEdge, type Connection, type Edge, type Node } from "@xyflow/react";
-import { findNodeType, recoveryNodeSpec } from "../nodes/catalog.ts";
+import { recoveryNodeSpec } from "../nodes/catalog.ts";
 import type { FlowNodeData } from "../nodes/WorkflowFlowNode.tsx";
-import type { CapabilityCacheSnapshot } from "./contractCache.ts";
 import { typeColor } from "../nodes/typeColor.ts";
 import type { Workflow } from "./types.ts";
+import type { NodeTypeSpec } from "../nodes/catalog.ts";
 
 export interface EditorGraph {
   nodes: Node[];
@@ -15,11 +15,15 @@ type ParamChangeHandler = (nodeId: string, name: string, value: unknown) => void
 export function fromWorkflow(
   workflow: Workflow,
   onParamChange: ParamChangeHandler,
-  snapshot: CapabilityCacheSnapshot,
+  exactSpecs: readonly NodeTypeSpec[],
 ): EditorGraph {
   const nodes = workflow.nodes.map((workflowNode, index) => {
     const spec =
-      findNodeType(workflowNode.type, workflowNode.contract_version, workflowNode.params, snapshot) ??
+      exactSpecs.find(
+        (candidate) =>
+          candidate.ref.id === workflowNode.type &&
+          candidate.ref.version === (workflowNode.contract_version ?? "1.0"),
+      ) ??
       recoveryNodeSpec(
         { id: workflowNode.type, version: workflowNode.contract_version ?? "1.0" },
         "exact capability version is unavailable",
@@ -41,14 +45,14 @@ export function fromWorkflow(
   const edges = workflow.nodes.flatMap((target) =>
     Object.entries(target.inputs).flatMap(([targetHandle, binding]) =>
       outputRefsOf(binding).map(([source, sourceHandle], order) => ({
-        id: edgeId(source, sourceHandle, target.id, targetHandle),
+        id: workflowEdgeId(source, sourceHandle, target.id, targetHandle),
         source,
         sourceHandle,
         target: target.id,
         targetHandle,
         type: "workflow",
         data: {
-          color: sourceColor(workflow, source, sourceHandle, snapshot),
+          color: sourceColor(workflow, source, sourceHandle, exactSpecs),
           order,
         },
       })),
@@ -100,15 +104,10 @@ export function upsertIncomingEdge(
 }
 
 export function nextNodeId(nodes: readonly Pick<Node, "id">[]): string {
-  const maxId = nodes.reduce((currentMax, node) => {
-    const match = /^n(\d+)$/.exec(node.id);
-    if (!match) {
-      return currentMax;
-    }
-    const value = Number(match[1]);
-    return Number.isSafeInteger(value) ? Math.max(currentMax, value) : currentMax;
-  }, 0);
-  return `n${maxId + 1}`;
+  let id = crypto.randomUUID();
+  const existing = new Set(nodes.map((node) => node.id));
+  while (existing.has(id)) id = crypto.randomUUID();
+  return id;
 }
 
 function positionFor(position: [number, number] | undefined, index: number) {
@@ -121,17 +120,19 @@ function sourceColor(
   workflow: Workflow,
   nodeId: string,
   outputName: string,
-  snapshot: CapabilityCacheSnapshot,
+  exactSpecs: readonly NodeTypeSpec[],
 ): string {
   const source = workflow.nodes.find((node) => node.id === nodeId);
-  const spec = source
-    ? findNodeType(source.type, source.contract_version, source.params, snapshot)
-    : undefined;
+  const spec = exactSpecs.find(
+    (candidate) =>
+      candidate.ref.id === source?.type &&
+      candidate.ref.version === (source?.contract_version ?? "1.0"),
+  );
   const portType = spec?.outputs.find((output) => output.name === outputName)?.type;
   return typeColor(portType);
 }
 
-function edgeId(
+export function workflowEdgeId(
   source: string,
   sourceHandle: string,
   target: string,

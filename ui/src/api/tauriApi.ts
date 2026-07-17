@@ -4,301 +4,297 @@
 // result is the sole terminal authority; cancellation remains a request until
 // that result reports cancelled, succeeded, or failed.
 
-import { Channel, convertFileSrc, invoke } from "@tauri-apps/api/core";
-import type { Workflow } from "../workflow/types.ts";
-import { createRunId } from "./runId.ts";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type {
   AssetDto,
-  AssistantConfig,
-  AssistantConfigInput,
+  AssetKind,
+  AssetListPageDto,
+  AssetPreviewDto,
   AssistantApprovalDecisionInput,
-  AssistantPendingApproval,
+  AssistantPendingWorkflowChange,
+  AssistantPresentationEvent,
+  AssistantSendMessageResult,
+  AssistantWorkflowChangeDecisionResult,
   AssistantSendInput,
-  ResponsesStreamEvent,
-  CancelWorkflowRunResult,
-  CapabilityBundles,
-  CapabilitySearchPage,
-  CapabilitySearchRequest,
   CapabilityRef,
-  ListAssetsOptions,
+  GenerationProfileForCapability,
+  NodeCapabilityContractDto,
   Project,
   ProjectWorkspace,
-  Provider,
-  RunHandle,
-  RunObserver,
   WorkflowApi,
-  WorkflowApplyPatchInput,
-  WorkflowApplyPatchOutput,
-  WorkflowRunEvent,
-  WorkflowRunResult,
-  WorkflowHead,
+  WorkflowDto,
+  WorkflowMutationActionDto,
+  WorkflowNodePresentationDto,
+  WorkflowReadinessDto,
+  WorkflowRunDto,
+  WorkflowRunEventPageDto,
+  WorkflowRunScopeDto,
+  WorkflowWithReadinessDto,
 } from "./types.ts";
 
-function runWorkflow(workflow: Workflow, observe: RunObserver): RunHandle {
-  return new TauriWorkflowRun(workflow, observe).handle();
-}
-
-class TauriWorkflowRun {
-  private readonly runId = createRunId();
-  private readonly channel = new Channel<WorkflowRunEvent>();
-  private started = false;
-  private cancelRequested = false;
-  private cancelSent = false;
-  private terminal = false;
-  private cancelFailure: string | null = null;
-
-  constructor(
-    private readonly workflow: Workflow,
-    private readonly observe: RunObserver,
-  ) {
-    this.channel.onmessage = (event) => this.handleEvent(event);
-    this.start();
-  }
-
-  handle(): RunHandle {
-    return { runId: this.runId, cancel: () => this.cancel() };
-  }
-
-  private start(): void {
-    void invoke<WorkflowRunResult>("start_workflow_run", {
-      run_id: this.runId,
-      workflow_json: JSON.stringify(this.workflow),
-      on_event: this.channel,
-    })
-      .then((result) => this.settle(result))
-      .catch((error: unknown) => this.fail(this.failureReason(error)));
-  }
-
-  private handleEvent(event: WorkflowRunEvent): void {
-    if (this.terminal || event.run_id !== this.runId) return;
-    if (event.event === "started") {
-      this.started = true;
-      this.requestCancellation();
-      return;
-    }
-    const committed = event.node.state === "done" || event.node.state === "cached";
-    if (this.cancelRequested && !committed) return;
-    this.observe.onProgress({
-      nodeId: event.node.node_id,
-      progress: event.node.progress ?? (committed ? 1 : 0),
-      nodeState: event.node.state,
-      cost: event.node.cost ?? undefined,
-    });
-  }
-
-  private cancel(): void {
-    if (this.terminal || this.cancelRequested) return;
-    this.cancelRequested = true;
-    this.observe.onStatus({ state: "cancelling" });
-    this.requestCancellation();
-  }
-
-  private requestCancellation(): void {
-    if (!this.started || !this.cancelRequested || this.cancelSent || this.terminal) return;
-    this.cancelSent = true;
-    void invoke<CancelWorkflowRunResult>("cancel_workflow_run", { run_id: this.runId })
-      .then((result) => {
-        if (result.run_id !== this.runId) {
-          this.handleCancellationFailure("cancel_workflow_run returned a different run_id");
-        } else {
-          this.cancelFailure = null;
-        }
-      })
-      .catch((error: unknown) => {
-        this.handleCancellationFailure(String(error));
-      });
-  }
-
-  private handleCancellationFailure(reason: string): void {
-    if (this.terminal || !this.cancelRequested) return;
-    this.cancelFailure = reason;
-    this.cancelRequested = false;
-    this.cancelSent = false;
-    this.observe.onStatus({ state: "cancel_failed", reason });
-  }
-
-  private settle(result: WorkflowRunResult): void {
-    if (this.terminal) return;
-    if (result.run_id !== this.runId) {
-      this.fail(`Workflow run identity mismatch: expected ${this.runId}, received ${result.run_id}`);
-      return;
-    }
-    this.terminal = true;
-    if (result.status === "succeeded") {
-      this.observe.onStatus({ state: "succeeded", outputs: result.outputs });
-    } else if (result.status === "cancelled") {
-      this.observe.onStatus({ state: "cancelled" });
-    } else {
-      this.observe.onStatus({ state: "failed", reason: result.reason });
-    }
-  }
-
-  private fail(reason: string): void {
-    if (this.terminal) return;
-    this.terminal = true;
-    this.observe.onStatus({ state: "failed", reason });
-  }
-
-  private failureReason(error: unknown): string {
-    return this.cancelFailure === null
-      ? String(error)
-      : `Run failed after cancellation request (${this.cancelFailure}): ${String(error)}`;
-  }
-}
-
-async function listAssets(options: ListAssetsOptions = {}): Promise<AssetDto[]> {
-  const root = await assetsRoot();
-  const assets = await invoke<AssetDto[]>("list_assets", {
-    kind: options.kind ?? null,
-    project_id: options.project_id ?? null,
-    model: options.model ?? null,
-    prompt: options.prompt ?? null,
-    sort: options.sort ?? null,
+async function assetImport(
+  projectId: string,
+  expectedMediaKind: AssetKind,
+): Promise<AssetDto | null> {
+  return invoke("asset_import", {
+    request: {
+      project_id: projectId,
+      expected_media_kind: expectedMediaKind,
+    },
   });
-  return assets.map((asset) => convertAssetPaths(asset, root));
 }
 
-async function getAsset(id: string): Promise<AssetDto> {
-  const root = await assetsRoot();
-  const asset = await invoke<AssetDto>("get_asset", { id });
-  return convertAssetPaths(asset, root);
+async function assetGet(projectId: string, assetId: string): Promise<AssetDto> {
+  return invoke("asset_get", {
+    request: { project_id: projectId, asset_id: assetId },
+  });
 }
 
-async function assetsRoot(): Promise<string> {
-  return invoke<string>("assets_root");
+async function assetList(
+  projectId: string,
+  mediaKind: AssetKind | null = null,
+  cursor: string | null = null,
+  limit = 100,
+): Promise<AssetListPageDto> {
+  return invoke("asset_list", {
+    request: {
+      project_id: projectId,
+      media_kind: mediaKind,
+      cursor,
+      limit,
+    },
+  });
+}
+
+async function assetIssuePreview(
+  projectId: string,
+  assetId: string,
+): Promise<AssetPreviewDto> {
+  return invoke("asset_issue_preview", {
+    request: { project_id: projectId, asset_id: assetId },
+  });
 }
 
 async function listProjects(): Promise<Project[]> {
-  return invoke<Project[]>("list_projects");
+  const projects = new Map<string, Project>();
+  let cursor: string | null = null;
+  do {
+    const page: { projects: Project[]; next_cursor: string | null } = await invoke(
+      "project_list",
+      { request: { limit: 100, cursor } },
+    );
+    for (const project of page.projects) projects.set(project.id, project);
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+  return [...projects.values()];
 }
 
 async function createProject(name: string): Promise<Project> {
-  return invoke<Project>("create_project", { name });
+  return invoke<Project>("project_create", {
+    request: { request_id: crypto.randomUUID(), name },
+  });
+}
+
+async function getProject(id: string): Promise<Project> {
+  return invoke<Project>("project_get", { request: { project_id: id } });
+}
+
+async function renameProject(project: Project, name: string): Promise<Project> {
+  return invoke<Project>("project_rename", {
+    request: {
+      request_id: crypto.randomUUID(),
+      project_id: project.id,
+      expected_revision: project.revision,
+      name,
+    },
+  });
 }
 
 async function openProject(id: string): Promise<ProjectWorkspace> {
-  return invoke<ProjectWorkspace>("open_project", { id });
-}
-
-async function searchCapabilities(
-  request: CapabilitySearchRequest,
-): Promise<CapabilitySearchPage> {
-  return invoke<CapabilitySearchPage>("search_capabilities", {
-    query: request.query,
-    category: request.category ?? null,
-    type_id: request.type_id ?? null,
-    cursor: request.cursor ?? null,
-    limit: request.limit ?? null,
+  return invoke<ProjectWorkspace>("project_open", {
+    request: { project_id: id },
   });
 }
 
-async function getCapabilityBundles(refs: CapabilityRef[]): Promise<CapabilityBundles> {
-  return invoke<CapabilityBundles>("get_capability_bundles", { refs });
+async function nodeCapabilityList(): Promise<NodeCapabilityContractDto[]> {
+  return invoke<NodeCapabilityContractDto[]>("node_capability_list", { request: {} });
 }
 
-async function applyWorkflowPatch(
+async function generationProfileListForCapability(
+  reference: CapabilityRef,
+): Promise<GenerationProfileForCapability[]> {
+  return invoke<GenerationProfileForCapability[]>("generation_profile_list_for_capability", {
+    request: {
+      capability_id: reference.id,
+      capability_version: reference.version,
+    },
+  });
+}
+
+async function workflowCreate(projectId: string): Promise<WorkflowDto> {
+  return invoke("workflow_create", {
+    request: { request_id: crypto.randomUUID(), project_id: projectId },
+  });
+}
+
+async function workflowGetCurrent(projectId: string): Promise<WorkflowWithReadinessDto> {
+  return invoke("workflow_get_current", { request: { project_id: projectId } });
+}
+
+async function workflowApplyMutation(
   projectId: string,
-  requestId: string,
-  input: WorkflowApplyPatchInput,
-): Promise<WorkflowApplyPatchOutput> {
-  return invoke<WorkflowApplyPatchOutput>("workflow_apply_patch", {
-    project_id: projectId,
-    request_id: requestId,
-    input,
+  workflowId: string,
+  baseRevision: string,
+  actions: WorkflowMutationActionDto[],
+): Promise<WorkflowWithReadinessDto> {
+  return invoke("workflow_apply_mutation", {
+    request: {
+      project_id: projectId,
+      request_id: crypto.randomUUID(),
+      workflow_id: workflowId,
+      base_revision: baseRevision,
+      actions,
+    },
   });
 }
 
-async function getProviders(): Promise<Provider[]> {
-  return invoke<Provider[]>("get_providers");
+async function workflowCheckReadiness(
+  projectId: string,
+  workflowId: string,
+): Promise<WorkflowReadinessDto> {
+  return invoke("workflow_check_readiness", {
+    request: { project_id: projectId, workflow_id: workflowId },
+  });
 }
 
-async function setActiveProvider(providerId: string): Promise<void> {
-  await invoke("set_active_provider", { provider_id: providerId });
+async function workflowStartRun(
+  projectId: string,
+  workflowId: string,
+  workflowRevision: string,
+  scope: WorkflowRunScopeDto,
+): Promise<WorkflowRunDto> {
+  return invoke("workflow_start_run", {
+    request: {
+      request_id: crypto.randomUUID(),
+      project_id: projectId,
+      workflow_id: workflowId,
+      workflow_revision: workflowRevision,
+      scope,
+    },
+  });
 }
 
-async function setProviderKey(providerId: string, key: string): Promise<void> {
-  await invoke("set_provider_key", { provider_id: providerId, key });
+async function workflowCancelRun(
+  projectId: string,
+  workflowRunId: string,
+): Promise<WorkflowRunDto> {
+  return invoke("workflow_cancel_run", {
+    request: { project_id: projectId, workflow_run_id: workflowRunId },
+  });
 }
 
-async function getAssistantConfig(): Promise<AssistantConfig> {
-  return invoke<AssistantConfig>("get_assistant_config");
+async function workflowGetRun(
+  projectId: string,
+  workflowRunId: string,
+): Promise<WorkflowRunDto> {
+  return invoke("workflow_get_run", {
+    request: { project_id: projectId, workflow_run_id: workflowRunId },
+  });
 }
 
-async function setAssistantConfig(input: AssistantConfigInput): Promise<void> {
-  await invoke("set_assistant_config", { input });
+async function workflowListRunEvents(
+  projectId: string,
+  workflowRunId: string,
+  afterSequence: string | null = null,
+  limit = 500,
+): Promise<WorkflowRunEventPageDto> {
+  return invoke("workflow_list_run_events", {
+    request: {
+      project_id: projectId,
+      workflow_run_id: workflowRunId,
+      after_sequence: afterSequence,
+      limit,
+    },
+  });
 }
 
-async function sendAssistant(
+async function observeWorkflowRunEvents(
+  onEvent: (event: import("./types.ts").DurableWorkflowRunEventDto) => void,
+): Promise<() => void> {
+  return listen("workflow-run-event-v1", ({ payload }) => onEvent(
+    payload as import("./types.ts").DurableWorkflowRunEventDto,
+  ));
+}
+
+async function workflowGetNodePresentation(
+  projectId: string,
+  workflowId: string,
+  nodeId: string,
+): Promise<WorkflowNodePresentationDto> {
+  return invoke("workflow_get_node_presentation", {
+    request: {
+      project_id: projectId,
+      workflow_id: workflowId,
+      node_id: nodeId,
+    },
+  });
+}
+
+async function assistantSendMessage(
   input: AssistantSendInput,
-  onEvent: (event: ResponsesStreamEvent) => void,
-): Promise<WorkflowHead | null> {
-  const channel = new Channel<ResponsesStreamEvent>();
-  channel.onmessage = onEvent;
-  return invoke<WorkflowHead | null>("assistant_send", { input, on_event: channel });
+): Promise<AssistantSendMessageResult> {
+  return invoke<AssistantSendMessageResult>("assistant_send_message", { request: input });
 }
 
-async function decideAssistantApproval(
+async function assistantDecideWorkflowChange(
   input: AssistantApprovalDecisionInput,
-  onEvent: (event: ResponsesStreamEvent) => void,
-): Promise<WorkflowHead | null> {
-  const channel = new Channel<ResponsesStreamEvent>();
-  channel.onmessage = onEvent;
-  return invoke<WorkflowHead | null>("assistant_decide_approval", {
-    input,
-    on_event: channel,
+): Promise<AssistantWorkflowChangeDecisionResult> {
+  return invoke<AssistantWorkflowChangeDecisionResult>("assistant_decide_workflow_change", {
+    request: input,
   });
 }
 
-async function getPendingAssistantApproval(
+async function assistantGetPendingWorkflowChange(
   projectId: string,
-): Promise<AssistantPendingApproval | null> {
-  return invoke<AssistantPendingApproval | null>("assistant_get_pending_approval", {
-    project_id: projectId,
+): Promise<AssistantPendingWorkflowChange | null> {
+  return invoke<AssistantPendingWorkflowChange | null>("assistant_get_pending_workflow_change", {
+    request: { project_id: projectId },
   });
 }
 
-function convertAssetPaths(asset: AssetDto, root: string | null): AssetDto {
-  return {
-    ...asset,
-    file_path: convertRootedPath(asset.file_path, root),
-    thumbnail_path:
-      asset.thumbnail_path === null ? null : convertRootedPath(asset.thumbnail_path, root),
-  };
-}
-
-function convertRootedPath(path: string, root: string | null): string {
-  if (!root || !isPathUnderRoot(path, root)) {
-    return path;
-  }
-  return convertFileSrc(path);
-}
-
-function isPathUnderRoot(path: string, root: string): boolean {
-  const normalizedRoot = root.replace(/[\\/]+$/, "");
-  return (
-    path === normalizedRoot ||
-    path.startsWith(`${normalizedRoot}/`) ||
-    path.startsWith(`${normalizedRoot}\\`)
-  );
+async function observeAssistantPresentationEvents(
+  onEvent: (event: AssistantPresentationEvent) => void,
+): Promise<() => void> {
+  return listen<AssistantPresentationEvent>("assistant-presentation-event-v1", ({ payload }) => {
+    onEvent(payload);
+  });
 }
 
 export const tauriApi: WorkflowApi = {
-  runWorkflow,
-  assetsRoot,
-  listAssets,
-  getAsset,
+  assetImport,
+  assetGet,
+  assetList,
+  assetIssuePreview,
   listProjects,
   createProject,
+  getProject,
+  renameProject,
   openProject,
-  searchCapabilities,
-  getCapabilityBundles,
-  applyWorkflowPatch,
-  getProviders,
-  setActiveProvider,
-  setProviderKey,
-  getAssistantConfig,
-  setAssistantConfig,
-  sendAssistant,
-  getPendingAssistantApproval,
-  decideAssistantApproval,
+  nodeCapabilityList,
+  generationProfileListForCapability,
+  workflowCreate,
+  workflowGetCurrent,
+  workflowApplyMutation,
+  workflowCheckReadiness,
+  workflowStartRun,
+  workflowCancelRun,
+  workflowGetRun,
+  workflowListRunEvents,
+  observeWorkflowRunEvents,
+  workflowGetNodePresentation,
+  assistantSendMessage,
+  assistantGetPendingWorkflowChange,
+  assistantDecideWorkflowChange,
+  observeAssistantPresentationEvents,
 };

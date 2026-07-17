@@ -24,6 +24,7 @@ export interface FlowNodeData {
   params: Record<string, unknown>;
   runtime?: NodeRuntime;
   assetPresentation?: { title: string; available: boolean };
+  textPresentation?: string | null;
   onParamChange: (name: string, value: unknown) => void;
   [key: string]: unknown;
 }
@@ -79,10 +80,15 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
       )}
 
       {rt?.preview && <Preview preview={rt.preview} />}
+      {nodeData.textPresentation && (
+        <div className="wf-node__asset">{nodeData.textPresentation}</div>
+      )}
 
       {spec.params.length > 0 && !isAsset && (
         <div className="wf-node__body">
-          {spec.params.map((param) => (
+          {spec.params
+            .filter((param) => param.name !== "generation_profile_ref")
+            .map((param) => (
             <Fragment key={param.name} label={param.label}>
               <ParameterInput
                 spec={param}
@@ -91,7 +97,7 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
                 onChange={(value) => nodeData.onParamChange(param.name, value)}
               />
             </Fragment>
-          ))}
+            ))}
         </div>
       )}
 

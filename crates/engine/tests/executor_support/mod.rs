@@ -2,14 +2,15 @@ mod cancellation;
 mod capability_effect;
 
 pub(crate) use cancellation::{
-    TestCancellation, commit_then_cancel_registry, fail_then_cancel_registry, single_node_workflow,
+    TestCancellationImpl, commit_then_cancel_registry, fail_then_cancel_registry,
+    single_node_workflow,
 };
 pub(crate) use capability_effect::{capability_effect_registry, local_read_workflow};
 
 use engine::{
-    InputBinding, InputPort, InputValue, Node, NodeExecutionState, NodeInputs, NodeParams,
-    NodeProgressEvent, NodeRegistry, NodeRunContext, NodeRunResult, OutputPort, OutputRef,
-    PortCardinality, PortType, Value, Workflow, WorkflowNode,
+    InputBinding, InputPort, InputValue, NodeExecutionState, NodeInputs, NodeInterface, NodeParams,
+    NodeProgressEvent, NodeRegistry, NodeRunContextImpl, NodeRunResult, OutputPort, OutputRef,
+    PortCardinality, PortType, Workflow, WorkflowNode, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -39,7 +40,7 @@ pub(crate) fn registry(counters: RunCounters) -> NodeRegistry {
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_default()
                 .to_owned();
-            Ok(Box::new(TextPromptNode {
+            Ok(Box::new(TextPromptNodeImpl {
                 text,
                 outputs: vec![output("text", PortType::String)],
                 runs: Arc::clone(&text_prompt_runs),
@@ -51,7 +52,7 @@ pub(crate) fn registry(counters: RunCounters) -> NodeRegistry {
     registry.register(
         "UpperCase",
         Box::new(move |_| {
-            Ok(Box::new(UpperCaseNode {
+            Ok(Box::new(UpperCaseNodeImpl {
                 inputs: vec![required_input("text", PortType::String)],
                 outputs: vec![output("text", PortType::String)],
                 runs: Arc::clone(&upper_case_runs),
@@ -63,7 +64,7 @@ pub(crate) fn registry(counters: RunCounters) -> NodeRegistry {
     registry.register(
         "Collect",
         Box::new(move |_| {
-            Ok(Box::new(CollectNode {
+            Ok(Box::new(CollectNodeImpl {
                 inputs: vec![required_input("text", PortType::String)],
                 outputs: vec![output("text", PortType::String)],
                 runs: Arc::clone(&collect_runs),
@@ -74,7 +75,7 @@ pub(crate) fn registry(counters: RunCounters) -> NodeRegistry {
     registry.register(
         "ImageSource",
         Box::new(|_| {
-            Ok(Box::new(ImageSourceNode { outputs: vec![output("image", PortType::Image)] }))
+            Ok(Box::new(ImageSourceNodeImpl { outputs: vec![output("image", PortType::Image)] }))
         }),
     );
     let video_source_runs = Arc::clone(&counters.video_source);
@@ -86,7 +87,7 @@ pub(crate) fn registry(counters: RunCounters) -> NodeRegistry {
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_default()
                 .to_owned();
-            Ok(Box::new(VideoSourceNode {
+            Ok(Box::new(VideoSourceNodeImpl {
                 reference,
                 runs: Arc::clone(&video_source_runs),
                 outputs: vec![output("video", PortType::Video)],
@@ -97,7 +98,7 @@ pub(crate) fn registry(counters: RunCounters) -> NodeRegistry {
     registry.register(
         "VideoConcat",
         Box::new(move |_| {
-            Ok(Box::new(VideoConcatNode {
+            Ok(Box::new(VideoConcatNodeImpl {
                 runs: Arc::clone(&video_concat_runs),
                 inputs: vec![required_many_input("clips", PortType::Video)],
                 outputs: vec![output("video", PortType::Video)],
@@ -219,13 +220,13 @@ fn video_source_workflow_node(id: &str, reference: &str) -> WorkflowNode {
     }
 }
 
-struct TextPromptNode {
+struct TextPromptNodeImpl {
     text: String,
     outputs: Vec<OutputPort>,
     runs: Arc<AtomicUsize>,
 }
 
-impl Node for TextPromptNode {
+impl NodeInterface for TextPromptNodeImpl {
     fn type_id(&self) -> &str {
         "TextPrompt"
     }
@@ -241,23 +242,26 @@ impl Node for TextPromptNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("text".to_owned(), Value::String(self.text.clone()))]),
+            outputs: BTreeMap::from([(
+                "text".to_owned(),
+                WorkflowNodeValue::String(self.text.clone()),
+            )]),
             cost: Some(7),
         })
     }
 }
 
-struct UpperCaseNode {
+struct UpperCaseNodeImpl {
     inputs: Vec<InputPort>,
     outputs: Vec<OutputPort>,
     runs: Arc<AtomicUsize>,
 }
 
-impl Node for UpperCaseNode {
+impl NodeInterface for UpperCaseNodeImpl {
     fn type_id(&self) -> &str {
         "UpperCase"
     }
@@ -273,28 +277,31 @@ impl Node for UpperCaseNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
-        let InputValue::Single(Value::String(text)) =
+        let InputValue::Single(WorkflowNodeValue::String(text)) =
             inputs.get("text").ok_or_else(|| TestNodeError("missing text input".to_owned()))?
         else {
             return Err(Box::new(TestNodeError("text input was not a string".to_owned())));
         };
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("text".to_owned(), Value::String(text.to_uppercase()))]),
+            outputs: BTreeMap::from([(
+                "text".to_owned(),
+                WorkflowNodeValue::String(text.to_uppercase()),
+            )]),
             cost: Some(7),
         })
     }
 }
 
-struct CollectNode {
+struct CollectNodeImpl {
     inputs: Vec<InputPort>,
     outputs: Vec<OutputPort>,
     runs: Arc<AtomicUsize>,
 }
 
-impl Node for CollectNode {
+impl NodeInterface for CollectNodeImpl {
     fn type_id(&self) -> &str {
         "Collect"
     }
@@ -310,7 +317,7 @@ impl Node for CollectNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         let text = inputs
@@ -324,17 +331,17 @@ impl Node for CollectNode {
     }
 }
 
-struct ImageSourceNode {
+struct ImageSourceNodeImpl {
     outputs: Vec<OutputPort>,
 }
 
-struct VideoSourceNode {
+struct VideoSourceNodeImpl {
     reference: String,
     runs: Arc<AtomicUsize>,
     outputs: Vec<OutputPort>,
 }
 
-impl Node for VideoSourceNode {
+impl NodeInterface for VideoSourceNodeImpl {
     fn type_id(&self) -> &str {
         "VideoSource"
     }
@@ -350,23 +357,23 @@ impl Node for VideoSourceNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         Ok(NodeRunResult::new(BTreeMap::from([(
             "video".to_owned(),
-            Value::Video(self.reference.clone()),
+            WorkflowNodeValue::Video(self.reference.clone()),
         )])))
     }
 }
 
-struct VideoConcatNode {
+struct VideoConcatNodeImpl {
     runs: Arc<AtomicUsize>,
     inputs: Vec<InputPort>,
     outputs: Vec<OutputPort>,
 }
 
-impl Node for VideoConcatNode {
+impl NodeInterface for VideoConcatNodeImpl {
     fn type_id(&self) -> &str {
         "VideoConcat"
     }
@@ -382,7 +389,7 @@ impl Node for VideoConcatNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         self.runs.fetch_add(1, Ordering::SeqCst);
         let InputValue::OrderedMany(clips) = &inputs["clips"] else {
@@ -390,12 +397,12 @@ impl Node for VideoConcatNode {
         };
         Ok(NodeRunResult::new(BTreeMap::from([(
             "video".to_owned(),
-            Value::Video(format!("{clips:?}")),
+            WorkflowNodeValue::Video(format!("{clips:?}")),
         )])))
     }
 }
 
-impl Node for ImageSourceNode {
+impl NodeInterface for ImageSourceNodeImpl {
     fn type_id(&self) -> &str {
         "ImageSource"
     }
@@ -411,21 +418,21 @@ impl Node for ImageSourceNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         Ok(NodeRunResult {
             outputs: BTreeMap::from([(
                 "image".to_owned(),
-                Value::Image("asset://image".to_owned()),
+                WorkflowNodeValue::Image("asset://image".to_owned()),
             )]),
             cost: None,
         })
     }
 }
 
-pub(crate) struct FailingNode;
+pub(crate) struct FailingNodeImpl;
 
-impl Node for FailingNode {
+impl NodeInterface for FailingNodeImpl {
     fn type_id(&self) -> &str {
         "Failing"
     }
@@ -441,7 +448,7 @@ impl Node for FailingNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        _context: &mut NodeRunContext,
+        _context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, Box<dyn Error + Send + Sync>> {
         Err(Box::new(TestNodeError("boom".to_owned())))
     }

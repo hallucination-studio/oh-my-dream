@@ -1,4 +1,4 @@
-use crate::error::{AssetError, Result};
+use crate::error::{AssetError, AssetResult};
 use crate::model::{Asset, AssetKind, Project};
 use rusqlite::Row;
 use rusqlite::types::{Type, ValueRef};
@@ -26,7 +26,7 @@ pub(crate) struct AssetRow {
 }
 
 impl AssetRow {
-    pub(crate) fn into_asset(self) -> Result<Asset> {
+    pub(crate) fn into_asset(self) -> AssetResult<Asset> {
         let kind = parse_kind(&self.id, &self.kind)?;
         let workflow_snapshot = parse_json(&self.id, &self.workflow_snapshot, "workflow snapshot")?;
         let tags = parse_json(&self.id, &self.tags, "tags")?;
@@ -70,7 +70,7 @@ pub(crate) fn asset_row(row: &Row<'_>) -> rusqlite::Result<AssetRow> {
     })
 }
 
-pub(crate) fn collect_assets<F>(rows: rusqlite::MappedRows<'_, F>) -> Result<Vec<Asset>>
+pub(crate) fn collect_assets<F>(rows: rusqlite::MappedRows<'_, F>) -> AssetResult<Vec<Asset>>
 where
     F: FnMut(&Row<'_>) -> rusqlite::Result<AssetRow>,
 {
@@ -86,7 +86,7 @@ pub(crate) fn project_row(row: &Row<'_>) -> rusqlite::Result<Project> {
     Ok(Project { id: row.get(0)?, name: row.get(1)?, created_at: row.get(2)? })
 }
 
-pub(crate) fn collect_projects<F>(rows: rusqlite::MappedRows<'_, F>) -> Result<Vec<Project>>
+pub(crate) fn collect_projects<F>(rows: rusqlite::MappedRows<'_, F>) -> AssetResult<Vec<Project>>
 where
     F: FnMut(&Row<'_>) -> rusqlite::Result<Project>,
 {
@@ -132,7 +132,7 @@ fn conversion_error(
     rusqlite::Error::FromSqlConversionFailure(index, Type::Text, Box::new(source))
 }
 
-fn parse_kind(asset_id: &str, value: &str) -> Result<AssetKind> {
+fn parse_kind(asset_id: &str, value: &str) -> AssetResult<AssetKind> {
     match value {
         "image" => Ok(AssetKind::Image),
         "video" => Ok(AssetKind::Video),
@@ -145,7 +145,7 @@ fn parse_json<T: serde::de::DeserializeOwned>(
     asset_id: &str,
     value: &str,
     field: &str,
-) -> Result<T> {
+) -> AssetResult<T> {
     serde_json::from_str(value)
         .map_err(|source| storage_error(format!("parse {field} for asset `{asset_id}`: {source}")))
 }

@@ -1,5 +1,5 @@
 use crate::error::NodesError;
-use engine::{InputValue, NodeInputs, NodeParams, Value};
+use engine::{InputValue, NodeInputs, NodeParams, WorkflowNodeValue};
 use serde::de::DeserializeOwned;
 
 pub(crate) fn string_param(
@@ -51,7 +51,7 @@ pub(crate) fn reject_unknown_params(
 
 pub(crate) fn text_input<'a>(inputs: &'a NodeInputs, name: &str) -> Result<&'a str, NodesError> {
     match inputs.get(name) {
-        Some(InputValue::Single(Value::String(value))) => Ok(value),
+        Some(InputValue::Single(WorkflowNodeValue::String(value))) => Ok(value),
         Some(InputValue::Single(_)) => wrong_input(name, "string"),
         Some(InputValue::OrderedMany(_)) => wrong_cardinality(name, "single"),
         None => Err(NodesError::MissingInput { name: name.to_owned() }),
@@ -60,9 +60,26 @@ pub(crate) fn text_input<'a>(inputs: &'a NodeInputs, name: &str) -> Result<&'a s
 
 pub(crate) fn image_input<'a>(inputs: &'a NodeInputs, name: &str) -> Result<&'a str, NodesError> {
     match inputs.get(name) {
-        Some(InputValue::Single(Value::Image(value))) => Ok(value),
+        Some(InputValue::Single(WorkflowNodeValue::Image(value))) => Ok(value),
         Some(InputValue::Single(_)) => wrong_input(name, "image"),
         Some(InputValue::OrderedMany(_)) => wrong_cardinality(name, "single"),
+        None => Err(NodesError::MissingInput { name: name.to_owned() }),
+    }
+}
+
+pub(crate) fn image_inputs<'a>(
+    inputs: &'a NodeInputs,
+    name: &str,
+) -> Result<Vec<&'a str>, NodesError> {
+    match inputs.get(name) {
+        Some(InputValue::OrderedMany(values)) => values
+            .iter()
+            .map(|value| match value {
+                WorkflowNodeValue::Image(image) => Ok(image.as_str()),
+                _ => wrong_input(name, "image"),
+            })
+            .collect(),
+        Some(InputValue::Single(_)) => wrong_cardinality(name, "ordered many"),
         None => Err(NodesError::MissingInput { name: name.to_owned() }),
     }
 }
@@ -100,7 +117,7 @@ mod tests {
             text_input(
                 &NodeInputs::from([(
                     "prompt".to_owned(),
-                    InputValue::OrderedMany(vec![Value::String("hello".to_owned())]),
+                    InputValue::OrderedMany(vec![WorkflowNodeValue::String("hello".to_owned())]),
                 )]),
                 "prompt",
             ),
@@ -110,7 +127,7 @@ mod tests {
             text_input(
                 &NodeInputs::from([(
                     "prompt".to_owned(),
-                    InputValue::Single(Value::Image("asset".to_owned())),
+                    InputValue::Single(WorkflowNodeValue::Image("asset".to_owned())),
                 )]),
                 "prompt",
             ),

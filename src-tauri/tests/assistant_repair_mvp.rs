@@ -1,4 +1,4 @@
-use backends::MockBackend;
+use backends::MockBackendImpl;
 use engine::{NodeRef, Workflow, WorkflowPatch, WorkflowPatchOperation};
 use oh_my_dream_tauri::assistant_commands::{
     AssistantApprovalDecisionInput, assistant_decide_approval_with_state,
@@ -30,7 +30,7 @@ const WORKFLOW_JSON: &str = r#"{
 
 #[test]
 fn assistant_repair_injected_failure_creates_only_a_factual_same_session_activation() {
-    let state = state_with_backend(Arc::new(MockBackend::always_fails("provider outage")));
+    let state = state_with_backend(Arc::new(MockBackendImpl::always_fails("provider outage")));
     let service = AssistantRepairService::from_state(&state);
     let action = ApprovedWorkflowAction::new("project", "approval-scope-1", 1);
 
@@ -53,7 +53,7 @@ fn assistant_repair_injected_failure_creates_only_a_factual_same_session_activat
 
 #[test]
 fn assistant_repair_reviewed_action_uses_a_new_stable_run_and_can_succeed() {
-    let state = state_with_backend(Arc::new(MockBackend::new()));
+    let state = state_with_backend(Arc::new(MockBackendImpl::new()));
     let service = AssistantRepairService::from_state(&state);
     let repaired = ApprovedWorkflowAction::new("project", "approval-scope-2", 1);
 
@@ -74,7 +74,7 @@ fn assistant_repair_reviewed_action_uses_a_new_stable_run_and_can_succeed() {
 
 #[tokio::test]
 async fn assistant_repair_rejection_revision_second_approval_applies_exact_repair_and_reruns() {
-    let state = state_with_backend(Arc::new(MockBackend::always_fails("provider outage")));
+    let state = state_with_backend(Arc::new(MockBackendImpl::always_fails("provider outage")));
     let rejected = state
         .reviewed_change
         .prepare(PrepareCandidateInput {
@@ -149,7 +149,7 @@ async fn assistant_repair_approved_apply_runs_and_failure_invokes_the_same_sessi
     let root = tempdir().expect("asset root");
     let activation_path = root.path().join("activation.json");
     let mut state =
-        state_at_root(root.path(), Arc::new(MockBackend::always_fails("provider outage")));
+        state_at_root(root.path(), Arc::new(MockBackendImpl::always_fails("provider outage")));
     let candidate = state
         .reviewed_change
         .prepare(PrepareCandidateInput {
@@ -235,12 +235,12 @@ fn review(
         .expect("review receipt")
 }
 
-fn state_with_backend(backend: Arc<MockBackend>) -> AppState {
+fn state_with_backend(backend: Arc<MockBackendImpl>) -> AppState {
     let root = tempdir().expect("asset root").keep();
     state_at_root(&root, backend)
 }
 
-fn state_at_root(root: &std::path::Path, backend: Arc<MockBackend>) -> AppState {
+fn state_at_root(root: &std::path::Path, backend: Arc<MockBackendImpl>) -> AppState {
     let state = AppState::from_asset_root_with_backend(root, backend).expect("app state");
     state
         .store

@@ -1,6 +1,6 @@
 //! SQLite metadata plus managed on-disk asset files.
 
-use crate::error::{AssetError, Result};
+use crate::error::{AssetError, AssetResult};
 use crate::file_support::{
     cleanup_after_failure, create_dir, encode_hex, file_name_for_id, path_to_string, unix_timestamp,
 };
@@ -24,7 +24,7 @@ pub struct AssetStore {
 
 impl AssetStore {
     /// Opens or creates an asset store rooted at `root_dir`.
-    pub fn open(root_dir: impl AsRef<Path>) -> Result<Self> {
+    pub fn open(root_dir: impl AsRef<Path>) -> AssetResult<Self> {
         let root_dir = root_dir.as_ref().to_path_buf();
         let files_dir = root_dir.join("files");
         let thumbnails_dir = root_dir.join("thumbnails");
@@ -42,7 +42,7 @@ impl AssetStore {
     }
 
     /// Inserts a new asset, copying the source file into the store.
-    pub fn insert(&self, asset: NewAsset) -> Result<Asset> {
+    pub fn insert(&self, asset: NewAsset) -> AssetResult<Asset> {
         let project_name = self.project_name(asset.project_id.as_deref())?;
         let id = self.next_asset_id()?;
         let created_at = unix_timestamp(&id)?;
@@ -77,22 +77,26 @@ impl AssetStore {
     }
 
     /// Returns one asset by id.
-    pub fn get(&self, id: &str) -> Result<Asset> {
+    pub fn get(&self, id: &str) -> AssetResult<Asset> {
         self.query_one(id)?.ok_or_else(|| AssetError::NotFound { id: id.to_owned() })
     }
 
     /// Lists assets, optionally filtering by kind, newest first.
-    pub fn list(&self, kind: Option<AssetKind>) -> Result<Vec<Asset>> {
+    pub fn list(&self, kind: Option<AssetKind>) -> AssetResult<Vec<Asset>> {
         self.list_with_query(&AssetQuery { kind, ..AssetQuery::default() })
     }
 
     /// Lists assets using the professional library filters.
-    pub fn list_with_query(&self, query: &AssetQuery) -> Result<Vec<Asset>> {
+    pub fn list_with_query(&self, query: &AssetQuery) -> AssetResult<Vec<Asset>> {
         self.list_with_query_and_limit(query, None)
     }
 
     /// Lists at most `limit` assets using the professional library filters.
-    pub fn list_with_query_limit(&self, query: &AssetQuery, limit: usize) -> Result<Vec<Asset>> {
+    pub fn list_with_query_limit(
+        &self,
+        query: &AssetQuery,
+        limit: usize,
+    ) -> AssetResult<Vec<Asset>> {
         self.list_with_query_and_limit(query, Some(limit))
     }
 
@@ -100,7 +104,7 @@ impl AssetStore {
         &self,
         query: &AssetQuery,
         limit: Option<usize>,
-    ) -> Result<Vec<Asset>> {
+    ) -> AssetResult<Vec<Asset>> {
         let mut sql = format!("SELECT {ASSET_COLUMNS} FROM assets");
         let mut clauses = Vec::new();
         let mut params = Vec::new();
@@ -134,18 +138,18 @@ impl AssetStore {
     }
 
     /// Returns the workflow snapshot stored for an asset.
-    pub fn workflow_snapshot(&self, id: &str) -> Result<serde_json::Value> {
+    pub fn workflow_snapshot(&self, id: &str) -> AssetResult<serde_json::Value> {
         Ok(self.get(id)?.workflow_snapshot)
     }
 
     /// Creates a project.
-    pub fn create_project(&self, name: &str) -> Result<Project> {
+    pub fn create_project(&self, name: &str) -> AssetResult<Project> {
         let id = self.next_project_id()?;
         self.create_project_with_id(&id, name)
     }
 
     /// Creates a project with a caller-provided id.
-    pub fn create_project_with_id(&self, id: &str, name: &str) -> Result<Project> {
+    pub fn create_project_with_id(&self, id: &str, name: &str) -> AssetResult<Project> {
         let created_at = unix_timestamp(id)?;
         let project = Project { id: id.to_owned(), name: name.to_owned(), created_at };
         self.connection
@@ -158,7 +162,7 @@ impl AssetStore {
     }
 
     /// Lists all projects oldest first.
-    pub fn list_projects(&self) -> Result<Vec<Project>> {
+    pub fn list_projects(&self) -> AssetResult<Vec<Project>> {
         let mut statement = self
             .connection
             .prepare("SELECT id, name, created_at FROM projects ORDER BY created_at ASC, id ASC")
@@ -170,7 +174,7 @@ impl AssetStore {
     }
 
     /// Returns one project by id.
-    pub fn get_project(&self, id: &str) -> Result<Project> {
+    pub fn get_project(&self, id: &str) -> AssetResult<Project> {
         self.connection
             .query_row("SELECT id, name, created_at FROM projects WHERE id = ?1", [id], project_row)
             .optional()
@@ -178,7 +182,7 @@ impl AssetStore {
             .ok_or_else(|| AssetError::NotFound { id: id.to_owned() })
     }
 
-    fn migrate(&self) -> Result<()> {
+    fn migrate(&self) -> AssetResult<()> {
         self.connection
             .execute_batch(
                 "CREATE TABLE IF NOT EXISTS assets (
@@ -208,18 +212,18 @@ impl AssetStore {
         self.ensure_asset_columns()
     }
 
-    fn next_asset_id(&self) -> Result<String> {
+    fn next_asset_id(&self) -> AssetResult<String> {
         let mut bytes = [0_u8; 16];
         getrandom::getrandom(&mut bytes)
             .map_err(|source| storage_error(format!("generate asset id: {source}")))?;
         Ok(format!("asset-{}", encode_hex(&bytes)))
     }
 
-    fn project_name(&self, project_id: Option<&str>) -> Result<Option<String>> {
+    fn project_name(&self, project_id: Option<&str>) -> AssetResult<Option<String>> {
         project_id.map(|id| self.get_project(id).map(|project| project.name)).transpose()
     }
 
-    fn next_project_id(&self) -> Result<String> {
+    fn next_project_id(&self) -> AssetResult<String> {
         let next: i64 = self
             .connection
             .query_row(
@@ -232,7 +236,7 @@ impl AssetStore {
         Ok(format!("project-{next:016}"))
     }
 
-    fn copy_asset_file(&self, id: &str, source_path: &str) -> Result<PathBuf> {
+    fn copy_asset_file(&self, id: &str, source_path: &str) -> AssetResult<PathBuf> {
         let source_path = Path::new(source_path);
         let stored_path = self.files_dir.join(file_name_for_id(id, source_path));
         fs::copy(source_path, &stored_path).map_err(|source| {
@@ -245,7 +249,7 @@ impl AssetStore {
         Ok(stored_path)
     }
 
-    fn insert_metadata(&self, asset: &Asset) -> Result<()> {
+    fn insert_metadata(&self, asset: &Asset) -> AssetResult<()> {
         let snapshot = json_string(&asset.workflow_snapshot, "serialize workflow snapshot")?;
         let tags = json_string(&asset.tags, "serialize asset tags")?;
         self.connection
@@ -279,7 +283,7 @@ impl AssetStore {
         Ok(())
     }
 
-    fn query_one(&self, id: &str) -> Result<Option<Asset>> {
+    fn query_one(&self, id: &str) -> AssetResult<Option<Asset>> {
         let row = self
             .connection
             .query_row(
@@ -292,7 +296,7 @@ impl AssetStore {
         row.map(AssetRow::into_asset).transpose()
     }
 
-    fn query_many(&self, sql: &str, params: &[String]) -> Result<Vec<Asset>> {
+    fn query_many(&self, sql: &str, params: &[String]) -> AssetResult<Vec<Asset>> {
         let mut statement = self
             .connection
             .prepare(sql)
@@ -303,7 +307,7 @@ impl AssetStore {
         collect_assets(rows)
     }
 
-    fn ensure_asset_columns(&self) -> Result<()> {
+    fn ensure_asset_columns(&self) -> AssetResult<()> {
         for (name, declaration) in [
             ("prompt", "prompt TEXT"),
             ("project_id", "project_id TEXT"),
@@ -324,7 +328,7 @@ impl AssetStore {
         Ok(())
     }
 
-    fn asset_column_exists(&self, name: &str) -> Result<bool> {
+    fn asset_column_exists(&self, name: &str) -> AssetResult<bool> {
         let mut statement = self
             .connection
             .prepare("PRAGMA table_info(assets)")
@@ -356,7 +360,7 @@ fn order_clause(sort: AssetSort) -> &'static str {
     }
 }
 
-fn json_string<T: serde::Serialize>(value: &T, operation: &str) -> Result<String> {
+fn json_string<T: serde::Serialize>(value: &T, operation: &str) -> AssetResult<String> {
     serde_json::to_string(value).map_err(|source| storage_error(format!("{operation}: {source}")))
 }
 

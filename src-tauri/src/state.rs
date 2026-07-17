@@ -1,7 +1,7 @@
 use crate::assistant_approval::{PendingApprovalService, PendingApprovalSqliteRepository};
 use crate::assistant_runtime::AssistantSidecarCommand;
 use crate::assistant_sidecar::configured_assistant_command;
-use crate::mock_generation::MockGenerationAdapter;
+use crate::mock_generation::MockGenerationAdapterImpl;
 use crate::production_plan::{ProductionPlanService, ProductionPlanSqliteRepository};
 use crate::reviewed_change::{ReviewedChangeService, ReviewedChangeSqliteRepository};
 use crate::workflow_authority::WorkflowAuthority;
@@ -9,7 +9,7 @@ use crate::workflow_repository::WorkflowSqliteRepository;
 use crate::workflow_runs::WorkflowRuns;
 use anyhow::{Context, Result};
 use assets::AssetStore;
-use backends::MockBackend;
+use backends::MockBackendImpl;
 use engine::NodeRegistry;
 use nodes::SharedAssetStore;
 use std::collections::HashSet;
@@ -29,8 +29,10 @@ pub struct AppState {
     pub root: PathBuf,
     /// Root directory for local non-asset configuration.
     pub config_root: PathBuf,
+    /// Process-owned connection to the single private metadata database.
+    _metadata_connection: Arc<Mutex<rusqlite::Connection>>,
     /// Deterministic backend used for the first local integration.
-    pub backend: Arc<MockBackend>,
+    pub backend: Arc<MockBackendImpl>,
     /// Local asset store.
     pub store: SharedAssetStore,
     /// Registry populated with all concrete workflow nodes.
@@ -61,20 +63,20 @@ impl AppState {
 
     /// Builds app state from explicit asset and config roots.
     pub fn from_roots(root: impl AsRef<Path>, config_root: impl AsRef<Path>) -> Result<Self> {
-        let backend = Arc::new(MockBackend::new());
+        let backend = Arc::new(MockBackendImpl::new());
         Self::from_roots_with_backend(root, config_root, backend)
     }
 
     /// Builds app state using an explicit asset root.
     pub fn from_asset_root(root: impl AsRef<Path>) -> Result<Self> {
-        let backend = Arc::new(MockBackend::new());
+        let backend = Arc::new(MockBackendImpl::new());
         Self::from_asset_root_with_backend(root, backend)
     }
 
     /// Builds app state using an explicit asset root and mock backend.
     pub fn from_asset_root_with_backend(
         root: impl AsRef<Path>,
-        backend: Arc<MockBackend>,
+        backend: Arc<MockBackendImpl>,
     ) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
         let config_root = sibling_config_root(&root);
@@ -85,26 +87,39 @@ impl AppState {
     pub fn from_roots_with_backend(
         root: impl AsRef<Path>,
         config_root: impl AsRef<Path>,
-        backend: Arc<MockBackend>,
+        backend: Arc<MockBackendImpl>,
     ) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
         let config_root = config_root.as_ref().to_path_buf();
         std::fs::create_dir_all(&config_root).context("create config root")?;
+        let metadata_connection = crate::metadata_sqlite::open_metadata_sqlite(
+            &crate::metadata_sqlite::metadata_sqlite_path(&config_root),
+        )
+        .map_err(anyhow::Error::new)
+        .context("open metadata storage")?;
         let assistant_sidecar_command = configured_assistant_command()
             .map_err(anyhow::Error::msg)
             .context("resolve assistant stdio command")?;
         let store =
             Arc::new(Mutex::new(AssetStore::open(root.as_path()).context("open asset store")?));
         let mut registry = NodeRegistry::new();
-        let adapter = Arc::new(MockGenerationAdapter::new(Arc::clone(&backend)));
-        let image: Arc<dyn nodes::TextToImageGenerator> = adapter.clone();
-        let video: Arc<dyn nodes::ImageToVideoGenerator> = adapter.clone();
-        let audio: Arc<dyn nodes::TextToAudioGenerator> = adapter;
-        let asset_resolver: Arc<dyn nodes::AssetReferenceResolver> = Arc::new(
-            crate::asset_reference_adapter::AssetStoreReferenceResolver::new(Arc::clone(&store)),
-        );
-        nodes::register_all(&mut registry, image, video, audio, Arc::clone(&store), asset_resolver)
-            .context("register workflow capabilities")?;
+        let adapter = Arc::new(MockGenerationAdapterImpl::new(Arc::clone(&backend)));
+        let image: Arc<dyn nodes::TextToImageGeneratorInterface> = adapter.clone();
+        let reference_image: Arc<dyn nodes::ReferenceImageGeneratorInterface> = adapter.clone();
+        let reference_video: Arc<dyn nodes::ReferenceVideoGeneratorInterface> = adapter.clone();
+        let video: Arc<dyn nodes::ImageToVideoGeneratorInterface> = adapter.clone();
+        let audio: Arc<dyn nodes::TextToAudioGeneratorInterface> = adapter;
+        let asset_resolver: Arc<dyn nodes::AssetReferenceResolverInterface> =
+            Arc::new(crate::asset_reference_adapter::AssetStoreReferenceResolverImpl::new(
+                Arc::clone(&store),
+            ));
+        nodes::register_all(
+            &mut registry,
+            nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
+            Arc::clone(&store),
+            asset_resolver,
+        )
+        .context("register workflow capabilities")?;
         let registry = Arc::new(registry);
         let workflow_runs = Arc::new(WorkflowRuns::new(Arc::clone(&registry)));
         let workflow_repository =
@@ -141,6 +156,7 @@ impl AppState {
         Ok(Self {
             root,
             config_root,
+            _metadata_connection: Arc::new(Mutex::new(metadata_connection)),
             backend,
             store,
             registry,

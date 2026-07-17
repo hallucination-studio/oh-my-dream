@@ -1,9 +1,9 @@
-use crate::error::{AssetError, Result};
+use crate::error::{AssetError, AssetResult};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub(crate) fn create_dir(path: &Path, operation: &str) -> Result<()> {
+pub(crate) fn create_dir(path: &Path, operation: &str) -> AssetResult<()> {
     fs::create_dir_all(path)
         .map_err(|source| storage_error(format!("{operation} `{}`: {source}", path.display())))
 }
@@ -15,7 +15,7 @@ pub(crate) fn file_name_for_id(id: &str, source_path: &Path) -> String {
         .map_or_else(|| id.to_owned(), |extension| format!("{id}.{extension}"))
 }
 
-pub(crate) fn unix_timestamp(asset_id: &str) -> Result<i64> {
+pub(crate) fn unix_timestamp(asset_id: &str) -> AssetResult<i64> {
     let duration = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|source| {
         storage_error(format!("read timestamp for asset `{asset_id}`: {source}"))
     })?;

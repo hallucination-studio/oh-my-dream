@@ -3,9 +3,11 @@ use engine::{
     CapabilityEffect, CapabilityRef, CapabilityRegistryError, CapabilitySelector, NodeRegistry,
 };
 use nodes::{
-    GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, SharedAssetStore, TextToAudioGenerator, TextToAudioRequest,
-    TextToImageGenerator, TextToImageRequest,
+    GeneratedOutput, GenerationContextInterface, GenerationError, ImageToVideoGeneratorInterface,
+    ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceImageGeneratorInterface,
+    ReferenceVideoGenerationRequest, ReferenceVideoGeneratorInterface, SharedAssetStore,
+    TextToAudioGeneratorInterface, TextToAudioRequest, TextToImageGeneratorInterface,
+    TextToImageRequest,
 };
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
@@ -27,6 +29,8 @@ fn capability_registration_exposes_exact_refs_and_contracts() {
             ("AudioAssetSource", "1.0"),
             ("ImageAssetSource", "1.0"),
             ("ImageToVideo", "1.0"),
+            ("ReferenceImageGeneration", "1.0"),
+            ("ReferenceVideoGeneration", "1.0"),
             ("TextPrompt", "1.0"),
             ("TextToAudio", "1.0"),
             ("TextToImage", "1.0"),
@@ -50,6 +54,27 @@ fn capability_registration_exposes_exact_refs_and_contracts() {
         concat.contract().inputs[0].cardinality,
         engine::PortCardinality::Many { minimum: 2, maximum: None }
     );
+
+    let reference_image = registry
+        .capability(&CapabilityRef::new("ReferenceImageGeneration", "1.0"))
+        .expect("ReferenceImageGeneration contract should resolve");
+    assert_eq!(reference_image.contract().inputs[0].name, "images");
+    assert_eq!(reference_image.contract().inputs[0].port_type, engine::PortType::Image);
+    assert_eq!(
+        reference_image.contract().inputs[0].cardinality,
+        engine::PortCardinality::Many { minimum: 1, maximum: Some(16) }
+    );
+    assert_eq!(reference_image.contract().inputs[1].name, "prompt");
+
+    let reference_video = registry
+        .capability(&CapabilityRef::new("ReferenceVideoGeneration", "1.0"))
+        .expect("ReferenceVideoGeneration contract should resolve");
+    assert_eq!(
+        reference_video.contract().inputs[0].cardinality,
+        engine::PortCardinality::Many { minimum: 1, maximum: Some(16) }
+    );
+    assert_eq!(reference_video.contract().inputs[1].name, "prompt");
+    assert_eq!(reference_video.contract().outputs[0].port_type, engine::PortType::Video);
 }
 
 #[test]
@@ -61,6 +86,8 @@ fn registrations_own_their_selector_mode_defaults_and_schema() {
         ("TextPrompt", "Text", "literal"),
         ("TextToImage", "Image", "text"),
         ("ImageToVideo", "Video", "image"),
+        ("ReferenceImageGeneration", "Image", "references"),
+        ("ReferenceVideoGeneration", "Video", "references"),
         ("VideoConcat", "Video", "concat"),
         ("TextToAudio", "Audio", "text"),
     ];
@@ -124,6 +151,8 @@ fn current_discovery_and_direct_instantiation_use_selectors() {
             CapabilityRef::new("AudioAssetSource", "1.0"),
             CapabilityRef::new("ImageAssetSource", "1.0"),
             CapabilityRef::new("ImageToVideo", "1.0"),
+            CapabilityRef::new("ReferenceImageGeneration", "1.0"),
+            CapabilityRef::new("ReferenceVideoGeneration", "1.0"),
             CapabilityRef::new("TextPrompt", "1.0"),
             CapabilityRef::new("TextToAudio", "1.0"),
             CapabilityRef::new("TextToImage", "1.0"),
@@ -150,11 +179,9 @@ fn duplicate_capability_refs_are_rejected() {
 
     let error = nodes::register_all(
         &mut registry,
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
+        adapters(),
         store,
-        Arc::new(support::MissingResolver),
+        Arc::new(support::MissingResolverImpl),
     )
     .expect_err("duplicate capability refs must be rejected");
     assert!(matches!(error, CapabilityRegistryError::DuplicateReference { .. }));
@@ -195,24 +222,27 @@ fn store() -> (TempDir, SharedAssetStore) {
 }
 
 fn register(registry: &mut NodeRegistry, store: SharedAssetStore) {
-    nodes::register_all(
-        registry,
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        store,
-        Arc::new(support::MissingResolver),
-    )
-    .expect("capability registration");
+    nodes::register_all(registry, adapters(), store, Arc::new(support::MissingResolverImpl))
+        .expect("capability registration");
 }
 
-struct NoopGenerator;
+fn adapters() -> nodes::GenerationAdapters {
+    nodes::GenerationAdapters::new(
+        Arc::new(NoopGeneratorImpl),
+        Arc::new(NoopGeneratorImpl),
+        Arc::new(NoopGeneratorImpl),
+        Arc::new(NoopGeneratorImpl),
+        Arc::new(NoopGeneratorImpl),
+    )
+}
 
-impl TextToImageGenerator for NoopGenerator {
+struct NoopGeneratorImpl;
+
+impl TextToImageGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: TextToImageRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",
@@ -221,11 +251,11 @@ impl TextToImageGenerator for NoopGenerator {
     }
 }
 
-impl ImageToVideoGenerator for NoopGenerator {
+impl ImageToVideoGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: ImageToVideoRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",
@@ -234,11 +264,37 @@ impl ImageToVideoGenerator for NoopGenerator {
     }
 }
 
-impl TextToAudioGenerator for NoopGenerator {
+impl ReferenceImageGeneratorInterface for NoopGeneratorImpl {
+    fn generate(
+        &self,
+        _request: ReferenceImageGenerationRequest,
+        _context: &mut dyn GenerationContextInterface,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        Err(GenerationError::OperationFailed {
+            operation: "test",
+            reason: "not executed".to_owned(),
+        })
+    }
+}
+
+impl ReferenceVideoGeneratorInterface for NoopGeneratorImpl {
+    fn generate(
+        &self,
+        _request: ReferenceVideoGenerationRequest,
+        _context: &mut dyn GenerationContextInterface,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        Err(GenerationError::OperationFailed {
+            operation: "test",
+            reason: "not executed".to_owned(),
+        })
+    }
+}
+
+impl TextToAudioGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: TextToAudioRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",

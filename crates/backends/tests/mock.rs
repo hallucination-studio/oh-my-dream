@@ -1,5 +1,6 @@
 use backends::{
-    BackendError, ImageToVideoRequest, InferenceBackend, MockBackend, TaskHandle, TaskProgress,
+    BackendError, ImageToVideoRequest, InferenceBackendInterface, MockBackendImpl,
+    ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest, TaskHandle, TaskProgress,
     TaskStatus, TextToAudioRequest, TextToImageRequest,
 };
 use std::future::Future;
@@ -8,7 +9,7 @@ use std::task::{Context, Poll, Wake, Waker};
 
 #[test]
 fn submits_and_polls_text_to_image_task_to_success() {
-    let backend = MockBackend::new();
+    let backend = MockBackendImpl::new();
 
     let handle = block_on(backend.text_to_image(text_to_image_request()))
         .expect("text-to-image submission should succeed");
@@ -34,8 +35,30 @@ fn submits_and_polls_text_to_image_task_to_success() {
 }
 
 #[test]
+fn submits_reference_generation_tasks_to_distinct_backend_paths() {
+    let backend = MockBackendImpl::new();
+    let image_handle = block_on(backend.reference_image_generation(reference_image_request()))
+        .expect("reference-image submission should succeed");
+    let video_handle = block_on(backend.reference_video_generation(reference_video_request()))
+        .expect("reference-video submission should succeed");
+
+    assert_succeeds_with_output(
+        &backend,
+        &image_handle,
+        "mock://mock/reference-image-generation/task-1",
+        400,
+    );
+    assert_succeeds_with_output(
+        &backend,
+        &video_handle,
+        "mock://mock/reference-video-generation/task-2",
+        1_200,
+    );
+}
+
+#[test]
 fn submits_and_polls_text_to_audio_task_to_success_with_cost() {
-    let backend = MockBackend::new();
+    let backend = MockBackendImpl::new();
 
     let handle = block_on(backend.text_to_audio(text_to_audio_request()))
         .expect("text-to-audio submission should succeed");
@@ -54,7 +77,7 @@ fn submits_and_polls_text_to_audio_task_to_success_with_cost() {
 
 #[test]
 fn cancel_marks_task_cancelled_for_later_polls() {
-    let backend = MockBackend::new();
+    let backend = MockBackendImpl::new();
     let handle = block_on(backend.image_to_video(image_to_video_request()))
         .expect("image-to-video submission should succeed");
 
@@ -68,7 +91,7 @@ fn cancel_marks_task_cancelled_for_later_polls() {
 
 #[test]
 fn unknown_handle_returns_unknown_task() {
-    let backend = MockBackend::new();
+    let backend = MockBackendImpl::new();
     let handle = TaskHandle { backend: "mock".to_owned(), task_id: "missing".to_owned() };
 
     let error = block_on(backend.poll(&handle)).expect_err("unknown task should fail");
@@ -84,7 +107,7 @@ fn unknown_handle_returns_unknown_task() {
 
 #[test]
 fn failing_backend_returns_failed_status() {
-    let backend = MockBackend::always_fails("forced failure");
+    let backend = MockBackendImpl::always_fails("forced failure");
     let handle = block_on(backend.text_to_image(text_to_image_request()))
         .expect("submission should still succeed");
 
@@ -111,6 +134,44 @@ fn image_to_video_request() -> ImageToVideoRequest {
         duration_seconds: Some(2.0),
         fps: Some(12),
     }
+}
+
+fn reference_image_request() -> ReferenceImageGenerationRequest {
+    ReferenceImageGenerationRequest {
+        model: "mock-reference-image".to_owned(),
+        images: vec!["asset://first".to_owned(), "asset://second".to_owned()],
+        prompt: "combine the references".to_owned(),
+        negative_prompt: None,
+        steps: Some(12),
+        seed: Some(7),
+    }
+}
+
+fn reference_video_request() -> ReferenceVideoGenerationRequest {
+    ReferenceVideoGenerationRequest {
+        model: "mock-reference-video".to_owned(),
+        images: vec!["asset://first".to_owned(), "asset://second".to_owned()],
+        prompt: "animate the references".to_owned(),
+        duration_seconds: Some(3.0),
+        aspect_ratio: Some("16:9".to_owned()),
+        resolution: Some("720p".to_owned()),
+        fps: Some(24),
+    }
+}
+
+fn assert_succeeds_with_output(
+    backend: &MockBackendImpl,
+    handle: &TaskHandle,
+    expected_output: &str,
+    expected_cost: i64,
+) {
+    for _ in 0..3 {
+        block_on(backend.poll(handle)).expect("pending poll should succeed");
+    }
+    assert_eq!(
+        block_on(backend.poll(handle)).expect("success poll should succeed"),
+        TaskStatus::Succeeded { output: expected_output.to_owned(), cost: Some(expected_cost) }
+    );
 }
 
 fn text_to_audio_request() -> TextToAudioRequest {

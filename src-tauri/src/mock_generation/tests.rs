@@ -1,12 +1,15 @@
 use super::{
-    MockGenerationAdapter, MockMedia, to_backend_image_to_video, to_backend_text_to_audio,
-    to_backend_text_to_image, translate_success,
+    MockGenerationAdapterImpl, MockMedia, to_backend_image_to_video,
+    to_backend_reference_image_generation, to_backend_reference_video_generation,
+    to_backend_text_to_audio, to_backend_text_to_image, translate_success,
 };
-use backends::{InferenceBackend, MockBackend, TaskHandle, TaskStatus};
+use backends::{InferenceBackendInterface, MockBackendImpl, TaskHandle, TaskStatus};
 use nodes::{
-    GeneratedArtifact, GenerationContext, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, MediaFormat, MediaKind, TextToAudioGenerator, TextToAudioRequest,
-    TextToImageGenerator, TextToImageRequest,
+    GeneratedArtifact, GenerationContextInterface, GenerationError, ImageToVideoGeneratorInterface,
+    ImageToVideoRequest, MediaFormat, MediaKind, ReferenceImageGenerationRequest,
+    ReferenceImageGeneratorInterface, ReferenceVideoGenerationRequest,
+    ReferenceVideoGeneratorInterface, TextToAudioGeneratorInterface, TextToAudioRequest,
+    TextToImageGeneratorInterface, TextToImageRequest,
 };
 use std::cell::Cell;
 use std::sync::Arc;
@@ -48,11 +51,48 @@ fn translates_nodes_owned_requests_field_for_field() {
 }
 
 #[test]
-fn text_to_image_translates_mock_success_and_progress() {
-    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-    let mut context = TestGenerationContext::default();
+fn translates_ordered_reference_requests_field_for_field() {
+    let images = vec!["/tmp/second.png".to_owned(), "/tmp/first.png".to_owned()];
+    let image = to_backend_reference_image_generation(ReferenceImageGenerationRequest {
+        model: "reference-image-model".to_owned(),
+        images: images.clone(),
+        prompt: "combine them".to_owned(),
+        negative_prompt: Some("blur".to_owned()),
+        steps: Some(17),
+        seed: Some(23),
+    });
+    assert_eq!(image.images, images);
+    assert_eq!(image.model, "reference-image-model");
+    assert_eq!(image.prompt, "combine them");
+    assert_eq!(image.negative_prompt.as_deref(), Some("blur"));
+    assert_eq!(image.steps, Some(17));
+    assert_eq!(image.seed, Some(23));
 
-    let output = TextToImageGenerator::generate(
+    let images = vec!["/tmp/third.png".to_owned(), "/tmp/first.png".to_owned()];
+    let video = to_backend_reference_video_generation(ReferenceVideoGenerationRequest {
+        model: "reference-video-model".to_owned(),
+        images: images.clone(),
+        prompt: "animate them".to_owned(),
+        duration_seconds: Some(3.5),
+        aspect_ratio: Some("16:9".to_owned()),
+        resolution: Some("720p".to_owned()),
+        fps: Some(24),
+    });
+    assert_eq!(video.images, images);
+    assert_eq!(video.model, "reference-video-model");
+    assert_eq!(video.prompt, "animate them");
+    assert_eq!(video.duration_seconds, Some(3.5));
+    assert_eq!(video.aspect_ratio.as_deref(), Some("16:9"));
+    assert_eq!(video.resolution.as_deref(), Some("720p"));
+    assert_eq!(video.fps, Some(24));
+}
+
+#[test]
+fn text_to_image_translates_mock_success_and_progress() {
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
+
+    let output = TextToImageGeneratorInterface::generate(
         &adapter,
         TextToImageRequest {
             model: "mock-image".to_owned(),
@@ -72,11 +112,35 @@ fn text_to_image_translates_mock_success_and_progress() {
 }
 
 #[test]
-fn image_to_video_translates_mock_success_to_inline_video() {
-    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-    let mut context = TestGenerationContext::default();
+fn reference_image_generation_returns_inline_png() {
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
 
-    let output = ImageToVideoGenerator::generate(
+    let output = ReferenceImageGeneratorInterface::generate(
+        &adapter,
+        ReferenceImageGenerationRequest {
+            model: "mock-reference-image".to_owned(),
+            images: vec!["/tmp/second.png".to_owned(), "/tmp/first.png".to_owned()],
+            prompt: "combine them".to_owned(),
+            negative_prompt: None,
+            steps: Some(4),
+            seed: Some(7),
+        },
+        &mut context,
+    )
+    .expect("mock reference image generation");
+
+    let media = expect_inline(output.artifact, MediaKind::Image, MediaFormat::Png);
+    assert_eq!(output.cost, Some(400));
+    assert!(media.bytes().starts_with(b"\x89PNG\r\n\x1a\n"));
+}
+
+#[test]
+fn image_to_video_translates_mock_success_to_inline_video() {
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
+
+    let output = ImageToVideoGeneratorInterface::generate(
         &adapter,
         ImageToVideoRequest {
             model: "mock-video".to_owned(),
@@ -88,17 +152,42 @@ fn image_to_video_translates_mock_success_to_inline_video() {
     )
     .expect("mock video generation");
 
-    let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::OpaqueVideo);
+    let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::WebM);
     assert_eq!(output.cost, Some(900));
-    assert!(media.bytes().starts_with(b"OH_MY_DREAM_MOCK_VIDEO_V1\n"));
+    assert_playable_webm(media.bytes());
+}
+
+#[test]
+fn reference_video_generation_returns_inline_video() {
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
+
+    let output = ReferenceVideoGeneratorInterface::generate(
+        &adapter,
+        ReferenceVideoGenerationRequest {
+            model: "mock-reference-video".to_owned(),
+            images: vec!["/tmp/second.png".to_owned(), "/tmp/first.png".to_owned()],
+            prompt: "animate them".to_owned(),
+            duration_seconds: Some(2.0),
+            aspect_ratio: Some("16:9".to_owned()),
+            resolution: Some("720p".to_owned()),
+            fps: Some(12),
+        },
+        &mut context,
+    )
+    .expect("mock reference video generation");
+
+    let media = expect_inline(output.artifact, MediaKind::Video, MediaFormat::WebM);
+    assert_eq!(output.cost, Some(1_200));
+    assert_playable_webm(media.bytes());
 }
 
 #[test]
 fn text_to_audio_translates_mock_success_to_inline_wave() {
-    let adapter = MockGenerationAdapter::new(Arc::new(MockBackend::new()));
-    let mut context = TestGenerationContext::default();
+    let adapter = MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::new()));
+    let mut context = TestGenerationContextImpl::default();
 
-    let output = TextToAudioGenerator::generate(
+    let output = TextToAudioGeneratorInterface::generate(
         &adapter,
         TextToAudioRequest {
             model: "mock-audio".to_owned(),
@@ -118,10 +207,10 @@ fn text_to_audio_translates_mock_success_to_inline_wave() {
 #[test]
 fn failed_mock_task_maps_to_generation_failure() {
     let adapter =
-        MockGenerationAdapter::new(Arc::new(MockBackend::always_fails("provider outage")));
-    let mut context = TestGenerationContext::default();
+        MockGenerationAdapterImpl::new(Arc::new(MockBackendImpl::always_fails("provider outage")));
+    let mut context = TestGenerationContextImpl::default();
 
-    let error = TextToAudioGenerator::generate(
+    let error = TextToAudioGeneratorInterface::generate(
         &adapter,
         TextToAudioRequest {
             model: "mock-audio".to_owned(),
@@ -137,11 +226,11 @@ fn failed_mock_task_maps_to_generation_failure() {
 
 #[test]
 fn cancellation_reaches_the_submitted_backend_task() {
-    let backend = Arc::new(MockBackend::new());
-    let adapter = MockGenerationAdapter::new(Arc::clone(&backend));
-    let mut context = TestGenerationContext { cancel_on_progress: true, ..Default::default() };
+    let backend = Arc::new(MockBackendImpl::new());
+    let adapter = MockGenerationAdapterImpl::new(Arc::clone(&backend));
+    let mut context = TestGenerationContextImpl { cancel_on_progress: true, ..Default::default() };
 
-    let error = TextToImageGenerator::generate(
+    let error = TextToImageGeneratorInterface::generate(
         &adapter,
         TextToImageRequest {
             model: "mock-image".to_owned(),
@@ -162,11 +251,11 @@ fn cancellation_reaches_the_submitted_backend_task() {
 
 #[test]
 fn cancellation_before_submission_creates_no_backend_task() {
-    let backend = Arc::new(MockBackend::new());
-    let adapter = MockGenerationAdapter::new(Arc::clone(&backend));
-    let mut context = TestGenerationContext { cancelled: true, ..Default::default() };
+    let backend = Arc::new(MockBackendImpl::new());
+    let adapter = MockGenerationAdapterImpl::new(Arc::clone(&backend));
+    let mut context = TestGenerationContextImpl { cancelled: true, ..Default::default() };
 
-    let error = TextToImageGenerator::generate(
+    let error = TextToImageGeneratorInterface::generate(
         &adapter,
         TextToImageRequest {
             model: "mock-image".to_owned(),
@@ -185,11 +274,11 @@ fn cancellation_before_submission_creates_no_backend_task() {
 
 #[test]
 fn cancellation_after_provider_success_does_not_cancel_terminal_task() {
-    let backend = Arc::new(MockBackend::new());
-    let adapter = MockGenerationAdapter::new(Arc::clone(&backend));
-    let mut context = TestGenerationContext { cancel_on_check: Some(6), ..Default::default() };
+    let backend = Arc::new(MockBackendImpl::new());
+    let adapter = MockGenerationAdapterImpl::new(Arc::clone(&backend));
+    let mut context = TestGenerationContextImpl { cancel_on_check: Some(6), ..Default::default() };
 
-    let error = TextToImageGenerator::generate(
+    let error = TextToImageGeneratorInterface::generate(
         &adapter,
         TextToImageRequest {
             model: "mock-image".to_owned(),
@@ -234,8 +323,15 @@ fn expect_inline(
     media
 }
 
+fn assert_playable_webm(bytes: &[u8]) {
+    assert!(bytes.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]));
+    assert!(bytes.windows(4).any(|window| window == b"webm"));
+    assert!(bytes.windows(5).any(|window| window == b"V_VP8"));
+    assert!(bytes.windows(4).any(|window| window == b"\x1fC\xb6u"));
+}
+
 #[derive(Default)]
-struct TestGenerationContext {
+struct TestGenerationContextImpl {
     progress: Vec<f32>,
     cancel_on_progress: bool,
     cancelled: bool,
@@ -243,7 +339,7 @@ struct TestGenerationContext {
     cancellation_checks: Cell<usize>,
 }
 
-impl GenerationContext for TestGenerationContext {
+impl GenerationContextInterface for TestGenerationContextImpl {
     fn progress(&mut self, progress: f32) {
         self.progress.push(progress);
         self.cancelled = self.cancel_on_progress;

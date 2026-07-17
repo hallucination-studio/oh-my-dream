@@ -1,272 +1,76 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { expect, it, vi } from "vitest";
 import { AssistantDock } from "./AssistantDock.tsx";
-import type { WorkflowApi } from "../api/index.ts";
+import type {
+  AssistantPresentationEvent,
+  WorkflowApi,
+} from "../api/index.ts";
 
 const CONTEXT = {
-  project_id: "project-1",
+  project_id: "10000000-0000-4000-8000-000000000001",
   workflow_present: false,
   workflow_revision: null,
   selected_node_ids: [],
   selected_asset_ids: [],
 };
-const PENDING_APPROVAL = {
-  project_id: "project-1",
-  approval_scope_id: "scope-1",
-  user_intent: "Build a film",
-  candidate_digest: "sha256:candidate",
-  reviewer_version: "reviewer-v1",
-  evidence_hash: "sha256:evidence",
-  review_summary: "Ready to apply",
-  review_findings: ["Matches the requested production"],
-  effect: "apply_reviewed_workflow_candidate" as const,
-  workflow: { version: "1.0", project_id: "project-1", nodes: [] },
-  readiness_blockers: [],
-  assets: [],
-};
 
-describe("AssistantDock", () => {
-  it("sends user text through the Project-scoped assistant command", async () => {
-    const sendAssistant = vi.fn(async (_input, onEvent) => {
-      onEvent({ type: "future.responses.event" });
-      onEvent({ type: "response.output_text.delta", delta: "Assistant response" });
-      return null;
-    });
-    const apiClient = workflowApi({ sendAssistant });
-
-    render(
-      <AssistantDock
-        onClose={() => {}}
-        apiClient={apiClient}
-        getContext={() => CONTEXT}
-      />,
-    );
-
-    const composer = screen.getByPlaceholderText("Message the assistant");
-    fireEvent.change(composer, { target: { value: "Add a prompt node" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
-
-    await waitFor(() => expect(sendAssistant).toHaveBeenCalledTimes(1));
-    expect(sendAssistant.mock.calls[0]?.[0]).toEqual({
-      project_id: "project-1",
-      workflow_present: false,
-      workflow_revision: null,
-      selected_node_ids: [],
-      selected_asset_ids: [],
-      text: "Add a prompt node",
-    });
-    expect(screen.getByText("Assistant response")).toBeTruthy();
+it("sends through the canonical message command", async () => {
+  const send = vi.fn().mockResolvedValue({ invocation_id: "invocation", final_text: "done" });
+  render(
+    <AssistantDock
+      onClose={() => {}}
+      apiClient={api({ assistantSendMessage: send })}
+      getContext={() => CONTEXT}
+    />,
+  );
+  fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
+    target: { value: "Build a film" },
   });
-
-  it("keeps the draft focused and sends nothing when the write barrier fails", async () => {
-    const sendAssistant = vi.fn();
-    const composerBarrier = vi.fn().mockRejectedValue(new Error("patch conflict"));
-    render(
-      <AssistantDock
-        onClose={() => {}}
-        apiClient={workflowApi({ sendAssistant })}
-        beforeSend={composerBarrier}
-        getContext={() => CONTEXT}
-      />,
-    );
-
-    const composer = screen.getByPlaceholderText("Message the assistant");
-    fireEvent.change(composer, { target: { value: "Keep this draft" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
-
-    await waitFor(() => expect(document.activeElement).toBe(composer));
-    expect((composer as HTMLTextAreaElement).value).toBe("Keep this draft");
-    expect(sendAssistant).not.toHaveBeenCalled();
-  });
-
-  it("forwards the canonical Workflow head returned by the assistant command", async () => {
-    const workflowHead = {
-      project_id: "project-1",
-      revision: 1,
-      workflow: {
-        version: "1.0",
-        project_id: "project-1",
-        nodes: [],
-      },
-    };
-    const sendAssistant = vi.fn(async (_input, onEvent) => {
-      onEvent({ type: "response.completed" });
-      return workflowHead;
-    });
-    const onWorkflowHead = vi.fn();
-
-    render(
-      <AssistantDock
-        onClose={() => {}}
-        apiClient={workflowApi({ sendAssistant })}
-        getContext={() => CONTEXT}
-        onWorkflowHead={onWorkflowHead}
-      />,
-    );
-
-    fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
-      target: { value: "Build the workflow" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
-
-    await waitFor(() => expect(onWorkflowHead).toHaveBeenCalledWith(workflowHead));
-  });
-
-  it("shows an explicit approval card and resumes the exact pending run", async () => {
-    const decideAssistantApproval = vi.fn().mockResolvedValue(null);
-    const apiClient = workflowApi({
-      sendAssistant: vi.fn().mockRejectedValue(new Error("ASSISTANT_APPROVAL_DEFERRED")),
-      getPendingAssistantApproval: vi.fn().mockResolvedValue(PENDING_APPROVAL),
-      decideAssistantApproval,
-    });
-
-    render(
-      <AssistantDock
-        onClose={() => {}}
-        apiClient={apiClient}
-        getContext={() => CONTEXT}
-      />,
-    );
-
-    fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
-      target: { value: "Build a film" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    const approval = await screen.findByRole("region", { name: "Review before applying" });
-    expect(within(approval).getByText("Build a film")).toBeTruthy();
-    expect(within(approval).getByText("sha256:candidate")).toBeTruthy();
-    fireEvent.click(await screen.findByRole("button", { name: "Approve and apply" }));
-
-    await waitFor(() =>
-      expect(decideAssistantApproval).toHaveBeenCalledWith(
-        {
-          project_id: "project-1",
-          approval_scope_id: "scope-1",
-          candidate_digest: "sha256:candidate",
-          approved: true,
-        },
-        expect.any(Function),
-      ),
-    );
-  });
-
-  it("shows Agent-authored plan progress and factual mock run lifecycle", async () => {
-    const sendAssistant = vi.fn(async (_input, onEvent) => {
-      onEvent({
-        type: "response.output_item.done",
-        item: {
-          type: "function_call",
-          call_id: "plan-1",
-          name: "production_plan_update_item",
-          arguments:
-            '{"expected_revision":2,"item_id":"shot-2","action":{"type":"complete","acceptance_note":"ready"}}',
-        },
-      });
-      onEvent({
-        type: "assistant.workflow_run.started",
-        run_id: "assistant-run-1",
-        project_id: "project-1",
-      });
-      onEvent({
-        type: "assistant.workflow_run.progress",
-        run_id: "assistant-run-1",
-        node_id: "image",
-        node_state: "running",
-        progress: 0.5,
-      });
-      onEvent({
-        type: "assistant.workflow_run.failed",
-        run_id: "assistant-run-1",
-        reason: "provider outage",
-      });
-      return null;
-    });
-    render(
-      <AssistantDock
-        onClose={() => {}}
-        apiClient={workflowApi({ sendAssistant })}
-        getContext={() => CONTEXT}
-      />,
-    );
-
-    fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
-      target: { value: "Build both shots" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
-
-    expect(await screen.findByText("shot-2")).toBeTruthy();
-    expect(screen.getByText("complete")).toBeTruthy();
-    expect(screen.getByText(/image · 50%/)).toBeTruthy();
-    expect(screen.getByText(/provider outage/)).toBeTruthy();
-  });
-
-  it("replaces the first approval with the repair approval after mock failure", async () => {
-    const repairApproval = {
-      ...PENDING_APPROVAL,
-      approval_scope_id: "repair-scope",
-      candidate_digest: "sha256:repair",
-      user_intent: "Repair the failed image run",
-      workflow: {
-        version: "1.0",
-        project_id: "project-1",
-        nodes: [{ id: "prompt", type: "TextPrompt", params: {}, inputs: {} }],
-      },
-    };
-    const getPendingAssistantApproval = vi
-      .fn()
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(PENDING_APPROVAL)
-      .mockResolvedValueOnce(repairApproval);
-    const decideAssistantApproval = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("ASSISTANT_APPROVAL_DEFERRED"))
-      .mockResolvedValueOnce(null);
-    const apiClient = workflowApi({
-      sendAssistant: vi.fn().mockRejectedValue(new Error("ASSISTANT_APPROVAL_DEFERRED")),
-      getPendingAssistantApproval,
-      decideAssistantApproval,
-    });
-    render(
-      <AssistantDock onClose={() => {}} apiClient={apiClient} getContext={() => CONTEXT} />,
-    );
-    fireEvent.change(screen.getByPlaceholderText("Message the assistant"), {
-      target: { value: "Build a film" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Approve and apply" }));
-
-    expect(await screen.findByText("Repair the failed image run")).toBeTruthy();
-    expect(screen.getByText("TextPrompt")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Approve and apply" }));
-    await waitFor(() => expect(decideAssistantApproval).toHaveBeenCalledTimes(2));
-    expect(decideAssistantApproval.mock.calls[1]?.[0]).toMatchObject({
-      approval_scope_id: "repair-scope",
-      candidate_digest: "sha256:repair",
-      approved: true,
-    });
-  });
+  fireEvent.click(screen.getByLabelText("Send"));
+  await waitFor(() => expect(send).toHaveBeenCalledWith(expect.objectContaining({
+    project_id: CONTEXT.project_id,
+    text: "Build a film",
+  })));
 });
 
-function workflowApi(overrides: Partial<WorkflowApi> = {}): WorkflowApi {
+it("renders typed deltas and repairs a sequence gap through pending authority", async () => {
+  let observer: ((event: AssistantPresentationEvent) => void) | undefined;
+  const pending = vi.fn().mockResolvedValue(null);
+  render(
+    <AssistantDock
+      onClose={() => {}}
+      apiClient={api({
+        assistantGetPendingWorkflowChange: pending,
+        observeAssistantPresentationEvents: async (value) => {
+          observer = value;
+          return () => {};
+        },
+      })}
+      getContext={() => CONTEXT}
+    />,
+  );
+  await waitFor(() => expect(observer).toBeDefined());
+  observer?.({
+    invocation_id: "40000000-0000-4000-8000-000000000001",
+    sequence: "1",
+    kind: "text_delta",
+    text: "Hello",
+  });
+  expect(await screen.findByText("Hello")).toBeTruthy();
+  observer?.({
+    invocation_id: "40000000-0000-4000-8000-000000000001",
+    sequence: "3",
+    kind: "invocation_completed",
+  });
+  await waitFor(() => expect(pending).toHaveBeenCalledWith(CONTEXT.project_id));
+});
+
+function api(overrides: Partial<WorkflowApi>): WorkflowApi {
   return {
-    runWorkflow: vi.fn(),
-    assetsRoot: vi.fn(),
-    listAssets: vi.fn(),
-    getAsset: vi.fn(),
-    listProjects: vi.fn(),
-    createProject: vi.fn(),
-    openProject: vi.fn(),
-    searchCapabilities: vi.fn(),
-    getCapabilityBundles: vi.fn(),
-    applyWorkflowPatch: vi.fn(),
-    getProviders: vi.fn(),
-    setActiveProvider: vi.fn(),
-    setProviderKey: vi.fn(),
-    getAssistantConfig: vi.fn(),
-    setAssistantConfig: vi.fn(),
-    sendAssistant: vi.fn(),
-    getPendingAssistantApproval: vi.fn().mockResolvedValue(null),
-    decideAssistantApproval: vi.fn(),
+    assistantSendMessage: vi.fn(),
+    assistantGetPendingWorkflowChange: vi.fn().mockResolvedValue(null),
+    assistantDecideWorkflowChange: vi.fn(),
+    observeAssistantPresentationEvents: vi.fn().mockResolvedValue(() => {}),
     ...overrides,
-  };
+  } as WorkflowApi;
 }

@@ -1,6 +1,6 @@
 //! Thumbnail generation for stored assets.
 
-use crate::error::{AssetError, Result};
+use crate::error::{AssetError, AssetResult};
 use crate::model::AssetKind;
 use image::{ImageBuffer, Rgba};
 use std::path::{Path, PathBuf};
@@ -14,7 +14,7 @@ pub(crate) fn generate_thumbnail(
     kind: AssetKind,
     source_path: &Path,
     thumbnails_dir: &Path,
-) -> Result<PathBuf> {
+) -> AssetResult<PathBuf> {
     let thumbnail_path = thumbnails_dir.join(format!("{asset_id}.png"));
     match kind {
         AssetKind::Image => generate_image_thumbnail(asset_id, source_path, &thumbnail_path)?,
@@ -25,7 +25,11 @@ pub(crate) fn generate_thumbnail(
     Ok(thumbnail_path)
 }
 
-fn generate_image_thumbnail(asset_id: &str, source_path: &Path, output_path: &Path) -> Result<()> {
+fn generate_image_thumbnail(
+    asset_id: &str,
+    source_path: &Path,
+    output_path: &Path,
+) -> AssetResult<()> {
     let image = image::open(source_path).map_err(|source| AssetError::Thumbnail {
         id: asset_id.to_owned(),
         message: format!("open image `{}`: {source}", source_path.display()),
@@ -38,7 +42,7 @@ fn generate_image_thumbnail(asset_id: &str, source_path: &Path, output_path: &Pa
     )
 }
 
-fn generate_video_placeholder(asset_id: &str, output_path: &Path) -> Result<()> {
+fn generate_video_placeholder(asset_id: &str, output_path: &Path) -> AssetResult<()> {
     // Why a placeholder rather than a real first frame: extracting a frame needs
     // a video decoder (ffmpeg or a bundled codec), which we do not want as a hard
     // dependency in this milestone. A deterministic placeholder keeps the store

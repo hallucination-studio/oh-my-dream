@@ -17,6 +17,23 @@ pub struct TextToImageRequest {
     pub seed: Option<u64>,
 }
 
+/// An image generation request using ordered image references.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceImageGenerationRequest {
+    /// Opaque model identifier selected by the workflow.
+    pub model: String,
+    /// Ordered local image paths resolved from the asset store.
+    pub images: Vec<String>,
+    /// Positive generation prompt.
+    pub prompt: String,
+    /// Optional negative prompt.
+    pub negative_prompt: Option<String>,
+    /// Optional number of generation steps.
+    pub steps: Option<u32>,
+    /// Optional reproducibility seed.
+    pub seed: Option<u64>,
+}
+
 /// An image-to-video generation request.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageToVideoRequest {
@@ -26,6 +43,25 @@ pub struct ImageToVideoRequest {
     pub image: String,
     /// Optional requested clip duration in seconds.
     pub duration_seconds: Option<f32>,
+    /// Optional requested frame rate.
+    pub fps: Option<u32>,
+}
+
+/// A video generation request using ordered image references.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReferenceVideoGenerationRequest {
+    /// Opaque model identifier selected by the workflow.
+    pub model: String,
+    /// Ordered local image paths resolved from the asset store.
+    pub images: Vec<String>,
+    /// Positive generation prompt.
+    pub prompt: String,
+    /// Optional requested clip duration in seconds.
+    pub duration_seconds: Option<f32>,
+    /// Optional requested display aspect ratio.
+    pub aspect_ratio: Option<String>,
+    /// Optional requested output resolution.
+    pub resolution: Option<String>,
     /// Optional requested frame rate.
     pub fps: Option<u32>,
 }
@@ -71,6 +107,8 @@ pub enum MediaFormat {
     Wav,
     /// Opaque video bytes whose codec is not advertised as playable.
     OpaqueVideo,
+    /// WebM video bytes suitable for native browser playback.
+    WebM,
 }
 
 impl MediaFormat {
@@ -79,6 +117,7 @@ impl MediaFormat {
             Self::Png => ".png",
             Self::Wav => ".wav",
             Self::OpaqueVideo => ".video-data",
+            Self::WebM => ".webm",
         }
     }
 }
@@ -108,6 +147,12 @@ impl InlineMedia {
     #[must_use]
     pub fn opaque_video(bytes: Vec<u8>) -> Self {
         Self { kind: MediaKind::Video, format: MediaFormat::OpaqueVideo, bytes }
+    }
+
+    /// Creates inline WebM video media.
+    #[must_use]
+    pub fn webm(bytes: Vec<u8>) -> Self {
+        Self { kind: MediaKind::Video, format: MediaFormat::WebM, bytes }
     }
 
     /// Returns the media modality.
@@ -183,7 +228,7 @@ pub enum GenerationError {
 }
 
 /// Run-scoped controls exposed to generation capability implementations.
-pub trait GenerationContext {
+pub trait GenerationContextInterface {
     /// Reports normalized progress for the current workflow node.
     fn progress(&mut self, progress: f32);
 
@@ -196,42 +241,76 @@ pub trait GenerationContext {
     }
 }
 
-impl GenerationContext for engine::NodeRunContext<'_> {
+impl GenerationContextInterface for engine::NodeRunContextImpl<'_> {
     fn progress(&mut self, progress: f32) {
-        engine::NodeRunContext::progress(self, progress);
+        engine::NodeRunContextImpl::progress(self, progress);
     }
 
     fn is_cancelled(&self) -> bool {
-        engine::NodeRunContext::is_cancelled(self)
+        engine::NodeRunContextImpl::is_cancelled(self)
     }
 }
 
 /// Generates image media from text.
-pub trait TextToImageGenerator: Send + Sync {
+pub trait TextToImageGeneratorInterface: Send + Sync {
     /// Generates an image under the current run controls.
     fn generate(
         &self,
         request: TextToImageRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
+    ) -> Result<GeneratedOutput, GenerationError>;
+}
+
+/// Generates image media from ordered local image references and text.
+pub trait ReferenceImageGeneratorInterface: Send + Sync {
+    /// Generates an image under the current run controls.
+    fn generate(
+        &self,
+        request: ReferenceImageGenerationRequest,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError>;
 }
 
 /// Generates video media from a local image.
-pub trait ImageToVideoGenerator: Send + Sync {
+pub trait ImageToVideoGeneratorInterface: Send + Sync {
     /// Generates a video under the current run controls.
     fn generate(
         &self,
         request: ImageToVideoRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
+    ) -> Result<GeneratedOutput, GenerationError>;
+}
+
+/// Generates video media from ordered local image references and text.
+pub trait ReferenceVideoGeneratorInterface: Send + Sync {
+    /// Generates a video under the current run controls.
+    fn generate(
+        &self,
+        request: ReferenceVideoGenerationRequest,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError>;
 }
 
 /// Generates audio media from text.
-pub trait TextToAudioGenerator: Send + Sync {
+pub trait TextToAudioGeneratorInterface: Send + Sync {
     /// Generates audio under the current run controls.
     fn generate(
         &self,
         request: TextToAudioRequest,
-        context: &mut dyn GenerationContext,
+        context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{InlineMedia, MediaFormat, MediaKind};
+
+    #[test]
+    fn webm_media_has_video_kind_and_webm_suffix() {
+        let media = InlineMedia::webm(Vec::new());
+
+        assert_eq!(media.kind(), MediaKind::Video);
+        assert_eq!(media.format(), MediaFormat::WebM);
+        assert_eq!(media.format().file_suffix(), ".webm");
+    }
 }

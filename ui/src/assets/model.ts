@@ -1,31 +1,44 @@
-import type { AssetDto, AssetKind } from "../api/index.ts";
+import type { AssetDto, AssetKind, AssetPreviewDto } from "../api/index.ts";
 
 export interface AssetViewModel {
   id: string;
   kind: AssetKind;
-  fileUrl: string;
-  thumbnailUrl: string | null;
-  prompt: string | null;
-  projectName: string | null;
+  contentState: AssetDto["content_state"];
+  previewUrl: string | null;
+  displayName: string;
+  projectId: string;
+  sourceNodeId: string | null;
   sourceNodeType: string | null;
-  model: string | null;
-  seed: string | null;
-  cost: number | null;
-  createdAt: number;
+  mimeType: string;
+  byteLength: string;
+  createdAtEpochMs: string;
 }
 
-export function assetFromDto(dto: AssetDto): AssetViewModel {
+export function assetFromDto(
+  dto: AssetDto,
+  preview: AssetPreviewDto | null,
+): AssetViewModel {
+  const origin = object(dto.origin);
   return {
-    id: dto.id,
-    kind: dto.kind,
-    fileUrl: dto.file_path,
-    thumbnailUrl: dto.thumbnail_path,
-    prompt: dto.prompt,
-    projectName: dto.project_name,
-    sourceNodeType: dto.source_node_type,
-    model: dto.model,
-    seed: dto.seed,
-    cost: dto.cost,
-    createdAt: dto.created_at,
+    id: dto.asset_id,
+    kind: dto.media_kind,
+    contentState: dto.content_state,
+    previewUrl: preview?.preview_uri ?? null,
+    displayName: dto.display_name,
+    projectId: dto.project_id,
+    sourceNodeId:
+      origin?.kind === "workflow_node_output" && typeof origin.workflow_node_id === "string"
+        ? origin.workflow_node_id
+        : null,
+    sourceNodeType: origin?.kind === "workflow_node_output" ? "Workflow node" : null,
+    mimeType: dto.content.mime_type,
+    byteLength: dto.content.byte_length,
+    createdAtEpochMs: dto.created_at_epoch_ms,
   };
+}
+
+function object(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }

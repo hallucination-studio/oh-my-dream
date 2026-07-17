@@ -1,12 +1,14 @@
 use assets::{AssetKind, AssetStore};
 use engine::{
-    EngineError, Executor, InputBinding, NodeParams, NodeRegistry, OutputRef, ResultCache, Value,
-    Workflow, WorkflowNode,
+    EngineError, InputBinding, NodeParams, NodeRegistry, OutputRef, ResultCache, Workflow,
+    WorkflowGraphExecutor, WorkflowNode, WorkflowNodeValue,
 };
 use nodes::{
-    GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGenerator,
-    ImageToVideoRequest, InlineMedia, TextToAudioGenerator, TextToAudioRequest,
-    TextToImageGenerator, TextToImageRequest,
+    GeneratedArtifact, GeneratedOutput, GenerationError, ImageToVideoGeneratorInterface,
+    ImageToVideoRequest, InlineMedia, ReferenceImageGenerationRequest,
+    ReferenceImageGeneratorInterface, ReferenceVideoGenerationRequest,
+    ReferenceVideoGeneratorInterface, TextToAudioGeneratorInterface, TextToAudioRequest,
+    TextToImageGeneratorInterface, TextToImageRequest,
 };
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -23,12 +25,12 @@ fn executes_full_generation_workflow_and_persists_video_asset() {
     let mut registry = NodeRegistry::new();
     register_test_generators(
         &mut registry,
-        Arc::new(TestGenerators::succeeds()),
+        Arc::new(TestGeneratorsImpl::succeeds()),
         Arc::clone(&store),
     );
     let workflow = full_workflow();
 
-    let outputs = Executor::new(&registry)
+    let outputs = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow, &mut ResultCache::new())
         .expect("workflow should execute");
 
@@ -36,7 +38,7 @@ fn executes_full_generation_workflow_and_persists_video_asset() {
         .get("video")
         .and_then(|values| values.get("video"))
         .expect("video output should be produced");
-    assert!(matches!(video, Value::Video(value) if value.starts_with("asset-")));
+    assert!(matches!(video, WorkflowNodeValue::Video(value) if value.starts_with("asset-")));
 
     let saved_assets =
         store.lock().expect("store lock should succeed").list(None).expect("assets should list");
@@ -76,17 +78,17 @@ fn executes_text_to_audio_and_persists_audio_asset() {
     let mut registry = NodeRegistry::new();
     register_test_generators(
         &mut registry,
-        Arc::new(TestGenerators::succeeds()),
+        Arc::new(TestGeneratorsImpl::succeeds()),
         Arc::clone(&store),
     );
 
-    let outputs = Executor::new(&registry)
+    let outputs = WorkflowGraphExecutor::new(&registry)
         .execute(&audio_workflow(), &mut ResultCache::new())
         .expect("workflow should execute");
 
     assert!(matches!(
         outputs.get("audio").and_then(|values| values.get("audio")),
-        Some(Value::Audio(value)) if value.starts_with("asset-")
+        Some(WorkflowNodeValue::Audio(value)) if value.starts_with("asset-")
     ));
     let saved_assets = store
         .lock()
@@ -107,9 +109,9 @@ fn save_asset_node_is_not_registered() {
     let temp_dir = TempDir::new().expect("temp dir should be created");
     let store = shared_store(temp_dir.path());
     let mut registry = NodeRegistry::new();
-    register_test_generators(&mut registry, Arc::new(TestGenerators::succeeds()), store);
+    register_test_generators(&mut registry, Arc::new(TestGeneratorsImpl::succeeds()), store);
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&workflow_with_save_asset(), &mut ResultCache::new())
         .expect_err("SaveAsset should no longer be available");
 
@@ -123,11 +125,11 @@ fn failed_generation_task_surfaces_as_execution_error() {
     let mut registry = NodeRegistry::new();
     register_test_generators(
         &mut registry,
-        Arc::new(TestGenerators::fails("provider failed")),
+        Arc::new(TestGeneratorsImpl::fails("provider failed")),
         store,
     );
 
-    let error = Executor::new(&registry)
+    let error = WorkflowGraphExecutor::new(&registry)
         .execute(&image_workflow(), &mut ResultCache::new())
         .expect_err("generation failure should fail workflow execution");
 
@@ -253,22 +255,29 @@ fn params(value: serde_json::Value) -> NodeParams {
 
 fn register_test_generators(
     registry: &mut NodeRegistry,
-    generators: Arc<TestGenerators>,
+    generators: Arc<TestGeneratorsImpl>,
     store: nodes::SharedAssetStore,
 ) {
-    let image: Arc<dyn TextToImageGenerator> = generators.clone();
-    let video: Arc<dyn ImageToVideoGenerator> = generators.clone();
-    let audio: Arc<dyn TextToAudioGenerator> = generators;
-    let resolver = Arc::new(support::StoreResolver(Arc::clone(&store)));
-    nodes::register_all(registry, image, video, audio, store, resolver)
-        .expect("register workflow capabilities");
+    let image: Arc<dyn TextToImageGeneratorInterface> = generators.clone();
+    let reference_image: Arc<dyn ReferenceImageGeneratorInterface> = generators.clone();
+    let reference_video: Arc<dyn ReferenceVideoGeneratorInterface> = generators.clone();
+    let video: Arc<dyn ImageToVideoGeneratorInterface> = generators.clone();
+    let audio: Arc<dyn TextToAudioGeneratorInterface> = generators;
+    let resolver = Arc::new(support::StoreResolverImpl(Arc::clone(&store)));
+    nodes::register_all(
+        registry,
+        nodes::GenerationAdapters::new(image, reference_image, reference_video, video, audio),
+        store,
+        resolver,
+    )
+    .expect("register workflow capabilities");
 }
 
-struct TestGenerators {
+struct TestGeneratorsImpl {
     failure_reason: Option<String>,
 }
 
-impl TestGenerators {
+impl TestGeneratorsImpl {
     fn succeeds() -> Self {
         Self { failure_reason: None }
     }
@@ -285,11 +294,11 @@ impl TestGenerators {
     }
 }
 
-impl TextToImageGenerator for TestGenerators {
+impl TextToImageGeneratorInterface for TestGeneratorsImpl {
     fn generate(
         &self,
         _request: TextToImageRequest,
-        context: &mut dyn nodes::GenerationContext,
+        context: &mut dyn nodes::GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.progress(0.25);
         context.progress(0.75);
@@ -297,11 +306,11 @@ impl TextToImageGenerator for TestGenerators {
     }
 }
 
-impl ImageToVideoGenerator for TestGenerators {
+impl ImageToVideoGeneratorInterface for TestGeneratorsImpl {
     fn generate(
         &self,
         request: ImageToVideoRequest,
-        context: &mut dyn nodes::GenerationContext,
+        context: &mut dyn nodes::GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         assert!(Path::new(&request.image).is_file(), "source image must resolve to a local asset");
         context.progress(0.25);
@@ -310,11 +319,35 @@ impl ImageToVideoGenerator for TestGenerators {
     }
 }
 
-impl TextToAudioGenerator for TestGenerators {
+impl ReferenceImageGeneratorInterface for TestGeneratorsImpl {
+    fn generate(
+        &self,
+        _request: ReferenceImageGenerationRequest,
+        context: &mut dyn nodes::GenerationContextInterface,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        context.progress(0.25);
+        context.progress(0.75);
+        self.result(InlineMedia::png(MOCK_IMAGE_PNG.to_vec()), 400)
+    }
+}
+
+impl ReferenceVideoGeneratorInterface for TestGeneratorsImpl {
+    fn generate(
+        &self,
+        _request: ReferenceVideoGenerationRequest,
+        context: &mut dyn nodes::GenerationContextInterface,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        context.progress(0.25);
+        context.progress(0.75);
+        self.result(InlineMedia::webm(Vec::new()), 1_200)
+    }
+}
+
+impl TextToAudioGeneratorInterface for TestGeneratorsImpl {
     fn generate(
         &self,
         _request: TextToAudioRequest,
-        context: &mut dyn nodes::GenerationContext,
+        context: &mut dyn nodes::GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         context.progress(0.25);
         context.progress(0.75);

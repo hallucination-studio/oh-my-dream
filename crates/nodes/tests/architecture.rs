@@ -34,13 +34,13 @@ fn concrete_backends_are_selected_only_by_the_application_crate() {
 fn workspace_crate_dependencies_point_toward_business_contracts() {
     let packages = workspace_packages();
 
-    assert_eq!(workspace_dependencies(&packages, "engine"), Vec::<String>::new());
-    assert_eq!(workspace_dependencies(&packages, "assets"), Vec::<String>::new());
-    assert_eq!(workspace_dependencies(&packages, "backends"), Vec::<String>::new());
-    assert_eq!(workspace_dependencies(&packages, "nodes"), ["assets", "engine"]);
+    assert_eq!(workspace_dependencies(&packages, "engine"), ["projects"]);
+    assert_eq!(workspace_dependencies(&packages, "assets"), ["projects"]);
+    assert_eq!(workspace_dependencies(&packages, "backends"), ["engine", "nodes"]);
+    assert_eq!(workspace_dependencies(&packages, "nodes"), ["assets", "engine", "projects"]);
     assert_eq!(
         workspace_dependencies(&packages, "oh-my-dream-tauri"),
-        ["assets", "backends", "engine", "nodes"]
+        ["assets", "assistant", "backends", "engine", "nodes", "projects"]
     );
 }
 
@@ -97,8 +97,8 @@ fn collect_construction_violations(directory: &Path, violations: &mut Vec<PathBu
             && path.file_stem().is_none_or(|name| name != "tests")
         {
             let source = fs::read_to_string(&path).expect("Rust source should be readable");
-            if source.contains("MockBackend::new(")
-                || source.contains("MockGenerationAdapter::new(")
+            if source.contains("MockBackendImpl::new(")
+                || source.contains("MockGenerationAdapterImpl::new(")
             {
                 violations.push(path);
             }

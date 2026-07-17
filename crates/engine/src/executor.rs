@@ -2,9 +2,9 @@
 
 use crate::cache::{ResultCache, cache_fingerprint};
 use crate::capability::CapabilityEffect;
-use crate::error::{EngineError, Result};
+use crate::error::{EngineError, EngineResult};
 use crate::graph::{InputBinding, Workflow};
-use crate::node::{NodeRunContext, NodeRunResult, is_cancelled_node_run};
+use crate::node::{NodeRunContextImpl, NodeRunResult, is_cancelled_node_run};
 use crate::registry::NodeRegistry;
 use crate::validation::{ExecutionPlan, PlanNode, build_plan, validate_node_outputs};
 use crate::value::{InputValue, NodeInputs, ValueMap};
@@ -43,18 +43,18 @@ pub struct NodeProgressEvent {
 }
 
 /// Caller-owned signal consulted while a workflow is executing.
-pub trait CancellationSignal: Send + Sync {
+pub trait CancellationSignalInterface: Send + Sync {
     /// Returns whether the current workflow run should stop.
     fn is_cancelled(&self) -> bool;
 }
 
 /// Builds an execution plan from a [`Workflow`], validating wiring and ordering
 /// nodes topologically, then runs nodes in order consulting the [`ResultCache`].
-pub struct Executor<'r> {
+pub struct WorkflowGraphExecutor<'r> {
     registry: &'r NodeRegistry,
 }
 
-impl<'r> Executor<'r> {
+impl<'r> WorkflowGraphExecutor<'r> {
     /// Creates an executor bound to a node registry.
     #[must_use]
     pub fn new(registry: &'r NodeRegistry) -> Self {
@@ -62,9 +62,13 @@ impl<'r> Executor<'r> {
     }
 
     /// Validates and executes `workflow`, returning each node's outputs.
-    pub fn execute(&self, workflow: &Workflow, cache: &mut ResultCache) -> Result<RunOutputs> {
+    pub fn execute(
+        &self,
+        workflow: &Workflow,
+        cache: &mut ResultCache,
+    ) -> EngineResult<RunOutputs> {
         let mut observer = |_event: &NodeProgressEvent| {};
-        self.execute_interruptible(workflow, cache, &NeverCancelled, &mut observer)
+        self.execute_interruptible(workflow, cache, &NeverCancelledImpl, &mut observer)
     }
 
     /// Validates and executes `workflow`, synchronously reporting node events.
@@ -73,8 +77,8 @@ impl<'r> Executor<'r> {
         workflow: &Workflow,
         cache: &mut ResultCache,
         observer: &mut impl FnMut(&NodeProgressEvent),
-    ) -> Result<RunOutputs> {
-        self.execute_interruptible(workflow, cache, &NeverCancelled, observer)
+    ) -> EngineResult<RunOutputs> {
+        self.execute_interruptible(workflow, cache, &NeverCancelledImpl, observer)
     }
 
     /// Executes `workflow` while consulting a caller-owned cancellation signal.
@@ -82,9 +86,9 @@ impl<'r> Executor<'r> {
         &self,
         workflow: &Workflow,
         cache: &mut ResultCache,
-        cancellation: &dyn CancellationSignal,
+        cancellation: &dyn CancellationSignalInterface,
         observer: &mut impl FnMut(&NodeProgressEvent),
-    ) -> Result<RunOutputs> {
+    ) -> EngineResult<RunOutputs> {
         ensure_not_cancelled(cancellation)?;
         let plan = build_plan(self.registry, workflow)?;
         let order = topological_order(&plan)?;
@@ -117,9 +121,9 @@ fn execute_plan_node(
     workflow_snapshot: &serde_json::Value,
     cache: &mut ResultCache,
     outputs: &mut RunOutputs,
-    cancellation: &dyn CancellationSignal,
+    cancellation: &dyn CancellationSignalInterface,
     observer: &mut dyn FnMut(&NodeProgressEvent),
-) -> Result<()> {
+) -> EngineResult<()> {
     let inputs = resolve_inputs(node, outputs)?;
     let fingerprint = cache_fingerprint(project_id, &node.type_id, &node.params, &inputs);
     if !node.effects.contains(&CapabilityEffect::LocalRead)
@@ -161,12 +165,17 @@ fn run_plan_node(
     project_id: &str,
     workflow_snapshot: &serde_json::Value,
     inputs: &NodeInputs,
-    cancellation: &dyn CancellationSignal,
+    cancellation: &dyn CancellationSignalInterface,
     observer: &mut dyn FnMut(&NodeProgressEvent),
-) -> Result<NodeRunResult> {
+) -> EngineResult<NodeRunResult> {
     let run_result = {
-        let mut context =
-            NodeRunContext::new(&node.id, project_id, workflow_snapshot, cancellation, observer);
+        let mut context = NodeRunContextImpl::new(
+            &node.id,
+            project_id,
+            workflow_snapshot,
+            cancellation,
+            observer,
+        );
         node.node.run(inputs, &mut context)
     };
     let result = match run_result {
@@ -190,19 +199,19 @@ fn emit_node_event(
     observer(&NodeProgressEvent { node_id: node.id.clone(), state, progress, cost });
 }
 
-struct NeverCancelled;
+struct NeverCancelledImpl;
 
-impl CancellationSignal for NeverCancelled {
+impl CancellationSignalInterface for NeverCancelledImpl {
     fn is_cancelled(&self) -> bool {
         false
     }
 }
 
-fn ensure_not_cancelled(cancellation: &dyn CancellationSignal) -> Result<()> {
+fn ensure_not_cancelled(cancellation: &dyn CancellationSignalInterface) -> EngineResult<()> {
     if cancellation.is_cancelled() { Err(EngineError::Cancelled) } else { Ok(()) }
 }
 
-fn topological_order(plan: &ExecutionPlan) -> Result<Vec<usize>> {
+fn topological_order(plan: &ExecutionPlan) -> EngineResult<Vec<usize>> {
     let mut emitted = BTreeSet::new();
     let mut order = Vec::with_capacity(plan.nodes.len());
 
@@ -245,7 +254,7 @@ fn first_unemitted_node_id(plan: &ExecutionPlan, emitted: &BTreeSet<usize>) -> S
         .unwrap_or_default()
 }
 
-fn resolve_inputs(node: &PlanNode, outputs: &RunOutputs) -> Result<NodeInputs> {
+fn resolve_inputs(node: &PlanNode, outputs: &RunOutputs) -> EngineResult<NodeInputs> {
     let mut inputs = NodeInputs::new();
     for port in node.node.inputs() {
         if let Some(default) = &port.default {

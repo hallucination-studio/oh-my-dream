@@ -7,8 +7,7 @@ import sys
 
 from agents.tracing import get_trace_provider
 
-from assistant.stdio_app import AgentStdioApp
-from assistant.stdio_protocol import FrameReader, FrameWriter
+from assistant.protocol_v1_app import ProtocolV1App
 from assistant.tests.agent_transport_fixture import ToolThenMessageModel
 
 
@@ -18,11 +17,12 @@ def main() -> None:
         raise RuntimeError("assistant tracing must be disabled in the frozen sidecar")
     print("ASSISTANT_SMOKE_TRACING_DISABLED=1", file=sys.stderr)
     asyncio.run(
-        AgentStdioApp(
-            FrameReader(sys.stdin.buffer),
-            FrameWriter(sys.stdout.buffer),
+        ProtocolV1App(
+            sys.stdin.buffer,
+            sys.stdout.buffer,
             model=ToolThenMessageModel(
-                "workspace_get_snapshot", '{  "query" : "current" }'
+                "assistant.workspace.get_snapshot@1",
+                "{}",
             ),
         ).run_once()
     )

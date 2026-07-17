@@ -1,11 +1,11 @@
 use crate::error::{NodesError, boxed};
 use crate::params::{canonicalize_mode, reject_unknown_params};
 use crate::ports::output;
-use crate::{AssetMediaKind, AssetReferenceRequest, AssetReferenceResolver};
+use crate::{AssetMediaKind, AssetReferenceRequest, AssetReferenceResolverInterface};
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, Node, NodeInputs, NodeParams, NodeRunContext,
-    NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    CapabilityRegistration, CapabilitySelector, NodeInputs, NodeInterface, NodeParams,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use std::sync::Arc;
 const MODE: &str = "asset";
 
 pub(crate) fn registrations(
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> [CapabilityRegistration; 3] {
     [
         registration(
@@ -49,7 +49,7 @@ fn registration(
     label: &'static str,
     port_type: PortType,
     kind: AssetMediaKind,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> CapabilityRegistration {
     let contract = CapabilityContract::contextual(
         CapabilityRef::new(type_id, engine::DEFAULT_CAPABILITY_VERSION),
@@ -81,7 +81,7 @@ fn registration(
                 .get("asset_id")
                 .and_then(serde_json::Value::as_str)
                 .ok_or_else(|| boxed(NodesError::MissingInput { name: "asset_id".to_owned() }))?;
-            Ok(Box::new(AssetSourceNode {
+            Ok(Box::new(AssetSourceNodeImpl {
                 type_id,
                 asset_id: asset_id.to_owned(),
                 kind,
@@ -113,15 +113,15 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     Ok(normalized)
 }
 
-struct AssetSourceNode {
+struct AssetSourceNodeImpl {
     type_id: &'static str,
     asset_id: String,
     kind: AssetMediaKind,
     outputs: Vec<OutputPort>,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 }
 
-impl Node for AssetSourceNode {
+impl NodeInterface for AssetSourceNodeImpl {
     fn type_id(&self) -> &str {
         self.type_id
     }
@@ -134,7 +134,7 @@ impl Node for AssetSourceNode {
     fn run(
         &self,
         _inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         self.resolver
             .resolve(AssetReferenceRequest {
@@ -144,9 +144,9 @@ impl Node for AssetSourceNode {
             })
             .map_err(|error| Box::new(error) as NodeRunError)?;
         let value = match self.kind {
-            AssetMediaKind::Image => Value::Image(self.asset_id.clone()),
-            AssetMediaKind::Video => Value::Video(self.asset_id.clone()),
-            AssetMediaKind::Audio => Value::Audio(self.asset_id.clone()),
+            AssetMediaKind::Image => WorkflowNodeValue::Image(self.asset_id.clone()),
+            AssetMediaKind::Video => WorkflowNodeValue::Video(self.asset_id.clone()),
+            AssetMediaKind::Audio => WorkflowNodeValue::Audio(self.asset_id.clone()),
         };
         Ok(NodeRunResult::new(BTreeMap::from([(output_name(self.kind).to_owned(), value)])))
     }
@@ -164,9 +164,13 @@ fn output_name(kind: AssetMediaKind) -> &'static str {
 mod tests {
     use super::registrations;
     use crate::{
-        AssetReferenceError, AssetReferenceRequest, AssetReferenceResolver, ResolvedAssetReference,
+        AssetReferenceError, AssetReferenceRequest, AssetReferenceResolverInterface,
+        ResolvedAssetReference,
     };
-    use engine::{Executor, NodeParams, NodeRegistry, ResultCache, Value, Workflow, WorkflowNode};
+    use engine::{
+        NodeParams, NodeRegistry, ResultCache, Workflow, WorkflowGraphExecutor, WorkflowNode,
+        WorkflowNodeValue,
+    };
     use std::collections::BTreeMap;
     use std::path::PathBuf;
     use std::sync::{
@@ -174,9 +178,9 @@ mod tests {
         atomic::{AtomicUsize, Ordering},
     };
 
-    struct RecordingResolver(AtomicUsize);
+    struct RecordingResolverImpl(AtomicUsize);
 
-    impl AssetReferenceResolver for RecordingResolver {
+    impl AssetReferenceResolverInterface for RecordingResolverImpl {
         fn resolve(
             &self,
             request: AssetReferenceRequest<'_>,
@@ -192,15 +196,15 @@ mod tests {
 
     #[test]
     fn asset_source_typed_outputs_and_every_run_resolution() {
-        let resolver = Arc::new(RecordingResolver(AtomicUsize::new(0)));
+        let resolver = Arc::new(RecordingResolverImpl(AtomicUsize::new(0)));
         let mut registry = NodeRegistry::new();
         for registration in registrations(resolver.clone()) {
             registry.register_selector_capability(registration).expect("register Asset Source");
         }
         for (type_id, expected) in [
-            ("Image", Value::Image("asset-1".to_owned())),
-            ("Video", Value::Video("asset-1".to_owned())),
-            ("Audio", Value::Audio("asset-1".to_owned())),
+            ("Image", WorkflowNodeValue::Image("asset-1".to_owned())),
+            ("Video", WorkflowNodeValue::Video("asset-1".to_owned())),
+            ("Audio", WorkflowNodeValue::Audio("asset-1".to_owned())),
         ] {
             let workflow = Workflow {
                 version: "1.0".to_owned(),
@@ -218,10 +222,10 @@ mod tests {
                 }],
             };
             let mut cache = ResultCache::new();
-            let outputs = Executor::new(&registry)
+            let outputs = WorkflowGraphExecutor::new(&registry)
                 .execute(&workflow, &mut cache)
                 .expect("first Asset Source run");
-            Executor::new(&registry)
+            WorkflowGraphExecutor::new(&registry)
                 .execute(&workflow, &mut cache)
                 .expect("second Asset Source run");
             let output_name = type_id.to_lowercase();
@@ -232,8 +236,8 @@ mod tests {
 
     #[test]
     fn asset_source_rejects_empty_ids_and_boundary_fields() {
-        let resolver: Arc<dyn AssetReferenceResolver> =
-            Arc::new(RecordingResolver(AtomicUsize::new(0)));
+        let resolver: Arc<dyn AssetReferenceResolverInterface> =
+            Arc::new(RecordingResolverImpl(AtomicUsize::new(0)));
         let registration = registrations(resolver).into_iter().next().expect("image registration");
         assert!(
             registration

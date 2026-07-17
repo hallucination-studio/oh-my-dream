@@ -1,9 +1,13 @@
 use assets::AssetStore;
 use engine::{CapabilityEffect, CapabilityRef, NodeRegistry, PortCardinality};
-use nodes::{GeneratedOutput, GenerationContext, GenerationError, ImageToVideoGenerator};
 use nodes::{
-    ImageToVideoRequest, SharedAssetStore, TextToAudioGenerator, TextToAudioRequest,
-    TextToImageGenerator, TextToImageRequest,
+    GeneratedOutput, GenerationContextInterface, GenerationError, ImageToVideoGeneratorInterface,
+};
+use nodes::{
+    ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceImageGeneratorInterface,
+    ReferenceVideoGenerationRequest, ReferenceVideoGeneratorInterface, SharedAssetStore,
+    TextToAudioGeneratorInterface, TextToAudioRequest, TextToImageGeneratorInterface,
+    TextToImageRequest,
 };
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
@@ -25,6 +29,8 @@ fn capability_projection_contains_exact_contract_and_presentation_pairs() {
             CapabilityRef::new("AudioAssetSource", "1.0"),
             CapabilityRef::new("ImageAssetSource", "1.0"),
             CapabilityRef::new("ImageToVideo", "1.0"),
+            CapabilityRef::new("ReferenceImageGeneration", "1.0"),
+            CapabilityRef::new("ReferenceVideoGeneration", "1.0"),
             CapabilityRef::new("TextPrompt", "1.0"),
             CapabilityRef::new("TextToAudio", "1.0"),
             CapabilityRef::new("TextToImage", "1.0"),
@@ -90,22 +96,26 @@ fn store() -> (TempDir, SharedAssetStore) {
 fn register(registry: &mut NodeRegistry, store: SharedAssetStore) {
     nodes::register_all(
         registry,
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
-        Arc::new(NoopGenerator),
+        nodes::GenerationAdapters::new(
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
+            Arc::new(NoopGeneratorImpl),
+        ),
         store,
-        Arc::new(support::MissingResolver),
+        Arc::new(support::MissingResolverImpl),
     )
     .expect("capability registration");
 }
 
-struct NoopGenerator;
+struct NoopGeneratorImpl;
 
-impl TextToImageGenerator for NoopGenerator {
+impl TextToImageGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: TextToImageRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",
@@ -114,11 +124,11 @@ impl TextToImageGenerator for NoopGenerator {
     }
 }
 
-impl ImageToVideoGenerator for NoopGenerator {
+impl ImageToVideoGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: ImageToVideoRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",
@@ -127,11 +137,37 @@ impl ImageToVideoGenerator for NoopGenerator {
     }
 }
 
-impl TextToAudioGenerator for NoopGenerator {
+impl ReferenceImageGeneratorInterface for NoopGeneratorImpl {
+    fn generate(
+        &self,
+        _request: ReferenceImageGenerationRequest,
+        _context: &mut dyn GenerationContextInterface,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        Err(GenerationError::OperationFailed {
+            operation: "test",
+            reason: "not executed".to_owned(),
+        })
+    }
+}
+
+impl ReferenceVideoGeneratorInterface for NoopGeneratorImpl {
+    fn generate(
+        &self,
+        _request: ReferenceVideoGenerationRequest,
+        _context: &mut dyn GenerationContextInterface,
+    ) -> Result<GeneratedOutput, GenerationError> {
+        Err(GenerationError::OperationFailed {
+            operation: "test",
+            reason: "not executed".to_owned(),
+        })
+    }
+}
+
+impl TextToAudioGeneratorInterface for NoopGeneratorImpl {
     fn generate(
         &self,
         _request: TextToAudioRequest,
-        _context: &mut dyn GenerationContext,
+        _context: &mut dyn GenerationContextInterface,
     ) -> Result<GeneratedOutput, GenerationError> {
         Err(GenerationError::OperationFailed {
             operation: "test",

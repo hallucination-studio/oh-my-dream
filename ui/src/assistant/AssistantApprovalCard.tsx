@@ -1,11 +1,11 @@
-import type { AssistantPendingApproval } from "../api/index.ts";
+import type { AssistantPendingWorkflowChange } from "../api/index.ts";
 
 export function AssistantApprovalCard({
   approval,
   busy,
   onDecision,
 }: {
-  approval: AssistantPendingApproval;
+  approval: AssistantPendingWorkflowChange;
   busy: boolean;
   onDecision: (approved: boolean) => void;
 }) {
@@ -18,25 +18,28 @@ export function AssistantApprovalCard({
         candidate as one editable Workflow revision.
       </p>
       <dl className="adock__approval-details">
-        <div><dt>Requested production</dt><dd>{approval.user_intent}</dd></div>
-        <div><dt>Workflow</dt><dd>{approval.workflow.nodes.length} nodes</dd></div>
-        <div><dt>Review</dt><dd>{approval.reviewer_version}</dd></div>
-        <div><dt>Summary</dt><dd>{approval.review_summary}</dd></div>
-        {approval.review_findings.map((finding) => (
-          <div key={finding}><dt>Finding</dt><dd>{finding}</dd></div>
-        ))}
-        <div><dt>Candidate</dt><dd>{approval.candidate_digest}</dd></div>
-        {approval.assets.map((asset) => (
-          <div key={`${asset.kind}:${asset.asset_id}`}><dt>Reused {asset.kind} Asset</dt><dd>{asset.asset_id}</dd></div>
-        ))}
+        <div>
+          <dt>Requested production</dt>
+          <dd>
+            {approval.lineage.kind === "user_message"
+              ? approval.lineage.intent
+              : `Repair Run ${approval.lineage.failed_workflow_run_id}`}
+          </dd>
+        </div>
+        <div><dt>Base revision</dt><dd>{approval.base_workflow_revision}</dd></div>
+        <div><dt>Mutations</dt><dd>{approval.mutations.length}</dd></div>
+        <div><dt>Readiness issues</dt><dd>{approval.readiness_issues.length}</dd></div>
+        <div><dt>Candidate</dt><dd>{approval.mutation_digest_hex}</dd></div>
       </dl>
       <div className="adock__preview" aria-label="Candidate Workflow preview">
         <strong>Editable Workflow preview</strong>
-        {approval.workflow.nodes.length === 0 ? (
-          <span>No nodes</span>
+        {approval.mutations.length === 0 ? (
+          <span>No mutations</span>
         ) : (
           <ul>
-            {approval.workflow.nodes.map((node) => <li key={node.id}>{node.type}</li>)}
+            {approval.mutations.map((mutation, index) => (
+              <li key={index}><code>{JSON.stringify(mutation)}</code></li>
+            ))}
           </ul>
         )}
       </div>

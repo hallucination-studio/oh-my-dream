@@ -2,7 +2,7 @@
 
 use crate::node::NodeRunResult;
 use crate::registry::NodeParams;
-use crate::value::{InputValue, NodeInputs, Value};
+use crate::value::{InputValue, NodeInputs, WorkflowNodeValue};
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 
@@ -135,18 +135,18 @@ fn hash_node_inputs(values: &NodeInputs, state: &mut impl Hasher) {
     }
 }
 
-fn hash_value(value: &Value, state: &mut impl Hasher) {
+fn hash_value(value: &WorkflowNodeValue, state: &mut impl Hasher) {
     match value {
-        Value::String(value) => hash_tagged_string(0, value, state),
-        Value::Image(value) => hash_tagged_string(1, value, state),
-        Value::Video(value) => hash_tagged_string(2, value, state),
-        Value::Audio(value) => hash_tagged_string(3, value, state),
-        Value::Model(value) => hash_tagged_string(4, value, state),
-        Value::Int(value) => {
+        WorkflowNodeValue::String(value) => hash_tagged_string(0, value, state),
+        WorkflowNodeValue::Image(value) => hash_tagged_string(1, value, state),
+        WorkflowNodeValue::Video(value) => hash_tagged_string(2, value, state),
+        WorkflowNodeValue::Audio(value) => hash_tagged_string(3, value, state),
+        WorkflowNodeValue::Model(value) => hash_tagged_string(4, value, state),
+        WorkflowNodeValue::Int(value) => {
             5_u8.hash(state);
             value.hash(state);
         }
-        Value::Float(value) => {
+        WorkflowNodeValue::Float(value) => {
             6_u8.hash(state);
             value.to_bits().hash(state);
         }
@@ -170,11 +170,11 @@ mod tests {
     fn distinguishes_scalar_and_ordered_cardinality() {
         let scalar = NodeInputs::from([(
             "clips".to_owned(),
-            InputValue::Single(Value::Video("a".to_owned())),
+            InputValue::Single(WorkflowNodeValue::Video("a".to_owned())),
         )]);
         let ordered = NodeInputs::from([(
             "clips".to_owned(),
-            InputValue::OrderedMany(vec![Value::Video("a".to_owned())]),
+            InputValue::OrderedMany(vec![WorkflowNodeValue::Video("a".to_owned())]),
         )]);
         assert_ne!(fingerprint(scalar), fingerprint(ordered));
     }
@@ -184,15 +184,15 @@ mod tests {
         let separated = NodeInputs::from([(
             "clips".to_owned(),
             InputValue::OrderedMany(vec![
-                Value::Video("a".to_owned()),
-                Value::Video("b|c".to_owned()),
+                WorkflowNodeValue::Video("a".to_owned()),
+                WorkflowNodeValue::Video("b|c".to_owned()),
             ]),
         )]);
         let joined = NodeInputs::from([(
             "clips".to_owned(),
             InputValue::OrderedMany(vec![
-                Value::Video("a|b".to_owned()),
-                Value::Video("c".to_owned()),
+                WorkflowNodeValue::Video("a|b".to_owned()),
+                WorkflowNodeValue::Video("c".to_owned()),
             ]),
         )]);
         assert_ne!(fingerprint(separated), fingerprint(joined));
@@ -203,15 +203,15 @@ mod tests {
         let forward = NodeInputs::from([(
             "clips".to_owned(),
             InputValue::OrderedMany(vec![
-                Value::Video("a".to_owned()),
-                Value::Video("b".to_owned()),
+                WorkflowNodeValue::Video("a".to_owned()),
+                WorkflowNodeValue::Video("b".to_owned()),
             ]),
         )]);
         let reverse = NodeInputs::from([(
             "clips".to_owned(),
             InputValue::OrderedMany(vec![
-                Value::Video("b".to_owned()),
-                Value::Video("a".to_owned()),
+                WorkflowNodeValue::Video("b".to_owned()),
+                WorkflowNodeValue::Video("a".to_owned()),
             ]),
         )]);
         assert_ne!(fingerprint(forward), fingerprint(reverse));

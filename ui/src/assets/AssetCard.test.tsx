@@ -6,24 +6,25 @@ import type { AssetViewModel } from "./model.ts";
 const asset: AssetViewModel = {
   id: "asset-1",
   kind: "video",
-  fileUrl: "/tmp/a.mp4",
-  thumbnailUrl: "/tmp/a.png",
-  prompt: "a red fox",
-  projectName: "Default",
-  sourceNodeType: "ImageToVideo",
-  model: "mock-video",
-  seed: null,
-  cost: 900,
-  createdAt: 0,
+  contentState: "available",
+  previewUrl: "desktop-asset://v1/preview",
+  displayName: "A red fox",
+  projectId: "project-1",
+  sourceNodeId: "node-1",
+  sourceNodeType: "Workflow node",
+  mimeType: "video/mp4",
+  byteLength: "100",
+  createdAtEpochMs: "0",
 };
 
 describe("AssetCard", () => {
-  it("renders the kind badge and preview image", () => {
+  it("renders the kind badge and exact video preview element", () => {
     render(
       <AssetCard asset={asset} selected={false} onSelect={() => {}} onJump={() => {}} />,
     );
     expect(screen.getByText("video")).toBeTruthy();
-    const img = screen.getByRole("img") as HTMLImageElement;
-    expect(img.getAttribute("src")).toBe("/tmp/a.png");
+    const video = screen.getByLabelText("A red fox") as HTMLVideoElement;
+    expect(video.tagName).toBe("VIDEO");
+    expect(video.getAttribute("src")).toBe("desktop-asset://v1/preview");
   });
 });

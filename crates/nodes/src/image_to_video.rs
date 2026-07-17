@@ -5,14 +5,15 @@ use crate::params::{
 };
 use crate::ports::{output, required_input};
 use crate::{
-    AssetMediaKind, AssetReferenceRequest, AssetReferenceResolver, GenerationContext,
-    ImageToVideoGenerator, ImageToVideoRequest, SharedAssetStore,
+    AssetMediaKind, AssetReferenceRequest, AssetReferenceResolverInterface,
+    GenerationContextInterface, ImageToVideoGeneratorInterface, ImageToVideoRequest,
+    SharedAssetStore,
 };
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -22,9 +23,9 @@ const TYPE_ID: &str = "ImageToVideo";
 const MODE: &str = "image";
 
 pub(crate) fn registration(
-    generator: Arc<dyn ImageToVideoGenerator>,
+    generator: Arc<dyn ImageToVideoGeneratorInterface>,
     store: SharedAssetStore,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
 ) -> CapabilityRegistration {
     let contract = CapabilityContract::new(
         CapabilityRef::new(TYPE_ID, engine::DEFAULT_CAPABILITY_VERSION),
@@ -57,7 +58,7 @@ pub(crate) fn registration(
         ),
         Box::new(normalize_params),
         Box::new(move |params| {
-            ImageToVideoNode::from_params(
+            ImageToVideoNodeImpl::from_params(
                 params,
                 Arc::clone(&generator),
                 Arc::clone(&store),
@@ -101,10 +102,10 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     Ok(normalized)
 }
 
-struct ImageToVideoNode {
-    generator: Arc<dyn ImageToVideoGenerator>,
+struct ImageToVideoNodeImpl {
+    generator: Arc<dyn ImageToVideoGeneratorInterface>,
     store: SharedAssetStore,
-    resolver: Arc<dyn AssetReferenceResolver>,
+    resolver: Arc<dyn AssetReferenceResolverInterface>,
     model: String,
     duration_seconds: Option<f32>,
     fps: Option<u32>,
@@ -112,12 +113,12 @@ struct ImageToVideoNode {
     outputs: Vec<OutputPort>,
 }
 
-impl ImageToVideoNode {
+impl ImageToVideoNodeImpl {
     fn from_params(
         params: &NodeParams,
-        generator: Arc<dyn ImageToVideoGenerator>,
+        generator: Arc<dyn ImageToVideoGeneratorInterface>,
         store: SharedAssetStore,
-        resolver: Arc<dyn AssetReferenceResolver>,
+        resolver: Arc<dyn AssetReferenceResolverInterface>,
     ) -> Result<Self, NodesError> {
         Ok(Self {
             generator,
@@ -141,7 +142,7 @@ impl ImageToVideoNode {
     }
 }
 
-impl Node for ImageToVideoNode {
+impl NodeInterface for ImageToVideoNodeImpl {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -157,7 +158,7 @@ impl Node for ImageToVideoNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         let image = image_input(inputs, "image").map_err(boxed)?;
         let resolved = self
@@ -173,7 +174,7 @@ impl Node for ImageToVideoNode {
             .generator
             .generate(self.request(resolved.local_path.to_string_lossy().into_owned()), context)
             .map_err(|source| generation_error("generate video", source))?;
-        GenerationContext::ensure_active(context)
+        GenerationContextInterface::ensure_active(context)
             .map_err(|source| generation_error("generate video", source))?;
         let asset = store_generated_asset(
             &self.store,
@@ -185,12 +186,12 @@ impl Node for ImageToVideoNode {
         )
         .map_err(boxed)?;
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("video".to_owned(), Value::Video(asset.id))]),
+            outputs: BTreeMap::from([("video".to_owned(), WorkflowNodeValue::Video(asset.id))]),
             cost: output.cost,
         })
     }
 }
 
-fn boxed_node(node: ImageToVideoNode) -> Box<dyn Node> {
+fn boxed_node(node: ImageToVideoNodeImpl) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

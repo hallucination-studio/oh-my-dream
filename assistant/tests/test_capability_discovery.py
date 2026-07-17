@@ -24,13 +24,20 @@ def load_operations() -> list[dict[str, object]]:
     operations = fixture["operations"]
     if not isinstance(operations, list):
         raise TypeError("assistant operation fixture must contain an operations list")
-    return operations
+    return [
+        {
+            **operation,
+            "version": 1,
+            "strict_json_schema": False,
+        }
+        for operation in operations
+    ]
 
 
 async def run_agent(
     frames: list[tuple[FrameKind, dict[str, object]]], model: SequencedDiscoveryModel
 ) -> list[Frame]:
-    from assistant.stdio_app import AgentStdioApp
+    from assistant.tests.legacy_stdio_app import AgentStdioApp
 
     output = RecordingWriter()
     await AgentStdioApp(
@@ -42,11 +49,11 @@ async def run_agent(
 
 
 class CapabilityDiscoveryAgentTests(unittest.IsolatedAsyncioTestCase):
-    async def test_fake_agent_searches_then_describes_exact_capability(self) -> None:
+    async def test_fake_agent_lists_then_describes_exact_capability(self) -> None:
         operations = load_operations()
         operation_ids = {operation["id"] for operation in operations}
-        self.assertIn("capability_search", operation_ids)
-        self.assertIn("capability_describe", operation_ids)
+        self.assertIn("assistant.node_capability.list@1", operation_ids)
+        self.assertIn("assistant.node_capability.describe@1", operation_ids)
         model = SequencedDiscoveryModel()
 
         with tempfile.TemporaryDirectory() as directory:
@@ -68,8 +75,8 @@ class CapabilityDiscoveryAgentTests(unittest.IsolatedAsyncioTestCase):
                         FrameKind.TOOL_RESPONSE,
                         {
                             "invocation_id": "invoke-discovery",
-                            "call_id": "search-call",
-                            "output_json": '{"capabilities":[{"reference":{"id":"ImageToVideo","version":"1.0"}}]}',
+                            "call_id": "list-call",
+                            "output_json": '{"capabilities":[{"contract_ref":"video.generate_from_image@1.0"}]}',
                         },
                     ),
                     (
@@ -86,17 +93,20 @@ class CapabilityDiscoveryAgentTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             [frame.payload["operation_id"] for frame in frames if frame.kind is FrameKind.TOOL_REQUEST],
-            ["capability_search", "capability_describe"],
+            [
+                "assistant.node_capability.list@1",
+                "assistant.node_capability.describe@1",
+            ],
         )
         self.assertEqual(
             [frame.payload["arguments_json"] for frame in frames if frame.kind is FrameKind.TOOL_REQUEST],
             [
-                '{"query":"video","kinds":null}',
-                '{"refs":[{"id":"ImageToVideo","version":"1.0"}]}',
+                "{}",
+                '{"contract_refs":["video.generate_from_image@1.0"]}',
             ],
         )
-        self.assertIn("capability_search", model.tool_names)
-        self.assertIn("capability_describe", model.tool_names)
+        self.assertIn("assistant.node_capability.list@1", model.tool_names)
+        self.assertIn("assistant.node_capability.describe@1", model.tool_names)
         self.assertEqual(frames[-1].kind, FrameKind.COMPLETED)
         self.assertEqual(frames[-1].payload["final_output"], "discovery complete")
 

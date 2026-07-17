@@ -1,0 +1,257 @@
+[
+  {
+    "capability_ref": {
+      "id": "audio.read_asset",
+      "version": "1.0"
+    },
+    "execution_kind": "managed_asset_read",
+    "inputs": [],
+    "outputs": [
+      {
+        "data_type": "audio",
+        "is_primary": true,
+        "key": "audio"
+      }
+    ],
+    "parameters": [
+      {
+        "constraint": {
+          "kind": "managed_asset_id",
+          "media_kind": "audio"
+        },
+        "key": "asset_id",
+        "presence": {
+          "kind": "required"
+        }
+      }
+    ]
+  },
+  {
+    "capability_ref": {
+      "id": "audio.synthesize_speech_from_text",
+      "version": "1.0"
+    },
+    "execution_kind": "content_generation",
+    "inputs": [
+      {
+        "binding": {
+          "data_type": "text",
+          "kind": "required_single_value"
+        },
+        "key": "text"
+      }
+    ],
+    "outputs": [
+      {
+        "data_type": "audio",
+        "is_primary": true,
+        "key": "audio"
+      }
+    ],
+    "parameters": [
+      {
+        "constraint": {
+          "kind": "generation_profile_ref"
+        },
+        "key": "generation_profile_ref",
+        "presence": {
+          "kind": "required"
+        }
+      }
+    ]
+  },
+  {
+    "capability_ref": {
+      "id": "image.generate_from_text",
+      "version": "1.0"
+    },
+    "execution_kind": "content_generation",
+    "inputs": [
+      {
+        "binding": {
+          "data_type": "text",
+          "kind": "required_single_value"
+        },
+        "key": "prompt"
+      }
+    ],
+    "outputs": [
+      {
+        "data_type": "image",
+        "is_primary": true,
+        "key": "image"
+      }
+    ],
+    "parameters": [
+      {
+        "constraint": {
+          "kind": "generation_profile_ref"
+        },
+        "key": "generation_profile_ref",
+        "presence": {
+          "kind": "required"
+        }
+      },
+      {
+        "constraint": {
+          "kind": "choice_allowed_keys",
+          "values": [
+            "landscape_16_9",
+            "landscape_4_3",
+            "portrait_3_4",
+            "portrait_9_16",
+            "square"
+          ]
+        },
+        "key": "aspect_ratio",
+        "presence": {
+          "default": {
+            "kind": "choice",
+            "value": "square"
+          },
+          "kind": "optional_with_default"
+        }
+      }
+    ]
+  },
+  {
+    "capability_ref": {
+      "id": "image.read_asset",
+      "version": "1.0"
+    },
+    "execution_kind": "managed_asset_read",
+    "inputs": [],
+    "outputs": [
+      {
+        "data_type": "image",
+        "is_primary": true,
+        "key": "image"
+      }
+    ],
+    "parameters": [
+      {
+        "constraint": {
+          "kind": "managed_asset_id",
+          "media_kind": "image"
+        },
+        "key": "asset_id",
+        "presence": {
+          "kind": "required"
+        }
+      }
+    ]
+  },
+  {
+    "capability_ref": {
+      "id": "text.provide_literal",
+      "version": "1.0"
+    },
+    "execution_kind": "pure_value",
+    "inputs": [],
+    "outputs": [
+      {
+        "data_type": "text",
+        "is_primary": true,
+        "key": "text"
+      }
+    ],
+    "parameters": [
+      {
+        "constraint": {
+          "kind": "text_utf8_bytes",
+          "maximum": 65536,
+          "minimum": 1
+        },
+        "key": "text",
+        "presence": {
+          "kind": "required"
+        }
+      }
+    ]
+  },
+  {
+    "capability_ref": {
+      "id": "video.generate_from_image",
+      "version": "1.0"
+    },
+    "execution_kind": "media_transformation",
+    "inputs": [
+      {
+        "binding": {
+          "data_type": "image",
+          "kind": "required_single_value"
+        },
+        "key": "image"
+      },
+      {
+        "binding": {
+          "data_type": "text",
+          "kind": "optional_single_value"
+        },
+        "key": "prompt"
+      }
+    ],
+    "outputs": [
+      {
+        "data_type": "video",
+        "is_primary": true,
+        "key": "video"
+      }
+    ],
+    "parameters": [
+      {
+        "constraint": {
+          "kind": "generation_profile_ref"
+        },
+        "key": "generation_profile_ref",
+        "presence": {
+          "kind": "required"
+        }
+      },
+      {
+        "constraint": {
+          "kind": "unsigned_integer_allowed_values",
+          "values": [
+            "5",
+            "10"
+          ]
+        },
+        "key": "duration_seconds",
+        "presence": {
+          "default": {
+            "kind": "unsigned_integer",
+            "value": "5"
+          },
+          "kind": "optional_with_default"
+        }
+      }
+    ]
+  },
+  {
+    "capability_ref": {
+      "id": "video.read_asset",
+      "version": "1.0"
+    },
+    "execution_kind": "managed_asset_read",
+    "inputs": [],
+    "outputs": [
+      {
+        "data_type": "video",
+        "is_primary": true,
+        "key": "video"
+      }
+    ],
+    "parameters": [
+      {
+        "constraint": {
+          "kind": "managed_asset_id",
+          "media_kind": "video"
+        },
+        "key": "asset_id",
+        "presence": {
+          "kind": "required"
+        }
+      }
+    ]
+  }
+]

@@ -4,12 +4,14 @@ use crate::params::{
     canonicalize_mode, optional_param, reject_unknown_params, string_param, text_input,
 };
 use crate::ports::{output, required_input};
-use crate::{GenerationContext, SharedAssetStore, TextToImageGenerator, TextToImageRequest};
+use crate::{
+    GenerationContextInterface, SharedAssetStore, TextToImageGeneratorInterface, TextToImageRequest,
+};
 use assets::AssetKind;
 use engine::{
     CapabilityContract, CapabilityEffect, CapabilityPort, CapabilityPresentation, CapabilityRef,
-    CapabilityRegistration, CapabilitySelector, InputPort, Node, NodeInputs, NodeParams,
-    NodeRunContext, NodeRunError, NodeRunResult, OutputPort, PortType, Value,
+    CapabilityRegistration, CapabilitySelector, InputPort, NodeInputs, NodeInterface, NodeParams,
+    NodeRunContextImpl, NodeRunError, NodeRunResult, OutputPort, PortType, WorkflowNodeValue,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -19,7 +21,7 @@ const TYPE_ID: &str = "TextToImage";
 const MODE: &str = "text";
 
 pub(crate) fn registration(
-    generator: Arc<dyn TextToImageGenerator>,
+    generator: Arc<dyn TextToImageGeneratorInterface>,
     store: SharedAssetStore,
 ) -> CapabilityRegistration {
     let contract = CapabilityContract::new(
@@ -53,7 +55,7 @@ pub(crate) fn registration(
         ),
         Box::new(normalize_params),
         Box::new(move |params| {
-            TextToImageNode::from_params(params, Arc::clone(&generator), Arc::clone(&store))
+            TextToImageNodeImpl::from_params(params, Arc::clone(&generator), Arc::clone(&store))
                 .map(boxed_node)
                 .map_err(boxed)
         }),
@@ -89,8 +91,8 @@ fn normalize_params(params: &NodeParams) -> Result<NodeParams, NodeRunError> {
     Ok(normalized)
 }
 
-struct TextToImageNode {
-    generator: Arc<dyn TextToImageGenerator>,
+struct TextToImageNodeImpl {
+    generator: Arc<dyn TextToImageGeneratorInterface>,
     store: SharedAssetStore,
     model: String,
     negative_prompt: Option<String>,
@@ -100,10 +102,10 @@ struct TextToImageNode {
     outputs: Vec<OutputPort>,
 }
 
-impl TextToImageNode {
+impl TextToImageNodeImpl {
     fn from_params(
         params: &NodeParams,
-        generator: Arc<dyn TextToImageGenerator>,
+        generator: Arc<dyn TextToImageGeneratorInterface>,
         store: SharedAssetStore,
     ) -> Result<Self, NodesError> {
         Ok(Self {
@@ -129,7 +131,7 @@ impl TextToImageNode {
     }
 }
 
-impl Node for TextToImageNode {
+impl NodeInterface for TextToImageNodeImpl {
     fn type_id(&self) -> &str {
         TYPE_ID
     }
@@ -145,7 +147,7 @@ impl Node for TextToImageNode {
     fn run(
         &self,
         inputs: &NodeInputs,
-        context: &mut NodeRunContext,
+        context: &mut NodeRunContextImpl,
     ) -> Result<NodeRunResult, NodeRunError> {
         let prompt = text_input(inputs, "prompt").map_err(boxed)?;
         info!(type_id = TYPE_ID, "generating image from text");
@@ -153,7 +155,7 @@ impl Node for TextToImageNode {
             .generator
             .generate(self.request(prompt), context)
             .map_err(|source| generation_error("generate image", source))?;
-        GenerationContext::ensure_active(context)
+        GenerationContextInterface::ensure_active(context)
             .map_err(|source| generation_error("generate image", source))?;
         let asset = store_generated_asset(
             &self.store,
@@ -169,12 +171,12 @@ impl Node for TextToImageNode {
         )
         .map_err(boxed)?;
         Ok(NodeRunResult {
-            outputs: BTreeMap::from([("image".to_owned(), Value::Image(asset.id))]),
+            outputs: BTreeMap::from([("image".to_owned(), WorkflowNodeValue::Image(asset.id))]),
             cost: output.cost,
         })
     }
 }
 
-fn boxed_node(node: TextToImageNode) -> Box<dyn Node> {
+fn boxed_node(node: TextToImageNodeImpl) -> Box<dyn NodeInterface> {
     Box::new(node)
 }

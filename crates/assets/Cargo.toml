@@ -5,12 +5,21 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+autotests = false
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
 
 [dependencies]
+async-trait.workspace = true
+projects.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 tracing.workspace = true
+uuid.workspace = true
 rusqlite.workspace = true
 image.workspace = true
 getrandom.workspace = true
