@@ -37,6 +37,8 @@ pub mod desktop_bridges;
 pub mod desktop_node_capability_asset_bridge;
 pub mod dto;
 pub mod generation_task_asset_sink_adapter;
+pub mod generation_task_effect_worker;
+pub mod generation_task_origin_state_adapter;
 pub mod generation_task_start_adapter;
 pub mod generation_task_storage_adapter;
 pub mod generation_task_workflow_completion_adapter;
@@ -126,8 +128,10 @@ pub fn run() -> tauri::Result<()> {
             )
             .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
             let worker = project_commands.post_commit_worker.clone();
+            let task_worker = project_commands.generation_task_effect_worker.clone();
             app.manage(project_commands);
             tauri::async_runtime::spawn(run_post_commit_worker(worker));
+            tauri::async_runtime::spawn(run_generation_task_effect_worker(task_worker));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -156,6 +160,22 @@ pub fn run() -> tauri::Result<()> {
             workflow_get_node_presentation,
         ])
         .run(tauri::generate_context!())
+}
+
+async fn run_generation_task_effect_worker(worker: composition::DesktopTaskWorker) {
+    use generation_task_effect_worker::GenerationTaskEffectWorkerStep;
+    loop {
+        match worker.run_effect_batch().await {
+            Ok(steps) if steps.iter().all(|step| *step == GenerationTaskEffectWorkerStep::Idle) => {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                tracing::error!(?error, "Generation Task effect worker iteration failed");
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            }
+        }
+    }
 }
 
 async fn run_post_commit_worker(worker: post_commit_worker::DesktopPostCommitEffectWorker) {

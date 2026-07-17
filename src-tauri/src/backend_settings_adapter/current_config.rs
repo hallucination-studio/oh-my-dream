@@ -67,6 +67,7 @@ pub(super) fn project(
         post_commit_effect_concurrency: current.post_commit_effect_concurrency,
         workflow_run_concurrency: current.workflow_run_concurrency,
         workflow_node_concurrency: current.workflow_node_concurrency,
+        generation_task_effect_concurrency: current.generation_task_effect_concurrency,
         asset_reconciliation_policy: current.asset_reconciliation_policy,
         asset_preview_policy: current.asset_preview_policy,
         generation_provider_routes: Vec::new(),

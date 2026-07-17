@@ -125,6 +125,8 @@ pub struct DesktopActivatedCommandDependencies {
     pub assistant: Arc<dyn crate::assistant_commands_v5::DesktopAssistantCommandInterface>,
     /// Closed durable effect worker shared by Workflow, Asset, and Assistant.
     pub post_commit_worker: DesktopPostCommitEffectWorker,
+    /// Closed worker for the four Generation Task effect kinds.
+    pub generation_task_effect_worker: super::DesktopTaskWorker,
     _metadata_connection: Arc<Mutex<Connection>>,
 }
 
@@ -229,6 +231,11 @@ async fn dependencies(
     let workflow_identities = Arc::new(UuidV4WorkflowIdentityGeneratorAdapterImpl);
     let workflow_publisher = Arc::new(TauriWorkflowRunEventPublisherAdapterImpl::new(emitter));
     let cancellations = Arc::new(WorkflowExecutionCancellationRegistry::default());
+    let generation_task_effect_worker = super::compose_generation_task_effect_worker(
+        &workflow_repository,
+        &node_composition,
+        &config,
+    )?;
     let workflow_executor = Arc::new(
         engine::workflow::WorkflowExecuteRunUseCase::try_new(
             workflow_repository.clone(),
@@ -339,6 +346,7 @@ async fn dependencies(
         asset_import_source_picker,
         assistant: assistant.commands,
         post_commit_worker: worker,
+        generation_task_effect_worker,
         _metadata_connection: connection,
     })
 }

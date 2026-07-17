@@ -31,6 +31,7 @@ use tasks::generation_task::domain::{
 use tasks::generation_task::interfaces::GenerationTaskAssetSinkInterface;
 
 /// Asset-backed media sink consumed by Generation Task effect application.
+#[derive(Clone)]
 pub struct DesktopGenerationTaskAssetSinkAdapterImpl {
     recover_node_output: Arc<AssetRecoverNodeOutputUseCase>,
     record_node_output: Arc<AssetRecordNodeOutputUseCase>,

@@ -33,6 +33,16 @@ pub trait GenerationTaskOutboxReaderInterface: Send + Sync {
     ) -> Result<u64, GenerationTaskRepositoryError>;
 }
 
+/// Closed effect execution boundary consumed only by the Task worker.
+#[async_trait]
+pub trait GenerationTaskEffectExecutorInterface: Send + Sync {
+    /// Executes exactly one claimed Task effect and commits its outbox disposition.
+    async fn execute_generation_task_effect(
+        &self,
+        claimed: GenerationTaskClaimedEffect,
+    ) -> Result<(), crate::generation_task::application::GenerationTaskApplicationError>;
+}
+
 /// Atomic aggregate and outbox persistence boundary.
 #[async_trait]
 pub trait GenerationTaskRepositoryInterface: Send + Sync {
@@ -99,6 +109,14 @@ pub trait GenerationTaskClockInterface: Send + Sync {
     fn observe_generation_task_time(
         &self,
     ) -> Result<GenerationTaskTimestamp, GenerationTaskBoundaryError>;
+}
+
+impl<T: GenerationTaskClockInterface + ?Sized> GenerationTaskClockInterface for Arc<T> {
+    fn observe_generation_task_time(
+        &self,
+    ) -> Result<GenerationTaskTimestamp, GenerationTaskBoundaryError> {
+        self.as_ref().observe_generation_task_time()
+    }
 }
 
 /// Exact Workflow-origin state reader used before every provider or Asset effect.

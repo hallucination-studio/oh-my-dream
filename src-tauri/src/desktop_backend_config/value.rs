@@ -29,6 +29,7 @@ pub struct DesktopBackendConfig {
     pub post_commit_effect_concurrency: u8,
     pub workflow_run_concurrency: u8,
     pub workflow_node_concurrency: u8,
+    pub generation_task_effect_concurrency: u8,
     pub asset_reconciliation_policy: AssetReconciliationPolicy,
     pub asset_preview_policy: AssetPreviewPolicy,
     pub generation_provider_routes: Vec<GenerationProviderRouteConfig>,
@@ -43,6 +44,7 @@ impl Default for DesktopBackendConfig {
             post_commit_effect_concurrency: 4,
             workflow_run_concurrency: 1,
             workflow_node_concurrency: 2,
+            generation_task_effect_concurrency: 4,
             asset_reconciliation_policy: AssetReconciliationPolicy::default(),
             asset_preview_policy: AssetPreviewPolicy::default(),
             generation_provider_routes: Vec::new(),
@@ -83,6 +85,7 @@ impl DesktopBackendConfig {
             self.post_commit_effect_concurrency,
             self.workflow_run_concurrency,
             self.workflow_node_concurrency,
+            self.generation_task_effect_concurrency,
         ];
         let route_keys = self
             .generation_provider_routes

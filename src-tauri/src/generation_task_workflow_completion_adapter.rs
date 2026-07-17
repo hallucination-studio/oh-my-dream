@@ -28,6 +28,7 @@ use tasks::generation_task::{
 };
 
 /// Applies terminal Generation Task outcomes through the canonical Workflow use case.
+#[derive(Clone)]
 pub struct DesktopGenerationTaskWorkflowCompletionAdapterImpl<R, C> {
     workflow_completion: Arc<WorkflowCompleteGenerationTaskUseCase<R, C>>,
     asset_get: Arc<AssetGetUseCase>,

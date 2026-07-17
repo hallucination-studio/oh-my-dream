@@ -20,6 +20,14 @@ use crate::{
         AssistantModelCredentialRepositoryInterface,
     },
     desktop_backend_config::{DesktopBackendConfig, DesktopBackendConfigRepositoryInterface},
+    generation_task_asset_sink_adapter::DesktopGenerationTaskAssetSinkAdapterImpl,
+    generation_task_effect_worker::{
+        DesktopGenerationTaskEffectExecutorImpl, GenerationTaskEffectWorkerImpl,
+    },
+    generation_task_origin_state_adapter::DesktopGenerationTaskOriginStateReaderAdapterImpl,
+    generation_task_start_adapter::SystemGenerationTaskClockAdapterImpl,
+    generation_task_storage_adapter::SqliteGenerationTaskRepositoryAdapterImpl,
+    generation_task_workflow_completion_adapter::DesktopGenerationTaskWorkflowCompletionAdapterImpl,
     metadata_sqlite::{metadata_sqlite_path, open_metadata_sqlite},
     post_commit_effect::{
         DesktopApplicationInstanceId, SqliteDesktopPostCommitEffectOutboxAdapterImpl,
@@ -30,11 +38,70 @@ use crate::{
         DesktopWorkflowRestartRecoveryAdapterImpl, DesktopWorkflowRunRestartInterrupterInterface,
         SystemDesktopPostCommitWorkerClockAdapterImpl,
     },
+    workflow_adapters::SystemWorkflowClockAdapterImpl,
     workflow_run_event_publisher::{
         DesktopEventEmitterInterface, TauriWorkflowRunEventPublisherAdapterImpl,
     },
     workflow_storage_adapters::SqliteWorkflowRunRepositoryAdapterImpl,
 };
+use backends::mock_generation_provider::MockGenerationProviderRegistryImpl;
+use engine::workflow::WorkflowCompleteGenerationTaskUseCase;
+
+type DesktopTaskExecutor = DesktopGenerationTaskEffectExecutorImpl<
+    SqliteGenerationTaskRepositoryAdapterImpl,
+    Arc<MockGenerationProviderRegistryImpl>,
+    DesktopGenerationTaskOriginStateReaderAdapterImpl<SqliteWorkflowRunRepositoryAdapterImpl>,
+    DesktopGenerationTaskAssetSinkAdapterImpl,
+    DesktopGenerationTaskWorkflowCompletionAdapterImpl<
+        SqliteWorkflowRunRepositoryAdapterImpl,
+        SystemWorkflowClockAdapterImpl,
+    >,
+    Arc<SystemGenerationTaskClockAdapterImpl>,
+>;
+pub(crate) type DesktopTaskWorker = GenerationTaskEffectWorkerImpl<
+    SqliteGenerationTaskRepositoryAdapterImpl,
+    DesktopTaskExecutor,
+    SystemGenerationTaskClockAdapterImpl,
+>;
+
+fn compose_generation_task_effect_worker(
+    workflow_repository: &Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
+    nodes: &node_capabilities::DesktopNodeCapabilityComposition,
+    config: &DesktopBackendConfig,
+) -> Result<DesktopTaskWorker, DesktopCompositionError> {
+    let task_clock = Arc::new(SystemGenerationTaskClockAdapterImpl::default());
+    let task_asset_sink = DesktopGenerationTaskAssetSinkAdapterImpl::new(
+        nodes.asset_recover_node_output.clone(),
+        nodes.asset_record_node_output.clone(),
+    );
+    let task_origin_reader = DesktopGenerationTaskOriginStateReaderAdapterImpl::new(
+        workflow_repository.as_ref().clone(),
+    );
+    let workflow_completion = Arc::new(WorkflowCompleteGenerationTaskUseCase::new(
+        Arc::new(workflow_repository.as_ref().clone()),
+        Arc::new(SystemWorkflowClockAdapterImpl),
+        nodes.registry.clone(),
+    ));
+    let task_workflow_completion = DesktopGenerationTaskWorkflowCompletionAdapterImpl::new(
+        workflow_completion,
+        nodes.asset_get.clone(),
+    );
+    let task_executor = Arc::new(DesktopGenerationTaskEffectExecutorImpl::new(
+        nodes.task_repository.clone(),
+        nodes.task_provider_registry.clone(),
+        task_origin_reader,
+        task_asset_sink,
+        task_workflow_completion,
+        task_clock.clone(),
+    ));
+    GenerationTaskEffectWorkerImpl::try_new(
+        Arc::new(nodes.task_repository.clone()),
+        task_executor,
+        task_clock,
+        usize::from(config.generation_task_effect_concurrency),
+    )
+    .map_err(|_| DesktopCompositionError::Worker)
+}
 
 mod activated_commands;
 mod assistant;
@@ -84,6 +151,8 @@ pub struct DesktopApplicationHost {
     pub workflow_repository: Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
     /// Closed worker started after recovery succeeds.
     pub post_commit_worker: DesktopPostCommitEffectWorker,
+    /// Closed Generation Task worker started after recovery succeeds.
+    pub generation_task_effect_worker: DesktopTaskWorker,
     startup_recovery: DesktopStartupRecovery,
     assistant_commands_enabled: bool,
     _metadata_connection: Arc<Mutex<Connection>>,
@@ -136,6 +205,7 @@ struct DesktopInfrastructureComposition {
     outbox: Arc<SqliteDesktopPostCommitEffectOutboxAdapterImpl>,
     publisher: Arc<dyn WorkflowRunEventPublisherInterface>,
     node_capabilities: Arc<WorkflowNodeCapabilityRegistry>,
+    generation_task_effect_worker: DesktopTaskWorker,
 }
 
 const EXACT_NODE_CAPABILITY_REFS: [&str; 7] = [
@@ -218,6 +288,11 @@ impl DesktopCompositionRoot {
             )
             .map_err(|_| DesktopCompositionError::Metadata)?,
         );
+        let generation_task_effect_worker = compose_generation_task_effect_worker(
+            &workflow_repository,
+            &node_composition,
+            &config,
+        )?;
         let publisher: Arc<dyn WorkflowRunEventPublisherInterface> =
             Arc::new(TauriWorkflowRunEventPublisherAdapterImpl::new(emitter));
         let business =
@@ -231,6 +306,7 @@ impl DesktopCompositionRoot {
                 outbox,
                 publisher,
                 node_capabilities: node_composition.registry,
+                generation_task_effect_worker,
             },
             business,
         )
@@ -249,6 +325,7 @@ impl DesktopCompositionRoot {
             outbox,
             publisher,
             node_capabilities,
+            generation_task_effect_worker,
         } = infrastructure;
         let instance_id = DesktopApplicationInstanceId::from_uuid(Uuid::new_v4())
             .map_err(|_| DesktopCompositionError::Worker)?;
@@ -280,6 +357,7 @@ impl DesktopCompositionRoot {
             node_capabilities,
             workflow_repository,
             post_commit_worker: worker,
+            generation_task_effect_worker,
             startup_recovery,
             assistant_commands_enabled,
             _metadata_connection: connection,

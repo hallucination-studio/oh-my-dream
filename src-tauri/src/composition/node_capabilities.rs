@@ -6,7 +6,8 @@ use std::{
 use assets::asset::{
     application::{
         AssetFinalizeContentUseCase, AssetGetUseCase, AssetImportUseCase, AssetIssuePreviewUseCase,
-        AssetListUseCase, AssetRecordNodeOutputUseCase, AssetResolveContentUseCase,
+        AssetListUseCase, AssetRecordNodeOutputUseCase, AssetRecoverNodeOutputUseCase,
+        AssetResolveContentUseCase,
     },
     interfaces::{
         AssetClockInterface, AssetIdentityGeneratorInterface, AssetIngestTransactionInterface,
@@ -68,6 +69,10 @@ pub(super) struct DesktopNodeCapabilityComposition {
     pub(super) asset_issue_preview: Arc<AssetIssuePreviewUseCase>,
     pub(super) asset_preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
     pub(super) asset_finalizer: Arc<AssetFinalizeContentUseCase>,
+    pub(super) task_repository: SqliteGenerationTaskRepositoryAdapterImpl,
+    pub(super) task_provider_registry: Arc<MockGenerationProviderRegistryImpl>,
+    pub(super) asset_recover_node_output: Arc<AssetRecoverNodeOutputUseCase>,
+    pub(super) asset_record_node_output: Arc<AssetRecordNodeOutputUseCase>,
 }
 
 pub(super) fn compose_node_capabilities(
@@ -97,8 +102,8 @@ pub(super) fn compose_node_capabilities(
     );
     let task_starter: Arc<dyn NodeCapabilityGenerationTaskStarterInterface> =
         Arc::new(DesktopNodeCapabilityGenerationTaskStartAdapterImpl::new(
-            task_repository,
-            task_registry,
+            task_repository.clone(),
+            task_registry.clone(),
             SystemGenerationTaskClockAdapterImpl::default(),
         ));
     let implementations: Vec<Arc<dyn WorkflowNodeCapabilityInterface>> = vec![
@@ -159,6 +164,10 @@ pub(super) fn compose_node_capabilities(
         asset_issue_preview: assets.issue_preview,
         asset_preview_protocol: assets.preview_protocol,
         asset_finalizer: assets.finalizer,
+        task_repository,
+        task_provider_registry: task_registry,
+        asset_recover_node_output: assets.recover_node_output,
+        asset_record_node_output: assets.record_node_output,
     })
 }
 
@@ -171,6 +180,8 @@ struct DesktopAssetComposition {
     issue_preview: Arc<AssetIssuePreviewUseCase>,
     preview_protocol: Arc<DesktopAssetPreviewProtocolAdapterImpl>,
     finalizer: Arc<AssetFinalizeContentUseCase>,
+    recover_node_output: Arc<AssetRecoverNodeOutputUseCase>,
+    record_node_output: Arc<AssetRecordNodeOutputUseCase>,
 }
 
 fn compose_asset_bridge(
@@ -225,7 +236,7 @@ fn compose_asset_bridge(
         .map_err(|_| DesktopCompositionError::Business)?,
     );
     let record = Arc::new(AssetRecordNodeOutputUseCase::new(
-        repository,
+        repository.clone(),
         ingest,
         managed,
         inspector,
@@ -233,8 +244,9 @@ fn compose_asset_bridge(
         identities,
         finalizer.clone(),
     ));
+    let recover_node_output = Arc::new(AssetRecoverNodeOutputUseCase::new(repository.clone()));
     Ok(DesktopAssetComposition {
-        bridge: Arc::new(DesktopNodeCapabilityAssetBridgeAdapterImpl::new(resolve, record)),
+        bridge: Arc::new(DesktopNodeCapabilityAssetBridgeAdapterImpl::new(resolve, record.clone())),
         preview_issuer: Arc::new(DesktopWorkflowMediaPreviewAdapterImpl::new(
             issue_preview.clone(),
             preview_protocol.clone(),
@@ -245,6 +257,8 @@ fn compose_asset_bridge(
         issue_preview,
         preview_protocol,
         finalizer,
+        recover_node_output,
+        record_node_output: record,
     })
 }
 
