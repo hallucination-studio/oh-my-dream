@@ -10,6 +10,8 @@ pub enum DesktopErrorCode {
     NodeCapabilityInvalidRequest,
     GenerationProviderSettingsInvalidRequest,
     GenerationProviderSettingsRevisionConflict,
+    GenerationTaskInvalidRequest,
+    GenerationTaskNotFound,
     WorkflowInvalidRequest,
     WorkflowNotFound,
     WorkflowRevisionConflict,
@@ -120,6 +122,12 @@ fn safe_error(code: DesktopErrorCode) -> (&'static str, &'static str) {
             "generation_provider_settings.revision_conflict",
             "Generation Provider Settings changed. Reload and try again.",
         ),
+        DesktopErrorCode::GenerationTaskInvalidRequest => {
+            ("generation_task.invalid_request", "The Generation Task request was invalid.")
+        }
+        DesktopErrorCode::GenerationTaskNotFound => {
+            ("generation_task.not_found", "The Generation Task was not found.")
+        }
         DesktopErrorCode::WorkflowInvalidRequest => {
             ("workflow.invalid_request", "The Workflow request was invalid.")
         }

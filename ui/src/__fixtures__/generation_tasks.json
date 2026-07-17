@@ -1,0 +1,51 @@
+{
+  "tasks": [
+    {
+      "id": "123e4567-e89b-42d3-a456-426600000030",
+      "project_id": "123e4567-e89b-42d3-a456-426600000001",
+      "workflow_id": "123e4567-e89b-42d3-a456-426600000002",
+      "workflow_run_id": "123e4567-e89b-42d3-a456-426600000031",
+      "workflow_node_id": "123e4567-e89b-42d3-a456-426600000032",
+      "workflow_node_execution_id": "123e4567-e89b-42d3-a456-426600000033",
+      "request_kind": "image",
+      "status": "succeeded",
+      "progress_percent": null,
+      "generation_profile_ref": "image.high_quality_general@1",
+      "provider_id": "mock",
+      "provider_display_name": "Mock",
+      "prompt_preview": "A lighthouse above a stormy sea",
+      "preview_asset_id": "123e4567-e89b-42d3-a456-426600000020",
+      "has_result": true,
+      "failure": null,
+      "created_at_epoch_ms": "1000",
+      "updated_at_epoch_ms": "2000",
+      "completed_at_epoch_ms": "2000"
+    },
+    {
+      "id": "123e4567-e89b-42d3-a456-426600000030",
+      "project_id": "123e4567-e89b-42d3-a456-426600000001",
+      "workflow_id": "123e4567-e89b-42d3-a456-426600000002",
+      "workflow_run_id": "123e4567-e89b-42d3-a456-426600000031",
+      "workflow_node_id": "123e4567-e89b-42d3-a456-426600000032",
+      "workflow_node_execution_id": "123e4567-e89b-42d3-a456-426600000033",
+      "request_kind": "image",
+      "status": "failed",
+      "progress_percent": null,
+      "generation_profile_ref": "image.high_quality_general@1",
+      "provider_id": "mock",
+      "provider_display_name": "Mock",
+      "prompt_preview": "A lighthouse above a stormy sea",
+      "preview_asset_id": null,
+      "has_result": false,
+      "failure": {
+        "kind": "provider_rejected",
+        "code": "CONTENT_POLICY",
+        "message": "The provider rejected this request."
+      },
+      "created_at_epoch_ms": "1000",
+      "updated_at_epoch_ms": "2100",
+      "completed_at_epoch_ms": "2100"
+    }
+  ],
+  "next_cursor": "AQIDBAUGBwgJCgsMDQ4PEA"
+}

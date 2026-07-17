@@ -22,6 +22,7 @@ use projects::project::{
     interfaces::{ProjectRepositoryInterface, ProjectWorkflowSummaryReaderInterface},
 };
 use rusqlite::Connection;
+use tasks::generation_task::{GenerationTaskGetUseCase, GenerationTaskListUseCase};
 
 use super::{DesktopApplicationPaths, DesktopCompositionError, node_capabilities};
 use crate::{
@@ -32,6 +33,7 @@ use crate::{
     desktop_bridges::{
         DesktopProjectWorkflowBridgeAdapterImpl, DesktopWorkflowMediaPreviewAdapterImpl,
     },
+    generation_task_storage_adapter::SqliteGenerationTaskRepositoryAdapterImpl,
     metadata_sqlite::{metadata_sqlite_path, open_metadata_sqlite},
     post_commit_effect::{
         DesktopApplicationInstanceId, SqliteDesktopPostCommitEffectOutboxAdapterImpl,
@@ -84,6 +86,15 @@ pub struct DesktopActivatedCommandDependencies {
     /// Revision-CAS Mock provider Settings mutation boundary.
     pub generation_provider_settings_apply:
         Arc<GenerationProviderSettingsApplyUseCase<SqliteDesktopBackendSettingsAdapterImpl>>,
+    /// Project-scoped Generation Task get boundary.
+    pub generation_task_get:
+        Arc<GenerationTaskGetUseCase<SqliteGenerationTaskRepositoryAdapterImpl>>,
+    /// Stable bounded Project-scoped Generation Task list boundary.
+    pub generation_task_list:
+        Arc<GenerationTaskListUseCase<SqliteGenerationTaskRepositoryAdapterImpl>>,
+    /// Immutable provider contracts used only for safe display-name projection.
+    pub generation_task_provider_contracts:
+        Arc<Vec<tasks::generation_task::GenerationProviderContract>>,
     /// Idempotent current Workflow creation boundary.
     pub workflow_create:
         Arc<WorkflowCreateUseCase<WorkflowRepository, WorkflowClock, WorkflowIdentities>>,
@@ -319,6 +330,13 @@ async fn dependencies(
         )),
         generation_provider_settings_get,
         generation_provider_settings_apply,
+        generation_task_get: Arc::new(GenerationTaskGetUseCase::new(
+            node_composition.task_repository.clone(),
+        )),
+        generation_task_list: Arc::new(GenerationTaskListUseCase::new(
+            node_composition.task_repository.clone(),
+        )),
+        generation_task_provider_contracts: node_composition.task_provider_contracts,
         workflow_create: Arc::new(WorkflowCreateUseCase::new(
             workflow_repository.clone(),
             workflow_clock.clone(),

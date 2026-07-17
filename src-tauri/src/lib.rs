@@ -38,6 +38,8 @@ pub mod desktop_node_capability_asset_bridge;
 pub mod dto;
 pub mod generation_provider_settings_commands;
 pub mod generation_task_asset_sink_adapter;
+pub mod generation_task_command_dto;
+pub mod generation_task_commands;
 pub mod generation_task_effect_worker;
 pub mod generation_task_origin_state_adapter;
 pub mod generation_task_start_adapter;
@@ -77,6 +79,7 @@ use assistant_commands_v5::{
 use generation_provider_settings_commands::{
     generation_provider_settings_apply, generation_provider_settings_get,
 };
+use generation_task_commands::{generation_task_get, generation_task_list};
 use node_capability_commands::{generation_profile_list_for_capability, node_capability_list};
 use project_commands::{project_create, project_get, project_list, project_open, project_rename};
 use tauri::Manager;
@@ -161,6 +164,8 @@ pub fn run() -> tauri::Result<()> {
             generation_profile_list_for_capability,
             generation_provider_settings_get,
             generation_provider_settings_apply,
+            generation_task_get,
+            generation_task_list,
             workflow_create,
             workflow_get_current,
             workflow_apply_mutation,

@@ -111,6 +111,72 @@ export interface GenerationProviderSettingsApplyRequestDto {
   action: GenerationProviderSettingsActionDto;
 }
 
+export type GenerationTaskStatusDto =
+  | "queued"
+  | "running"
+  | "cancel_requested"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+
+export type GenerationTaskRequestKindDto = "text" | "image" | "video" | "voice";
+
+export type GenerationTaskFailureKindDto =
+  | "invalid_request"
+  | "authentication"
+  | "permission_denied"
+  | "content_policy"
+  | "rate_limited"
+  | "provider_unavailable"
+  | "timeout"
+  | "provider_rejected"
+  | "invalid_provider_response"
+  | "ambiguous_submission"
+  | "input_asset_unavailable"
+  | "output_asset_import"
+  | "internal";
+
+export interface GenerationTaskFailureDto {
+  kind: GenerationTaskFailureKindDto;
+  code: string;
+  message: string;
+}
+
+export type GenerationTaskResultDto =
+  | { kind: "text"; content: string }
+  | { kind: "asset"; asset_id: string; media_kind: "image" | "video" | "audio" };
+
+export interface GenerationTaskSummaryDto {
+  id: string;
+  project_id: string;
+  workflow_id: string;
+  workflow_run_id: string;
+  workflow_node_id: string;
+  workflow_node_execution_id: string;
+  request_kind: GenerationTaskRequestKindDto;
+  status: GenerationTaskStatusDto;
+  progress_percent: number | null;
+  generation_profile_ref: string;
+  provider_id: string;
+  provider_display_name: string | null;
+  prompt_preview: string | null;
+  preview_asset_id: string | null;
+  has_result: boolean;
+  failure: GenerationTaskFailureDto | null;
+  created_at_epoch_ms: string;
+  updated_at_epoch_ms: string;
+  completed_at_epoch_ms: string | null;
+}
+
+export interface GenerationTaskDto extends GenerationTaskSummaryDto {
+  result: GenerationTaskResultDto | null;
+}
+
+export interface GenerationTaskListPageDto {
+  tasks: GenerationTaskSummaryDto[];
+  next_cursor: string | null;
+}
+
 export interface WorkflowHead {
   project_id: string;
   revision: number;

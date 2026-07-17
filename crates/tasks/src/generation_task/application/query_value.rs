@@ -4,8 +4,9 @@ use projects::project::domain::ProjectId;
 
 use super::GenerationTaskApplicationError;
 use crate::generation_task::domain::{
-    GenerationTaskAggregate, GenerationTaskId, GenerationTaskOrigin, GenerationTaskRequestKind,
-    GenerationTaskState, GenerationTaskTimestamp,
+    GenerationTaskAggregate, GenerationTaskFailure, GenerationTaskId, GenerationTaskOrigin,
+    GenerationTaskRequest, GenerationTaskRequestKind, GenerationTaskResult, GenerationTaskState,
+    GenerationTaskTarget, GenerationTaskTimestamp,
 };
 
 /// Stable task-list status projection.
@@ -49,12 +50,22 @@ pub struct GenerationTaskSummaryView {
     pub origin: GenerationTaskOrigin,
     /// Request-owned kind.
     pub request_kind: GenerationTaskRequestKind,
+    /// Immutable admitted profile and provider identity.
+    pub target: GenerationTaskTarget,
+    /// Immutable semantic request used for the safe prompt preview.
+    pub request: GenerationTaskRequest,
     /// Normalized current status.
     pub status: GenerationTaskStatus,
     /// Known normalized progress.
     pub progress_percent: Option<u8>,
     /// Whether a terminal result is present.
     pub has_result: bool,
+    /// Optional durable result projection source.
+    pub result: Option<GenerationTaskResult>,
+    /// Optional terminal completion time.
+    pub completed_at: Option<GenerationTaskTimestamp>,
+    /// Optional safe terminal failure.
+    pub failure: Option<GenerationTaskFailure>,
     /// Creation time used for stable ordering.
     pub created_at: GenerationTaskTimestamp,
     /// Latest transition time.
@@ -69,9 +80,14 @@ impl GenerationTaskSummaryView {
             id: task.id(),
             origin: task.origin().clone(),
             request_kind: task.request().kind(),
+            target: task.target().clone(),
+            request: task.request().clone(),
             status: GenerationTaskStatus::from_state(task.state()),
             progress_percent: task.progress_percent(),
             has_result: task.result().is_some(),
+            result: task.result().cloned(),
+            completed_at: task.completed_at(),
+            failure: task.failure().cloned(),
             created_at: task.created_at(),
             updated_at: task.updated_at(),
         }

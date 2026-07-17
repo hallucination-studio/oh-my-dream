@@ -8,6 +8,8 @@ import openProjectFixture from "../__fixtures__/open_project.json";
 import nodeCapabilitiesFixture from "../__fixtures__/node_capabilities.json";
 import generationProfilesFixture from "../__fixtures__/generation_profiles.json";
 import generationProviderSettingsFixture from "../__fixtures__/generation_provider_settings.json";
+import generationTaskFixture from "../__fixtures__/generation_task.json";
+import generationTasksFixture from "../__fixtures__/generation_tasks.json";
 import projectFixture from "../__fixtures__/project.json";
 import workflowFixture from "../__fixtures__/workflow.json";
 import workflowRunFixture from "../__fixtures__/workflow_run.json";
@@ -21,6 +23,9 @@ import type {
   OpenProjectResult,
   Project,
   GenerationProviderSettingsDto,
+  GenerationTaskDto,
+  GenerationTaskListPageDto,
+  GenerationTaskSummaryDto,
 } from "./types.ts";
 import type { NodeProgressEvent } from "../workflow/types.ts";
 
@@ -35,6 +40,8 @@ describe("backend DTO fixtures", () => {
     expect(isNodeCapabilityList(nodeCapabilitiesFixture)).toBe(true);
     expect(isGenerationProfileList(generationProfilesFixture)).toBe(true);
     expect(isGenerationProviderSettings(generationProviderSettingsFixture)).toBe(true);
+    expect(isGenerationTask(generationTaskFixture)).toBe(true);
+    expect(isGenerationTaskListPage(generationTasksFixture)).toBe(true);
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
     expect(isCapabilityCatalog(capabilityCatalogFixture)).toBe(true);
     if (!isAssistantApprovalFixture(assistantApprovalFixture)) {
@@ -75,6 +82,56 @@ function isAssistantApprovalFixture(value: unknown): value is {
     typeof decision.mutation_digest_hex === "string" &&
     (decision.decision === "approve" || decision.decision === "reject")
   );
+}
+
+function isGenerationTask(value: unknown): value is GenerationTaskDto {
+  if (!isRecord(value) || !(value.result === null || isGenerationTaskResult(value.result))) {
+    return false;
+  }
+  return isGenerationTaskSummary(value);
+}
+
+function isGenerationTaskListPage(value: unknown): value is GenerationTaskListPageDto {
+  return isRecord(value) && Array.isArray(value.tasks) && value.tasks.every(isGenerationTaskSummary)
+    && (value.next_cursor === null || typeof value.next_cursor === "string");
+}
+
+function isGenerationTaskSummary(value: unknown): value is GenerationTaskSummaryDto {
+  if (!isRecord(value)) return false;
+  const encoded = JSON.stringify(value);
+  if (/route_id|remote_task_id|credential|signed_url|raw_payload|native_model/.test(encoded)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.project_id === "string" &&
+    typeof value.workflow_id === "string" &&
+    typeof value.workflow_run_id === "string" &&
+    typeof value.workflow_node_id === "string" &&
+    typeof value.workflow_node_execution_id === "string" &&
+    ["text", "image", "video", "voice"].includes(String(value.request_kind)) &&
+    ["queued", "running", "cancel_requested", "succeeded", "failed", "cancelled"].includes(String(value.status)) &&
+    (value.progress_percent === null || (typeof value.progress_percent === "number" && value.progress_percent >= 0 && value.progress_percent <= 100)) &&
+    typeof value.generation_profile_ref === "string" &&
+    typeof value.provider_id === "string" &&
+    (value.provider_display_name === null || typeof value.provider_display_name === "string") &&
+    (value.prompt_preview === null || typeof value.prompt_preview === "string") &&
+    (value.preview_asset_id === null || typeof value.preview_asset_id === "string") &&
+    typeof value.has_result === "boolean" &&
+    (value.failure === null || isGenerationTaskFailure(value.failure)) &&
+    typeof value.created_at_epoch_ms === "string" &&
+    typeof value.updated_at_epoch_ms === "string" &&
+    (value.completed_at_epoch_ms === null || typeof value.completed_at_epoch_ms === "string")
+  );
+}
+
+function isGenerationTaskFailure(value: unknown): boolean {
+  return isRecord(value) && typeof value.kind === "string" && typeof value.code === "string"
+    && typeof value.message === "string";
+}
+
+function isGenerationTaskResult(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.kind !== "string") return false;
+  if (value.kind === "text") return typeof value.content === "string";
+  return value.kind === "asset" && typeof value.asset_id === "string" && typeof value.media_kind === "string";
 }
 
 function isGenerationProviderSettings(value: unknown): value is GenerationProviderSettingsDto {

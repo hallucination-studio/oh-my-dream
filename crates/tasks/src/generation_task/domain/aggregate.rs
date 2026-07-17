@@ -297,6 +297,21 @@ impl GenerationTaskAggregate {
         self.state.progress_percent()
     }
 
+    /// Returns the terminal completion time when the Task is terminal.
+    #[must_use]
+    pub const fn completed_at(&self) -> Option<GenerationTaskTimestamp> {
+        self.state.completed_at()
+    }
+
+    /// Returns the safe terminal failure when the Task failed.
+    #[must_use]
+    pub const fn failure(&self) -> Option<&GenerationTaskFailure> {
+        match self.state() {
+            GenerationTaskState::Failed { failure, .. } => Some(failure),
+            _ => None,
+        }
+    }
+
     /// Returns the single result only after success.
     #[must_use]
     pub const fn result(&self) -> Option<&GenerationTaskResult> {

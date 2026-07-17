@@ -14,6 +14,11 @@ use oh_my_dream_tauri::{
         GenerationProviderSettingsProfileDto, GenerationProviderSettingsProviderChoiceDto,
         GenerationProviderSettingsRouteChoiceDto,
     },
+    generation_task_command_dto::{
+        GenerationTaskDto, GenerationTaskFailureDto, GenerationTaskFailureKindDto,
+        GenerationTaskListPageDto, GenerationTaskRequestKindDto, GenerationTaskResultDto,
+        GenerationTaskStatusDto, GenerationTaskSummaryDto,
+    },
     node_capability_commands::{
         GenerationProfileListForCapabilityRequestDto, generation_profile_list_with_dependencies,
         node_capability_list_with_dependencies,
@@ -53,6 +58,11 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let assistant_approval = assistant_approval_contract::fixture();
     let (node_capabilities, generation_profiles) = node_capability_fixtures();
     let generation_provider_settings = generation_provider_settings_fixture();
+    let generation_task = generation_task_fixture();
+    let generation_tasks = GenerationTaskListPageDto {
+        tasks: vec![generation_task.summary.clone(), failed_task_summary(&generation_task.summary)],
+        next_cursor: Some("AQIDBAUGBwgJCgsMDQ4PEA".to_owned()),
+    };
 
     assert_eq!(workflow.workflow.workflow_id, "123e4567-e89b-42d3-a456-426600000010");
     assert_eq!(workflow_run.workflow_revision, "1");
@@ -120,6 +130,10 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
             "cost": 900
         })
     );
+    let task_json = serde_json::to_string(&generation_task).expect("serialize task");
+    for prohibited in ["route_id", "remote_task_id", "credential", "signed_url", "raw_payload"] {
+        assert!(!task_json.contains(prohibited), "Task leaked {prohibited}");
+    }
     assistant_operation_contract::assert_fixture(&assistant_operations);
     write_fixture("workflow.json", &workflow);
     write_fixture("workflow_run.json", &workflow_run);
@@ -135,6 +149,54 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     write_fixture("node_capabilities.json", &node_capabilities);
     write_fixture("generation_profiles.json", &generation_profiles);
     write_fixture("generation_provider_settings.json", &generation_provider_settings);
+    write_fixture("generation_task.json", &generation_task);
+    write_fixture("generation_tasks.json", &generation_tasks);
+}
+
+fn failed_task_summary(summary: &GenerationTaskSummaryDto) -> GenerationTaskSummaryDto {
+    let mut failed = summary.clone();
+    failed.status = GenerationTaskStatusDto::Failed;
+    failed.preview_asset_id = None;
+    failed.has_result = false;
+    failed.failure = Some(GenerationTaskFailureDto {
+        kind: GenerationTaskFailureKindDto::ProviderRejected,
+        code: "CONTENT_POLICY".to_owned(),
+        message: "The provider rejected this request.".to_owned(),
+    });
+    failed.updated_at_epoch_ms = "2100".to_owned();
+    failed.completed_at_epoch_ms = Some("2100".to_owned());
+    failed
+}
+
+fn generation_task_fixture() -> GenerationTaskDto {
+    let summary = GenerationTaskSummaryDto {
+        id: "123e4567-e89b-42d3-a456-426600000030".to_owned(),
+        project_id: "123e4567-e89b-42d3-a456-426600000001".to_owned(),
+        workflow_id: "123e4567-e89b-42d3-a456-426600000002".to_owned(),
+        workflow_run_id: "123e4567-e89b-42d3-a456-426600000031".to_owned(),
+        workflow_node_id: "123e4567-e89b-42d3-a456-426600000032".to_owned(),
+        workflow_node_execution_id: "123e4567-e89b-42d3-a456-426600000033".to_owned(),
+        request_kind: GenerationTaskRequestKindDto::Image,
+        status: GenerationTaskStatusDto::Succeeded,
+        progress_percent: None,
+        generation_profile_ref: "image.high_quality_general@1".to_owned(),
+        provider_id: "mock".to_owned(),
+        provider_display_name: Some("Mock".to_owned()),
+        prompt_preview: Some("A lighthouse above a stormy sea".to_owned()),
+        preview_asset_id: Some("123e4567-e89b-42d3-a456-426600000020".to_owned()),
+        has_result: true,
+        failure: None,
+        created_at_epoch_ms: "1000".to_owned(),
+        updated_at_epoch_ms: "2000".to_owned(),
+        completed_at_epoch_ms: Some("2000".to_owned()),
+    };
+    GenerationTaskDto {
+        summary,
+        result: Some(GenerationTaskResultDto::Asset {
+            asset_id: "123e4567-e89b-42d3-a456-426600000020".to_owned(),
+            media_kind: "image".to_owned(),
+        }),
+    }
 }
 
 fn generation_provider_settings_fixture() -> GenerationProviderSettingsDto {
