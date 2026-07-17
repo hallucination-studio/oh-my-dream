@@ -2,7 +2,7 @@
 
 > Status: frozen MVP design
 > Owner: consumer-owned interfaces; concrete adapters composed by `src-tauri`
-> Scope: Project, Workflow, Run, Asset, Assistant, configuration, and credentials
+> Scope: Project, Workflow, Run, Generation Task, Asset, Assistant, configuration, and credentials
 
 Storage preserves only the state required to reopen a Workflow, inspect and recover a Run outcome,
 use managed media, resume an Assistant approval, and connect configured external services. It owns
@@ -13,8 +13,9 @@ no business transition.
 ```text
 Desktop application data root
   +-- metadata.sqlite
-  |     Project, Workflow, Run, Asset, Assistant, backend configuration,
-  |     plaintext provider/Assistant credentials, and three closed post-commit effects
+  |     Project, Workflow, Run, Generation Task, Asset, Assistant, backend configuration,
+  |     plaintext provider/Assistant credentials, three closed post-commit effects,
+  |     and the closed Generation Task outbox
   +-- managed-media/
   |     immutable validated Image, Video, and Audio bytes
   +-- staging/
@@ -23,8 +24,8 @@ Desktop application data root
         Python SDK Sessions and opaque model continuations
 ```
 
-There is no server, distributed queue, generic job database, generation-task table, provider-task
-store, application cache, or cross-device synchronization in the MVP.
+There is no server, distributed queue, generic job database, provider-specific task table,
+application cache, or cross-device synchronization in the MVP.
 
 ## Storage Rules
 
@@ -36,7 +37,8 @@ store, application cache, or cross-device synchronization in the MVP.
 5. SQLite and filesystem publication are coordinated explicitly, not called one transaction.
 6. Rows, paths, URLs, provider payloads, SDK bytes, and plaintext secrets never enter domain identity
    or public DTOs.
-7. Startup recovery is bounded and does not resume paid provider work.
+7. Startup recovery is bounded; accepted provider work resumes only by an authoritative persisted
+   Generation Task and its exact remote handle.
 
 ## State Placement
 
@@ -49,6 +51,8 @@ store, application cache, or cross-device synchronization in the MVP.
 | Workflow mutation request hashes and receipts | SQLite |
 | `WorkflowRunAggregate`, frozen plan, node executions, outputs, and event delivery state | SQLite |
 | Workflow Run request hashes and admission receipts | SQLite |
+| `GenerationTaskAggregate`, immutable request/target, remote handle, optional result, and revision | SQLite |
+| closed Generation Task submit/poll/cancel/notify effects and lease state | SQLite |
 | `AssetAggregate`, node-output keys, and content finalization | SQLite |
 | `AssistantProductionPlanAggregate` and items | SQLite |
 | `AssistantWorkflowChangeAggregate`, review, decision, and Run link | SQLite |
@@ -68,7 +72,7 @@ Production Plan, and Assistant Workflow Change. Other contexts do not copy Proje
 - one hydrated aggregate during one application call;
 - active `DesktopPostCommitEffectWorker` handles and cancellation tokens;
 - one active Assistant invocation lock per Session;
-- provider transport, selected route, polling handle, and cancellation observation during one node;
+- provider transport and one in-flight submit/poll/cancel call;
 - loaded credential values during one bounded use;
 - open source, staging, managed-content, sidecar, and preview handles;
 - one process-local signing secret for preview leases;
@@ -82,10 +86,10 @@ No command assumes any process-scoped value survives restart.
 - preview URLs, preview tokens, preview leases, or signing keys;
 - user source paths or managed absolute paths in business records;
 - credentials outside their dedicated SQLite rows or call-scoped secret values;
-- provider request/response bodies, signed URLs, native model IDs, or remote task handles;
+- provider request/response bodies, signed URLs, or native model IDs;
 - current provider availability observations;
 - generated media bytes inside SQLite;
-- a separate Generation Task, arbitrary background-job kind, or provider-task lifecycle;
+- arbitrary background-job kinds or provider-specific task lifecycles;
 - a cross-Run result cache;
 - unbounded model stream events or raw Reviewer prose as review authority.
 
@@ -149,8 +153,24 @@ Child records are:
 Run/event UUIDs are exact 16-byte values, event sequence is non-zero `u64`, progress is `u16`
 basis points, and event timestamps are signed UTC-millisecond integers.
 
-The frozen plan and outputs make a Run self-contained after admission. Reopening a Run does not
-require a historical Workflow snapshot or provider task.
+The frozen plan and outputs make a Run self-contained after admission. A waiting Node Execution
+correlates to Generation Task by its exact typed origin through a bridge query; Workflow rows never
+store a remote task handle.
+
+## Logical Generation Task Records
+
+`SqliteGenerationTaskRow` stores the exact Workflow origin, immutable request snapshot and hash,
+stable profile and non-secret route binding, normalized state, optional progress and opaque remote
+handle, structured failure, timestamps, and optimistic revision.
+
+The Generation Task row stores one optional tagged result: either bounded inline Text or one Asset
+reference from finalization. Row constraints require a representation matching the request kind,
+and the named translator restores the matching `GenerationTaskResult` variant.
+`SqliteGenerationTaskOutboxRow` stores one of `SubmitTask`, `PollTask`, `CancelRemoteTask`, or
+`NotifyWorkflow`, plus availability time, bounded delivery count, lease, completion, and safe last
+failure. The payload contains identifiers only. Unique origin/idempotency and provider-handle
+indexes prevent duplicate local tasks and ambiguous lookup. Exact schema and transaction semantics
+are owned by `BACKEND_TASK.md`.
 
 ## Logical Asset Records
 
@@ -207,6 +227,8 @@ mechanically encodes it in the same transaction as the owning state.
 | `ProjectRepositoryInterface` | load/list Projects and atomically commit create/rename plus receipt |
 | `WorkflowAggregateRepositoryInterface` | load current Workflow; atomically CAS snapshot and mutation receipt |
 | `WorkflowRunRepositoryInterface` | idempotently admit and atomically transition Runs, outputs, and events |
+| `GenerationTaskRepositoryInterface` | atomically create/transition Tasks with consumed and enqueued task effects |
+| `GenerationTaskOutboxReaderInterface` | claim, reschedule, and recover the closed task-effect protocol |
 | `AssetRepositoryInterface` | load/query Assets and resolve node-output identity |
 | `AssetIngestTransactionInterface` | commit Pending/finalization and availability transitions |
 | `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove stale staged bytes |
@@ -319,15 +341,28 @@ The physical rows are exact:
 
 | Table | Key and payload |
 | --- | --- |
-| `desktop_backend_config` | singleton key `1`, schema version, canonical JSON blob `1..=262,144` bytes |
-| `generation_provider_credentials` | typed credential ID primary key, plaintext secret blob `1..=16,384` bytes |
+| `desktop_backend_config` | singleton key `1`, schema version, non-zero monotonic revision, canonical JSON blob `1..=262,144` bytes |
+| `generation_provider_settings_receipts` | request ID primary key, canonical action hash, committed config revision, and sanitized result snapshot |
+| `generation_provider_credentials` | composite primary key `(credential_id, revision)`, nullable plaintext secret blob `1..=16,384` bytes, and `is_active` with a unique partial index allowing at most one active revision per credential ID; null secret is a retained tombstone |
 | `assistant_model_credentials` | typed credential ID primary key, plaintext secret blob `1..=16,384` bytes |
 
-Saving config or one credential is an atomic upsert of only that row. Loading an absent credential
-returns `NotFound`; deleting is idempotent. The two credential tables cannot be queried through one
-broad interface or joined into config DTOs. Config initialization writes the frozen default only
+Saving config or one credential is an atomic revisioned mutation. Provider credential replacement
+inserts a new immutable revision and atomically advances its active pointer. Generation Task
+admission compares the observed config revision and exact `is_active` credential revision in the
+same write transaction as Task insertion; mismatch retries resolution before any provider call.
+The exact ID/revision foreign key preserves the accepted snapshot but is not the concurrency guard.
+Settings deletion retires a revision;
+only after no other active Settings binding or non-terminal Task needs it are its secret bytes
+cleared while the tombstone row preserves every Task foreign key. Only an entirely unreferenced tombstone may be physically deleted. Loading
+an absent exact revision returns `NotFound`; loading a tombstone for an authenticated call returns
+`CredentialRetired`. The two credential tables cannot be queried through one broad
+interface or joined into config DTOs. Config initialization writes the frozen default only
 when the singleton row is absent; a corrupt, oversized, unsupported-version, or non-canonical row
 fails startup and is never silently replaced.
+Settings apply atomically compare-and-swaps the config revision, mutates any credential rows, and
+inserts its request receipt. A repeated request ID with the same canonical action hash returns the
+sanitized recorded result; a different hash is an idempotency conflict. Receipt rows never contain
+secret bytes.
 
 The database and parent data directory use private user-only permissions where the platform
 supports them. This reduces accidental disclosure but is not encryption: any process or user able
@@ -343,7 +378,7 @@ plaintext round trip, and absence from DTOs, errors, and logs.
 
 ## Reads And Preview
 
-Project, Workflow, Run, Asset, and Assistant queries read bounded SQLite projections. Stable cursor
+Project, Workflow, Run, Generation Task, Asset, and Assistant queries read bounded SQLite projections. Stable cursor
 ordering is defined by the owning application contract.
 
 `AssetManagedContentLease` owns an opaque read handle. Preview uses a short-lived process-signed
@@ -361,16 +396,18 @@ resolve private application-data locations
   -> construct Project and other repositories, managed-content adapters, and application use cases
   -> construct provider routes, Node Capabilities, Assistant adapter, and bridges
   -> validate the active Assistant contract epoch
-  -> replay bounded Asset finalization effects
-  -> mark non-terminal Workflow Runs Failed with InterruptedByRestart and abandon their effects
+  -> replay bounded Asset finalization effects and reclaim prior-instance or expired Generation Task leases
+  -> classify non-terminal Workflow Runs against exact durable task handoffs
+  -> preserve waiting Runs, replay queued Runs, and interrupt only unsafe Runs
   -> replay Assistant Applying effects through idempotency receipts
   -> emit bounded undispatched Workflow Run events
-  -> start the post-commit worker and accept commands
+  -> start the post-commit and Generation Task workers and accept commands
 ```
 
-MVP does not resume queued/running provider work. Pending Asset reconciliation is safe because it
-completes only already-identified local bytes. Assistant apply recovery is safe because it invokes
-canonical idempotent Workflow/Run admission, never a provider task directly.
+An accepted Generation Task resumes only by its persisted remote handle and exact route binding.
+An ambiguous uncommitted submission is never blindly repeated. Pending Asset reconciliation is safe
+because it completes only already-identified local bytes. Assistant apply recovery remains isolated
+and invokes canonical idempotent Workflow/Run admission.
 
 ## SQLite And Migration Policy
 
@@ -383,6 +420,9 @@ Startup creates the current schema, applies known forward migrations transaction
 unsupported versions, and never deletes or silently recreates user data after integrity/migration
 failure. Assistant contract-epoch storage is a hard compatibility boundary and is never parsed by a
 new epoch.
+The Desktop backend-config v1-to-v2 translation is the exact Mock-binding migration owned by
+`BACKEND_APPLICATION.md`; it runs in the same transaction that advances the stored config schema
+version and does not delete retained credential rows.
 
 The hard-cut Desktop storage epoch is `1`: SQLite `application_id` is `0x4f4d4431` and
 `user_version` starts at `1`. An absent database is created at that pair; an existing non-empty
@@ -407,7 +447,8 @@ Verification proves:
 - Run admission receipt, transition/output/event atomicity, and event ordering;
 - Asset fault injection at every SQLite/filesystem boundary and node-output replay/conflict;
 - Assistant plan CAS, exact change reconstruction, Applying recovery, and Run-link idempotency;
-- restart interruption without provider-task resume;
+- Generation Task transaction/outbox atomicity, expired-lease recovery, query-by-ID resume, and
+  safe/unsafe Workflow restart classification;
 - SQLite configuration and plaintext credential round trip, isolation, deletion, and redaction
   from DTOs/errors/logs;
 - bounded queries, Project isolation, preview expiry/Range, and path non-disclosure;
@@ -415,7 +456,7 @@ Verification proves:
 
 ## Post-MVP
 
-Project archive/delete/duplicate, Workflow history/undo, provider task persistence, cross-Run
-cache, Asset deletion/retention/GC, backup/restore, full database/media encryption, key rotation
+Project archive/delete/duplicate, Workflow history/undo, Generation Task attempt history/archive,
+cross-Run cache, Asset deletion/retention/GC, backup/restore, full database/media encryption, key rotation
 UI, connection-pool/WAL tuning, multiple writers, distributed Assistant leases, cloud sync, and
 collaboration require separate authority, migration, and recovery decisions.

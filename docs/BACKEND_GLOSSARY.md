@@ -17,7 +17,7 @@ For example:
 WorkflowStartRunUseCase
 AssetRecordNodeOutputUseCase
 AssistantWorkflowChangeAggregate
-ImageToVideoProviderInterface
+GenerationTaskAggregate
 SqliteWorkflowRunRepositoryAdapterImpl
 ```
 
@@ -32,16 +32,17 @@ exported names.
 | `Project` | workspace identity, metadata, revision, listing, and opening | `ProjectAggregate`, `ProjectOpenUseCase` |
 | `Workflow` | graph, revision, readiness, plan, Run, node execution, and output association | `WorkflowAggregate`, `WorkflowStartRunUseCase` |
 | `NodeCapability` | shared exact-operation contracts and node execution boundary | `NodeCapabilityContract`, `NodeCapabilityExecutionRequest` |
-| exact operation name | one capability implementation or provider operation | `TextToImageCapabilityImpl`, `TextToImageProviderInterface` |
+| exact operation name | one capability implementation | `TextToImageCapabilityImpl` |
 | `GenerationProfile` | provider-independent model selection, compatibility, and availability | `GenerationProfileRef`, `GenerationProfileListForCapabilityUseCase` |
-| `GenerationProvider` | provider account, route, credential, or policy shared by generation adapters | `GenerationProviderAccountId`, `GenerationProviderRouteId` |
+| `GenerationTask` | durable provider-backed generation lifecycle | `GenerationTaskAggregate`, `GenerationTaskListUseCase` |
+| `GenerationProvider` | provider identity/composition plus account, route, credential, and shared adapter policy | `GenerationProviderInterface`, `GenerationProviderRouteId` |
 | `Asset` | managed media identity, availability, facts, provenance, and preview permission | `AssetAggregate`, `AssetImportUseCase` |
 | `Assistant` | production plan, conversation request, Workflow change, review, human decision, and repair activation | `AssistantProductionPlanAggregate`, `AssistantWorkflowChangeAggregate` |
 | `Desktop` | Tauri host, post-commit effects, protocol, configuration, and composition | `DesktopCompositionRoot`, `DesktopPostCommitEffectWorker` |
 
 `ProjectId` is the only Project type shared with other business contexts. A provider vendor or
 storage technology is a concrete adapter prefix, not a semantic owner:
-`FalImageToVideoProviderRouteImpl`, `SqliteWorkflowRunRepositoryAdapterImpl`, and
+`MockImageToVideoProviderRouteImpl`, `SqliteWorkflowRunRepositoryAdapterImpl`, and
 `SqliteDesktopBackendSettingsAdapterImpl`.
 
 ## Role Suffixes
@@ -61,8 +62,7 @@ storage technology is a concrete adapter prefix, not a semantic owner:
 | `*UseCase` | application orchestrator for one user intention | `AssistantDecideWorkflowChangeUseCase` |
 | `*Interface` | consumer-owned trait at a real substitution or external boundary | `AssetManagedContentStoreInterface` |
 | `*AdapterImpl` | infrastructure implementation of a consumer-owned interface | `SqliteAssetRepositoryAdapterImpl` |
-| `*RouterImpl` | stable-profile dispatcher implementing one exact provider interface | `ImageToVideoProviderRouterImpl` |
-| `*RouteImpl` | concrete vendor-operation implementation | `FalImageToVideoProviderRouteImpl` |
+| `*RouteImpl` | concrete provider-operation implementation | `MockImageToVideoProviderRouteImpl` |
 | `*Row` | private persistence representation | `SqliteWorkflowRunRow` |
 | `*Dto` | Tauri or provider wire representation | `WorkflowStartRunRequestDto` |
 | `*View` | read-only UI projection with no business transitions | `WorkflowNodePresentationView` |
@@ -78,7 +78,7 @@ Use `Value`, `Payload`, `Context`, `Registry`, or `Store` only when the precise 
 that role:
 
 - `WorkflowRuntimeValue` is a tagged runtime value;
-- `GeneratedVideoPayload` is bounded data returned by one interface;
+- `GenerationTaskResult` is one durable inline Text or generated Asset reference;
 - `WorkflowNodeExecutionContext` contains call-scoped deadline and cancellation values;
 - `WorkflowNodeCapabilityRegistry` is the one immutable collection of implementations;
 - `AssetManagedContentStoreInterface` stores byte content, not business aggregates.
@@ -97,6 +97,7 @@ Use-case types are source-first and then verb-first:
 | Workflow | `WorkflowApplyMutationUseCase`, `WorkflowStartRunUseCase`, `WorkflowGetNodePresentationUseCase` |
 | Node Capability | `NodeCapabilityListUseCase` |
 | Generation Profile | `GenerationProfileListForCapabilityUseCase` |
+| Generation Task | `GenerationTaskStartUseCase`, `GenerationTaskGetUseCase`, `GenerationTaskListUseCase` |
 | Asset | `AssetImportUseCase`, `AssetRecordNodeOutputUseCase`, `AssetIssuePreviewUseCase` |
 | Assistant | `AssistantSendMessageUseCase`, `AssistantDecideWorkflowChangeUseCase`, `AssistantActivateRepairUseCase` |
 
@@ -125,12 +126,15 @@ WorkflowNodeCapabilityInterface::check_node_external_readiness
 WorkflowNodeCapabilityInterface::execute_node_capability
 
 NodeCapabilityManagedMediaReaderInterface::read_managed_media
-NodeCapabilityProducedMediaWriterInterface::write_node_output_media
+NodeCapabilityGenerationTaskStarterInterface::start_generation_task
 WorkflowMediaPreviewIssuerInterface::issue_workflow_media_preview
 
-TextToImageProviderInterface::generate_image_from_text
-ImageToVideoProviderInterface::generate_video_from_image
-TextToSpeechProviderInterface::synthesize_speech_from_text
+GenerationProviderInterface::generation_provider_id
+GenerationProviderInterface::generation_provider_display_name
+GenerationProviderInterface::generation_provider_capabilities
+ImageGenerationProviderInterface::image_generation_contract
+ImageGenerationProviderInterface::resolve_image_generation_route
+GenerationTaskRepositoryInterface::save_generation_task
 
 AssetManagedContentStoreInterface::stage_imported_asset_content
 AssetManagedContentStoreInterface::stage_node_output_asset_content
@@ -152,6 +156,8 @@ workflow_apply_mutation
 workflow_start_run
 node_capability_list
 generation_profile_list_for_capability
+generation_task_get
+generation_task_list
 asset_import
 assistant_send_message
 assistant_decide_workflow_change
@@ -189,7 +195,7 @@ as identity or behavior.
 | Name | Meaning |
 | --- | --- |
 | `ProjectAggregate` | one durable creative workspace identity, name, and revision |
-| `ProjectId` | authoritative scope shared with Workflow, Asset, and Assistant |
+| `ProjectId` | authoritative scope shared with Workflow, Generation Task, Asset, and Assistant |
 | `ProjectMutationRequestId` | stable idempotency identity for one create or rename request |
 | `ProjectMutationReceipt` | exact committed Project outcome and integrity evidence for replay |
 | `ProjectListCursor` | Project-owned keyset position containing update time and Project identity |
@@ -206,7 +212,7 @@ as identity or behavior.
 | `WorkflowInputItemEntity` | one stable directed reference item inside a binding |
 | `WorkflowExecutionPlan` | immutable normalized plan for one admitted Run |
 | `WorkflowRunAggregate` | one execution of one frozen Workflow revision |
-| `WorkflowNodeExecutionEntity` | one planned node's state, progress, failure, and outputs |
+| `WorkflowNodeExecutionEntity` | one planned node's graph-execution state, failure, and outputs |
 | `WorkflowRuntimeValue` | exact Text, Image, Video, or Audio runtime value in the MVP |
 | `WorkflowManagedAssetIdBoundaryValue` | engine UUID bytes explicitly translated to Asset-owned `AssetId` |
 | `WorkflowManagedContentFingerprint` | engine SHA-256 bytes explicitly translated to an Asset content digest |
@@ -223,7 +229,33 @@ as identity or behavior.
 | `WorkflowExecuteRunEffect` | committed intent to execute one admitted Run |
 
 The words `WorkflowRun` and `WorkflowNodeExecution` replace generic `Task`, `Job`, and `Execution`
-when referring to creative Workflow work.
+when referring to creative Workflow work. `GenerationTask` is the only approved Task term and means
+durable provider-backed generation, not graph execution.
+
+### Generation Task
+
+| Name | Meaning |
+| --- | --- |
+| `GenerationTaskAggregate` | one durable provider-backed generation lifecycle |
+| `GenerationTaskId` | local stable task identity |
+| `GenerationTaskOrigin` | exact Project, Workflow, Run, node, and Node Execution coordinates |
+| `GenerationTaskRequest` | immutable provider-neutral Text, Image, Video, or Voice generation snapshot |
+| `GenerationTaskState` | Queued, Submitting, Running, CancelRequested, or one terminal state |
+| `GenerationProviderTaskHandle` | validated opaque remote identity stored only by Generation Task |
+| `GenerationTaskResult` | single durable inline Text or generated Asset reference |
+| `GenerationTaskEffect` | closed SubmitTask, PollTask, CancelRemoteTask, or NotifyWorkflow work |
+| `GenerationTaskSummaryView` | rule-free bounded task-list projection |
+| `GenerationProviderId` | stable cloud-provider identity used with an exact route in one task target |
+| `GenerationProviderInterface` | provider-level composition boundary exposing identity and one non-empty complete capability product |
+| `GenerationProviderContract` | mechanically-derived safe provider identity/display and exact Text/Image/Video/Voice capability contracts |
+| `GenerationProviderRegistry` | concrete immutable collection of shipped provider-interface implementations; active Settings mappings are separate data |
+| `TextGenerationProviderInterface` | complete provider capability producing Text from one of its closed text-generation request variants |
+| `ImageGenerationProviderInterface` | complete provider capability producing an Image Asset from one of its closed image-generation request variants |
+| `VideoGenerationProviderInterface` | complete provider capability producing a Video Asset from one of its closed video-generation request variants |
+| `VoiceGenerationProviderInterface` | complete text-to-speech provider capability whose business result is an Audio Asset |
+
+Generation Task is not a Workflow Run, Node Execution, provider DTO, download, retry attempt, or
+generic background Job.
 
 ### Node Capability And Generation Profile
 
@@ -241,7 +273,7 @@ when referring to creative Workflow work.
 | `NodeCapabilityExecutionDeadline` | non-persisted monotonic deadline for one node execution call |
 | `NodeCapabilityExecutionCancellation` | cloneable idempotent cancellation signal for one node execution |
 | `NodeCapabilityExecutionError` | staged structured node-capability failure with one safe target |
-| `NodeCapabilityProducedMediaOutputKey` | node-owned idempotency value translated to `AssetNodeOutputKey` |
+| `NodeCapabilityGenerationTaskStarterInterface` | node-owned durable handoff to the Generation Task application |
 | `NodeCapabilityGenerationProfileRefParameterValue` | engine boundary shape translated to nodes-owned `GenerationProfileRef` |
 | `NodeCapabilityManagedAssetIdParameterValue` | engine boundary UUID bytes translated to Asset-owned `AssetId` |
 | `GenerationProfileRef` | stable provider-independent user selection persisted on a model-powered node |
@@ -299,8 +331,15 @@ WorkflowRunRepositoryInterface
 WorkflowNodeCapabilityInterface
 WorkflowMediaPreviewIssuerInterface
 NodeCapabilityManagedMediaReaderInterface
-NodeCapabilityProducedMediaWriterInterface
+NodeCapabilityGenerationTaskStarterInterface
 GenerationProfileAvailabilityReaderInterface
+GenerationTaskRepositoryInterface
+GenerationProviderInterface
+TextGenerationProviderInterface
+ImageGenerationProviderInterface
+VideoGenerationProviderInterface
+VoiceGenerationProviderInterface
+GenerationCancellerInterface
 AssetRepositoryInterface
 AssetIngestTransactionInterface
 AssetManagedContentStoreInterface
@@ -328,29 +367,33 @@ SqliteWorkflowRunRepositoryAdapterImpl
 LocalFilesystemAssetManagedContentStoreAdapterImpl
 DesktopNodeCapabilityAssetBridgeAdapterImpl
 DesktopAssistantWorkflowBridgeAdapterImpl
-FalImageToVideoProviderRouteImpl
+MockGenerationProviderAdapterImpl
 SqliteDesktopBackendSettingsAdapterImpl
 SqliteDesktopPostCommitEffectOutboxAdapterImpl
 DesktopPostCommitEffectWorker
 ```
 
-Provider roles remain exact:
+Generation provider roles remain exact:
 
-- `*ProviderInterface` is the public capability-owned semantic operation;
-- `*ProviderRouterImpl` implements that interface and resolves a stable profile to its one configured
-  route;
-- `*ProviderRouteInterface` is the router-owned private substitution interface;
-- `<Vendor>*ProviderRouteImpl` translates and performs one configured native operation.
+- `GenerationProviderInterface` is the provider-level composition boundary;
+- `TextGenerationProviderInterface`, `ImageGenerationProviderInterface`,
+  `VideoGenerationProviderInterface`, and `VoiceGenerationProviderInterface` are complete focused
+  capability boundaries;
+- `<Vendor>GenerationProviderAdapterImpl` implements the provider-level interface and contributes
+  only the focused capabilities that cloud provider actually supports;
+- `*ProviderRouteInterface` is adapter-owned private substitution for one native operation;
+- `<Vendor>*ProviderRouteImpl` translates and performs that configured native operation.
 
 Every substitution interface ends in `Interface`. Every implementation of an interface ends in
-`Impl`; the preceding role remains visible as `CapabilityImpl`, `AdapterImpl`, `RouterImpl`, or
+`Impl`; the preceding role remains visible as `CapabilityImpl`, `AdapterImpl`, or
 `RouteImpl`. Do not use legacy boundary suffixes, `Trait`, bare `Implementation`, or a concrete type
 ending in `Interface`.
 
 Aggregates, policies, and use cases are not interface implementations. They retain their precise
 role suffixes and must not be named `*AggregateImpl`, `*PolicyImpl`, or `*UseCaseImpl`.
 
-There is no public provider-wide interface or optional unsupported provider method.
+There is one provider-level composition interface and no provider-wide execution method or optional
+unsupported provider method.
 
 Contract tests target the `*Interface`; every production, deterministic, fake, or fault-injecting
 implementation ends in `Impl`.
@@ -363,9 +406,10 @@ Representations keep owner and role visible:
 ProjectAggregate <-> SqliteProjectRow
 WorkflowApplyMutationRequestDto -> WorkflowApplyMutationCommand -> WorkflowAggregate
 WorkflowAggregate <-> SqliteWorkflowRow
+GenerationTaskAggregate <-> SqliteGenerationTaskRow
 AssetAggregate <-> SqliteAssetRow
 AssistantWorkflowChangeAggregate <-> SqliteAssistantWorkflowChangeRow
-ImageToVideoProviderRequest <-> FalImageToVideoRequestDto
+GenerationTaskRequest <-> MockImageToVideoRequestDto
 ```
 
 A `*Dto`, `*Row`, or `*View` performs shape conversion only. Business validation and transitions
@@ -384,7 +428,7 @@ Operation   Resource     Content      Media         Registry
 ```
 
 The word may appear only inside a name that reveals its owner and role, such as
-`WorkflowNodeExecutionState`, `GenerationProviderRouteId`, or
+`WorkflowNodeExecutionState`, `GenerationTaskAggregate`, `GenerationProviderRouteId`, or
 `WorkflowNodeCapabilityRegistry`. `TextToAudio` is also prohibited because speech and music have
 different semantics.
 

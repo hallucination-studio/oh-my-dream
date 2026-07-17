@@ -14,7 +14,8 @@ The Desktop host:
 - attaches trusted Project and process context to untrusted DTOs;
 - invokes one named application use case per command;
 - translates domain/application values to boundary DTOs;
-- consumes the three closed post-commit effect types;
+- consumes the three closed Desktop post-commit effect types and the four closed Generation Task
+  effect types through separate workers;
 - bridges consumer-owned interfaces across bounded contexts;
 - emits only committed Run events;
 - serves short-lived Asset preview access;
@@ -24,8 +25,8 @@ The Desktop host:
 Tauri commands are thin entry points, not a second application layer.
 
 Code remains capability-oriented under `src-tauri`; commands, DTOs, translators, and adapters stay
-inside their owning Project, Workflow, Asset, Generation Profile, provider, or Assistant module.
-Composition, configuration, and the closed effect worker are the only shared Desktop modules. There
+inside their owning Project, Workflow, Generation Task, Asset, Generation Profile, provider, or
+Assistant module. Composition, configuration, and the closed effect workers are the only shared Desktop modules. There
 are no global `controllers`, `services`, `repositories`, `models`, or `dto` directories.
 
 ## Command Admission Pattern
@@ -64,6 +65,10 @@ visibility, profile compatibility, review evidence, or legal transitions.
 | `workflow_get_node_presentation` | `WorkflowGetNodePresentationRequestDto` | `WorkflowGetNodePresentationUseCase` |
 | `node_capability_list` | `NodeCapabilityListRequestDto` | `NodeCapabilityListUseCase` |
 | `generation_profile_list_for_capability` | `GenerationProfileListForCapabilityRequestDto` | `GenerationProfileListForCapabilityUseCase` |
+| `generation_provider_settings_get` | `GenerationProviderSettingsGetRequestDto` | `GenerationProviderSettingsGetUseCase` |
+| `generation_provider_settings_apply` | `GenerationProviderSettingsApplyRequestDto` | `GenerationProviderSettingsApplyUseCase` |
+| `generation_task_get` | `GenerationTaskGetRequestDto` | `GenerationTaskGetUseCase` |
+| `generation_task_list` | `GenerationTaskListRequestDto` | `GenerationTaskListUseCase` |
 | `asset_import` | `AssetImportRequestDto` | `AssetImportUseCase` |
 | `asset_get` | `AssetGetRequestDto` | `AssetGetUseCase` |
 | `asset_list` | `AssetListRequestDto` | `AssetListUseCase` |
@@ -112,9 +117,11 @@ selection, viewport, dragging, menus, previews, and playback remain React state.
 then returns. `DesktopPostCommitEffectWorker` consumes that effect and calls
 `WorkflowExecuteRunUseCase`.
 
-The worker owns task handles, cancellation signals, effect delivery, and one configured concurrency
-limit. It owns no business state, generic queue, or status setter. Startup converts non-terminal
-Runs to `InterruptedByRestart` and abandons their unsafe Run effects.
+The worker owns immediate capability handles, cancellation signals, effect delivery, and one
+configured concurrency limit. It owns no business state, generic queue, or status setter.
+Provider-backed capabilities durably hand off to Generation Task and return a waiting outcome.
+Startup preserves Runs waiting on authoritative tasks and converts only unsafe non-terminal Runs to
+`InterruptedByRestart`.
 
 `WorkflowExecuteRunUseCase` resolves exact implementations from the injected
 `WorkflowNodeCapabilityRegistry`. Provider/filesystem calls occur outside SQLite transactions.
@@ -122,29 +129,125 @@ Runs to `InterruptedByRestart` and abandons their unsafe Run effects.
 `WorkflowCancelRunUseCase` commits cancellation intent before the worker signals active tokens. A
 late node output is accepted only if the Run aggregate still permits its transition.
 
+## Generation Task Coordination
+
+`GenerationProviderSettingsGetUseCase` joins the frozen Generation Profile catalog, persisted
+provider selection, credential presence, and safe `GenerationProviderContract` projections. For
+each `(profile, generation kind)` pair it returns only provider choices whose matching focused
+contract contains at least one route explicitly compatible with that exact profile. Each choice contains
+the safe provider identity and its non-empty compatible route choices.
+`GenerationProviderSettingsApplyUseCase` rejects a
+`(profile_ref, generation_kind, provider_id, route_id)` selection
+unless that exact tuple exists in the contract projection. React renders exactly those choices; a
+provider without Voice, or without a Voice route compatible with the selected profile, cannot be
+selected and no failed call is needed to discover that fact.
+
+`GenerationProviderSettingsProfileDto` contains one `(profile, generationKind)` pair, its optional sanitized selected
+binding, and `providerChoices`. Each `GenerationProviderSettingsProviderChoiceDto` contains only
+provider ID/display name and a non-empty `routes` list; each route choice contains route ID/display
+name and the closed `None | AccountCredential` configuration requirement. The use case filters
+before DTO construction, orders profiles by profile ref, providers by provider ID, and routes by
+route ID, and rejects duplicate `(provider_id, kind, route_id)` keys.
+Consequently an unrelated capability can never bring a provider back into the current profile's
+choice list. The selected binding additionally exposes optional account ID, optional credential ID,
+and credential presence, never the secret or its internal revision.
+
+`GenerationProviderSettingsDto` contains non-zero `settingsRevision` plus the ordered profile-kind
+items. `GenerationProviderSettingsApplyRequestDto` contains a stable `requestId`,
+`expectedSettingsRevision`, and exactly one closed action:
+
+```text
+SetBinding {
+  profileRef, generationKind, providerId, routeId,
+  accountId: optional,
+  credentialMutation: Unchanged | Replace { credentialId, secret }
+}
+RemoveBinding {
+  profileRef, generationKind,
+  credentialMutation: Keep | Retire
+}
+```
+
+Apply compare-and-swaps the config revision and commits the binding, credential mutation, and
+request receipt atomically, then returns the complete Settings DTO with the new revision. A stale
+revision returns `CONFLICT`; replaying the same request ID and canonical action returns its prior
+result. `Unchanged` preserves the selected credential reference, `Replace` inserts a new immutable
+revision, and removal's `Keep | Retire` explicitly decides whether its readable credential remains
+available or follows the tombstone rules.
+A `Retire` action returns `GenerationProviderCredentialInUse` when another active Settings binding
+or non-terminal Task references that exact credential revision; it never silently breaks another
+profile.
+A route whose requirement is `None` requires null account ID and `Unchanged`; removing a binding
+without a credential requires `Keep`. All other combinations are rejected before persistence. Secret input is write-only and never appears in the
+result, receipt, config JSON, errors, or logs.
+
+`GenerationProviderSettingsRepositoryInterface`, owned by this Settings application capability,
+has exactly `load_generation_provider_settings_snapshot` and
+`apply_generation_provider_settings_mutation`. The latter accepts only the validated closed
+mutation, expected revision, request ID, and canonical action hash and returns
+`Committed | Replay | RevisionConflict | IdempotencyConflict`. Its SQLite adapter owns the atomic
+config/credential/receipt transaction; neither the use case nor a provider receives a connection.
+
+Settings DTOs expose no trait object, endpoint, native model, route implementation, remote task ID,
+secret, or `supports_*` boolean. The capability/route set is a safe contract projection used for
+selection, not an optional execution method.
+
+The Node palette keeps `NodeCapabilityListUseCase` as the authoritative registry read. For each
+model-powered capability, React also consumes its authoritative
+`generation_profile_list_for_capability` result and offers that node only when at least one profile
+observation is `Available`. An empty list, all unavailable/indeterminate profiles, or a provider
+registry with no matching focused interface means the node is absent from the add menu. This is a
+presentation filter over returned readiness facts; it does not mutate the registry or reimplement
+profile compatibility. Existing saved nodes remain visible and explain their readiness issue.
+
+The requesting Node Capability determines the generation kind; a profile may be compatible with
+more than one capability, so Settings persists kind as part of its mapping key. Kind is not an
+independent UI choice on a Workflow node and remains owned by the exact Task request at admission.
+Provider construction rejects route ID reuse across focused capabilities.
+
+`DesktopNodeCapabilityGenerationTaskStarterAdapterImpl` implements the node-owned task-start
+interface over `GenerationTaskStartUseCase`. It translates the exact execution origin and semantic
+request but does not expose a repository or provider adapter to node code.
+
+`GenerationTaskEffectWorkerImpl` consumes only `SubmitTask`, `PollTask`, `CancelRemoteTask`, and
+`NotifyWorkflow` from `generation_task_outbox`. Submit/poll/cancel calls occur outside SQLite
+transactions. Each result is committed with optimistic revision and the current effect consumed or
+rescheduled atomically. Delayed polls and expired leases are task-delivery semantics, not Desktop
+post-commit effects or a generic scheduler.
+
+`DesktopGenerationTaskAssetSinkAdapterImpl` imports validated terminal media through canonical
+Asset use cases. `DesktopGenerationTaskWorkflowCompletionAdapterImpl` invokes the Workflow-owned
+completion use case. That use case accepts only the exact waiting Node Execution origin, commits the
+node terminal state/output and event, and enqueues a new `WorkflowExecuteRunEffect` when necessary.
+Replay after a crash is idempotent.
+
 ## Node-To-Asset Bridge
 
-`DesktopNodeCapabilityAssetBridgeAdapterImpl` implements both node-consumer interfaces:
+`DesktopNodeCapabilityAssetBridgeAdapterImpl` implements the node-consumer read interface:
 
 ```text
 NodeCapabilityManagedMediaReaderInterface::read_managed_media
   -> AssetResolveContentUseCase::resolve_asset_content
   -> typed Workflow managed-media input
 
-NodeCapabilityProducedMediaWriterInterface::write_node_output_media
+GenerationTaskAssetSinkInterface::recover_generation_task_asset
+  -> AssetRecoverNodeOutputUseCase::recover_asset_node_output
+  -> Available | Pending | SourceRequired
+GenerationTaskAssetSinkInterface::store_generation_task_asset (SourceRequired only)
   -> AssetRecordNodeOutputUseCase::record_asset_node_output
   -> AssetFinalizeContentUseCase::finalize_asset_content after the effect commit
   -> Available AssetAggregate
   -> typed Workflow managed-media output
 ```
 
-The bridge translates kind, provenance, Generation Profile ref, source Asset IDs, the complete
+The separate `DesktopGenerationTaskAssetSinkAdapterImpl` owns the write flow. The bridges translate
+kind, provenance, Generation Profile ref, source Asset IDs, the complete
 `WorkflowNodeExecutionOrigin`, and the Project, Workflow Run, and node-execution coordinates from
 `WorkflowNodeExecutionContext`. It converts
-`NodeCapabilityProducedMediaOutputKey` into the Asset-owned `AssetNodeOutputKey` and constructs
+Generation Task output coordinates into the Asset-owned `AssetNodeOutputKey` and construct
 `AssetWorkflowNodeOrigin` only from those supplied typed coordinates. It performs no Workflow
 repository lookup or producer inference and exposes no Asset repository, row, path, or preview
-lease to node code.
+lease to node or task business code.
 
 `DesktopWorkflowMediaPreviewAdapterImpl` separately implements `WorkflowMediaPreviewIssuerInterface` over
 `AssetIssuePreviewUseCase`. Asset application types never enter `crates/engine`.
@@ -202,7 +305,8 @@ The Desktop host enforces these orderings:
 5. Assistant approval decision and Assistant effect before canonical apply/resume.
 
 SQLite and filesystem/provider/sidecar work are never described as one transaction. Recovery uses
-idempotency receipts, Pending Asset finalization, durable Run events, and conservative interruption.
+idempotency receipts, Pending Asset finalization, durable Generation Task effects, durable Run
+events, and conservative interruption only where durable handoff cannot be proved.
 
 The outbox is a closed boundary union, not a job framework:
 
@@ -220,11 +324,14 @@ exactly `Ready`, `Claimed { instance_id, claimed_at }`, `Completed { completed_a
 `Abandoned { abandoned_at, reason }`. `claim_next_post_commit_effect` orders Ready effects by
 creation time then effect ID, atomically claims one, and increments a non-zero `u32` attempt count.
 Completion and abandonment require the claiming instance. Startup resets claimed Asset and
-Assistant effects to Ready, but abandons a claimed Workflow effect after marking its Run
-`InterruptedByRestart`. Abandon reason is exactly `WorkflowInterruptedByRestart` or
+Assistant effects to Ready. Every safe non-terminal Workflow effect is replayed; the idempotent
+Workflow executor schedules any independent ready nodes and naturally no-ops when all active nodes
+are waiting for Generation Tasks. A Workflow effect is abandoned only after the Run was interrupted
+or was already terminal. Abandon reason is exactly `WorkflowInterruptedByRestart` or
 `OwningStateAlreadyTerminal`. A transient consumer/storage failure releases Ready and the worker
 waits one second before another claim. There is no lease, priority, configurable retry policy,
-poison state, or fourth effect kind.
+poison state, or fourth Desktop effect kind. The separate Generation Task outbox is the closed
+capability-specific protocol defined by `BACKEND_TASK.md`.
 
 `DesktopPostCommitEffectOutboxInterface`, owned by this worker, has exactly
 `claim_next_post_commit_effect`, `complete_claimed_post_commit_effect`,
@@ -237,22 +344,28 @@ prior-instance Claimed effect and every Ready Workflow effect, at most 100 per p
 creation time then effect ID. It includes the complete expected state required for recovery CAS;
 its opaque cursor encodes that exact `(created_at, effect_id)` tuple.
 
-Startup first invokes `WorkflowInterruptRunsAfterRestartUseCase`, which idempotently marks every
-non-terminal Run `InterruptedByRestart`. It then pages all recoverable effects. Asset and Assistant
+Startup first acquires the OS-level exclusive database lock, then reclaims every prior-instance
+Generation Task lease plus expired leases owned by no live worker, and invokes
+`WorkflowClassifyRunsAfterRestartUseCase`. It preserves Runs with provable durable task handoff,
+replays every safe non-terminal Run, and invokes `WorkflowInterruptRunsAfterRestartUseCase` only for
+unsafe Runs. It then
+pages all recoverable Desktop effects. Asset and Assistant
 claims use `recover_replayable_post_commit_effect` to CAS directly from the observed prior claim to
-Ready. A Workflow effect uses `recover_abandoned_post_commit_effect` to CAS from its observed Ready
-or prior-instance Claimed state to Abandoned only after its Run is observed terminal; the reason is
-`WorkflowInterruptedByRestart` when that is its terminal cause and
-`OwningStateAlreadyTerminal` otherwise. Each item commits independently; on failure startup stops
+Ready. A Workflow effect is restored to Ready for `ReplaySafe`; for `InterruptUnsafe`, Workflow first
+commits `InterruptedByRestart` and then the effect is abandoned with
+`WorkflowInterruptedByRestart`. An effect whose Run was already terminal is abandoned with
+`OwningStateAlreadyTerminal`.
+Each item commits independently; on failure startup stops
 before accepting commands, and the next startup repeats the same ordered recovery. Thus a crash
 between Run interruption and effect abandonment is closed by idempotent replay without putting
 Workflow mutation inside the outbox adapter. The interface exposes no generic payload, handler
 registration, unbounded list, delete, or arbitrary state setter.
 
-Every Ready or prior-instance Claimed Workflow effect is abandoned after restart once its Run is
-confirmed terminal, using the terminal-cause reason above. Asset effects are
+Every Ready or prior-instance Claimed Workflow effect is replayed for safe non-terminal work or
+abandoned after unsafe interruption. Asset effects are
 idempotently replayed by exact finalization ID. Assistant effects are replayed through mutation and
-Run request receipts. No arbitrary kind, payload, handler registration, or public task API exists.
+Run request receipts. No arbitrary kind, payload, or handler registration exists. Generation Task
+exposes only its bounded get/list API.
 
 Asset import and node-output use cases claim their just-committed finalization immediately and call
 `AssetFinalizeContentUseCase`. The worker handles only an unfinished or recovered Asset effect.
@@ -326,18 +439,18 @@ durable authority; after a gap or restart React reloads pending change and canon
 open/migrate SQLite and managed-content roots
   -> construct SQLite backend-config and plaintext credential repositories
   -> load and validate DesktopBackendConfig
-  -> construct Project, Workflow, Asset, and Assistant repositories
+  -> construct Project, Workflow, Generation Task, Asset, and Assistant repositories
   -> construct Project use cases and DesktopProjectWorkflowBridgeAdapterImpl
   -> construct Asset storage/inspection use cases
-  -> construct node/Asset and Workflow-preview bridges
+  -> construct node/Asset, node/task, task/Asset, task/Workflow, and Workflow-preview bridges
   -> construct the frozen Generation Profile catalog
-  -> construct deterministic/configured provider routes and three exact routers
+  -> construct the immutable Mock provider composite, focused capabilities, and provider registry
   -> construct profile availability reader
   -> construct exactly seven Node Capability implementations and one registry
-  -> construct Workflow use cases and DesktopPostCommitEffectWorker
+  -> construct Workflow use cases, DesktopPostCommitEffectWorker, and GenerationTaskEffectWorkerImpl
   -> construct Assistant aggregates/use cases, Workflow bridges, and model runner adapter
-  -> reconcile Pending Assets and interrupt non-terminal Runs
-  -> register commands, post-commit effects, sidecar transport, and preview protocol
+  -> reconcile Pending Assets, reclaim task leases, and classify non-terminal Runs
+  -> register commands, both closed effect workers, sidecar transport, and preview protocol
 ```
 
 `DesktopApplicationHost` contains typed, already-constructed command dependencies. It is not a
@@ -346,7 +459,7 @@ adapters without starting Tauri.
 
 ## Configuration And Credentials
 
-`DesktopBackendConfig` schema version `1` is stored in `metadata.sqlite` and loaded through
+`DesktopBackendConfig` schema version `2` is stored in `metadata.sqlite` and loaded through
 `DesktopBackendConfigRepositoryInterface`. `DesktopBackendConfig` contains exactly
 `sqlite_busy_timeout_ms`, `post_commit_effect_concurrency`, `workflow_run_concurrency`,
 `workflow_node_concurrency`, `asset_reconciliation_policy`, `asset_preview_policy`,
@@ -355,24 +468,53 @@ first four are 5,000, `4`, `1`, and `2`; concurrency is `1..=8`. The remaining n
 their owner-document exact fields, defaults, and maxima and cannot weaken or exceed them. Locations
 are derived from the OS application-data root and are not config fields.
 
-Each `generation_provider_routes` item has exactly `profile_ref`, `route_id`, `account_id`,
-`endpoint`, `native_model_id`, `credential_id`, `operation_deadline_ms`, `poll_min_delay_ms`,
-`poll_max_delay_ms`, and sorted unique `download_host_allowlist`; values must equal the matching
-D0.3 profile/route contract. `assistant_protocol_budgets` has exactly
+Each `generation_provider_routes` item has exactly `profile_ref`, `generation_kind`, `provider_id`, `route_id`, optional
+`account_id`, and optional `credential_id`. Both optional fields are absent for Mock routes and must
+be present together only when a future production route contract requires credentials. Credential
+revision is repository-owned recovery metadata, not user configuration. Endpoint, native model,
+operation deadline, polling bounds, response limits, and download host allowlist are typed constants
+owned by a shipped route implementation and never persisted as configuration.
+`assistant_protocol_budgets` has exactly
 `invocation_deadline_ms`, `frame_max_bytes`, `json_max_depth`, `event_max_count`,
 `tool_call_max_count`, `model_turn_max_count`, `direction_max_bytes`, `text_output_max_bytes`,
 `snapshot_max_bytes`, `candidate_max_bytes`, `continuation_max_bytes`, and `approval_expiry_ms`, with
 D0.5 exact values.
 
+There is at most one active `generation_provider_routes` item per `(profile_ref, generation_kind)`; its fields are
+one indivisible binding. The Settings UI selects provider and route and renders account and
+write-only credential fields only when that route's safe contract requires them; Mock routes render
+neither. A second account for the same profile is replacement, not another row.
+Duplicate mapping keys or duplicate bindings are rejected, so a selected profile/provider/route
+never has two possible account or credential targets.
+
 The repository uses one canonical JSON payload of at most 256 KiB inside a versioned SQLite row.
 It rejects duplicate/unknown fields, wrong schema, Assistant native model overrides, credential
 values inside the config payload, and paths. An absent row yields and atomically stores the exact
-defaults with no provider routes and Assistant disabled. Its Assistant default is schema `1`,
-enabled `false`,
+three `(profile, generation kind)`-to-Mock-route bindings from `BACKEND_PROVIDERS.md` and Assistant disabled. Its
+Assistant default is schema `1`, enabled `false`,
 `assistant.workflow_coauthor@1`, and credential ID `assistant.openai.default`. Configuration is
-validated once at startup. Missing provider credentials make only affected Generation Profiles
-unavailable; a missing Assistant
+validated at startup, and every Settings mutation is validated against the same shipped provider/
+route contracts before its transaction commits. Provider composites and their shipped route
+registry are immutable and are not rebuilt after a Settings mutation. New task admission reads the
+committed active `(profile, generation kind)` mapping; existing tasks resolve only the request-derived kind plus their
+immutable persisted provider/route/account/credential-revision target. Missing provider credentials make only affected
+Generation Profiles unavailable; a missing Assistant
 credential disables only Assistant commands.
+
+The version-1 migration preserves the validated concurrency, Asset, Assistant model, and Assistant
+protocol values; removes every legacy provider route field whose endpoint/native-model semantics no
+longer belong in configuration; installs the exact three version-2 Mock bindings; and atomically
+writes canonical version 2. Existing provider credential rows remain stored and redacted but are
+not referenced by Mock. Invalid version-1 data fails migration instead of being partially guessed.
+
+Task admission reads the current route binding and, when required, resolves the credential's active
+immutable revision. Credential revisions are append-only rows keyed by `(credential_id, revision)`;
+the task row references that exact row. The use case passes the observed backend-config revision and
+active credential revision as `GenerationTaskAdmissionGuard`. Task creation atomically requires the
+config revision to remain current and the credential revision to remain active; mismatch returns
+`AdmissionBindingChanged`, re-resolves, and retries before any provider call. The foreign key then
+preserves the accepted snapshot but is not treated as the concurrency check. Mock admission uses
+the same config-revision guard with no credential revision.
 
 `GenerationProviderCredentialRepositoryInterface` and
 `AssistantModelCredentialRepositoryInterface` are separate consumer-owned interfaces even when one
@@ -381,11 +523,18 @@ SQLite adapter implements both. Production secrets are stored as plaintext blobs
 can read the credentials. Plaintext must still never enter the config payload, public DTOs, errors,
 or logs, and provider/Assistant consumers retain it only for one bounded authenticated call.
 
-Credential IDs follow lowercase dot-segment identity rules and are at most 128 bytes.
+Credential IDs follow lowercase dot-segment identity rules and are at most 128 bytes. Provider
+credential revisions are non-zero monotonic `u64` values. A production route/task loads an exact ID/revision;
+it never silently observes a replacement.
 `SqliteDesktopBackendSettingsAdapterImpl` implements the config repository plus both focused
-credential repositories. The two credential tables have independent namespaces keyed by credential
-ID. They implement only save, load, and delete and never enumerate through the business
-interfaces. There is no JSON-file, platform-vault, encrypted-column, or embedded-key fallback.
+credential repositories. The two credential tables have independent namespaces. Replacement
+inserts a new immutable revision and atomically changes the active pointer. Settings deletion
+retires the active revision. While a non-terminal Generation Task references it, the secret remains
+readable and deletion returns `GenerationProviderCredentialInUse`; afterward the secret blob is
+cleared but the immutable tombstone row remains for the Task foreign key. Only an unreferenced
+tombstone row may be physically deleted.
+Interfaces never enumerate readable secrets. There is no JSON-file, platform-vault,
+encrypted-column, or embedded-key fallback.
 
 ## Representation Boundaries
 
@@ -416,8 +565,9 @@ SqliteAssetRow                  -> AssetAggregate
 SqliteAssistantWorkflowChangeRow -> AssistantWorkflowChangeAggregate
 ```
 
-A persistence row, provider DTO, SDK state, credential, path, route ID, or provider task ID is never
-returned to React.
+A persistence row, provider DTO, SDK state, credential, managed path, remote provider task ID, or
+raw provider payload is never returned to React. A stable safe route ID appears only in the Models
+Settings contract where the user selects that route; Task DTOs do not expose it.
 
 ## Error Translation
 
@@ -451,17 +601,19 @@ belongs to V3 and is not fixed here.
 - Project command/bridge tests cover create, rename, list, open, isolation, and one current Workflow;
 - use-case tests use fake interfaces without Tauri;
 - transaction tests prove every durable-before-effect ordering;
-- post-commit worker tests cover the three effect types, concurrency, cancellation, and restart policy;
+- effect-worker tests cover the three Desktop effects, four task effects, leases, concurrency,
+  cancellation, and restart policy;
 - bridge tests prove exact cross-context translation without copied semantics;
 - event tests cover sequence, emission failure, duplicate/gap repair, and terminal query;
 - preview tests cover Project isolation, expiry, MIME, Range, and path non-disclosure;
-- composition tests assert exactly seven active capabilities and three exact provider routers;
+- composition tests assert exactly seven active Node Capabilities, configured provider composites,
+  and the exact three active profile routes;
 - Assistant E2E proves proposal -> review -> approval -> canonical apply -> canonical Run -> repair;
 - contract fixtures prove Rust, Python, and TypeScript DTO/schema alignment.
 
 ## Post-MVP
 
-New roadmap capabilities, Project archive/delete/duplicate, remote task resume, server/background
+New roadmap capabilities, Project archive/delete/duplicate, standalone task creation, server/background
 workers, provider choice, dynamic plugins, durable backend undo/history, cross-Run cache, advanced
 Asset lifecycle, multi-device Assistant coordination, cloud sync, 3D, and scenes remain outside the
 frozen Desktop surface.

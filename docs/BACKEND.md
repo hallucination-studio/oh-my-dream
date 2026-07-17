@@ -34,7 +34,8 @@ API, database record, or promise of provider support.
 | [`BACKEND_WORKFLOW_GRAPH.md`](BACKEND_WORKFLOW_GRAPH.md) | editable graph, typed bindings, and graph invariants |
 | [`BACKEND_WORKFLOW.md`](BACKEND_WORKFLOW.md) | readiness, execution plan, Run lifecycle, and output association |
 | [`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md) | capability interface, implementation behavior, and operation contracts |
-| [`BACKEND_PROVIDERS.md`](BACKEND_PROVIDERS.md) | stable profiles, availability, routers, routes, and provider translation |
+| [`BACKEND_PROVIDERS.md`](BACKEND_PROVIDERS.md) | stable profiles, provider composites, focused capabilities, routes, and translation |
+| [`BACKEND_TASK.md`](BACKEND_TASK.md) | durable Generation Task lifecycle, remote recovery, progress, cancellation, and task list |
 | [`BACKEND_ASSETS.md`](BACKEND_ASSETS.md) | Asset identity, managed content, provenance, and preview permission |
 | [`BACKEND_ASSISTANT.md`](BACKEND_ASSISTANT.md) | Assistant plan, proposal, review, approval, canonical Run, and repair |
 | [`BACKEND_APPLICATION.md`](BACKEND_APPLICATION.md) | Tauri commands, DTO translation, post-commit effects, events, and composition |
@@ -60,20 +61,26 @@ Node Capability support           |
   exact capabilities                     managed media, provenance, preview permission
   Generation Profile catalog
        ^
-       | exact provider interfaces
+       | task-start interface
+Generation Task (`crates/tasks`)
+       ^
+       | provider-level and focused interfaces
 Provider adapters (`crates/backends`)
-  profile routers -> vendor routes -> external APIs
+  provider composites -> focused capabilities -> vendor routes -> external APIs
+
+Generation Task bounded context (`crates/tasks`)
+  durable generation intent -> submit/poll/finalize outbox -> Asset and Workflow bridges
 
 Assistant bounded context (`crates/assistant`)
   proposal -> review -> human decision -> Workflow mutation interface
 
 Desktop boundary (`src-tauri`)
-  commands, DTOs, bridges, one post-commit worker, preview protocol, composition
+  commands, DTOs, bridges, closed Desktop/task workers, preview protocol, composition
 ```
 
-Project, Workflow, Asset, and Assistant are business contexts. Node Capability and Generation
-Profile support Workflow. Provider and Desktop modules are boundaries, not owners of creative
-business state.
+Project, Workflow, Generation Task, Asset, and Assistant are business contexts. Node Capability
+and Generation Profile support Workflow. Provider and Desktop modules are boundaries, not owners
+of creative business state.
 
 ## Semantic Owners
 
@@ -83,11 +90,12 @@ business state.
 | editable nodes, bindings, position, and revision | Workflow | `WorkflowAggregate` |
 | draft validity and Run readiness | Workflow using capability contracts | `WorkflowReadinessPolicy` |
 | one frozen execution and output association | Workflow | `WorkflowRunAggregate` |
-| one node's progress, failure, and terminal output | Workflow Run | `WorkflowNodeExecutionEntity` |
+| one node's graph-execution state, failure, and terminal output | Workflow Run | `WorkflowNodeExecutionEntity` |
+| one provider-backed generation lifecycle, remote handle, and progress | Generation Task | `GenerationTaskAggregate` |
 | exact operation parameters, inputs, outputs, and execution behavior | exact capability implementation | `TextToImageCapabilityImpl`, and peers |
 | stable user-selectable model identity and compatibility | Generation Profile catalog | `GenerationProfileDefinition` |
 | current profile availability and route health | provider availability adapter | `GenerationProfileAvailabilityObservation` |
-| provider-native model, request, task, and status | one concrete provider route | private provider types |
+| provider-native request/status translation | one concrete provider route | private provider types |
 | media identity, bytes availability, facts, and provenance | Asset | `AssetAggregate` |
 | Assistant working plan | Assistant | `AssistantProductionPlanAggregate` |
 | Assistant candidate, review result, and human decision | Assistant | `AssistantWorkflowChangeAggregate` |
@@ -109,13 +117,16 @@ React / Python model adapter
 Desktop commands and composition
    |               |                |                 |
    v               v                v                 v
-Project interfaces   Workflow interfaces   Asset interfaces       Assistant interfaces
+Project interfaces   Workflow interfaces   Generation Task interfaces   Asset interfaces   Assistant interfaces
                    ^                ^
                    |                |
-Node capabilities ----> exact provider and media interfaces
-                         ^
-                         |
-                   provider adapters
+Node capabilities ----> task-start and media interfaces
+                              ^
+                              |
+                  Generation Task application
+                              ^
+                              |
+                   provider task adapters
 ```
 
 Rules:
@@ -123,14 +134,16 @@ Rules:
 1. `crates/projects` owns `ProjectId` and imports no other business context.
 2. `crates/engine` remains pure and imports only `ProjectId`, never UI, network, filesystem, SQL,
    vendor, or Assistant code.
-3. `crates/nodes` implements `WorkflowNodeCapabilityInterface` and owns only the focused interfaces its exact
-   capabilities consume.
-4. `crates/backends` implements exact provider interfaces; native DTOs never cross inward.
-5. `crates/assets` imports only `ProjectId`, never Workflow or provider types. Desktop translates provenance and
+3. `crates/nodes` implements `WorkflowNodeCapabilityInterface` and owns only the focused interfaces
+   its exact capabilities consume, including the task-start boundary for provider-backed work.
+4. `crates/tasks` owns the Generation Task aggregate, application use cases, and provider/storage/
+   Asset/Workflow completion interfaces it consumes.
+5. `crates/backends` implements task-owned provider interfaces; native DTOs never cross inward.
+6. `crates/assets` imports only `ProjectId`, never Workflow or provider types. Desktop translates provenance and
    managed-media references explicitly.
-6. Assistant consumes bounded Project, Workflow, capability, and workspace interfaces. It imports no repository
+7. Assistant consumes bounded Project, Workflow, capability, and workspace interfaces. It imports no repository
    adapter and owns no alternative Workflow rules.
-7. Only `DesktopCompositionRoot` constructs or selects concrete adapters.
+8. Only `DesktopCompositionRoot` constructs or selects concrete adapters.
 
 ## MVP Freeze
 
@@ -144,13 +157,13 @@ The composition root registers exactly these contracts:
 | `image.read_asset@1.0` | `ReadImageAssetCapabilityImpl` | `NodeCapabilityManagedMediaReaderInterface` |
 | `video.read_asset@1.0` | `ReadVideoAssetCapabilityImpl` | `NodeCapabilityManagedMediaReaderInterface` |
 | `audio.read_asset@1.0` | `ReadAudioAssetCapabilityImpl` | `NodeCapabilityManagedMediaReaderInterface` |
-| `image.generate_from_text@1.0` | `TextToImageCapabilityImpl` | `GenerationProfileCatalog`, `GenerationProfileAvailabilityReaderInterface`, `TextToImageProviderInterface`, `NodeCapabilityProducedMediaWriterInterface` |
-| `video.generate_from_image@1.0` | `ImageToVideoCapabilityImpl` | `GenerationProfileCatalog`, `GenerationProfileAvailabilityReaderInterface`, `NodeCapabilityManagedMediaReaderInterface`, `ImageToVideoProviderInterface`, `NodeCapabilityProducedMediaWriterInterface` |
-| `audio.synthesize_speech_from_text@1.0` | `TextToSpeechCapabilityImpl` | `GenerationProfileCatalog`, `GenerationProfileAvailabilityReaderInterface`, `TextToSpeechProviderInterface`, `NodeCapabilityProducedMediaWriterInterface` |
+| `image.generate_from_text@1.0` | `TextToImageCapabilityImpl` | profile catalog/availability and `NodeCapabilityGenerationTaskStarterInterface` |
+| `video.generate_from_image@1.0` | `ImageToVideoCapabilityImpl` | profile catalog/availability, managed-media reader, and `NodeCapabilityGenerationTaskStarterInterface` |
+| `audio.synthesize_speech_from_text@1.0` | `TextToSpeechCapabilityImpl` | profile catalog/availability and `NodeCapabilityGenerationTaskStarterInterface` |
 
 This supports the complete `Text -> Image -> Video` path and an independent `Text -> Speech` path,
 with imported Image, Video, and Audio inputs. Every registered model-powered capability has a
-deterministic route and at least one configured production route before MVP release.
+Mock route before MVP release. Production provider adapters are a separately reviewed later phase.
 
 ### Module Surface
 
@@ -159,11 +172,12 @@ deterministic route and at least one configured production route before MVP rele
 | Project | create, rename, get, stable list, open with current Workflow summary | archive, delete, duplicate, templates, search, collaboration |
 | Workflow | create/get-current, atomic mutation, readiness, whole/through-node Run, cancel, Run/event query, node presentation | history, backend undo, retry-in-place, cache, batches, groups, subgraphs, conditions |
 | Node Capability | one interface and seven implementations above | registration of the roadmap operations |
-| Generation Profile | stable per-node selection, compatibility, availability query | user-selected vendor, arbitrary model IDs, provider options, cross-profile fallback |
-| Provider | exact routers/routes for three model operations, bounded polling, cancellation observation | durable remote task resume, failover after acceptance, billing, webhooks |
+| Generation Profile | stable per-node profile selection, compatibility, availability query, Settings-owned provider/route binding | node-level vendor selection, arbitrary model IDs/options, cross-profile fallback |
+| Generation Task | one Text/Image/Video/Voice task lifecycle, provider-level composition over focused capabilities, submit/poll/finalize outbox, progress, Workflow-owned cancellation, restart recovery, get/list | standalone creation, independent cancellation, retry attempts, archive, retention, webhooks |
+| Provider | one Mock composite with exact routes for three active model operations and frozen task contracts | production adapters, failover after acceptance, billing, arbitrary vendor options |
 | Asset | import, get/list, node-output write, resolve, preview, Pending reconciliation | delete, archive, tags, search, export, derivatives, garbage collection |
 | Assistant | durable non-executable plan, candidate, review, human decision, exact apply, canonical Run, reviewed repair | plan-as-queue scheduler, unreviewed apply/repair, parallel approvals, distributed Sessions |
-| Desktop | commands, DTOs, one post-commit worker, durable event repair, preview protocol, composition | generic job host, server mode, plugins, distributed workers |
+| Desktop | commands, DTOs, closed post-commit and Generation Task workers, durable event repair, preview protocol, composition | generic job host, server mode, plugins, distributed workers |
 | Storage | SQLite metadata/config/plaintext credentials, managed files, staging | cloud sync, multi-writer coordination, credential/media encryption, backup/restore UI |
 
 Roadmap capability names remain in `BACKEND_CAPABILITIES.md` so their semantics and names are not
@@ -179,7 +193,7 @@ Exported names follow the grammar in `BACKEND_GLOSSARY.md`:
 ```
 
 Examples are `WorkflowStartRunUseCase`, `AssetRecordNodeOutputUseCase`,
-`AssistantDecideWorkflowChangeUseCase`, `ImageToVideoProviderInterface`, and
+`AssistantDecideWorkflowChangeUseCase`, `GenerationProviderInterface`, and
 `SqliteWorkflowRunRepositoryAdapterImpl`. Tauri command names are source-first, such as
 `workflow_start_run`, `asset_import`, and `assistant_decide_workflow_change`.
 
@@ -194,13 +208,15 @@ Public methods state their action. Vague methods such as `execute`, `process`, `
 | Desktop Project command | one Project use case | Project or workspace result | Workflow/Asset repository join |
 | Project open use case | `ProjectWorkflowSummaryReaderInterface` | optional current Workflow summary | imported Workflow aggregate/rules |
 | Desktop Workflow command | one Workflow use case | Workflow result/DTO translation | repository or capability call |
-| Workflow Run executor | `WorkflowNodeCapabilityInterface` | complete typed node output | provider or Asset repository call |
-| exact capability | exact provider/media interface | validated semantic payload | vendor client lookup |
-| exact capability | node-owned media reader/writer interfaces | managed input or available Asset ref | path, URL, or Asset repository |
+| Workflow Run executor | `WorkflowNodeCapabilityInterface` | immediate typed output or durable waiting handoff | provider or Asset repository call |
+| provider-backed Node Capability | `NodeCapabilityGenerationTaskStarterInterface` | durable waiting handoff | provider interface or vendor client lookup |
+| local/media Node Capability | node-owned media interfaces | managed input or immediate output | path, URL, or Asset repository |
+| Generation Task generic dispatch | `GenerationProviderInterface` through `GenerationProviderRegistry` | exact focused capability contribution | vendor-name branch or active Settings substitution |
+| Generation Task type-specific execution | matching Text/Image/Video/Voice provider interface | normalized provider outcome | another kind interface or concrete vendor lookup |
 | Desktop node/Asset bridge | Asset use cases | translated managed-media value | copied Asset invariants |
 | Workflow presentation | `WorkflowMediaPreviewIssuerInterface` | opaque preview value | Asset lease or path import |
 | Assistant | Assistant-owned Workflow bridge interfaces | bounded snapshot/evaluation/apply result | direct Workflow repository mutation |
-| provider router | private exact route interface | normalized provider result | another capability or Asset creation |
+| provider composite | focused capability and private route interfaces | safe capability contract and normalized result | another capability or Asset creation |
 | Desktop post-commit worker | one of three committed effect types | bounded external follow-up | direct effect before commit |
 
 ## End-To-End Interactions
@@ -212,14 +228,15 @@ DesktopCompositionRoot
   -> open and migrate SQLite
   -> load and validate SQLite backend configuration
   -> construct focused SQLite plaintext credential repositories
-  -> construct Project, Asset, Workflow, and Assistant repositories/use cases
+  -> construct Project, Asset, Workflow, Generation Task, and Assistant repositories/use cases
   -> construct Project/Workflow and other cross-context bridges
-  -> construct profile catalog, exact provider routes, routers, and availability reader
+  -> construct profile catalog, provider composites, exact routes, registry, and availability reader
   -> construct seven capability implementations and WorkflowNodeCapabilityRegistry
-  -> reconcile bounded Pending Assets
-  -> mark non-terminal Workflow Runs InterruptedByRestart
+  -> reconcile bounded Pending Assets and reclaim prior-instance or expired Generation Task effects
+  -> preserve Runs waiting on authoritative non-terminal Generation Tasks
+  -> mark only unsafe non-terminal Workflow Runs InterruptedByRestart
   -> recover safe Asset/Assistant effects and abandon unsafe Workflow Run effects
-  -> register commands, preview protocol, and one post-commit worker
+  -> register commands, preview protocol, post-commit worker, and Generation Task worker
 ```
 
 A missing credential or unhealthy provider marks only affected profiles unavailable. It does not
@@ -279,15 +296,14 @@ DesktopPostCommitEffectWorker consumes WorkflowExecuteRunEffect
   -> WorkflowExecuteRunUseCase coordinates ready nodes within the concurrency bound
   -> WorkflowNodeCapabilityRegistry resolves the exact implementation
   -> capability resolves inputs through NodeCapabilityManagedMediaReaderInterface
-  -> capability calls one exact provider or media interface
-  -> provider router resolves the profile's one configured route for WorkflowNodeExecutionId
-  -> provider route validates/downloads a bounded semantic payload
-  -> capability writes media through NodeCapabilityProducedMediaWriterInterface
-  -> AssetRecordNodeOutputUseCase commits Pending + AssetFinalizeContentEffect
-  -> AssetFinalizeContentUseCase publishes bytes after commit and commits Available
-  -> capability returns a complete WorkflowNodeOutputSet
-  -> WorkflowRunRepositoryInterface atomically stores output, state, and durable events
-  -> the same worker emits only committed, undispatched events
+  -> provider-backed capability creates one durable GenerationTask for the Node Execution
+  -> Workflow records WaitingForExternalCompletion and completes the current Run effect
+  -> GenerationTaskEffectWorker submits through the exact provider adapter
+  -> accepted remote task ID is committed before delayed polling
+  -> completed media is validated and published through the Asset boundary
+  -> task commits its terminal result and NotifyWorkflow
+  -> Workflow completion bridge commits node output/failure and a new Run effect
+  -> Desktop worker schedules newly-ready downstream nodes and emits committed events
 ```
 
 Text output skips Asset storage. A media node succeeds only after every required Asset is Available.
@@ -298,12 +314,13 @@ different bytes is a structured conflict.
 
 | Situation | Closed outcome |
 | --- | --- |
-| provider or media operation fails | node becomes Failed, descendants become Blocked, independent branches finish, Run reaches terminal state |
+| provider or media operation fails | Generation Task becomes Failed and idempotently notifies Workflow; node becomes Failed, descendants become Blocked, independent branches finish |
 | Asset publication fails after Pending commit | node does not publish output; startup reconciliation completes or marks the Asset Missing |
 | cancellation wins before output commit | no new node output is attached; active work is signalled and remaining nodes become Cancelled/Blocked |
 | Asset becomes Available just before cancellation wins | the Asset remains durable with provenance, but the late node output is rejected |
 | event emission fails after commit | its safe outbox effect retries; Run remains authoritative and UI can query the gap |
-| process exits during provider work | startup marks the Run failed with `InterruptedByRestart`; remote work is not resumed |
+| process exits after accepted provider work | task outbox reclaims the poll by persisted remote ID and later resumes the same waiting node |
+| process exits before a durable task handoff or during an unsafe submission | startup fails closed; only the affected unverifiable Run uses `InterruptedByRestart` or the task records `AmbiguousSubmission` |
 | duplicate mutation or Run request | matching request hash returns the prior receipt; mismatched reuse returns an idempotency conflict |
 
 ### Preview And Reopen
@@ -318,8 +335,8 @@ workflow_get_node_presentation
   -> React renderer
 ```
 
-The Workflow and Asset IDs survive restart. Preview leases, URLs, playback state, provider task IDs,
-and decrypted credentials do not.
+Workflow, Generation Task, remote provider task, and Asset IDs survive restart. Preview leases,
+URLs, playback state, and loaded credential values do not.
 
 ## Transaction And Side-Effect Order
 
@@ -327,8 +344,9 @@ and decrypted credentials do not.
 | --- | --- | --- | --- |
 | Project create/rename | Project + revision + mutation receipt | return committed Project | retry by request ID |
 | Workflow mutation | snapshot + revision + mutation receipt | return the committed result | retry by request ID |
-| Run admission | Run + executions + event + request receipt + execute effect | execute the Run | interrupt Run; abandon unsafe effect |
+| Run admission | Run + executions + event + request receipt + execute effect | execute the Run | replay queued work or classify unsafe execution |
 | Run transition | transition + outputs + durable events | emit undispatched events | replay/query event rows |
+| Generation Task create/transition | task + optional result + consumed/enqueued task effect | submit, poll, cancel, finalize, or notify Workflow | reclaim a fenced effect and continue exact task |
 | Asset node output | Pending + finalization + output key + finalize effect | publish managed bytes | safely replay exact finalization |
 | Asset availability | Available transition + completed finalization | allow node output commit | verify exact digest/length |
 | Assistant decision | transition + apply effect | idempotent apply, resume, and Run effects | safely replay stable request IDs |
@@ -359,15 +377,15 @@ The architecture is closed only when:
 2. the seven active capabilities can be edited, saved, reopened, run, and presented;
 3. each of the three model-powered capabilities supports per-node profile selection and current
    availability without exposing provider/native model identity;
-4. one deterministic route and one configured production route pass each exact provider contract;
+4. one Mock route passes each exact active provider contract, including restart-safe remote polling;
 5. imported and node-produced media use the same Asset availability and preview path;
-6. every Run, cancellation, failure, event gap, Pending Asset, and restart has the outcome defined
+6. every Run, Generation Task, cancellation, failure, event gap, Pending Asset, and restart has the outcome defined
    above;
 7. an Assistant-approved change reaches Workflow and execution only through the canonical mutation
    and Run use cases, and repair repeats the same review/approval chain;
-8. fake and production implementations pass the same interface contract suites;
+8. fake, Mock, and every later production implementation pass the same interface contract suites;
 9. Rust/TypeScript DTO fixtures remain mechanically aligned;
-10. architecture tests reject inward concrete dependencies, duplicate semantic owners, unregistered
+10. architecture tests reject inward concrete dependencies, duplicate semantic owners, generic jobs, unregistered
    MVP capabilities, and concrete construction outside the composition root;
 11. `./scripts/e2e.sh` passes.
 
@@ -377,7 +395,7 @@ Text-to-video, image-to-image, reference-based generation, mixed-media generatio
 music, crop, upscale, frame extraction, concatenation, and storyboard analysis retain explicit
 roadmap names in the capability document. They are not MVP runtime behavior.
 
-Provider-task persistence, automatic generation retry, failover after acceptance, dynamic/plugin
-capabilities, cross-Run cache, Project lifecycle management, unreviewed Assistant apply/repair,
+Automatic generation retry, failover after acceptance, dynamic/plugin capabilities, cross-Run
+cache, Project lifecycle management, unreviewed Assistant apply/repair,
 Asset lifecycle management, server mode, cloud sync, collaboration, 3D, and scenes each require a
 separate decision that updates this freeze.

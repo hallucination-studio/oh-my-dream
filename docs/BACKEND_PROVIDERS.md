@@ -1,50 +1,70 @@
 # Backend Generation Profiles And Providers
 
-> Status: frozen MVP provider architecture
-> Owner: profile semantics in `crates/nodes`; routes in `crates/backends`; wiring in `src-tauri`
+> Status: frozen MVP provider interfaces; Mock implementation only
+> Owner: profile semantics in `crates/nodes`; provider interfaces in `crates/tasks`; routes in
+> `crates/backends`; wiring in `src-tauri`
 > Scope: provider-independent model selection, availability, routing, and translation
 
 Users select a stable Generation Profile. Provider accounts, native models, endpoints, and routing
-remain replaceable infrastructure.
+remain replaceable infrastructure. MVP freezes the provider-facing interfaces and proves them with
+one deterministic Mock provider. Every production adapter, native wire, and vendor-specific route
+configuration is explicitly deferred and does not constrain this design.
 
 ## Decision
 
 1. Every model-powered node persists one provider-independent `GenerationProfileRef`.
 2. `GenerationProfileDefinition` owns identity, lifecycle, and exact capability compatibility.
-3. Each active exact capability owns one focused provider interface.
-4. One capability-specific router implements that interface and resolves the profile to its single
-   configured route.
-5. One concrete vendor route owns native model mapping, request translation, submission, polling,
-   download, response validation, and provider error translation.
-6. Only `DesktopCompositionRoot` constructs routes and routers.
+3. Provider-backed capabilities create one provider-neutral Generation Task rather than owning
+   remote polling state.
+4. Generation Task owns one provider-level `GenerationProviderInterface` and the four focused
+   `TextGenerationProviderInterface`, `ImageGenerationProviderInterface`,
+   `VideoGenerationProviderInterface`, and `VoiceGenerationProviderInterface` capabilities.
+5. One cloud-provider implementation composes any non-empty subset of those complete capabilities
+   while sharing its private transport, account, and authentication infrastructure.
+6. Multiple providers may contribute the same capability. Provider Settings choose which provider/
+   route serves each Generation Profile; missing capabilities are not selectable.
+7. Only `DesktopCompositionRoot` constructs provider composites and the immutable provider registry.
 
 The complete runtime stack is intentionally short:
 
 ```text
 ImageToVideoCapabilityImpl
-  -> ImageToVideoProviderInterface
-  -> ImageToVideoProviderRouterImpl
-  -> FalImageToVideoProviderRouteImpl
-  -> provider API
+  -> NodeCapabilityGenerationTaskStarterInterface
+  -> GenerationTaskStartUseCase
+  -> GenerationProviderInterface resolves configured Mock provider
+  -> VideoGenerationProviderInterface contribution
+  -> deterministic Remote { submitter, poller }
+  -> stateless Mock route
 ```
 
-There is no provider-wide feature interface, binding object, binding registry, generation task,
-provider executor, or node-level provider/model field.
+There is one provider-wide composition interface, but no provider-wide generic execution method,
+optional capability method, or node-level provider/model field. `GenerationTaskAggregate` is the
+sole durable provider-work owner.
 
 ## Source-And-Behavior Names
 
 | Role | Required pattern | Example |
 | --- | --- | --- |
-| public semantic interface | `<Input>To<Output>ProviderInterface` | `ImageToVideoProviderInterface` |
-| semantic request | `<Input>To<Output>ProviderRequest` | `ImageToVideoProviderRequest` |
-| profile router | `<Input>To<Output>ProviderRouterImpl` | `ImageToVideoProviderRouterImpl` |
+| provider composite interface | `GenerationProviderInterface` | `MockGenerationProviderAdapterImpl` implements it |
+| focused provider capability | `<Type>GenerationProviderInterface` | `VideoGenerationProviderInterface` |
+| semantic request | `<Output>GenerationSpec` | `VideoGenerationSpec` |
+| concrete provider composite | `<Provider>GenerationProviderAdapterImpl` | `MockGenerationProviderAdapterImpl` |
 | private route interface | `<Input>To<Output>ProviderRouteInterface` | `ImageToVideoProviderRouteInterface` |
-| concrete vendor route | `<Vendor><Input>To<Output>ProviderRouteImpl` | `FalImageToVideoProviderRouteImpl` |
-| deterministic route | `Deterministic<Input>To<Output>ProviderRouteImpl` | `DeterministicImageToVideoProviderRouteImpl` |
+| concrete provider route | `<Provider><Input>To<Output>ProviderRouteImpl` | `MockImageToVideoProviderRouteImpl` |
 
-Methods state the complete behavior: `generate_image_from_text`, `generate_video_from_image`, and
-`synthesize_speech_from_text`. Standalone `Provider`, `Client`, `Model`, `Route`, `Binding`,
-`Executor`, `Task`, and `Registry` names are prohibited.
+The provider-level interface exposes identity and one non-empty typed capability product. The safe
+UI contract is mechanically projected from that product. Focused capability interfaces expose
+complete Immediate, Remote, or CancellableRemote execution compositions selected by an exact route
+ID. One provider contributes at most one focused interface per kind, and that interface owns all
+shipped routes for the provider/kind pair.
+Standalone `Provider`, `Client`, `Model`, `Route`, `Binding`,
+`Executor`, `Task`, and `Registry` names remain prohibited.
+
+Behavioral equivalence for `GenerationProviderInterface` means stable provider identity,
+deterministic mechanically-derived projection ordering, and no side effect during discovery. It
+does not mean every provider supports every generation type. Behavioral equivalence for execution
+is enforced separately on each focused
+capability interface through its shared contract suite.
 
 Provider-shared infrastructure uses the `GenerationProvider` prefix, such as
 `GenerationProviderAccountId`, `GenerationProviderRouteId`, and
@@ -58,10 +78,13 @@ crates/engine
   WorkflowNodeCapabilityInterface and WorkflowNodeExecutionId
              ^
 crates/nodes
-  exact capabilities, Generation Profile catalog, exact provider interfaces
+  exact capabilities, Generation Profile catalog, task-start interface
+             ^
+crates/tasks
+  Generation Task aggregate, application, provider interfaces
              ^
 crates/backends
-  provider routers, vendor routes, private protocol DTOs
+  provider capability adapters, vendor routes, private protocol DTOs
              ^
 src-tauri
   SQLite configuration/plaintext credential repositories, construction
@@ -71,15 +94,16 @@ Recommended adapter layout:
 
 ```text
 crates/backends/src/
-  provider_routing/<operation>_router.rs
+  provider_capabilities/<type>/{submission,polling,cancellation}.rs
   deterministic_provider/<operation>_route.rs
   <vendor>/
     shared/{authentication,http,polling,download,error_translation}.rs
     <operation>/{route,request_dto,response_dto}.rs
 ```
 
-Vendor DTOs, status values, native model IDs, signed URLs, and remote task handles remain private to
-their concrete route.
+Vendor DTOs, status values, native model IDs, and signed URLs remain private to their concrete
+capability adapter. Only normalized provider outcomes and the validated opaque remote handle cross
+into Generation Task; the handle never enters Workflow, Asset, Assistant, or Generation Profile.
 
 ## Stable Generation Profile
 
@@ -183,15 +207,19 @@ observation. Indeterminate reasons are exactly `ProbeTimedOut`, `NetworkOffline`
 `UntrustedResponse`.
 
 `GenerationProfileAvailabilityReaderInterface` is consumer-owned by the profile application module.
-`ProviderRouterGenerationProfileAvailabilityReaderAdapterImpl` performs one bounded bulk
-observation for one exact capability and profile set. It reads the same three router
-implementations' profile-to-route maps and never maintains another mapping. It does not probe once
-per UI row or persist availability.
+`GenerationProviderRegistryProfileAvailabilityReaderAdapterImpl` performs one bounded bulk
+observation for one exact capability and profile set. It reads the canonical
+`(profile, generation kind)`-to-provider/route Settings map plus the matched provider contract and
+never maintains another capability mapping. It does not probe once per UI row or persist availability. An exact configured
+Mock route is always `Available`; Mock performs no synthetic network or credential probe.
 
 `GenerationProfileListForCapabilityUseCase` joins definitions with current observations and returns
 only provider-independent metadata. In the MVP, both `Unavailable` and `Indeterminate` prevent Run
-admission. The router checks again at execution because availability can change after admission.
-No route may silently substitute a different profile.
+admission. Task admission validates current availability and persists the exact provider/route
+target; kind remains authoritative in the closed task request variant. Recovery of an accepted task
+does not repeat the availability probe: it resolves the persisted provider + request kind + route
+contract and lets the poll call return its normalized outcome. Recovery never consults or
+substitutes the active Settings mapping. No route may silently substitute a different profile.
 
 The C1 values and application contracts are exact:
 
@@ -226,133 +254,116 @@ definition and its matching current observation. The list result has no selected
 provider, native model, route, credential, price, pagination, refresh token, stale cache, or UI
 metadata. The use case does not persist observations or substitute a profile.
 
-## Frozen MVP Provider Interfaces
+Provider Settings derive their selectable provider/route list from `GenerationProviderContract`.
+Each focused capability contract contains a non-empty set of safe route contracts; each route
+contract has its stable route ID, display name, exact compatible Generation Profile refs, and
+provider-neutral `None | AccountCredential` configuration requirement. For a
+Text profile the projection includes only compatible Text routes; Image includes only compatible
+Image routes; Video only compatible Video routes; speech/voice only compatible Voice routes.
+Applying a `(profile_ref, generation_kind, provider_id, route_id)` mapping absent from that exact
+projection is rejected before persistence. If configuration is missing or becomes
+invalid after migration, availability is `NoConfiguredRoute`, so Workflow readiness blocks it and
+the UI cannot select it. The UI never guesses capability support from provider name or a failed
+generation call.
 
-[`BACKEND_CAPABILITIES.md`](BACKEND_CAPABILITIES.md#mvp-external-interfaces) owns public interface,
-request, and result names. This section freezes their field semantics. Provider infrastructure
-implements exactly its three MVP interfaces: `TextToImageProviderInterface`,
-`ImageToVideoProviderInterface`, and `TextToSpeechProviderInterface`.
+## Frozen MVP Generation Task Provider Contracts
 
-Their requests carry `GenerationProfileRef` and `WorkflowNodeExecutionContext`; the context contains
-`WorkflowNodeExecutionId`, one deadline, and cancellation, but no credential or provider value. The
-execution ID becomes the native submission idempotency key where supported. Exact semantic fields
-and results are:
+[`BACKEND_TASK.md`](BACKEND_TASK.md#9-provider-contracts) owns the public submit, poll, and cancel
+interfaces. This document owns their provider translation. The closed task request variants carry
+provider-neutral Text/Image/Video/Voice semantics. The current three active Node Capabilities use
+the last three rows; Text activates through the same registry when its capability/profile contract
+is admitted:
 
-| Interface method | Request after profile/context | Success result |
+| Task request | Semantic fields after profile/origin | Required output |
 | --- | --- | --- |
-| `generate_image_from_text` | `prompt: WorkflowTextValue`, `aspect_ratio: ImageAspectRatio` | one `GeneratedImagePayload` |
-| `generate_video_from_image` | readable Image, optional `prompt: WorkflowTextValue`, `duration_seconds: 5 | 10` | one `GeneratedVideoPayload` |
-| `synthesize_speech_from_text` | `text: WorkflowTextValue` | one `SynthesizedSpeechPayload` |
+| `Text` | bounded prompt and profile-owned text controls | one Text value |
+| `Image(TextToImage)` | `prompt: WorkflowTextValue`, `aspect_ratio: ImageAspectRatio` | one image |
+| `Video(ImageToVideo)` | exact input Asset snapshot, optional prompt, `duration_seconds: 5 | 10` | one video |
+| `Voice(TextToSpeech)` | `text: WorkflowTextValue` | one Audio Asset |
 
-Each payload has its fixed media kind, MIME, byte length, SHA-256 digest, declared media facts, and
-one bounded asynchronous byte stream. Frozen profile outputs are respectively `image/png` up to 32
-MiB, `video/mp4` up to 512 MiB, and `audio/mpeg` up to 64 MiB. Zero bytes, a second output, unknown
-length, mismatched facts, trailing bytes, or digest mismatch is `InvalidResponse`. Roadmap interface
-names are reserved by the capability document but do not exist in the MVP runtime.
+The immutable task target supplies the exact profile, route, account, and credential reference.
+The stable `GenerationTaskId` becomes the native submission idempotency key where supported.
+Media outputs retain the frozen MIME and size limits: PNG up to 32 MiB, MP4 up to 512 MiB, and
+MPEG up to 64 MiB. Zero bytes, a second primary output, unknown length, mismatched facts, trailing
+bytes, or digest mismatch is `InvalidResponse`.
 
-## Router And Private Route
+## Provider Capability Composition And Private Route
 
-The public router resolves one stable profile and delegates to one private exact route:
+One provider-level adapter implements `GenerationProviderInterface` and assembles its complete
+focused capabilities. MVP registers one Mock provider that contributes Image, Video, and Voice
+without pretending to implement Text:
 
 ```rust
-pub struct ImageToVideoProviderRouterImpl {
-    routes_by_profile:
-        BTreeMap<GenerationProfileRef, Arc<dyn ImageToVideoProviderRouteInterface>>,
+pub struct MockGenerationProviderAdapterImpl {
+    provider_id: GenerationProviderId,
+    display_name: GenerationProviderDisplayName,
+    capabilities: GenerationProviderCapabilities,
 }
 
-#[async_trait]
-trait ImageToVideoProviderRouteInterface: Send + Sync {
-    fn generation_provider_route_id(&self) -> GenerationProviderRouteId;
-    async fn observe_provider_route_availability(
-        &self,
-    ) -> GenerationProviderRouteAvailability;
-
-    async fn generate_video_from_image(
-        &self,
-        request: ImageToVideoProviderRouteRequest,
-    ) -> Result<GeneratedVideoPayload, NodeCapabilityProviderFailure>;
+fn mock_image_to_video_execution(
+    route: Arc<MockImageToVideoProviderRouteImpl>,
+) -> VideoGenerationProviderExecution {
+    VideoGenerationProviderExecution::Remote {
+        submitter: route.clone(),
+        poller: route,
+    }
 }
 ```
 
-The router removes `GenerationProfileRef` only after resolving its exact configured route. The
+This is one adapter-private route composition, not a second public contract. The Mock routes
+implement the same complete task-owned submitter and poller interfaces that a future asynchronous
+production adapter must implement. They perform no network, filesystem, credential, or vendor DTO
+work.
+
+The composed provider registry resolves `GenerationProfileRef` only through its exact
+provider/type/route entry. The
 routed request retains every other semantic field. One route maps exactly one profile semantic
 contract and cannot branch on another profile or return `Unsupported`.
 
-```rust
-struct FalImageToVideoProviderRouteImpl {
-    route_id: GenerationProviderRouteId,
-    native_model_id: FalImageToVideoModelId,
-    account: FalGenerationProviderAccount,
-    transport: FalHttpTransport,
-}
-```
+Provider and route IDs use immutable lower-case dot/hyphen segments and are never repurposed. The
+frozen MVP composition map is exact:
 
-The frozen composition map is exact. Endpoint IDs are product configuration constants, not
-user-editable values:
+| Profile ref | Provider ID | Route ID | Implementation |
+| --- | --- | --- | --- |
+| `image.high_quality_general@1` | `mock` | `mock.image.high-quality-general.v1` | `MockTextToImageProviderRouteImpl` |
+| `video.cinematic_image_animation@1` | `mock` | `mock.video.cinematic-image-animation.v1` | `MockImageToVideoProviderRouteImpl` |
+| `speech.multilingual_narration@1` | `mock` | `mock.voice.multilingual-narration.v1` | `MockTextToSpeechProviderRouteImpl` |
 
-| Profile ref | Production route implementation | Native operation |
-| --- | --- | --- |
-| `image.high_quality_general@1` | `FalTextToImageProviderRouteImpl` | `fal-ai/flux-pro/kontext/text-to-image` |
-| `video.cinematic_image_animation@1` | `FalImageToVideoProviderRouteImpl` | `fal-ai/kling-video/v3/standard/image-to-video` |
-| `speech.multilingual_narration@1` | `ElevenLabsTextToSpeechProviderRouteImpl` | `POST /v1/text-to-speech/{voice_id}?output_format=mp3_44100_128`, model `eleven_multilingual_v2` |
+The Mock route derives a stable opaque handle from `GenerationTaskId` and the persisted task
+creation timestamp supplied in `GenerationProviderCallContext`; repeating submit for the same task
+therefore returns the same handle and completion instant.
+Before a fixed completion instant encoded by that validated handle it returns deterministic
+`Pending` progress; at and after that instant it returns the same terminal result forever. Its media
+bytes are fixed valid test fixtures within the frozen MIME and size limits. It needs no mutable
+process state, so restart tests reconstruct a fresh Mock adapter and prove recovery solely from the
+persisted handle. Mock routes intentionally omit remote cancellation; local cancellation remains
+deterministic and the separate canceller interface is frozen by its focused contract tests.
+All three Mock routes use a 30-second task deadline, a one-second deterministic completion offset,
+and a 500-millisecond poll delay; fault-injection tests override outcomes through a separately
+constructed fake, never through runtime Mock configuration.
 
-Native endpoint and model identifiers are private typed constants owned by each concrete route. Tests replace each production
-route with its matching `Deterministic<Input>To<Output>ProviderRouteImpl`; they do not add catalog
-profiles or routes.
+Production provider work starts only after a separate review freezes that adapter's typed route
+configuration, native request/response DTOs, authentication, untrusted-response validation,
+idempotency behavior, polling guarantees, and cancellation behavior. In particular, MVP defines no
+vendor route configuration, endpoint, native model, API request, or vendor credential field. Adding
+one implements these interfaces; it does not change Generation Task,
+Workflow, Asset, Settings projection, or focused provider contracts.
 
-### Frozen Native Wires
-
-Both fal routes use the authenticated fal queue protocol for their exact endpoint ID: submit one
-JSON request, poll only the returned request ID until `COMPLETED` or a terminal failure, then fetch
-that request's result. `IN_QUEUE` and `IN_PROGRESS` are the only non-terminal states. The
-`Authorization: Key <secret>` header is attached by the transport. The request ID and returned media
-URL remain private route values and are never persisted. The image-to-video route encodes the exact
-readable input bytes as a `data:<verified MIME>;base64,<canonical base64>` URL accepted by the fal
-file-input contract; it performs no public upload and creates no separately recoverable remote file.
-
-For endpoint ID `<endpoint>`, the native HTTP operations are exactly
-`POST https://queue.fal.run/<endpoint>`,
-`GET https://queue.fal.run/<endpoint>/requests/<request_id>/status`, and
-`GET https://queue.fal.run/<endpoint>/requests/<request_id>`. Submission sends the route request as
-the JSON body and requires one non-empty `request_id`; status and result requests have no body.
-Redirects are rejected for queue operations. Non-success HTTP status or an unknown/malformed queue
-state is translated once through the frozen provider-failure categories, never retried as a new
-submission.
-
-The text-to-image request is exactly `prompt`, the semantic `aspect_ratio`, `num_images: 1`,
-`output_format: "png"`, `safety_tolerance: "2"`, and `enhance_prompt: false`. It omits `seed` and
-`guidance_scale` because neither is part of profile semantics. The result must contain exactly one
-image with `content_type: "image/png"`, a non-empty HTTPS URL, and no positive
-`has_nsfw_concepts` entry. Timing, seed, and echoed prompt are observational and discarded.
-
-The image-to-video request is exactly `start_image_url`, optional non-empty `prompt`, semantic
-`duration` encoded as `"5"` or `"10"`, and `generate_audio: false`. An absent semantic prompt sends
-the profile-owned version-1 default above. It never sends `multi_prompt`,
-elements, voices, or an end image. The result must contain exactly one `video` with
-`content_type: "video/mp4"`, a non-empty HTTPS URL, and a positive bounded file size when supplied.
-The profile promises silent image animation; adding native audio requires a new profile version.
-
-The ElevenLabs route sends `xi-api-key`, `Content-Type: application/json`, and body
-`{ "text": <semantic text>, "model_id": "eleven_multilingual_v2" }` to exactly
-`POST https://api.elevenlabs.io/v1/text-to-speech/<voice_id>?output_format=mp3_44100_128`.
-`voice_id` is one required,
-validated `ElevenLabsVoiceId` in non-secret route configuration; it is not a node parameter or
-model-selected value. A successful response is raw `audio/mpeg` bytes bounded by the route download
-limit. Redirects, JSON success bodies, empty bodies, and other content types are invalid responses.
-The route sends no voice-setting override, pronunciation dictionary, continuity request ID, or
-latency option.
-
-These wires are supported by the vendor contracts published at
-<https://fal.ai/models/fal-ai/flux-pro/kontext/text-to-image/api>,
-<https://fal.ai/models/fal-ai/kling-video/v3/standard/image-to-video/api>, and
-<https://elevenlabs.io/docs/api-reference/text-to-speech/convert/>. A vendor wire change that cannot
-preserve these exact semantics makes the route unavailable until a reviewed profile/route update;
-it never silently changes the profile promise.
-
-Router construction rejects unknown or incompatible profiles, duplicate profile mappings,
-duplicate route IDs, and incomplete credentials. A missing mapping is represented by
+Provider construction rejects an empty capability product and any route ID reused
+across its focused capabilities. Settings validation rejects unknown or incompatible profiles,
+duplicate `(profile, generation kind)` mappings, and incomplete account/credential bindings. A missing mapping is represented by
 `NoConfiguredRoute`, not a placeholder implementation. Contract conformance is proved in tests,
 not represented as runtime configuration.
+
+Composition maintains two distinct structures: the committed active
+`(profile, generation kind)`-to-provider/route map
+read transactionally for new task admission, and the immutable shipped provider registry used for
+existing task bindings. Disabling or rebinding a profile affects future tasks but does not remove
+its shipped adapter from recovery. Recovery first resolves persisted provider ID, then request kind,
+then route ID through the matching focused interface, and supplies the persisted account/credential
+revision; it never consults the current profile selection. A software version may remove a shipped recovery
+adapter only through an explicit migration/retirement decision that first proves no non-terminal
+task references it.
 
 ## Dispatch Rules
 
@@ -360,25 +371,27 @@ not represented as runtime configuration.
 saved GenerationProfileRef
   -> compatibility and availability
   -> durable Workflow Run and WorkflowNodeExecutionId
-  -> router resolves the one configured route
-  -> route translates, submits, polls, and validates
-  -> capability stores media through the Asset boundary
-  -> Workflow commits node output and state
+  -> Generation Task persists immutable request and exact route binding
+  -> provider adapter translates and submits
+  -> task persists remote ID and polls by that ID
+  -> task finalizes media through the Asset boundary
+  -> task notification lets Workflow commit node output and state
 ```
 
 The selected `GenerationProviderRouteId` is fixed inside one active node execution before paid
 submission. The MVP never switches routes during that execution. An ambiguous submission fails
-with a structured category unless the same route and vendor idempotency key can safely recover it.
+with a structured category and is never automatically repeated.
 Multi-route selection and automatic failover are post-MVP concerns.
 
-MVP provider polling and remote handles are process-local. No remote task ID enters Workflow,
-Asset, Assistant, SQLite, DTOs, or ordinary logs. On process restart, the owning Run becomes
-`InterruptedByRestart`; the user starts a new Run.
+Accepted remote handles are persisted only inside `GenerationTaskAggregate` and its SQLite row.
+They never enter Workflow, Asset, Assistant, Generation Profile, ordinary logs, or Asset
+provenance or public DTOs. On restart, the task worker queries the same provider operation by that
+ID and the waiting Workflow node remains non-terminal.
 
-Cancellation is supplied through `WorkflowNodeExecutionContext`. A route stops local polling and
-requests remote cancellation when its exact vendor operation supports it. Lack of remote
-cancellation never becomes an optional public interface method; the public observable result is still a
-cancelled local execution, while external work or charges may continue.
+Remote cancellation uses the separate complete `GenerationCancellerInterface` when the adapter
+implements it. Lack of remote cancellation never becomes an optional method or `Unsupported`
+result; local task and Workflow cancellation remain deterministic while external work or charges
+may continue.
 
 ## Route Responsibilities
 
@@ -390,26 +403,29 @@ Each concrete route:
 - validates the frozen response shape, media kind, size, and MIME, plus reported model or checksum
   only when that exact vendor response contract supplies the field;
 - bounds submission, polling, redirects, downloads, deadlines, and response sizes;
-- maps provider status exactly once into `NodeCapabilityProviderFailure`;
-- keeps credentials, raw bodies, signed URLs, remote handles, and route details private.
+- maps provider status exactly once into task-owned normalized outcomes;
+- keeps credentials, raw bodies, signed URLs, and route details private;
+- returns only a validated opaque handle for durable task persistence.
 
-Submission/status response bodies are at most 1 MiB. Text-to-image, image-to-video, and
-text-to-speech deadlines are respectively 180, 900, and 120 seconds. Poll delay stays within
-500..=5,000 milliseconds and attempt count is derived from the operation deadline. Downloads allow
-at most three redirects, require HTTPS and an allowlisted host, and reject loopback, private,
-link-local, and changed resolved addresses. A route never resubmits after an ambiguous acceptance;
-it may only recover the same submission with the same route and idempotency key.
+Each registered route supplies one bounded operation deadline and poll policy satisfying the Task
+contract. A future production route additionally freezes request/response byte limits, redirect and
+download policy, HTTPS allowlist, and SSRF protection in its own reviewed adapter design. A route
+never resubmits after ambiguous acceptance. Recovery polls only a handle that was durably committed
+with `Running`.
 
 Remote media is downloaded and validated inside the route. The route returns a semantic payload but
-never creates an Asset; the capability owns the call to the Asset-write boundary.
+never creates an Asset; Generation Task finalization owns the call to its Asset sink boundary.
 
 ## Credentials And Configuration
 
-Non-secret MVP configuration declares only enabled accounts, exact profile-to-shipped-route
-selection, `GenerationProviderCredentialId` references, and the required `ElevenLabsVoiceId`.
-Endpoint IDs/hosts, operation deadlines, polling bounds, response limits, and native model IDs are
-constants owned by each shipped concrete route; configuration cannot override them or create a new
-route/profile mapping.
+Non-secret MVP configuration declares only the exact `(profile, generation kind)`-to-Mock-route selection. The Mock
+provider requires no account, credential, endpoint, native model, or route-specific configuration.
+The provider Settings contract can carry an optional typed account/credential binding for future
+production routes, but MVP neither requires nor fabricates one.
+
+Each production adapter must introduce its non-secret route configuration as a reviewed typed value
+owned by that adapter. No generic provider-options JSON exists, and no vendor configuration type is
+defined before its adapter is scheduled.
 
 `GenerationProviderCredentialRepositoryInterface` is owned by the Desktop
 provider-configuration consumer. Its production adapter stores the credential as plaintext in the
@@ -418,10 +434,12 @@ encryption at rest: an actor able to read that database can read the credential.
 materialized as one short-lived `GenerationProviderCredentialSecret` for authenticated calls and
 never enters the config payload, public DTOs, domain objects, errors, or logs.
 
-Only `DesktopCompositionRoot` supplies the focused credential repository and constructs routes;
-only an authenticated route request loads the credential ID's secret. A missing or inaccessible
-credential makes affected profiles unavailable without preventing application startup.
-Each constructed provider account retains only the repository handle and typed credential ID.
+Only `DesktopCompositionRoot` supplies the focused credential repository and constructs future
+production routes; only an authenticated route request loads the exact credential ID/revision
+secret. A missing or inaccessible credential makes only affected production profiles unavailable
+without preventing application startup. A constructed provider retains the repository handle but
+does not capture an account or credential binding; each immutable task target supplies its exact
+binding at call time.
 Immediately before an authenticated HTTP request the repository loads one
 `GenerationProviderCredentialSecret`, the transport attaches its vendor header, and the temporary
 buffer is zeroized where supported when that request is built. Route structs, clients, availability
@@ -432,28 +450,33 @@ observations, and retry/poll state never retain or clone plaintext credentials.
 Profile failures are `GenerationProfileNotFound`, `GenerationProfileIncompatible`,
 `GenerationProfileUnavailable`, and `GenerationProfileAvailabilityIndeterminate`.
 
-`NodeCapabilityProviderFailure` categories are exactly `InvalidSemanticRequest`,
+`GenerationProviderFailure` categories are exactly `InvalidSemanticRequest`,
 `AuthenticationFailed`, `PermissionDenied`, `ContentPolicyRejected`, `RateLimited`,
 `ProviderUnavailable`, `DeadlineExceeded`, `ProviderRejected`, `InvalidResponse`,
-`DownloadRejected`, and `AmbiguousSubmission`. Only `RateLimited` and `ProviderUnavailable` are
-retryable; `DeadlineExceeded` is retryable only before accepted submission. `AmbiguousSubmission`
-is never automatically retried. Optional retry time is valid only for a retryable category and must
+`DownloadRejected`, and `AmbiguousSubmission`. `RateLimited` and `ProviderUnavailable` permit retry
+only for polling an already accepted handle; no category permits automatic Immediate or Submit
+re-execution. `AmbiguousSubmission` and `DeadlineExceeded` are terminal. Optional retry time is
+valid only for a retryable poll outcome and must
 be in the future when returned. Provider strings never determine Workflow state.
 
-No database transaction remains open during any provider call. A capability translates one
-provider failure into `NodeCapabilityExecutionError`; Workflow then owns the node/Run transition.
+No database transaction remains open during any provider call. The Generation Task application
+translates one provider outcome into an aggregate transition; its Workflow notification bridge then
+lets Workflow own the node/Run transition.
 
 ## Verification
 
 - profile tests cover immutable identity, tombstones, and exact compatibility;
 - availability tests cover bulk bounds, expiry, unavailable/indeterminate distinction, and detail
   redaction;
-- router tests reject invalid route maps and prove one fixed route per profile and node execution;
-- every router passes its exact public-interface suite;
-- deterministic and vendor routes pass the same private route contract suite;
-- each vendor route passes translation, idempotency, polling, cancellation, malformed-response,
-  bounded-download, and ambiguous-submission tests;
-- credential tests prove SQLite plaintext round trip, namespace isolation, redaction from
-  DTOs/errors/logs, and missing-credential availability behavior;
-- architecture tests reject node provider/model fields, broad provider interfaces, roadmap runtime
-  interfaces, removed binding/task layers, and construction outside composition.
+- provider-composite tests reject empty capability products and duplicate route IDs and prove
+  deterministic mechanically-derived safe contracts;
+- focused capability tests prove one fixed configured provider/route per task and exact interface behavior;
+- Mock routes pass the shared private route contract suite; future production routes must pass the
+  same suite before registration;
+- every registered route passes translation, malformed-response, deadline, and response-bound tests;
+- Immediate routes additionally pass equivalent-result rules, Remote routes pass submit/poll and
+  ambiguous-submission rules, and only CancellableRemote routes run the cancellation contract suite;
+- credential repository contract tests freeze SQLite plaintext round trip, version retention,
+  namespace isolation, and redaction even though the MVP Mock route does not read credentials;
+- architecture tests reject node provider/model fields, broad provider interfaces, provider-owned
+  task semantics, roadmap runtime interfaces, and construction outside composition.

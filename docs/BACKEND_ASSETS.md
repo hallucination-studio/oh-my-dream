@@ -272,6 +272,7 @@ setter.
 | --- | --- |
 | `AssetImportUseCase::import_asset` | validate a trusted user file handle and create an Asset |
 | `AssetRecordNodeOutputUseCase::record_asset_node_output` | validate one node-produced stream and create/reuse its exact output Asset |
+| `AssetRecoverNodeOutputUseCase::recover_asset_node_output` | inspect an exact node-output key without a source stream and return Available, Pending with durable finalization, or SourceRequired |
 | `AssetFinalizeContentUseCase::finalize_asset_content` | consume one committed finalization effect and publish exact managed bytes |
 | `AssetGetUseCase::get_asset` | return one Project-visible Asset |
 | `AssetListUseCase::list_assets` | return one stable bounded Project page |
@@ -351,9 +352,13 @@ does not claim or complete the Desktop outbox effect, retry, sleep, or schedule 
 ## Node-Produced Media Flow
 
 ```text
-exact capability
-  -> NodeCapabilityProducedMediaWriterInterface::write_node_output_media
-  -> DesktopNodeCapabilityAssetBridgeAdapterImpl
+GenerationTaskEffectWorkerImpl finalization
+  -> GenerationTaskAssetSinkInterface::recover_generation_task_asset
+  -> AssetRecoverNodeOutputUseCase::recover_asset_node_output
+  -> Available | Pending | SourceRequired
+  -> only SourceRequired continues with provider poll/result bytes
+  -> GenerationTaskAssetSinkInterface::store_generation_task_asset
+  -> DesktopGenerationTaskAssetSinkAdapterImpl
   -> AssetRecordNodeOutputUseCase::record_asset_node_output
   -> Pending + AssetFinalizeContentEffect
   -> AssetFinalizeContentUseCase::finalize_asset_content after commit
@@ -362,16 +367,19 @@ exact capability
 ```
 
 The bridge translates Project scope, media kind, node provenance, source Asset IDs, profile ref,
-and `NodeCapabilityProducedMediaOutputKey` into Asset-owned values including
+and Generation Task output coordinates into Asset-owned values including
 `AssetNodeOutputKey`. It never gives node code an Asset repository, SQLite connection, path, or
 preview URL.
 
-A capability publishes its `WorkflowNodeOutputSet` only after every required output Asset is
-Available. If one output fails, already-created Assets retain provenance but no partial Workflow
-output set is committed. The node-output writer waits within the node deadline for its exact
-finalization. The first finalization attempt happens inline after the outbox commit, so a Run never
-waits for the worker executing that same Run. Failure leaves the effect available for the worker or
-startup reconciliation; no code publishes bytes before the effect is durable.
+A Generation Task publishes its result only after its required Asset is Available. The sink uses
+the canonical Asset-owned Pending/finalization protocol and returns only an Available Asset. The
+Task remains active while the Asset effect may finalize inline, in its worker, or during startup;
+it commits the Asset result only with Task success. Workflow attaches the result only after task
+notification. The task worker waits within the persisted Generation Task deadline, never a
+process-only Node deadline. `AssetRecoverNodeOutputUseCase` performs the key-only recovery read: an
+Available Asset is reused, Pending causes safe Task rescheduling while the durable Asset effect
+finishes, and only SourceRequired permits polling the persisted provider handle for result bytes.
+No code publishes bytes before the Asset effect is durable.
 
 ## Resolve And List
 

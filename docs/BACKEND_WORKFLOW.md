@@ -5,7 +5,8 @@
 > Scope: graph editing, readiness, execution, durable Run state, and output association
 
 `WorkflowAggregate` and `WorkflowRunAggregate` are the two aggregate roots in the Workflow bounded
-context. There is no third Generation Task aggregate.
+context. `GenerationTaskAggregate` belongs to the separate Generation Task bounded context defined
+by [`BACKEND_TASK.md`](BACKEND_TASK.md); it is not a third Workflow aggregate.
 
 Each Workflow carries the authoritative `ProjectId` from `crates/projects`. The MVP allows exactly
 one current Workflow per Project. Project owns workspace identity; Workflow owns this uniqueness
@@ -212,7 +213,7 @@ stores request ID, hash, and admitted Run ID. Matching replay loads that Run; mi
 - exact source node/output references.
 
 The plan contains no UI position, provider/native model, route, credential, URL, path, preview,
-provider task, or mutable availability observation. The current Workflow may be edited after
+remote task handle, or mutable availability observation. The current Workflow may be edited after
 admission without changing the Run.
 
 Before invoking one exact capability, `WorkflowExecuteRunUseCase` copies the plan's Workflow ID,
@@ -266,25 +267,27 @@ Asset; shared contracts, generic media, legacy readers, and implicit conversion 
 ## Run Aggregate And State
 
 `WorkflowRunAggregate` owns one execution of one frozen plan. Its
-`WorkflowNodeExecutionEntity` children own node progress, structured failure, and output set.
+`WorkflowNodeExecutionEntity` children own graph-execution state, structured failure, and output set.
 
 The Run stores Run/Project/Workflow identity, source revision, scope, frozen plan, state, optional
 failure, and created/updated times. Each node execution stores execution/node identity, state,
 optional progress, failure or block reason, optional complete output set, and started/finished times.
-Queued/Pending values have none of those optional outcome fields; Running has start time and optional
-progress; each terminal value has finish time and exactly the outcome fields required by its state.
+Queued/Pending values have none of those optional outcome fields; Running has start time;
+WaitingForExternalCompletion has start time but no provider/task identity or duplicated progress;
+each terminal value has finish time and exactly the outcome fields required by its state.
 Succeeded requires one complete output set, Failed requires one failure, Blocked requires one block
 reason, and Cancelled permits none. Restore rejects every other combination.
 
 `WorkflowRunState` is `Queued`, `Running`, `Succeeded`, `Failed`, or `Cancelled`.
-`WorkflowNodeExecutionState` is `Pending`, `Running`, `Succeeded`, `Failed`, `Cancelled`, or
-`Blocked`. Legal transitions are closed:
+`WorkflowNodeExecutionState` is `Pending`, `Running`, `WaitingForExternalCompletion`, `Succeeded`,
+`Failed`, `Cancelled`, or `Blocked`. Legal transitions are closed:
 
 ```text
 Run:  Queued -> Running | Cancelled | Failed
       Running -> Succeeded | Failed | Cancelled
 Node: Pending -> Running | Cancelled | Blocked
-      Running -> Succeeded | Failed | Cancelled
+      Running -> WaitingForExternalCompletion | Succeeded | Failed | Cancelled
+      WaitingForExternalCompletion -> Succeeded | Failed | Cancelled
 ```
 
 Rules:
@@ -294,7 +297,7 @@ Rules:
 - one failed node blocks descendants but independent branches finish; the Run becomes Failed after
   all remaining independent nodes are terminal; all-succeeded becomes Succeeded;
 - cancellation and its durable event are persisted before signalling active execution tokens;
-- cancellation stops new dispatch and rejects late output commits;
+- cancellation stops dispatch of nodes not already handed off and rejects every late output commit;
 - terminal states are immutable;
 - retry creates a new Run rather than reopening a terminal Run.
 
@@ -303,8 +306,17 @@ idempotent, atomically commits Run/node cancellation plus events, then signals p
 Cancelling an already Cancelled Run returns it; Succeeded or Failed returns
 `WorkflowTerminalStateImmutable`. `WorkflowGetRunUseCase` loads one Run by ID and Project scope.
 
-Times are non-negative `i64` UTC milliseconds. Node progress is integer basis points `0..=10_000`,
-monotonic while Running, and absent outside progress events. A Failed Run has exactly one
+A provider call already authorized by an exact waiting handoff may race with the cancellation
+commit because Workflow and Generation Task deliberately have no cross-context lock or transaction.
+The first durable commit owns the bounded race. When cancellation commits before Task finalization,
+Generation Task converges to Cancelled and requests remote cancellation when that complete
+capability exists. When Task finalization commits first, the Task may still succeed and retain its
+Asset, but the cancelled Workflow rejects the late result attachment. External work may still
+finish or charge, which is the documented best-effort remote cancellation trade-off.
+
+Times are non-negative `i64` UTC milliseconds. Immediate node progress is integer basis points
+`0..=10_000` and monotonic while Running. Provider generation progress belongs only to
+`GenerationTaskAggregate` and is projected rather than copied into the Node Execution. A Failed Run has exactly one
 `WorkflowRunFailure`: `NodeExecutionFailed { sorted_failed_node_ids }` or `InterruptedByRestart`.
 A Failed node has one
 `WorkflowNodeExecutionFailure` wrapping the structured capability/execution category and safe target.
@@ -313,7 +325,8 @@ A Blocked node has `UpstreamNodeFailed { sorted_upstream_node_ids }`. No state s
 `WorkflowRunEvent` contains Run ID, non-zero monotonic `u64` sequence, non-negative UTC-millisecond
 timestamp, and one closed payload:
 `WorkflowRunQueuedEvent`, `WorkflowRunStartedEvent`, `WorkflowNodeStartedEvent`,
-`WorkflowNodeProgressedEvent`, `WorkflowNodeSucceededEvent`, `WorkflowNodeFailedEvent`,
+`WorkflowNodeProgressedEvent`, `WorkflowNodeWaitingForExternalCompletionEvent`,
+`WorkflowNodeSucceededEvent`, `WorkflowNodeFailedEvent`,
 `WorkflowNodeBlockedEvent`, `WorkflowNodeCancelledEvent`, `WorkflowRunSucceededEvent`,
 `WorkflowRunFailedEvent`, or `WorkflowRunCancelledEvent`. Payloads carry only owning IDs, typed
 progress/failure/block facts, and complete output identity where relevant. The state change and event
@@ -334,16 +347,36 @@ WorkflowExecuteRunEffect { workflow_run_id }
 frozen plan, enforces bounded concurrency, commits transitions/events, resolves exact capability
 implementations, and calls them outside database transactions. It owns no provider or Asset rules.
 
-The effect remains associated until terminal. It is not replayed after restart: startup marks the
-Run Failed with `InterruptedByRestart`, abandons the effect, and retains events. Retry creates a new Run.
+An immediate capability returns a complete output. A provider-backed capability returns
+`WaitingForGenerationTask` only after durable task creation; Workflow commits
+`WaitingForExternalCompletion` and completes the current effect when no other node is ready. A task
+terminal notification calls the canonical completion use case, which commits that node's
+Succeeded or Failed transition and enqueues a new `WorkflowExecuteRunEffect` for downstream work.
+An unexpected provider-originated Task cancellation is the structured node failure
+`GenerationTaskCancelled`; Workflow-owned Run cancellation has already made the node terminal and
+rejects late Task attachment. Notification replay is idempotent.
 
-`WorkflowInterruptRunsAfterRestartUseCase::interrupt_workflow_runs_after_restart` is the sole owner
-of that Run transition. It reads non-terminal Runs in stable Run-ID pages of at most 100 and, for
-each Run, atomically applies the aggregate-owned `InterruptedByRestart` failure and appends its one
-terminal event. Each page returns an opaque cursor and interrupted Run IDs. Repeating a page or the
-whole operation skips already-terminal Runs and produces no duplicate event. A repository failure
-stops before the next Run and is safe to repeat. This use case neither reads nor changes Desktop
-effects; Desktop invokes it to completion before recovering prior-instance Workflow effect claims.
+Startup classifies non-terminal Runs before interruption. A queued Run is replayable. A Running
+Node Execution with an exact Queued Generation Task, unconsumed SubmitTask, and no remote handle is
+also replayable: the task worker is forbidden to submit until Workflow commits the waiting state,
+so replay idempotently completes that handoff. A Run whose
+active work includes waiting Node Executions with matching authoritative non-terminal Generation
+Tasks or terminal tasks with pending Workflow notification remains Running. Its Workflow effect is
+replayed: the executor schedules any independent ready branches and naturally completes when every
+active node is waiting. A Running node without durable handoff is unsafe and retains the existing
+`InterruptedByRestart` outcome.
+
+`WorkflowClassifyRunsAfterRestartUseCase` reads non-terminal Runs in stable Run-ID pages of at most
+100 and asks `WorkflowGenerationTaskRecoveryReaderInterface` for exact Running or waiting Node
+Execution origins. The reader distinguishes safe queued pre-handoff, active task work, terminal task
+with pending notification, completed notification, and absent/corrupt handoff. The Desktop host
+replays `ReplaySafe` Runs and invokes `WorkflowInterruptRunsAfterRestartUseCase` for
+`InterruptUnsafe` Runs.
+Classification never reads provider state, route names, or implementation types; the bridge returns
+only whether each exact node has an authoritative recoverable task. The classifier returns
+`ReplaySafe` or `InterruptUnsafe`; task waiting is evidence for safe replay, not a separate owner of
+Workflow scheduling. Repeating classification and interruption is idempotent and produces no
+duplicate event.
 
 ## Output And Preview Association
 
@@ -387,6 +420,7 @@ Latest means maximum `(run_created_at, workflow_run_id)` among plans containing 
 | `WorkflowAggregateRepositoryInterface` | `load_workflow`, atomically `commit_workflow_mutation` with revision and receipt |
 | `WorkflowRunRepositoryInterface` | atomically admit/transition Runs, outputs, events, request receipts, and `WorkflowExecuteRunEffect` |
 | `WorkflowNodeCapabilityInterface` | contract, normalization, external readiness, and exact execution |
+| `WorkflowGenerationTaskRecoveryReaderInterface` | classify exact Running pre-handoff and waiting Node Execution task states during startup |
 | `WorkflowMediaPreviewIssuerInterface` | `issue_workflow_media_preview` |
 | `WorkflowClockInterface` | `current_workflow_time` |
 | `WorkflowIdentityGeneratorInterface` | `generate_workflow_id`, `generate_workflow_run_id`, and `generate_workflow_node_execution_id` |
@@ -406,6 +440,7 @@ as an immutable collection. Only `DesktopCompositionRoot` selects concrete adapt
 `WorkflowMutationIdempotencyConflict`, `WorkflowRunNotFound`,
 `WorkflowRunRevisionMismatch`, `WorkflowRunIdempotencyConflict`, `WorkflowNotReady`,
 `WorkflowRunEventLimitOutOfBounds`, `WorkflowPersistenceFailure`, `WorkflowCapabilityExecutionFailure`,
+`WorkflowGenerationTaskCompletionConflict`, `WorkflowGenerationTaskRecoveryReadFailure`,
 `WorkflowMediaPreviewIssueFailure`, and `WorkflowRunEventPublishFailure`.
 
 Errors contain safe typed IDs and structured details. Message text never controls behavior.
@@ -421,12 +456,13 @@ Errors contain safe typed IDs and structured details. Message text never control
 - Run tests cover every legal/illegal transition, branches, failure, cancellation, late output,
   event sequence, and terminal immutability;
 - repository contract tests prove admission/transition/output/event atomicity and idempotency;
-- execution tests prove effect claiming, bounded concurrency, event delivery/query, effect abandonment, and interrupted startup;
+- execution tests prove immediate completion, durable waiting handoff, task completion replay,
+  bounded concurrency, event delivery/query, and safe/unsafe restart classification;
 - presentation tests cover Text/Image/Video/Audio, stale output, and preview isolation.
 
 ## Post-MVP
 
 Registering roadmap capabilities may add Image Sequence and Video Storyboard runtime values.
-Multiple Workflows per Project, history, backend undo, retry-in-place, provider-task resume,
-cross-Run cache, dynamic inputs/outputs, plugins, batches, groups, conditions, subgraphs, 3D, and scenes
+Multiple Workflows per Project, history, backend undo, retry-in-place, cross-Run cache, dynamic
+inputs/outputs, plugins, batches, groups, conditions, subgraphs, 3D, and scenes
 require separate decisions.

@@ -2,9 +2,9 @@
 
 ## Project Structure & Module Organization
 
-`oh-my-dream` is a Rust workspace for a local desktop AI creation client. Keep Project identity and metadata in `crates/projects`, Workflow logic in `crates/engine`, and Assistant business logic in `crates/assistant`. These crates remain pure and must not depend on UI, network, filesystem, or specific vendors. Workspace modules follow [`docs/DESIGN.md`](docs/DESIGN.md): `crates/projects`, `crates/engine`, `crates/nodes`, `crates/backends`, `crates/assets`, `crates/assistant`, `src-tauri/`, and `ui/`. The root `Cargo.toml` owns workspace metadata and shared dependency versions. Do not commit `target/`, `data/`, local config, or generated runtime artifacts.
+`oh-my-dream` is a Rust workspace for a local desktop AI creation client. Keep Project identity and metadata in `crates/projects`, Workflow logic in `crates/engine`, Generation Task lifecycle and application interfaces in `crates/tasks`, and Assistant business logic in `crates/assistant`. These business crates remain pure and must not depend on UI, network, filesystem, or specific vendors. Workspace modules follow [`docs/DESIGN.md`](docs/DESIGN.md): `crates/projects`, `crates/engine`, `crates/tasks`, `crates/nodes`, `crates/backends`, `crates/assets`, `crates/assistant`, `src-tauri/`, and `ui/`. The root `Cargo.toml` owns workspace metadata and shared dependency versions. Do not commit `target/`, `data/`, local config, or generated runtime artifacts.
 
-The frozen backend architecture starts at [`docs/BACKEND.md`](docs/BACKEND.md). Its document map identifies the single authority for Project, Workflow, Node Capability, Generation Profile/Provider, Asset, Assistant, Desktop, and Storage semantics. All exported backend names follow [`docs/BACKEND_GLOSSARY.md`](docs/BACKEND_GLOSSARY.md). Do not redefine those contracts in README files, implementation notes, DTO docs, or new ADRs.
+The frozen backend architecture starts at [`docs/BACKEND.md`](docs/BACKEND.md). Its document map identifies the single authority for Project, Workflow, Node Capability, Generation Profile/Provider, Generation Task, Asset, Assistant, Desktop, and Storage semantics. All exported backend names follow [`docs/BACKEND_GLOSSARY.md`](docs/BACKEND_GLOSSARY.md). Do not redefine those contracts in README files, implementation notes, DTO docs, or new ADRs.
 
 ## Architecture and Dependency Rules
 
@@ -37,7 +37,7 @@ ends in `Impl`. Use the more specific endings `CapabilityImpl`, `AdapterImpl`, `
 
 7. **Make all implementations behaviorally equivalent.** Matching method signatures is insufficient. Every implementation of a trait must preserve the same return values, error types, idempotency, concurrency semantics, transaction boundaries, ordering, and pagination rules. Run the same parameterized contract test suite against every implementation.
 
-8. **Keep traits small and capability-scoped.** Prefer focused traits such as `WorkflowRunRepositoryInterface`, `AssetManagedContentStoreInterface`, and `TextToImageProviderInterface`. Do not grow a global `Store`, `Database`, or `Repository` trait with unrelated methods.
+8. **Keep traits small and capability-scoped.** Prefer focused traits such as `WorkflowRunRepositoryInterface`, `ImageGenerationProviderInterface`, and `AssetManagedContentStoreInterface`. A provider-level `GenerationProviderInterface` may compose complete Text/Image/Video/Voice capability interfaces; it must not add optional execution methods or `Unsupported` branches. Do not grow a global `Store`, `Database`, or `Repository` trait with unrelated methods.
 
 9. **Do not disguise unsupported behavior as an optional trait method.** An implementation must not satisfy a trait with `todo!()`, `unimplemented!()`, a panic, an `Unsupported` error, or a probe such as `supports_leases`. If some implementations cannot provide an operation, split that capability into a separate, semantically complete trait.
 
@@ -84,7 +84,7 @@ Put focused unit tests beside the code with `#[cfg(test)]`; use crate-level `tes
 The suite is layered — know which layer a change touches so you update the right one:
 
 - **Rust unit/integration** (`crates/*/tests/`, `src-tauri/tests/`): Workflow execution, deterministic provider routes, Asset adapters, and Node Capability pipelines.
-- **Backend E2E** (`src-tauri/tests/e2e.rs`): the whole Workflow Run path — idempotent admission, failure propagation, cancellation, restart interruption, typed input rejection, and Asset read-back.
+- **Backend E2E** (`src-tauri/tests/e2e.rs`): the whole Workflow Run path — idempotent admission, Generation Task handoff/recovery, failure propagation, cancellation, safe/unsafe restart classification, typed input rejection, and Asset read-back.
 - **Cross-language contract** (`src-tauri/tests/contract.rs` writes fixtures to `ui/src/__fixtures__/`; `ui/src/api/contract.test.ts` validates them): guards the frontend TS types against the backend DTO shapes so they cannot drift.
 - **Frontend** (Vitest + jsdom, `ui/**/*.test.ts(x)`): serialization, wiring validation, mock API, API selection, and the App run flow.
 
