@@ -17,6 +17,7 @@ pub mod traits;
 pub mod deterministic_provider;
 pub mod local;
 pub mod mock;
+pub mod mock_generation_provider;
 pub mod provider_routing;
 
 pub use error::{BackendError, BackendResult};

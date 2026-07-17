@@ -19,9 +19,11 @@ tracing.workspace = true
 async-trait.workspace = true
 engine.workspace = true
 nodes.workspace = true
+tasks.workspace = true
 sha2.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+assets.workspace = true
 projects.workspace = true
 uuid.workspace = true
