@@ -19,6 +19,8 @@ import type {
   AssistantSendInput,
   CapabilityRef,
   GenerationProfileForCapability,
+  GenerationProviderSettingsActionDto,
+  GenerationProviderSettingsDto,
   NodeCapabilityContractDto,
   Project,
   ProjectWorkspace,
@@ -129,6 +131,21 @@ async function generationProfileListForCapability(
       capability_id: reference.id,
       capability_version: reference.version,
     },
+  });
+}
+
+async function generationProviderSettingsGet(): Promise<GenerationProviderSettingsDto> {
+  return invoke<GenerationProviderSettingsDto>("generation_provider_settings_get", {
+    request: {},
+  });
+}
+
+async function generationProviderSettingsApply(
+  expectedSettingsRevision: string,
+  action: GenerationProviderSettingsActionDto,
+): Promise<GenerationProviderSettingsDto> {
+  return invoke<GenerationProviderSettingsDto>("generation_provider_settings_apply", {
+    request: { expected_settings_revision: expectedSettingsRevision, action },
   });
 }
 
@@ -283,6 +300,8 @@ export const tauriApi: WorkflowApi = {
   openProject,
   nodeCapabilityList,
   generationProfileListForCapability,
+  generationProviderSettingsGet,
+  generationProviderSettingsApply,
   workflowCreate,
   workflowGetCurrent,
   workflowApplyMutation,

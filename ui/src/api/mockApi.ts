@@ -6,6 +6,8 @@
 import type {
   CapabilityRef,
   GenerationProfileForCapability,
+  GenerationProviderSettingsActionDto,
+  GenerationProviderSettingsDto,
   Project,
   NodeCapabilityContractDto,
   WorkflowApi,
@@ -30,6 +32,7 @@ import {
   mockAssetList,
 } from "./mockAssets.ts";
 import nodeCapabilitiesFixture from "../__fixtures__/node_capabilities.json";
+import generationProviderSettingsFixture from "../__fixtures__/generation_provider_settings.json";
 
 const mockCanonicalWorkflows = new Map<string, WorkflowDto>();
 const mockRuns = new Map<string, WorkflowRunDto>();
@@ -45,6 +48,9 @@ const MOCK_PROJECT_NAME = "Mock Project";
 const mockProjects = new Map<string, Project>([
   [MOCK_PROJECT_ID, mockProject(MOCK_PROJECT_ID, MOCK_PROJECT_NAME)],
 ]);
+let mockGenerationProviderSettings = structuredClone(
+  generationProviderSettingsFixture,
+) as GenerationProviderSettingsDto;
 
 async function listProjects() {
   return [...mockProjects.values()];
@@ -84,6 +90,42 @@ async function generationProfileListForCapability(
   _reference: CapabilityRef,
 ): Promise<GenerationProfileForCapability[]> {
   return [];
+}
+
+async function generationProviderSettingsGet(): Promise<GenerationProviderSettingsDto> {
+  return structuredClone(mockGenerationProviderSettings);
+}
+
+async function generationProviderSettingsApply(
+  expectedSettingsRevision: string,
+  action: GenerationProviderSettingsActionDto,
+): Promise<GenerationProviderSettingsDto> {
+  if (mockGenerationProviderSettings.settings_revision !== expectedSettingsRevision) {
+    throw new Error("generation_provider_settings.revision_conflict");
+  }
+  const profile = mockGenerationProviderSettings.profiles.find(
+    (candidate) =>
+      candidate.profile_ref === action.profile_ref &&
+      candidate.generation_kind === action.generation_kind,
+  );
+  if (!profile) throw new Error("generation_provider_settings.invalid_request");
+  const nextBinding = action.kind === "remove_binding"
+    ? null
+    : { provider_id: action.provider_id, route_id: action.route_id };
+  if (nextBinding !== null && !profile.provider_choices.some((provider) =>
+    provider.provider_id === nextBinding.provider_id &&
+    provider.routes.some((route) => route.route_id === nextBinding.route_id)
+  )) {
+    throw new Error("generation_provider_settings.invalid_request");
+  }
+  if (JSON.stringify(profile.selected_binding) === JSON.stringify(nextBinding)) {
+    return structuredClone(mockGenerationProviderSettings);
+  }
+  profile.selected_binding = nextBinding;
+  mockGenerationProviderSettings.settings_revision = String(
+    BigInt(mockGenerationProviderSettings.settings_revision) + 1n,
+  );
+  return structuredClone(mockGenerationProviderSettings);
 }
 
 async function workflowCreate(projectId: string): Promise<WorkflowDto> {
@@ -338,6 +380,8 @@ export const mockApi: WorkflowApi = {
   openProject,
   nodeCapabilityList,
   generationProfileListForCapability,
+  generationProviderSettingsGet,
+  generationProviderSettingsApply,
   workflowCreate,
   workflowGetCurrent,
   workflowApplyMutation,

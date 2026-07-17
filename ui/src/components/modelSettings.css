@@ -1,0 +1,127 @@
+.mset__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--hair);
+}
+.mset__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+.mset__head p {
+  margin: 4px 0 0;
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+.mset__revision {
+  flex: none;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.mset__message,
+.mset__loading {
+  margin: 12px 0 0;
+  color: var(--ink-2);
+  font-size: 11.5px;
+}
+.mset__message {
+  padding: 8px 10px;
+  border-left: 2px solid var(--warn);
+  background: var(--surface-2);
+}
+.mset__list {
+  display: grid;
+}
+.mset__row {
+  --kind-color: var(--ink-3);
+  display: grid;
+  grid-template-columns: 38px minmax(130px, 1fr) minmax(180px, 1.4fr) 18px;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  border-bottom: 1px solid var(--hair);
+}
+.mset__row--image {
+  --kind-color: var(--t-image);
+}
+.mset__row--video {
+  --kind-color: var(--t-video);
+}
+.mset__row--voice {
+  --kind-color: var(--t-audio);
+}
+.mset__row--text {
+  --kind-color: var(--t-text);
+}
+.mset__kind {
+  border-left: 3px solid var(--kind-color);
+  padding-left: 8px;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 650;
+}
+.mset__route {
+  min-width: 0;
+}
+.mset__route label {
+  display: block;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+.mset__route span {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mset__row select {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--hair-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  padding: 0 8px;
+}
+.mset__row select:focus-visible,
+.mset__row input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.mset__row select:disabled {
+  opacity: 0.45;
+}
+.mset__row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+@media (max-width: 520px) {
+  .mset__row {
+    grid-template-columns: 32px minmax(0, 1fr) 18px;
+    gap: 8px;
+    padding: 10px 0;
+  }
+  .mset__row select {
+    grid-column: 2 / 4;
+    grid-row: 2;
+  }
+  .mset__row input[type="checkbox"] {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+}

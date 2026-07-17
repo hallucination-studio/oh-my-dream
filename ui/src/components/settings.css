@@ -94,6 +94,31 @@
   background: var(--accent-strong);
 }
 
+@media (max-width: 520px) {
+  .dialog {
+    width: calc(100vw - 24px);
+    height: min(560px, calc(100vh - 24px));
+  }
+  .dialog__body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .dialog__nav {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--hair);
+    padding: 8px 10px;
+  }
+  .dialog__navitem {
+    flex: none;
+    white-space: nowrap;
+  }
+  .dialog__panel {
+    padding: 16px;
+  }
+}
+
 .close-dialog {
   width: min(420px, calc(100vw - 32px));
   padding: 22px;

@@ -64,6 +64,31 @@ describe("canonical Workflow Tauri client", () => {
     expect(listenMock).toHaveBeenCalledWith("workflow-run-event-v1", expect.any(Function));
   });
 
+  it("invokes the two closed Generation Provider Settings commands", async () => {
+    const { tauriApi } = await import("./tauriApi.ts");
+    invokeMock.mockResolvedValue({});
+    await tauriApi.generationProviderSettingsGet();
+    await tauriApi.generationProviderSettingsApply("4", {
+      kind: "remove_binding",
+      profile_ref: "image.high_quality_general@1",
+      generation_kind: "image",
+    });
+
+    expect(invokeMock.mock.calls.slice(-2)).toEqual([
+      ["generation_provider_settings_get", { request: {} }],
+      ["generation_provider_settings_apply", {
+        request: {
+          expected_settings_revision: "4",
+          action: {
+            kind: "remove_binding",
+            profile_ref: "image.high_quality_general@1",
+            generation_kind: "image",
+          },
+        },
+      }],
+    ]);
+  });
+
   it("invokes the four canonical Asset commands without paths or bytes", async () => {
     const { tauriApi } = await import("./tauriApi.ts");
     invokeMock.mockResolvedValue({});

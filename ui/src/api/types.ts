@@ -331,6 +331,11 @@ export interface WorkflowApi {
   generationProfileListForCapability: (
     reference: CapabilityRef,
   ) => Promise<GenerationProfileForCapability[]>;
+  generationProviderSettingsGet: () => Promise<GenerationProviderSettingsDto>;
+  generationProviderSettingsApply: (
+    expectedSettingsRevision: string,
+    action: GenerationProviderSettingsActionDto,
+  ) => Promise<GenerationProviderSettingsDto>;
   workflowCreate: (projectId: string) => Promise<WorkflowDto>;
   workflowGetCurrent: (projectId: string) => Promise<WorkflowWithReadinessDto>;
   workflowApplyMutation: (
