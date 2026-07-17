@@ -181,6 +181,47 @@ async fn transient_poll_error_reschedules_the_same_safe_observation() {
 }
 
 #[tokio::test]
+async fn crash_recovery_lookup_precedes_remote_handle_polling() {
+    let repository = GenerationTaskRepositoryFakeImpl::default();
+    let mut task = new_task();
+    task.begin_submission(time(101)).unwrap();
+    task.accept_remote_submission(handle(), time(102)).unwrap();
+    repository
+        .create_generation_task(
+            &task,
+            GenerationTaskEffect::new(task.id(), GenerationTaskEffectKind::PollTask, time(102)),
+        )
+        .await
+        .unwrap();
+    let claimed =
+        repository.claim_ready_effect(GenerationTaskEffectKind::PollTask).unwrap().unwrap();
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let route = GenerationProviderResolvedRoute::Image {
+        execution: ImageGenerationProviderExecution::Remote {
+            submitter: Arc::new(UnusedImageRemoteFakeImpl),
+            poller: Arc::new(RecordingImagePollerFakeImpl { events: events.clone() }),
+        },
+        policy: policy(),
+    };
+    let use_case = GenerationTaskPollEffectUseCase::new(
+        repository,
+        GenerationProviderRegistryFakeImpl::new(route),
+        GenerationTaskOriginStateReaderFakeImpl::new(
+            GenerationTaskOriginState::WaitingForExternalCompletion,
+        ),
+        RecordingAssetSinkFakeImpl {
+            events: events.clone(),
+            recovery: GenerationTaskAssetRecovery::SourceRequired,
+        },
+        GenerationTaskClockFakeImpl::new(time(110)),
+    );
+
+    use_case.execute_generation_task_poll_effect(claimed).await.unwrap();
+
+    assert_eq!(*events.lock().unwrap(), vec!["recover", "poll"]);
+}
+
+#[tokio::test]
 async fn transient_origin_read_reschedules_submit_without_provider_call() {
     let repository = seeded_repository().await;
     let claimed =

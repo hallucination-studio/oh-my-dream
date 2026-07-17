@@ -151,7 +151,7 @@ Rules:
 | Field | Type and meaning |
 | --- | --- |
 | `id` | RFC 9562 UUIDv4 `GenerationTaskId`. |
-| `origin` | Required `project_id`, `workflow_id`, `workflow_run_id`, `workflow_node_id`, and `workflow_node_execution_id`. |
+| `origin` | Required `project_id`, frozen `workflow_id` and revision, `workflow_run_id`, `workflow_node_id`, `workflow_node_execution_id`, and exact capability contract ref. |
 | `idempotency` | Caller key plus canonical request hash. |
 | `request` | Immutable `GenerationRequest`. |
 | `target` | Immutable `GenerationProfileRef`, `GenerationProviderId`, and `GenerationProviderRouteId`; no secret, account, credential, or provider options JSON. |
@@ -698,6 +698,8 @@ It never repeats submission.
 | --- | --- | --- |
 | `id` PK | `BLOB` | Exact 16-byte RFC 9562 UUIDv4 task identity. |
 | Origin IDs | `BLOB` | Exact 16-byte Project, Workflow, Run, node, and Node Execution identities. |
+| Workflow revision | `INTEGER` | Frozen non-zero Workflow revision. |
+| Capability contract | `TEXT`, `INTEGER`, `INTEGER` | Exact capability ID plus non-zero major and minor version. |
 | `idempotency_key`, `request_hash` | `BLOB` | Unique `(project_id, idempotency_key)` and canonical SHA-256 request hash. |
 | `request_schema_version`, `request_kind`, `request_json` | `INTEGER`, `TEXT`, `TEXT` | Immutable domain request snapshot. |
 | profile, provider, route | bounded `TEXT` | Immutable non-secret target binding. |

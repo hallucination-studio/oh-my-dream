@@ -19,9 +19,13 @@ pub(super) fn canonical_request_hash(
     append_u32(&mut bytes, GENERATION_TASK_REQUEST_SCHEMA_VERSION);
     bytes.extend_from_slice(origin.project_id().as_uuid().as_bytes());
     bytes.extend_from_slice(origin.workflow_id().as_uuid().as_bytes());
+    bytes.extend_from_slice(&origin.workflow_revision().get().to_be_bytes());
     bytes.extend_from_slice(origin.workflow_run_id().as_uuid().as_bytes());
     bytes.extend_from_slice(origin.workflow_node_id().as_uuid().as_bytes());
     bytes.extend_from_slice(origin.workflow_node_execution_id().as_uuid().as_bytes());
+    append_text(&mut bytes, origin.capability_contract_ref().id().as_str());
+    bytes.extend_from_slice(&origin.capability_contract_ref().version().major().to_be_bytes());
+    bytes.extend_from_slice(&origin.capability_contract_ref().version().minor().to_be_bytes());
     append_request(&mut bytes, request);
     append_text(&mut bytes, target.generation_profile_ref().id().as_str());
     append_u32(&mut bytes, target.generation_profile_ref().version().get());

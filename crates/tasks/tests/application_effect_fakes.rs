@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use assets::asset::domain::AssetMediaKind;
 use async_trait::async_trait;
@@ -21,6 +21,13 @@ pub(crate) struct AcceptingCancellerFakeImpl {
     pub(crate) calls: Arc<AtomicUsize>,
 }
 pub(crate) struct TransientWorkflowCompletionFakeImpl;
+pub(crate) struct RecordingImagePollerFakeImpl {
+    pub(crate) events: Arc<Mutex<Vec<&'static str>>>,
+}
+pub(crate) struct RecordingAssetSinkFakeImpl {
+    pub(crate) events: Arc<Mutex<Vec<&'static str>>>,
+    pub(crate) recovery: GenerationTaskAssetRecovery,
+}
 pub(crate) struct CancellingImageExecutorFakeImpl {
     pub(crate) repository: GenerationTaskRepositoryFakeImpl,
     pub(crate) task_id: GenerationTaskId,
@@ -67,6 +74,36 @@ impl ImageGenerationPollerInterface for TransientImagePollerAtFakeImpl {
         _handle: &GenerationProviderTaskHandle,
     ) -> Result<ImageGenerationPollOutcome, GenerationProviderCallError> {
         transient_poll_error(self.observed_at)
+    }
+}
+
+#[async_trait]
+impl ImageGenerationPollerInterface for RecordingImagePollerFakeImpl {
+    async fn poll_image_generation(
+        &self,
+        _context: &GenerationProviderCallContext,
+        _handle: &GenerationProviderTaskHandle,
+    ) -> Result<ImageGenerationPollOutcome, GenerationProviderCallError> {
+        self.events.lock().unwrap().push("poll");
+        transient_poll_error(time(110))
+    }
+}
+
+#[async_trait]
+impl GenerationTaskAssetSinkInterface for RecordingAssetSinkFakeImpl {
+    async fn recover_generation_task_asset(
+        &self,
+        _key: GenerationTaskAssetKey,
+    ) -> Result<GenerationTaskAssetRecovery, GenerationTaskBoundaryError> {
+        self.events.lock().map_err(|_| GenerationTaskBoundaryError::Permanent)?.push("recover");
+        Ok(self.recovery.clone())
+    }
+
+    async fn store_generation_task_asset(
+        &self,
+        _command: GenerationTaskStoreAssetCommand,
+    ) -> Result<GenerationTaskAvailableAsset, GenerationTaskBoundaryError> {
+        Err(GenerationTaskBoundaryError::Permanent)
     }
 }
 

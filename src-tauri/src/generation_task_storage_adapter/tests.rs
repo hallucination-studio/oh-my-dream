@@ -285,12 +285,21 @@ fn task_with_origin(
 }
 
 fn origin(project_seed: u128, workflow_seed: u128) -> GenerationTaskOrigin {
+    use engine::node_capability::{
+        NodeCapabilityContractId, NodeCapabilityContractRef, NodeCapabilityContractVersion,
+    };
+    use engine::workflow_graph::WorkflowRevision;
     GenerationTaskOrigin::new(
         project_id(project_seed),
         WorkflowId::from_uuid(uuid(workflow_seed + 1)).unwrap(),
+        WorkflowRevision::new(1).unwrap(),
         WorkflowRunId::from_uuid(uuid(workflow_seed + 2)).unwrap(),
         WorkflowNodeId::from_uuid(uuid(workflow_seed + 3)).unwrap(),
         WorkflowNodeExecutionId::from_uuid(uuid(workflow_seed + 4)).unwrap(),
+        NodeCapabilityContractRef::new(
+            NodeCapabilityContractId::new("image.generate_from_text").unwrap(),
+            NodeCapabilityContractVersion::new(1, 0).unwrap(),
+        ),
     )
 }
 

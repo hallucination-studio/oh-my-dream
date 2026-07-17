@@ -239,7 +239,7 @@ where
         }
         match self
             .asset_sink
-            .recover_generation_task_asset(GenerationTaskAssetKey::new(task.id()))
+            .recover_generation_task_asset(GenerationTaskAssetKey::from_task(task))
             .await?
         {
             GenerationTaskAssetRecovery::Available(asset) => {
@@ -279,7 +279,7 @@ where
             media => self
                 .asset_sink
                 .store_generation_task_asset(GenerationTaskStoreAssetCommand::from_task(
-                    task, media,
+                    task, media, now,
                 ))
                 .await?
                 .result()

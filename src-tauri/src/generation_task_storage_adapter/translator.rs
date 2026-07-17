@@ -1,5 +1,8 @@
-use engine::node_capability::{WorkflowNodeExecutionId, WorkflowRunId};
-use engine::workflow_graph::{WorkflowId, WorkflowNodeId};
+use engine::node_capability::{
+    NodeCapabilityContractId, NodeCapabilityContractRef, NodeCapabilityContractVersion,
+    WorkflowNodeExecutionId, WorkflowRunId,
+};
+use engine::workflow_graph::{WorkflowId, WorkflowNodeId, WorkflowRevision};
 use nodes::{GenerationProfileId, GenerationProfileRef, GenerationProfileVersion};
 use projects::project::domain::ProjectId;
 use rusqlite::Row;
@@ -16,9 +19,13 @@ pub(super) struct TaskRow {
     pub id: Vec<u8>,
     pub project_id: Vec<u8>,
     pub workflow_id: Vec<u8>,
+    pub workflow_revision: i64,
     pub workflow_run_id: Vec<u8>,
     pub workflow_node_id: Vec<u8>,
     pub workflow_node_execution_id: Vec<u8>,
+    pub capability_contract_id: String,
+    pub capability_contract_major: i64,
+    pub capability_contract_minor: i64,
     pub idempotency_key: Vec<u8>,
     pub request_hash: Vec<u8>,
     pub request_schema_version: i64,
@@ -50,9 +57,13 @@ impl TaskRow {
             id: row.get("id")?,
             project_id: row.get("project_id")?,
             workflow_id: row.get("workflow_id")?,
+            workflow_revision: row.get("workflow_revision")?,
             workflow_run_id: row.get("workflow_run_id")?,
             workflow_node_id: row.get("workflow_node_id")?,
             workflow_node_execution_id: row.get("workflow_node_execution_id")?,
+            capability_contract_id: row.get("capability_contract_id")?,
+            capability_contract_major: row.get("capability_contract_major")?,
+            capability_contract_minor: row.get("capability_contract_minor")?,
             idempotency_key: row.get("idempotency_key")?,
             request_hash: row.get("request_hash")?,
             request_schema_version: row.get("request_schema_version")?,
@@ -87,9 +98,20 @@ impl TaskRow {
         let origin = GenerationTaskOrigin::new(
             project_id(&self.project_id)?,
             workflow_id(&self.workflow_id)?,
+            WorkflowRevision::new(u64::try_from(self.workflow_revision).map_err(|_| ())?)
+                .map_err(|_| ())?,
             workflow_run_id(&self.workflow_run_id)?,
             workflow_node_id(&self.workflow_node_id)?,
             workflow_node_execution_id(&self.workflow_node_execution_id)?,
+            NodeCapabilityContractRef::new(
+                NodeCapabilityContractId::new(self.capability_contract_id.clone())
+                    .map_err(|_| ())?,
+                NodeCapabilityContractVersion::new(
+                    u16::try_from(self.capability_contract_major).map_err(|_| ())?,
+                    u16::try_from(self.capability_contract_minor).map_err(|_| ())?,
+                )
+                .map_err(|_| ())?,
+            ),
         );
         let request = request::decode(&self.request_json)?;
         if kind(request.kind()) != self.request_kind {

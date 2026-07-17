@@ -1,6 +1,9 @@
 use assets::asset::domain::{AssetContentDigest, AssetId, AssetMediaKind};
-use engine::node_capability::{WorkflowNodeExecutionId, WorkflowRunId};
-use engine::workflow_graph::{WorkflowId, WorkflowNodeId};
+use engine::node_capability::{
+    NodeCapabilityContractId, NodeCapabilityContractRef, NodeCapabilityContractVersion,
+    WorkflowNodeExecutionId, WorkflowRunId,
+};
+use engine::workflow_graph::{WorkflowId, WorkflowNodeId, WorkflowRevision};
 use nodes::{GenerationProfileId, GenerationProfileRef, GenerationProfileVersion};
 use projects::project::domain::ProjectId;
 use tasks::generation_task::domain::*;
@@ -21,9 +24,14 @@ pub fn origin(seed: u128) -> GenerationTaskOrigin {
     GenerationTaskOrigin::new(
         ProjectId::from_uuid(uuid(seed)).unwrap(),
         WorkflowId::from_uuid(uuid(seed + 1)).unwrap(),
+        WorkflowRevision::new(1).unwrap(),
         WorkflowRunId::from_uuid(uuid(seed + 2)).unwrap(),
         WorkflowNodeId::from_uuid(uuid(seed + 3)).unwrap(),
         WorkflowNodeExecutionId::from_uuid(uuid(seed + 4)).unwrap(),
+        NodeCapabilityContractRef::new(
+            NodeCapabilityContractId::new("image.generate_from_text").unwrap(),
+            NodeCapabilityContractVersion::new(1, 0).unwrap(),
+        ),
     )
 }
 

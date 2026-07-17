@@ -10,8 +10,9 @@ use assets::asset::application::{
     AssetContentFinalization, AssetContentFinalizationRecoveryPage,
     AssetFinalizationRecoveryCursor, AssetFinalizeContentUseCase, AssetImportCommand,
     AssetImportSourceLease, AssetImportUseCase, AssetInspectedMedia, AssetListPage, AssetListQuery,
-    AssetManagedContentLease, AssetPageLimit, AssetRecordNodeOutputUseCase, AssetStagedContent,
-    AssetStagedContentRecoveryCursor, AssetStagedContentRecoveryPage, AssetStagedContentRef,
+    AssetManagedContentLease, AssetPageLimit, AssetRecordNodeOutputUseCase,
+    AssetRecoverNodeOutputUseCase, AssetStagedContent, AssetStagedContentRecoveryCursor,
+    AssetStagedContentRecoveryPage, AssetStagedContentRef,
 };
 use assets::asset::domain::{
     AssetAggregate, AssetContentDescriptor, AssetContentDigest, AssetContentFinalizationId,
@@ -67,6 +68,11 @@ impl AssetImportFixtureFakeImpl {
 
     pub fn finalize_content_use_case(self: &Arc<Self>) -> AssetFinalizeContentUseCase {
         AssetFinalizeContentUseCase::new(self.clone(), self.clone(), self.clone())
+    }
+
+    #[allow(dead_code)]
+    pub fn recover_node_output_use_case(self: &Arc<Self>) -> AssetRecoverNodeOutputUseCase {
+        AssetRecoverNodeOutputUseCase::new(self.clone())
     }
 
     #[allow(dead_code)]

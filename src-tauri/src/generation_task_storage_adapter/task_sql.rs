@@ -4,8 +4,9 @@ use tasks::generation_task::{application::*, domain::*};
 
 use super::{outbox::encode_effect_kind, repository::storage, translator};
 
-pub(super) const TASK_COLUMNS: &str = "id, project_id, workflow_id, workflow_run_id,
-    workflow_node_id, workflow_node_execution_id, idempotency_key, request_hash,
+pub(super) const TASK_COLUMNS: &str = "id, project_id, workflow_id, workflow_revision,
+    workflow_run_id, workflow_node_id, workflow_node_execution_id, capability_contract_id,
+    capability_contract_major, capability_contract_minor, idempotency_key, request_hash,
     request_schema_version, request_kind, request_json, generation_profile_ref, provider_id,
     route_id, status, progress_percent, remote_task_id, result_kind, result_text,
     result_asset_id, result_media_kind, failure_kind, failure_code, failure_message,
@@ -94,15 +95,20 @@ pub(super) fn insert_task(
     transaction
         .execute(
             "INSERT INTO generation_tasks VALUES (
-             ?1,?2,?3,?4,?5,?6,?7,?8,1,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,
-             ?20,?21,?22,?23,?24,?25,?26,?27,?28)",
+             ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,1,?13,?14,?15,?16,?17,?18,?19,
+             ?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32)",
             params![
                 task.id().as_uuid().as_bytes(),
                 task.origin().project_id().as_uuid().as_bytes(),
                 task.origin().workflow_id().as_uuid().as_bytes(),
+                i64::try_from(task.origin().workflow_revision().get())
+                    .map_err(|_| GenerationTaskRepositoryError::StorageFailure)?,
                 task.origin().workflow_run_id().as_uuid().as_bytes(),
                 task.origin().workflow_node_id().as_uuid().as_bytes(),
                 task.origin().workflow_node_execution_id().as_uuid().as_bytes(),
+                task.origin().capability_contract_ref().id().as_str(),
+                i64::from(task.origin().capability_contract_ref().version().major()),
+                i64::from(task.origin().capability_contract_ref().version().minor()),
                 task.idempotency_key().as_str().as_bytes(),
                 task.request_hash().as_bytes().as_slice(),
                 encoded.request_kind,

@@ -1,13 +1,14 @@
 //! Focused Generation Task effect-boundary values.
 
 use crate::generation_task::domain::{
-    GenerationTaskAggregate, GenerationTaskId, GenerationTaskOrigin, GenerationTaskResult,
-    GenerationTaskTarget,
+    GenerationTaskAggregate, GenerationTaskOrigin, GenerationTaskRequest,
+    GenerationTaskRequestKind, GenerationTaskResult, GenerationTaskTarget, GenerationTaskTimestamp,
 };
 use crate::generation_task::interfaces::{
     ImageGenerationProviderResult, TextGenerationProviderResult, VideoGenerationProviderResult,
     VoiceGenerationProviderResult,
 };
+use engine::node_capability::{WorkflowNodeExecutionId, WorkflowRunId};
 
 /// Result observed from one type-specific provider route.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,20 +26,38 @@ pub enum GenerationTaskProviderResult {
 /// Deterministic single-output Asset recovery key for one Task.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub struct GenerationTaskAssetKey {
-    task_id: GenerationTaskId,
+    workflow_run_id: WorkflowRunId,
+    workflow_node_execution_id: WorkflowNodeExecutionId,
+    request_kind: GenerationTaskRequestKind,
 }
 
 impl GenerationTaskAssetKey {
     /// Creates the task's only MVP media-output key.
     #[must_use]
-    pub const fn new(task_id: GenerationTaskId) -> Self {
-        Self { task_id }
+    pub fn from_task(task: &GenerationTaskAggregate) -> Self {
+        Self {
+            workflow_run_id: task.origin().workflow_run_id(),
+            workflow_node_execution_id: task.origin().workflow_node_execution_id(),
+            request_kind: task.request().kind(),
+        }
     }
 
-    /// Returns the owning Task identity.
+    /// Returns the exact owning Workflow Run.
     #[must_use]
-    pub const fn task_id(self) -> GenerationTaskId {
-        self.task_id
+    pub const fn workflow_run_id(self) -> WorkflowRunId {
+        self.workflow_run_id
+    }
+
+    /// Returns the exact Workflow node execution.
+    #[must_use]
+    pub const fn workflow_node_execution_id(self) -> WorkflowNodeExecutionId {
+        self.workflow_node_execution_id
+    }
+
+    /// Returns the request kind that mechanically selects the output slot.
+    #[must_use]
+    pub const fn request_kind(self) -> GenerationTaskRequestKind {
+        self.request_kind
     }
 }
 
@@ -83,6 +102,9 @@ pub struct GenerationTaskStoreAssetCommand {
     key: GenerationTaskAssetKey,
     origin: GenerationTaskOrigin,
     target: GenerationTaskTarget,
+    request: GenerationTaskRequest,
+    observed_at: GenerationTaskTimestamp,
+    provider_deadline_at: GenerationTaskTimestamp,
     provider_result: GenerationTaskProviderResult,
 }
 
@@ -92,11 +114,15 @@ impl GenerationTaskStoreAssetCommand {
     pub fn from_task(
         task: &GenerationTaskAggregate,
         provider_result: GenerationTaskProviderResult,
+        observed_at: GenerationTaskTimestamp,
     ) -> Self {
         Self {
-            key: GenerationTaskAssetKey::new(task.id()),
+            key: GenerationTaskAssetKey::from_task(task),
             origin: task.origin().clone(),
             target: task.target().clone(),
+            request: task.request().clone(),
+            observed_at,
+            provider_deadline_at: task.provider_deadline_at(),
             provider_result,
         }
     }
@@ -115,6 +141,21 @@ impl GenerationTaskStoreAssetCommand {
     #[must_use]
     pub const fn target(&self) -> &GenerationTaskTarget {
         &self.target
+    }
+    /// Returns the immutable provider-neutral request.
+    #[must_use]
+    pub const fn request(&self) -> &GenerationTaskRequest {
+        &self.request
+    }
+    /// Returns the wall-clock observation made before Asset storage.
+    #[must_use]
+    pub const fn observed_at(&self) -> GenerationTaskTimestamp {
+        self.observed_at
+    }
+    /// Returns the immutable persisted provider deadline.
+    #[must_use]
+    pub const fn provider_deadline_at(&self) -> GenerationTaskTimestamp {
+        self.provider_deadline_at
     }
     /// Returns validated provider result.
     #[must_use]

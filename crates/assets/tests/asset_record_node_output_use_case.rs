@@ -5,7 +5,9 @@ use std::time::{Duration, Instant};
 #[path = "support/asset_import_fixture.rs"]
 mod asset_import_fixture;
 
-use assets::asset::application::{AssetNodeOutputSourceLease, AssetRecordNodeOutputCommand};
+use assets::asset::application::{
+    AssetNodeOutputRecovery, AssetNodeOutputSourceLease, AssetRecordNodeOutputCommand,
+};
 use assets::asset::domain::{
     AssetDisplayName, AssetId, AssetManagedContentState, AssetMediaKind, AssetNodeOutputKey,
     AssetNodeOutputProduction, AssetOriginNodeCapabilityContractRef, AssetOriginNodeOutputKey,
@@ -94,6 +96,79 @@ async fn same_key_with_different_production_returns_node_output_conflict() {
     );
 }
 
+#[tokio::test]
+async fn recovery_returns_available_without_staging_source_bytes() {
+    let fixture = AssetImportFixtureFakeImpl::new();
+    let asset = fixture
+        .record_node_output_use_case()
+        .record_asset_node_output(record_node_output_command(10))
+        .await
+        .unwrap();
+    fixture.clear_events();
+
+    let recovery = fixture
+        .recover_node_output_use_case()
+        .recover_asset_node_output(node_output_key())
+        .await
+        .unwrap();
+
+    assert!(
+        matches!(recovery, AssetNodeOutputRecovery::Available(value) if value.id() == asset.id())
+    );
+    assert_eq!(fixture.events(), vec!["find_by_output_key"]);
+}
+
+#[tokio::test]
+async fn recovery_returns_pending_only_with_its_durable_finalization() {
+    let fixture = AssetImportFixtureFakeImpl::new();
+    fixture.configure_asset_content_publish_failure(true);
+    let error = fixture
+        .record_node_output_use_case()
+        .record_asset_node_output(record_node_output_command(10))
+        .await
+        .unwrap_err();
+    assert_eq!(error, assets::asset::application::AssetApplicationError::ManagedStorageFailed);
+    fixture.clear_events();
+
+    let recovery = fixture
+        .recover_node_output_use_case()
+        .recover_asset_node_output(node_output_key())
+        .await
+        .unwrap();
+
+    assert!(matches!(recovery, AssetNodeOutputRecovery::Pending { .. }));
+    assert_eq!(fixture.events(), vec!["find_by_output_key"]);
+}
+
+#[tokio::test]
+async fn recovery_requires_source_when_key_or_durable_finalization_is_absent() {
+    let empty_fixture = AssetImportFixtureFakeImpl::new();
+    assert_eq!(
+        empty_fixture
+            .recover_node_output_use_case()
+            .recover_asset_node_output(node_output_key())
+            .await
+            .unwrap(),
+        AssetNodeOutputRecovery::SourceRequired
+    );
+
+    let pending_fixture = AssetImportFixtureFakeImpl::new();
+    pending_fixture.configure_asset_content_publish_failure(true);
+    let _ = pending_fixture
+        .record_node_output_use_case()
+        .record_asset_node_output(record_node_output_command(10))
+        .await;
+    pending_fixture.hide_committed_finalization();
+    assert_eq!(
+        pending_fixture
+            .recover_node_output_use_case()
+            .recover_asset_node_output(node_output_key())
+            .await
+            .unwrap(),
+        AssetNodeOutputRecovery::SourceRequired
+    );
+}
+
 fn record_node_output_command(source_asset_seed: u8) -> AssetRecordNodeOutputCommand {
     let producer = AssetWorkflowNodeOrigin::new(
         AssetOriginWorkflowId::from_uuid(uuid(6)).unwrap(),
@@ -103,12 +178,7 @@ fn record_node_output_command(source_asset_seed: u8) -> AssetRecordNodeOutputCom
         AssetOriginWorkflowNodeExecutionId::from_uuid(uuid(9)).unwrap(),
         AssetOriginNodeCapabilityContractRef::try_new("image.generate", 1, 0).unwrap(),
     );
-    let output_key = AssetNodeOutputKey::new(
-        producer.workflow_run_id(),
-        producer.node_execution_id(),
-        AssetOriginNodeOutputKey::try_new("image").unwrap(),
-        0,
-    );
+    let output_key = node_output_key();
     let production = AssetNodeOutputProduction::DeterministicDerived {
         source_asset_ids: AssetOriginSourceAssetIds::try_new(vec![
             AssetOriginSourceAssetId::from_asset_id(
@@ -130,6 +200,15 @@ fn record_node_output_command(source_asset_seed: u8) -> AssetRecordNodeOutputCom
         ),
     )
     .unwrap()
+}
+
+fn node_output_key() -> AssetNodeOutputKey {
+    AssetNodeOutputKey::new(
+        AssetOriginWorkflowRunId::from_uuid(uuid(7)).unwrap(),
+        AssetOriginWorkflowNodeExecutionId::from_uuid(uuid(9)).unwrap(),
+        AssetOriginNodeOutputKey::try_new("image").unwrap(),
+        0,
+    )
 }
 
 fn uuid(seed: u8) -> Uuid {

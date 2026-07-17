@@ -2,8 +2,8 @@
 
 use std::fmt;
 
-use engine::node_capability::{WorkflowNodeExecutionId, WorkflowRunId};
-use engine::workflow_graph::{WorkflowId, WorkflowNodeId};
+use engine::node_capability::{NodeCapabilityContractRef, WorkflowNodeExecutionId, WorkflowRunId};
+use engine::workflow_graph::{WorkflowId, WorkflowNodeId, WorkflowRevision};
 use nodes::GenerationProfileRef;
 use projects::project::domain::ProjectId;
 use uuid::{Uuid, Variant, Version};
@@ -132,9 +132,11 @@ impl GenerationProviderTaskHandle {
 pub struct GenerationTaskOrigin {
     project_id: ProjectId,
     workflow_id: WorkflowId,
+    workflow_revision: WorkflowRevision,
     workflow_run_id: WorkflowRunId,
     workflow_node_id: WorkflowNodeId,
     workflow_node_execution_id: WorkflowNodeExecutionId,
+    capability_contract_ref: NodeCapabilityContractRef,
 }
 
 impl GenerationTaskOrigin {
@@ -143,16 +145,20 @@ impl GenerationTaskOrigin {
     pub const fn new(
         project_id: ProjectId,
         workflow_id: WorkflowId,
+        workflow_revision: WorkflowRevision,
         workflow_run_id: WorkflowRunId,
         workflow_node_id: WorkflowNodeId,
         workflow_node_execution_id: WorkflowNodeExecutionId,
+        capability_contract_ref: NodeCapabilityContractRef,
     ) -> Self {
         Self {
             project_id,
             workflow_id,
+            workflow_revision,
             workflow_run_id,
             workflow_node_id,
             workflow_node_execution_id,
+            capability_contract_ref,
         }
     }
 
@@ -166,6 +172,12 @@ impl GenerationTaskOrigin {
     #[must_use]
     pub const fn workflow_id(&self) -> WorkflowId {
         self.workflow_id
+    }
+
+    /// Returns the frozen Workflow revision.
+    #[must_use]
+    pub const fn workflow_revision(&self) -> WorkflowRevision {
+        self.workflow_revision
     }
 
     /// Returns the exact Workflow Run.
@@ -184,6 +196,12 @@ impl GenerationTaskOrigin {
     #[must_use]
     pub const fn workflow_node_execution_id(&self) -> WorkflowNodeExecutionId {
         self.workflow_node_execution_id
+    }
+
+    /// Returns the exact Node Capability contract used by the frozen plan.
+    #[must_use]
+    pub const fn capability_contract_ref(&self) -> &NodeCapabilityContractRef {
+        &self.capability_contract_ref
     }
 }
 

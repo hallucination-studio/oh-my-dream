@@ -36,6 +36,7 @@ pub mod desktop_backend_config;
 pub mod desktop_bridges;
 pub mod desktop_node_capability_asset_bridge;
 pub mod dto;
+pub mod generation_task_asset_sink_adapter;
 pub mod generation_task_storage_adapter;
 mod managed_asset_access;
 pub(crate) mod metadata_sqlite;
