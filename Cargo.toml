@@ -4,6 +4,7 @@ members = [
     "crates/projects",
     "crates/engine",
     "crates/nodes",
+    "crates/tasks",
     "crates/backends",
     "crates/assets",
     "crates/assistant",
@@ -49,4 +50,5 @@ backends = { path = "crates/backends" }
 assets = { path = "crates/assets" }
 assistant = { path = "crates/assistant" }
 nodes = { path = "crates/nodes" }
+tasks = { path = "crates/tasks" }
 projects = { path = "crates/projects" }

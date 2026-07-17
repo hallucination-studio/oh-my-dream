@@ -45,4 +45,4 @@ config.local.*
 *.swp
 .DS_Store
 .agents
-tasks
+/tasks
