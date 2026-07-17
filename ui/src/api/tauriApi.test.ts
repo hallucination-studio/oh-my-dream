@@ -118,4 +118,26 @@ describe("canonical Workflow Tauri client", () => {
       }],
     ]);
   });
+
+  it("invokes Project-scoped Generation Task get and list commands", async () => {
+    const { tauriApi } = await import("./tauriApi.ts");
+    invokeMock.mockResolvedValue({});
+    await tauriApi.generationTaskGet("project", "task");
+    await tauriApi.generationTaskList("project", "running", "image", "cursor", 25);
+
+    expect(invokeMock.mock.calls.slice(-2)).toEqual([
+      ["generation_task_get", {
+        request: { project_id: "project", generation_task_id: "task" },
+      }],
+      ["generation_task_list", {
+        request: {
+          project_id: "project",
+          status: "running",
+          request_kind: "image",
+          cursor: "cursor",
+          limit: 25,
+        },
+      }],
+    ]);
+  });
 });

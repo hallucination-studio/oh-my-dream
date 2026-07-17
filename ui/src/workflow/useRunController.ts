@@ -14,6 +14,7 @@ interface RunControllerOptions {
   applyProgress: (progress: RunProgress) => void;
   settleProjection: (status: RunTerminalStatus) => void;
   onSucceeded: () => void;
+  onRunChanged?: (run: WorkflowRunDto | null) => void;
 }
 
 export function useRunController(options: RunControllerOptions) {
@@ -24,6 +25,7 @@ export function useRunController(options: RunControllerOptions) {
     applyProgress,
     settleProjection,
     onSucceeded,
+    onRunChanged,
   } = options;
   const generation = useRef(0);
   const activeRun = useRef<WorkflowRunDto | null>(null);
@@ -35,13 +37,14 @@ export function useRunController(options: RunControllerOptions) {
   const invalidateRun = useCallback(() => {
     generation.current += 1;
     activeRun.current = null;
+    onRunChanged?.(null);
     stopListening.current?.();
     stopListening.current = null;
     seen.current.clear();
     lastSequence.current = 0n;
     resetProjection();
     setStatus({ state: "idle" });
-  }, [resetProjection, setStatus]);
+  }, [onRunChanged, resetProjection, setStatus]);
 
   useEffect(() => invalidateRun, [invalidateRun]);
 
@@ -68,13 +71,14 @@ export function useRunController(options: RunControllerOptions) {
       );
       if (request !== generation.current) return;
       activeRun.current = admitted;
+      onRunChanged?.(admitted);
       await repairEvents(admitted, request);
     } catch (error: unknown) {
       if (request === generation.current) {
         setStatus({ state: "failed", reason: String(error) });
       }
     }
-  }, [getWorkflow, invalidateRun, setStatus]);
+  }, [getWorkflow, invalidateRun, onRunChanged, setStatus]);
 
   const cancel = useCallback(() => {
     const run = activeRun.current;
@@ -162,6 +166,7 @@ export function useRunController(options: RunControllerOptions) {
   }
 
   function settle(status: RunTerminalStatus): void {
+    onRunChanged?.(activeRun.current);
     activeRun.current = null;
     stopListening.current?.();
     stopListening.current = null;

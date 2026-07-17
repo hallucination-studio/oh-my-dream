@@ -155,6 +155,8 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
 
 fn failed_task_summary(summary: &GenerationTaskSummaryDto) -> GenerationTaskSummaryDto {
     let mut failed = summary.clone();
+    failed.id = "123e4567-e89b-42d3-a456-426600000034".to_owned();
+    failed.workflow_node_execution_id = "123e4567-e89b-42d3-a456-426600000035".to_owned();
     failed.status = GenerationTaskStatusDto::Failed;
     failed.preview_asset_id = None;
     failed.has_result = false;

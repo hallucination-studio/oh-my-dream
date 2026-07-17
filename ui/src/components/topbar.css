@@ -90,7 +90,7 @@
   }
 }
 .topbar__state--ok {
-  color: var(--ok);
+  color: #087a5f;
 }
 .topbar__state--err {
   color: var(--err);
@@ -109,6 +109,22 @@
 .topbar__gear:hover {
   background: rgba(20, 22, 29, 0.05);
   color: var(--ink);
+}
+.topbar__details {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+}
+.topbar__details:hover {
+  background: rgba(20, 22, 29, 0.05);
+  color: var(--ink);
+}
+.topbar__details svg {
+  width: 16px;
+  height: 16px;
 }
 .topbar__gear svg {
   width: 16px;

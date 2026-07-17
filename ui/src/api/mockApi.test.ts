@@ -50,3 +50,19 @@ it("applies Mock Settings with no-op and revision conflict semantics", async () 
   expect(restored.profiles.find((profile) => profile.generation_kind === "image")?.selected_binding)
     .toEqual({ provider_id: "mock", route_id: route.route_id });
 });
+
+it("lists and gets Project-scoped mock Generation Tasks with bounded filters", async () => {
+  const projectId = "123e4567-e89b-42d3-a456-426600000001";
+  const page = await mockApi.generationTaskList(projectId, "failed", "image", null, 1);
+  expect(page.tasks).toHaveLength(1);
+  expect(page.tasks[0]?.status).toBe("failed");
+  expect(page.tasks[0]).not.toHaveProperty("route_id");
+  await expect(mockApi.generationTaskGet(projectId, page.tasks[0]!.id)).resolves.toMatchObject({
+    id: page.tasks[0]!.id,
+    result: null,
+  });
+  await expect(mockApi.generationTaskGet("other", page.tasks[0]!.id))
+    .rejects.toThrow("generation_task.not_found");
+  await expect(mockApi.generationTaskList(projectId, null, null, null, 0))
+    .rejects.toThrow("generation_task.invalid_request");
+});

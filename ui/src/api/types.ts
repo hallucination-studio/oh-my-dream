@@ -402,6 +402,14 @@ export interface WorkflowApi {
     expectedSettingsRevision: string,
     action: GenerationProviderSettingsActionDto,
   ) => Promise<GenerationProviderSettingsDto>;
+  generationTaskGet: (projectId: string, taskId: string) => Promise<GenerationTaskDto>;
+  generationTaskList: (
+    projectId: string,
+    status?: GenerationTaskStatusDto | null,
+    requestKind?: GenerationTaskRequestKindDto | null,
+    cursor?: string | null,
+    limit?: number,
+  ) => Promise<GenerationTaskListPageDto>;
   workflowCreate: (projectId: string) => Promise<WorkflowDto>;
   workflowGetCurrent: (projectId: string) => Promise<WorkflowWithReadinessDto>;
   workflowApplyMutation: (

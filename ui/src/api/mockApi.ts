@@ -8,6 +8,11 @@ import type {
   GenerationProfileForCapability,
   GenerationProviderSettingsActionDto,
   GenerationProviderSettingsDto,
+  GenerationTaskDto,
+  GenerationTaskListPageDto,
+  GenerationTaskRequestKindDto,
+  GenerationTaskStatusDto,
+  GenerationTaskSummaryDto,
   Project,
   NodeCapabilityContractDto,
   WorkflowApi,
@@ -33,6 +38,8 @@ import {
 } from "./mockAssets.ts";
 import nodeCapabilitiesFixture from "../__fixtures__/node_capabilities.json";
 import generationProviderSettingsFixture from "../__fixtures__/generation_provider_settings.json";
+import generationTasksFixture from "../__fixtures__/generation_tasks.json";
+import generationTaskFixture from "../__fixtures__/generation_task.json";
 
 const mockCanonicalWorkflows = new Map<string, WorkflowDto>();
 const mockRuns = new Map<string, WorkflowRunDto>();
@@ -51,6 +58,8 @@ const mockProjects = new Map<string, Project>([
 let mockGenerationProviderSettings = structuredClone(
   generationProviderSettingsFixture,
 ) as GenerationProviderSettingsDto;
+const mockGenerationTasks = structuredClone(generationTasksFixture.tasks) as GenerationTaskSummaryDto[];
+const mockGenerationTaskDetail = structuredClone(generationTaskFixture) as GenerationTaskDto;
 
 async function listProjects() {
   return [...mockProjects.values()];
@@ -126,6 +135,43 @@ async function generationProviderSettingsApply(
     BigInt(mockGenerationProviderSettings.settings_revision) + 1n,
   );
   return structuredClone(mockGenerationProviderSettings);
+}
+
+async function generationTaskGet(projectId: string, taskId: string): Promise<GenerationTaskDto> {
+  const task = mockGenerationTasks.find(
+    (candidate) => candidate.project_id === projectId && candidate.id === taskId,
+  );
+  if (!task) throw new Error("generation_task.not_found");
+  return structuredClone(task.id === mockGenerationTaskDetail.id
+    ? mockGenerationTaskDetail
+    : { ...task, result: null });
+}
+
+async function generationTaskList(
+  projectId: string,
+  status: GenerationTaskStatusDto | null = null,
+  requestKind: GenerationTaskRequestKindDto | null = null,
+  cursor: string | null = null,
+  limit = 100,
+): Promise<GenerationTaskListPageDto> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error("generation_task.invalid_request");
+  }
+  const offset = cursor === null ? 0 : parseCursor(cursor);
+  const matching = mockGenerationTasks.filter((task) =>
+    task.project_id === projectId &&
+    (status === null || task.status === status) &&
+    (requestKind === null || task.request_kind === requestKind),
+  );
+  const tasks = matching.slice(offset, offset + limit);
+  const nextCursor = offset + limit < matching.length ? `mock:${offset + limit}` : null;
+  return { tasks: structuredClone(tasks), next_cursor: nextCursor };
+}
+
+function parseCursor(cursor: string): number {
+  const offset = Number(cursor.startsWith("mock:") ? cursor.slice(5) : NaN);
+  if (!Number.isInteger(offset) || offset < 0) throw new Error("generation_task.invalid_request");
+  return offset;
 }
 
 async function workflowCreate(projectId: string): Promise<WorkflowDto> {
@@ -382,6 +428,8 @@ export const mockApi: WorkflowApi = {
   generationProfileListForCapability,
   generationProviderSettingsGet,
   generationProviderSettingsApply,
+  generationTaskGet,
+  generationTaskList,
   workflowCreate,
   workflowGetCurrent,
   workflowApplyMutation,

@@ -21,6 +21,10 @@ import type {
   GenerationProfileForCapability,
   GenerationProviderSettingsActionDto,
   GenerationProviderSettingsDto,
+  GenerationTaskDto,
+  GenerationTaskListPageDto,
+  GenerationTaskRequestKindDto,
+  GenerationTaskStatusDto,
   NodeCapabilityContractDto,
   Project,
   ProjectWorkspace,
@@ -146,6 +150,30 @@ async function generationProviderSettingsApply(
 ): Promise<GenerationProviderSettingsDto> {
   return invoke<GenerationProviderSettingsDto>("generation_provider_settings_apply", {
     request: { expected_settings_revision: expectedSettingsRevision, action },
+  });
+}
+
+async function generationTaskGet(projectId: string, taskId: string): Promise<GenerationTaskDto> {
+  return invoke<GenerationTaskDto>("generation_task_get", {
+    request: { project_id: projectId, generation_task_id: taskId },
+  });
+}
+
+async function generationTaskList(
+  projectId: string,
+  status: GenerationTaskStatusDto | null = null,
+  requestKind: GenerationTaskRequestKindDto | null = null,
+  cursor: string | null = null,
+  limit = 100,
+): Promise<GenerationTaskListPageDto> {
+  return invoke<GenerationTaskListPageDto>("generation_task_list", {
+    request: {
+      project_id: projectId,
+      status,
+      request_kind: requestKind,
+      cursor,
+      limit,
+    },
   });
 }
 
@@ -302,6 +330,8 @@ export const tauriApi: WorkflowApi = {
   generationProfileListForCapability,
   generationProviderSettingsGet,
   generationProviderSettingsApply,
+  generationTaskGet,
+  generationTaskList,
   workflowCreate,
   workflowGetCurrent,
   workflowApplyMutation,

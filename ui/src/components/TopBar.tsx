@@ -13,6 +13,8 @@ export function TopBar({
   onOpenSettings,
   onRun,
   onCancel,
+  onOpenRunDetails,
+  hasRunDetails,
 }: {
   project: Project | null;
   status: RunStatus;
@@ -21,6 +23,8 @@ export function TopBar({
   onOpenSettings: () => void;
   onRun: () => void;
   onCancel: () => void;
+  onOpenRunDetails: () => void;
+  hasRunDetails: boolean;
 }) {
   const running = status.state === "running";
   const cancelling = status.state === "cancelling";
@@ -42,6 +46,11 @@ export function TopBar({
       <div className="topbar__spacer" />
       <WorkspaceState state={workspaceState} />
       <RunState status={status} />
+      {hasRunDetails && (
+        <button className="topbar__details" onClick={onOpenRunDetails} aria-label="Run details" title="Run details">
+          <RunDetailsIcon />
+        </button>
+      )}
       <span className="topbar__sep" aria-hidden="true" />
       <button className="topbar__gear" onClick={onOpenSettings} aria-label="Settings">
         <GearIcon />
@@ -98,6 +107,15 @@ function GearIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function RunDetailsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M5 6.5h14M5 12h14M5 17.5h9" />
+      <circle cx="18" cy="17.5" r="1.5" />
     </svg>
   );
 }

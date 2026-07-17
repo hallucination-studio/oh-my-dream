@@ -16,6 +16,7 @@ import {
   type CapabilityRef,
   type NodeCapabilityContractDto,
   type Project,
+  type WorkflowRunDto,
 } from "./api/index.ts";
 import type { RunStatus } from "./workflow/types.ts";
 import { TopBar } from "./components/TopBar.tsx";
@@ -35,6 +36,7 @@ import { useAssistantAvailability } from "./assistant/useAssistantAvailability.t
 import { CloseFailureDialog } from "./components/CloseFailureDialog.tsx";
 import { parseCapabilityRef } from "./workflow/capabilitySelection.ts";
 import { useNodePresentation } from "./workflow/useNodePresentation.ts";
+import { RunDrawer } from "./components/RunDrawer.tsx";
 
 function isGraphMutation(change: { type: string }): boolean {
   return change.type === "add" || change.type === "remove" || change.type === "replace" || change.type === "position";
@@ -49,6 +51,8 @@ export function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [runDetailsOpen, setRunDetailsOpen] = useState(false);
+  const [runSnapshot, setRunSnapshot] = useState<WorkflowRunDto | null>(null);
   const {
     assistantEnabled,
     assistantOpen,
@@ -80,6 +84,7 @@ export function App() {
     applyProgress,
     settleProjection: settle,
     onSucceeded: () => void refresh(),
+    onRunChanged: setRunSnapshot,
   });
   const {
     canEdit,
@@ -300,6 +305,8 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onRun={run}
         onCancel={cancel}
+        onOpenRunDetails={() => setRunDetailsOpen(true)}
+        hasRunDetails={runSnapshot !== null}
       />
       <ProjectSwitcher
         current={project}
@@ -386,6 +393,14 @@ export function App() {
           setSettingsOpen(false);
           refreshAssistantEnabled();
         }}
+      />
+      <RunDrawer
+        open={runDetailsOpen}
+        onClose={() => setRunDetailsOpen(false)}
+        projectId={project?.id ?? null}
+        run={runSnapshot}
+        activeNodeId={status.state === "running" ? status.nodeId : null}
+        outputPreview={status.state === "succeeded" ? status.outputs : null}
       />
       {closeError !== null && (
         <CloseFailureDialog
