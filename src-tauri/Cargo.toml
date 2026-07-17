@@ -65,6 +65,7 @@ serde_json.workspace = true
 sha2.workspace = true
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true
+tasks.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true

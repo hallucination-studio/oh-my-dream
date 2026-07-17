@@ -20,7 +20,7 @@ use crate::generation_task::domain::{
 };
 use crate::generation_task::interfaces::{
     GenerationProviderRegistryInterface, GenerationTaskClockInterface,
-    GenerationTaskRepositoryInterface,
+    GenerationTaskOutboxReaderInterface, GenerationTaskRepositoryInterface,
 };
 
 /// Deterministic in-memory repository implementing Task idempotency and outbox atomicity.
@@ -106,12 +106,65 @@ impl GenerationTaskRepositoryFakeImpl {
 }
 
 #[async_trait]
+impl GenerationTaskOutboxReaderInterface for GenerationTaskRepositoryFakeImpl {
+    async fn claim_next_generation_task_effect(
+        &self,
+        now: GenerationTaskTimestamp,
+    ) -> Result<Option<GenerationTaskClaimedEffect>, GenerationTaskRepositoryError> {
+        let mut state = self.lock()?;
+        let claimed_tasks = state
+            .effects
+            .values()
+            .filter(|stored| stored.state == StoredFakeEffectState::Claimed)
+            .map(|stored| stored.effect.task_id())
+            .collect::<std::collections::BTreeSet<_>>();
+        let candidate = state
+            .effects
+            .iter()
+            .filter(|(_, stored)| {
+                stored.state == StoredFakeEffectState::Ready
+                    && stored.effect.available_at() <= now
+                    && !claimed_tasks.contains(&stored.effect.task_id())
+            })
+            .min_by_key(|(id, stored)| (stored.effect.available_at(), **id))
+            .map(|(id, _)| *id);
+        let Some(id) = candidate else {
+            return Ok(None);
+        };
+        let stored =
+            state.effects.get_mut(&id).ok_or(GenerationTaskRepositoryError::StorageFailure)?;
+        stored.state = StoredFakeEffectState::Claimed;
+        Ok(Some(GenerationTaskClaimedEffect::new(
+            GenerationTaskEffectClaim::new(id),
+            stored.effect.clone(),
+        )))
+    }
+
+    async fn reset_claimed_generation_task_effects(
+        &self,
+    ) -> Result<u64, GenerationTaskRepositoryError> {
+        let mut state = self.lock()?;
+        let mut reset = 0_u64;
+        for stored in state.effects.values_mut() {
+            if stored.state == StoredFakeEffectState::Claimed {
+                stored.state = StoredFakeEffectState::Ready;
+                reset = reset.saturating_add(1);
+            }
+        }
+        Ok(reset)
+    }
+}
+
+#[async_trait]
 impl GenerationTaskRepositoryInterface for GenerationTaskRepositoryFakeImpl {
     async fn create_generation_task(
         &self,
         task: &GenerationTaskAggregate,
         message: GenerationTaskEffect,
     ) -> Result<GenerationTaskCreateResult, GenerationTaskRepositoryError> {
+        if message.task_id() != task.id() {
+            return Err(GenerationTaskRepositoryError::Corruption);
+        }
         let mut state = self.lock()?;
         let idempotency_key =
             (task.origin().project_id(), task.idempotency_key().as_str().to_owned());
@@ -160,8 +213,18 @@ impl GenerationTaskRepositoryInterface for GenerationTaskRepositoryFakeImpl {
             state.tasks.get(&task.id()).ok_or(GenerationTaskRepositoryError::StorageFailure)?;
         if current.revision().get() != expected_revision
             || task.revision().get() < expected_revision
+            || !current.has_same_immutable_facts(task)
+            || outbox.enqueue.iter().any(|effect| effect.task_id() != task.id())
         {
-            return Err(GenerationTaskRepositoryError::OptimisticConflict);
+            return Err(
+                if current.revision().get() != expected_revision
+                    || task.revision().get() < expected_revision
+                {
+                    GenerationTaskRepositoryError::OptimisticConflict
+                } else {
+                    GenerationTaskRepositoryError::Corruption
+                },
+            );
         }
         if let Some(claim) = outbox.consume {
             let stored = state

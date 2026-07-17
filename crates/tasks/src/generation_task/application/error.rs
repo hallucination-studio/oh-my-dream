@@ -3,6 +3,9 @@
 /// Persistence failure exposed to Generation Task application use cases.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum GenerationTaskRepositoryError {
+    /// Persisted row data violates the authoritative aggregate contract.
+    #[error("Generation Task storage is corrupt")]
+    Corruption,
     /// Durable storage failed without a trustworthy result.
     #[error("Generation Task storage failed")]
     StorageFailure,

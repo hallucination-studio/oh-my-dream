@@ -320,6 +320,19 @@ impl GenerationTaskAggregate {
     pub const fn revision(&self) -> GenerationTaskRevision {
         self.revision
     }
+
+    /// Compares every immutable persisted fact while excluding lifecycle state and revision.
+    #[must_use]
+    pub fn has_same_immutable_facts(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.origin == other.origin
+            && self.idempotency_key == other.idempotency_key
+            && self.request_hash == other.request_hash
+            && self.target == other.target
+            && self.request == other.request
+            && self.provider_deadline_at == other.provider_deadline_at
+            && self.created_at == other.created_at
+    }
 }
 
 fn validate_restored_state(

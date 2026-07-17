@@ -6,6 +6,8 @@ mod application_effects;
 mod application_queries;
 #[path = "application_start.rs"]
 mod application_start;
+#[path = "outbox_reader.rs"]
+mod outbox_reader;
 #[path = "provider_architecture.rs"]
 mod provider_architecture;
 #[path = "provider_contracts.rs"]

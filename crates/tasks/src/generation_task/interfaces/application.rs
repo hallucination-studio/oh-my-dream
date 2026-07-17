@@ -7,15 +7,30 @@ use super::provider::GenerationProviderRouteResolutionError;
 use crate::generation_task::application::{
     GenerationProviderRegistryError, GenerationProviderResolvedRoute, GenerationTaskAssetKey,
     GenerationTaskAssetRecovery, GenerationTaskAvailableAsset, GenerationTaskBoundaryError,
-    GenerationTaskCreateResult, GenerationTaskCursorPage, GenerationTaskListQuery,
-    GenerationTaskOriginState, GenerationTaskOutboxChanges, GenerationTaskRepositoryError,
-    GenerationTaskStoreAssetCommand, GenerationTaskSummaryView,
+    GenerationTaskClaimedEffect, GenerationTaskCreateResult, GenerationTaskCursorPage,
+    GenerationTaskListQuery, GenerationTaskOriginState, GenerationTaskOutboxChanges,
+    GenerationTaskRepositoryError, GenerationTaskStoreAssetCommand, GenerationTaskSummaryView,
     GenerationTaskWorkflowCompletionOutcome,
 };
 use crate::generation_task::domain::{
     GenerationTaskAggregate, GenerationTaskId, GenerationTaskRequestKind, GenerationTaskTarget,
     GenerationTaskTimestamp,
 };
+
+/// Claim/reset boundary consumed only by the Generation Task worker and startup recovery.
+#[async_trait]
+pub trait GenerationTaskOutboxReaderInterface: Send + Sync {
+    /// Atomically claims at most one due effect, skipping tasks already in flight.
+    async fn claim_next_generation_task_effect(
+        &self,
+        now: GenerationTaskTimestamp,
+    ) -> Result<Option<GenerationTaskClaimedEffect>, GenerationTaskRepositoryError>;
+
+    /// Resets every prior-process claim after the exclusive process lock is acquired.
+    async fn reset_claimed_generation_task_effects(
+        &self,
+    ) -> Result<u64, GenerationTaskRepositoryError>;
+}
 
 /// Atomic aggregate and outbox persistence boundary.
 #[async_trait]

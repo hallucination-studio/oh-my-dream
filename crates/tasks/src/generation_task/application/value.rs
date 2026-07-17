@@ -193,6 +193,17 @@ impl GenerationTaskEffect {
         Self { task_id, kind, available_at, delivery_attempts: 0 }
     }
 
+    /// Restores one closed durable effect with its diagnostic attempt count.
+    #[must_use]
+    pub const fn restore(
+        task_id: GenerationTaskId,
+        kind: GenerationTaskEffectKind,
+        available_at: GenerationTaskTimestamp,
+        delivery_attempts: u32,
+    ) -> Self {
+        Self { task_id, kind, available_at, delivery_attempts }
+    }
+
     /// Returns the owning Task.
     #[must_use]
     pub const fn task_id(&self) -> GenerationTaskId {
