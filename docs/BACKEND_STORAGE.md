@@ -341,8 +341,8 @@ The physical rows are exact:
 
 | Table | Key and payload |
 | --- | --- |
-| `desktop_backend_config` | singleton key `1`, schema version, non-zero monotonic revision, canonical JSON blob `1..=262,144` bytes, and nullable storage-only legacy JSON blob with the same bound |
-| `generation_provider_credentials` | legacy credential ID primary key and plaintext secret blob `1..=16,384` bytes; retained but inactive in the Mock MVP |
+| `desktop_backend_config` | singleton key `1`, schema version, non-zero monotonic revision, and canonical JSON blob `1..=262,144` bytes |
+| `generation_provider_credentials` | credential ID primary key and plaintext secret blob `1..=16,384` bytes; inactive in the Mock MVP |
 | `assistant_model_credentials` | typed credential ID primary key, plaintext secret blob `1..=16,384` bytes |
 
 Settings apply atomically compare-and-swaps the config revision and changes only the selected Mock
@@ -352,13 +352,11 @@ Task persistence does not read or compare config or credential rows. Config init
 the frozen default only when the singleton row is absent; a corrupt, oversized, unsupported-version,
 or non-canonical row fails startup and is never silently replaced.
 
-The v1-to-v2 transaction validates the old canonical payload, copies those exact bytes into
-`legacy_config_json`, and only then writes the version-2 payload and schema version. Runtime code
-never interprets the retained provider endpoint/native-model fields, and later Settings updates do
-not clear or rewrite the retained bytes. The legacy provider credential
-table is likewise retained but inactive: Mock Settings cannot read or mutate it, and Generation
-Tasks cannot reference it. Production-provider credential semantics require a future reviewed
-migration rather than speculative revision/tombstone tables in this MVP.
+The Mock architecture uses a new hard-cut Desktop storage epoch and creates version 2 configuration
+directly. It has no legacy config column or compatibility path. A prior-epoch database is rejected
+without mutation, so current Mock Settings and Generation Tasks cannot inspect or reference its
+provider configuration or credentials. Production-provider credential semantics require a future
+reviewed design rather than speculative migration or revision/tombstone tables in this MVP.
 
 The database and parent data directory use private user-only permissions where the platform
 supports them. This reduces accidental disclosure but is not encryption: any process or user able
@@ -423,21 +421,17 @@ short; blocking SQL/filesystem work runs outside async runtime core threads. MVP
 keys, parameterized statements, private permissions, bounded queries, a bounded busy timeout, and
 no application-managed pool or speculative WAL tuning.
 
-Startup creates the current schema, applies known forward migrations transactionally, refuses newer
-unsupported versions, and never deletes or silently recreates user data after integrity/migration
-failure. Assistant contract-epoch storage is a hard compatibility boundary and is never parsed by a
-new epoch.
-The Desktop backend-config v1-to-v2 translation is the exact non-destructive Mock-binding migration
-owned by `BACKEND_APPLICATION.md`; it retains the validated original config bytes in the same
-transaction that writes version 2 and does not modify retained provider credential rows.
+Startup creates the current schema directly, refuses every prior or newer unsupported epoch, and
+never deletes or silently recreates rejected user data. Assistant contract-epoch storage is a hard
+compatibility boundary and is never parsed by a new epoch.
 
-The hard-cut Desktop storage epoch is `1`: SQLite `application_id` is `0x4f4d4431` and
+The hard-cut Desktop storage epoch is `2`: SQLite `application_id` is `0x4f4d4432` and
 `user_version` starts at `1`. An absent database is created at that pair; an existing non-empty
 database with a missing/different application ID is `UnsupportedLegacyStorageEpoch` and remains
-untouched with adjacent files. Within epoch `1`, only explicitly shipped sequential forward
+untouched with adjacent files. Within epoch `2`, only explicitly shipped sequential forward
 migrations run, each in one transaction; gaps, downgrades, partial migrations, and unknown newer
-versions fail closed. The abandoned architecture has no reader, importer, compatibility table, or
-destructive reset path.
+versions fail closed. No migration exists from an earlier epoch; the abandoned architecture has no
+reader, importer, compatibility table, or destructive reset path.
 
 ## Errors And Verification
 

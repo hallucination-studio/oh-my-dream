@@ -493,15 +493,11 @@ the currently selected `(profile, generation kind, provider, route)` tuple into 
 target. A concurrent Settings change affects only a later binding resolution; the admitted Task
 continues with its copied target. A missing Assistant credential disables only Assistant commands.
 
-The version-1 migration validates and retains the exact original canonical payload in the storage-
-only `legacy_config_json` column before writing canonical version 2 with the exact three Mock
-bindings. Runtime code never reads provider endpoints or native models from that retained payload;
-it exists only for non-destructive rollback or a future explicit production-provider migration.
-Later Settings compare-and-swap updates change only revision and active version-2 JSON and never
-clear or rewrite `legacy_config_json`.
-Existing provider credential rows remain stored but are not composed into Mock, exposed by MVP
-Settings, or referenced by Generation Tasks. Invalid version-1 data fails migration instead of
-being partially guessed.
+The Mock architecture starts in a new hard-cut Desktop storage epoch. Fresh storage writes canonical
+version 2 with the exact three Mock bindings. There is no legacy config column, reader, importer,
+translator, or migration. A non-empty database from any prior epoch fails startup closed and remains
+untouched; current runtime code therefore cannot inspect, compose, or mutate its provider routes or
+credential rows.
 
 `AssistantModelCredentialRepositoryInterface` remains the active plaintext credential boundary.
 Legacy provider credentials and Assistant credentials occupy separate SQLite tables. This provides
