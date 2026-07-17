@@ -62,6 +62,9 @@ jobs:
       - name: Install assistant test dependencies
         run: python -m pip install -r assistant/requirements-stdio.txt pytest
 
+      - name: Build assistant sidecar
+        run: ./scripts/build-assistant.sh
+
       - name: Run complete Cargo tests
         run: cargo test --workspace
 
