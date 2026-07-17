@@ -431,7 +431,7 @@ durable authority; after a gap or restart React reloads pending change and canon
 `DesktopCompositionRoot` in `composition.rs` is the only code that names concrete adapters:
 
 ```text
-open/migrate SQLite and managed-content roots
+open SQLite and managed-content roots; create fresh epoch-2 storage or validate its exact version
   -> construct SQLite backend-config and Assistant plaintext credential repository
   -> load and validate DesktopBackendConfig
   -> construct Project, Workflow, Generation Task, Asset, and Assistant repositories

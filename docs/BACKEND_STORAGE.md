@@ -409,11 +409,11 @@ An ambiguous uncommitted submission is never blindly repeated. Pending Asset rec
 because it completes only already-identified local bytes. Assistant apply recovery remains isolated
 and invokes canonical idempotent Workflow/Run admission.
 
-## SQLite And Migration Policy
+## SQLite Hard-Cut Policy
 
 One metadata database belongs to one Desktop data root and one writable process. That rule is
 enforced mechanically: startup acquires one OS-level advisory exclusive lock on a dedicated lock
-file in the data root before any migration or recovery, holds it open for the entire process
+file in the data root before any schema validation or recovery, holds it open for the entire process
 lifetime, and fails startup closed when it cannot be acquired. Holding this lock is the only proof
 that no prior-process worker can still commit, so every startup claim reset depends on it; graceful
 shutdown joins both effect workers before releasing it. Transactions are
@@ -425,13 +425,14 @@ Startup creates the current schema directly, refuses every prior or newer unsupp
 never deletes or silently recreates rejected user data. Assistant contract-epoch storage is a hard
 compatibility boundary and is never parsed by a new epoch.
 
-The hard-cut Desktop storage epoch is `2`: SQLite `application_id` is `0x4f4d4432` and
-`user_version` starts at `1`. An absent database is created at that pair; an existing non-empty
-database with a missing/different application ID is `UnsupportedLegacyStorageEpoch` and remains
-untouched with adjacent files. Within epoch `2`, only explicitly shipped sequential forward
-migrations run, each in one transaction; gaps, downgrades, partial migrations, and unknown newer
-versions fail closed. No migration exists from an earlier epoch; the abandoned architecture has no
-reader, importer, compatibility table, or destructive reset path.
+The hard-cut Desktop storage epoch is `2`: SQLite `application_id` is `0x4f4d4432` and its only
+accepted `user_version` is `1`. An absent database is created directly at that exact pair. An
+existing non-empty database with a missing/different application ID is
+`UnsupportedLegacyStorageEpoch`; one with any other `user_version` is
+`UnsupportedStorageSchemaVersion`. Both remain untouched with adjacent files. There are no schema
+migrations within epoch `2` and no migration from any earlier epoch. A future incompatible schema
+must use a new storage epoch and application ID. The abandoned architecture has no reader,
+importer, compatibility table, backfill, dual-read/write, or destructive reset path.
 
 ## Errors And Verification
 

@@ -233,7 +233,7 @@ Public methods state their action. Vague methods such as `execute`, `process`, `
 ```text
 DesktopCompositionRoot
   -> acquire the held-open OS-exclusive data-root lock for the process lifetime
-  -> open and migrate SQLite
+  -> open SQLite, create fresh epoch-2 storage or validate its exact schema version
   -> load and validate SQLite backend configuration
   -> construct focused SQLite plaintext credential repositories
   -> construct Project, Asset, Workflow, Generation Task, and Assistant repositories/use cases

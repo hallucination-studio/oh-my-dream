@@ -262,7 +262,7 @@ Text profile the projection includes only compatible Text routes; Image includes
 Image routes; Video only compatible Video routes; speech/voice only compatible Voice routes.
 Applying a `(profile_ref, generation_kind, provider_id, route_id)` mapping absent from that exact
 projection is rejected before persistence. If configuration is missing or becomes
-invalid after migration, availability is `NoConfiguredRoute`, so Workflow readiness blocks it and
+invalid after a configuration change, availability is `NoConfiguredRoute`, so Workflow readiness blocks it and
 the UI cannot select it. The UI never guesses capability support from provider name or a failed
 generation call.
 
@@ -361,9 +361,9 @@ read transactionally for new task admission, and the immutable shipped provider 
 existing task bindings. Disabling or rebinding a profile affects future tasks but does not remove
 its shipped adapter from recovery. Recovery first resolves persisted provider ID, then request kind,
 then route ID through the matching focused interface; it never consults the current profile
-selection. A software version may remove a shipped recovery
-adapter only through an explicit migration/retirement decision that first proves no non-terminal
-task references it.
+selection. A software version may remove a shipped recovery adapter only through an explicit
+retirement decision that first proves no non-terminal task references it. This is a release-safety
+check, not a data migration or compatibility path.
 
 ## Dispatch Rules
 
