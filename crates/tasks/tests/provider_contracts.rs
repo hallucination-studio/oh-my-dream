@@ -38,7 +38,7 @@ fn rejects_empty_duplicate_and_unresolvable_capability_compositions() {
         Err(GenerationProviderContractError::EmptyCapabilities)
     ));
 
-    let duplicate = Arc::new(TestCapability::new("shared.route.v1", "shared.route.v1"));
+    let duplicate = Arc::new(TestCapabilityImpl::new("shared.route.v1", "shared.route.v1"));
     assert!(matches!(
         GenerationProviderCapabilities::try_new(
             Some(duplicate.clone()),
@@ -49,7 +49,7 @@ fn rejects_empty_duplicate_and_unresolvable_capability_compositions() {
         Err(GenerationProviderContractError::DuplicateRouteId)
     ));
 
-    let broken: Arc<dyn TextGenerationProviderInterface> = Arc::new(BrokenTextCapability {
+    let broken: Arc<dyn TextGenerationProviderInterface> = Arc::new(BrokenTextCapabilityImpl {
         contract: TextGenerationProviderContract::try_new(vec![route(
             "broken.text.v1",
             "Broken Text",
@@ -65,7 +65,7 @@ fn rejects_empty_duplicate_and_unresolvable_capability_compositions() {
 
 #[test]
 fn composes_all_four_complete_capabilities_and_derives_safe_contract() {
-    let capability = Arc::new(TestCapability::new("mock.text.v1", "mock.image.v1"));
+    let capability = Arc::new(TestCapabilityImpl::new("mock.text.v1", "mock.image.v1"));
     let capabilities = GenerationProviderCapabilities::try_new(
         Some(capability.clone()),
         Some(capability.clone()),
@@ -73,7 +73,7 @@ fn composes_all_four_complete_capabilities_and_derives_safe_contract() {
         Some(capability),
     )
     .unwrap();
-    let provider = TestProvider {
+    let provider = TestProviderImpl {
         id: GenerationProviderId::try_new("mock").unwrap(),
         display_name: GenerationProviderDisplayName::try_new("Mock Provider").unwrap(),
         capabilities,
@@ -130,13 +130,13 @@ fn provider_boundary_values_enforce_bounds_without_deep_clone() {
     assert!(Arc::ptr_eq(&cloned_bytes, &original_bytes));
 }
 
-struct TestProvider {
+struct TestProviderImpl {
     id: GenerationProviderId,
     display_name: GenerationProviderDisplayName,
     capabilities: GenerationProviderCapabilities,
 }
 
-impl GenerationProviderInterface for TestProvider {
+impl GenerationProviderInterface for TestProviderImpl {
     fn generation_provider_id(&self) -> &GenerationProviderId {
         &self.id
     }
@@ -151,14 +151,14 @@ impl GenerationProviderInterface for TestProvider {
 }
 
 #[derive(Clone)]
-struct TestCapability {
+struct TestCapabilityImpl {
     text: TextGenerationProviderContract,
     image: ImageGenerationProviderContract,
     video: VideoGenerationProviderContract,
     voice: VoiceGenerationProviderContract,
 }
 
-impl TestCapability {
+impl TestCapabilityImpl {
     fn new(text_route: &str, image_route: &str) -> Self {
         Self {
             text: TextGenerationProviderContract::try_new(vec![route(
@@ -191,7 +191,7 @@ impl TestCapability {
 
 macro_rules! focused_capability_impl {
     ($interface:ident, $contract_method:ident, $resolve_method:ident, $field:ident, $contract:ident, $execution:ident) => {
-        impl $interface for TestCapability {
+        impl $interface for TestCapabilityImpl {
             fn $contract_method(&self) -> &$contract {
                 &self.$field
             }
@@ -243,7 +243,7 @@ focused_capability_impl!(
 );
 
 #[async_trait]
-impl TextGenerationImmediateExecutorInterface for TestCapability {
+impl TextGenerationImmediateExecutorInterface for TestCapabilityImpl {
     async fn execute_text_generation(
         &self,
         _context: &GenerationProviderCallContext,
@@ -258,7 +258,7 @@ impl TextGenerationImmediateExecutorInterface for TestCapability {
 macro_rules! media_executor_impl {
     ($interface:ident, $method:ident, $spec:ident, $outcome:ident, $result:ident) => {
         #[async_trait]
-        impl $interface for TestCapability {
+        impl $interface for TestCapabilityImpl {
             async fn $method(
                 &self,
                 _context: &GenerationProviderCallContext,
@@ -292,11 +292,11 @@ media_executor_impl!(
     VoiceGenerationProviderResult
 );
 
-struct BrokenTextCapability {
+struct BrokenTextCapabilityImpl {
     contract: TextGenerationProviderContract,
 }
 
-impl TextGenerationProviderInterface for BrokenTextCapability {
+impl TextGenerationProviderInterface for BrokenTextCapabilityImpl {
     fn text_generation_contract(&self) -> &TextGenerationProviderContract {
         &self.contract
     }

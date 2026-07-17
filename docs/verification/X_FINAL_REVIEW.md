@@ -1,6 +1,6 @@
 # X Final Simplification and Code Review
 
-Date: 2026-07-17
+Date: 2026-07-18
 
 This is a review record, not a source of backend semantics. The authoritative requirements remain
 in `docs/BACKEND*.md` and `docs/BACKEND_GLOSSARY.md`.
@@ -22,6 +22,9 @@ Clippy evidence.
 | Production, deterministic, fake, recorder, and fault implementations still lacked `Impl` suffixes | Resolved by `a4a4ced`; protected by the repository implementation-name guard. |
 | Exported `Value`, `Executor`, and ownerless `Result` aliases violated the prohibited standalone-name list | Resolved by `4c20dc3`; protected by the public-declaration guard. |
 | Python tests consumed removed tool IDs and the SDK strict-schema flag rejected the Rust-owned parameter-map schema | Resolved by `a93f7c2`; Rust remains the sole strict tool-input validator and Python consumes the exact eleven IDs. |
+| The implementation-name guard treated macro metavariables as concrete trait names | Resolved in the C4 closure change; `$`-prefixed generated names are excluded while concrete declarations remain checked. |
+| Three provider contract test fakes violated the concrete `Impl` naming rule | Resolved in the C4 closure change by renaming the fakes to `TestProviderImpl`, `TestCapabilityImpl`, and `BrokenTextCapabilityImpl`. |
+| The Python environment architecture test referenced the removed pre-C2 Assistant command modules | Resolved in the C4 closure change by asserting the current `assistant_commands_v5` and runner boundary. |
 
 ## Rejected findings and explicit exceptions
 
@@ -56,7 +59,12 @@ cargo test -p assets --test integration
 cargo test -p backends --test integration
 cargo test -p oh-my-dream-tauri --test integration dto
 cargo test -p oh-my-dream-tauri --test integration workflow_run_dto
+cargo test --workspace
+python3 -m pytest assistant/tests
+npm --prefix ui run typecheck
+npm --prefix ui run test
 ```
 
 No Critical or Required review finding remains. The complete Cargo and E2E merge gate remains owned
-by pull-request CI.
+by pull-request CI; no pull request is currently associated with `main`, so that external gate has
+not been claimed as locally verified.

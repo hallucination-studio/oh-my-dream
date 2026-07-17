@@ -18,21 +18,14 @@ def test_product_has_one_initial_runner_entry_and_no_plan_scheduler() -> None:
         path.relative_to(root) for path in sources if ".resume_streamed(" in path.read_text()
     ]
     assistant_sources = list((root / "assistant").glob("*.py")) + [
-        root / "src-tauri/src/assistant_commands.rs",
-        *list((root / "src-tauri/src/assistant_commands").rglob("*.rs")),
+        root / "src-tauri/src/assistant_commands_v5.rs",
         root / "src-tauri/src/assistant_model_runner.rs",
         *list((root / "src-tauri/src/assistant_model_runner").rglob("*.rs")),
     ]
     product_source = "\n".join(path.read_text() for path in assistant_sources)
 
     assert runner_entries == [Path("assistant/protocol_v1_app.py")]
-    assert invoke_entries == [
-        Path("src-tauri/src/assistant_commands.rs"),
-        Path("src-tauri/src/assistant_commands/repair.rs"),
-    ]
-    repair_activation = (root / "src-tauri/src/assistant_commands/repair.rs").read_text()
-    assert "run.activation" in repair_activation
-    assert "production_plan" not in repair_activation
-    assert resume_entries == [Path("src-tauri/src/assistant_commands.rs")]
+    assert invoke_entries == []
+    assert resume_entries == []
     assert "claim_next" not in product_source
     assert "activate_next" not in product_source

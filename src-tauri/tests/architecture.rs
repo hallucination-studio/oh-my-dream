@@ -260,7 +260,7 @@ fn collect_file_trait_name_violations(path: &Path, source: &str, violations: &mu
         let Some(name) = line.trim_start().strip_prefix("pub trait ").and_then(trait_name) else {
             continue;
         };
-        if !name.ends_with("Interface") {
+        if !name.starts_with('$') && !name.ends_with("Interface") {
             violations.push(format!("{}:{}:{name}", path.display(), index + 1));
         }
     }
