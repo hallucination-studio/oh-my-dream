@@ -36,14 +36,19 @@ pub(super) enum BlockReasonPayload {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) struct ExecutionFailurePayload {
-    contract_id: String,
-    contract_major: u16,
-    contract_minor: u16,
-    execution_id: Uuid,
-    stage: StagePayload,
-    failure: ExecutionSourcePayload,
-    target: TargetPayload,
+pub(super) enum ExecutionFailurePayload {
+    Capability {
+        contract_id: String,
+        contract_major: u16,
+        contract_minor: u16,
+        execution_id: Uuid,
+        stage: StagePayload,
+        failure: ExecutionSourcePayload,
+        target: TargetPayload,
+    },
+    GenerationTask {
+        failure: GenerationTaskFailurePayload,
+    },
 }
 
 #[derive(Serialize, Deserialize)]
@@ -123,34 +128,55 @@ pub(super) fn decode_block_reason(
 pub(super) fn encode_execution_failure(
     value: &WorkflowNodeExecutionFailure,
 ) -> ExecutionFailurePayload {
-    let error = &value.capability_error;
-    ExecutionFailurePayload {
-        contract_id: error.contract_ref().id().as_str().to_owned(),
-        contract_major: error.contract_ref().version().major(),
-        contract_minor: error.contract_ref().version().minor(),
-        execution_id: error.node_execution_id().as_uuid(),
-        stage: encode_stage(error.stage()),
-        failure: encode_source(error.failure()),
-        target: encode_target(error.target()),
+    match value {
+        WorkflowNodeExecutionFailure::Capability(error) => ExecutionFailurePayload::Capability {
+            contract_id: error.contract_ref().id().as_str().to_owned(),
+            contract_major: error.contract_ref().version().major(),
+            contract_minor: error.contract_ref().version().minor(),
+            execution_id: error.node_execution_id().as_uuid(),
+            stage: encode_stage(error.stage()),
+            failure: encode_source(error.failure()),
+            target: encode_target(error.target()),
+        },
+        WorkflowNodeExecutionFailure::GenerationTask(failure) => {
+            ExecutionFailurePayload::GenerationTask {
+                failure: encode_generation_task_failure(*failure),
+            }
+        }
     }
 }
 
 pub(super) fn decode_execution_failure(
     value: ExecutionFailurePayload,
 ) -> Result<WorkflowNodeExecutionFailure, WorkflowApplicationError> {
-    let error = NodeCapabilityExecutionError::try_new(
-        NodeCapabilityContractRef::new(
-            NodeCapabilityContractId::new(value.contract_id).map_err(|_| persistence())?,
-            NodeCapabilityContractVersion::new(value.contract_major, value.contract_minor)
-                .map_err(|_| persistence())?,
+    match value {
+        ExecutionFailurePayload::GenerationTask { failure } => Ok(
+            WorkflowNodeExecutionFailure::GenerationTask(decode_generation_task_failure(failure)),
         ),
-        WorkflowNodeExecutionId::from_uuid(value.execution_id).ok_or_else(persistence)?,
-        decode_stage(value.stage),
-        decode_source(value.failure)?,
-        decode_target(value.target)?,
-    )
-    .map_err(|_| persistence())?;
-    Ok(WorkflowNodeExecutionFailure { capability_error: error })
+        ExecutionFailurePayload::Capability {
+            contract_id,
+            contract_major,
+            contract_minor,
+            execution_id,
+            stage,
+            failure,
+            target,
+        } => {
+            let error = NodeCapabilityExecutionError::try_new(
+                NodeCapabilityContractRef::new(
+                    NodeCapabilityContractId::new(contract_id).map_err(|_| persistence())?,
+                    NodeCapabilityContractVersion::new(contract_major, contract_minor)
+                        .map_err(|_| persistence())?,
+                ),
+                WorkflowNodeExecutionId::from_uuid(execution_id).ok_or_else(persistence)?,
+                decode_stage(stage),
+                decode_source(failure)?,
+                decode_target(target)?,
+            )
+            .map_err(|_| persistence())?;
+            Ok(WorkflowNodeExecutionFailure::Capability(error))
+        }
+    }
 }
 
 pub(super) fn encode_event(value: &WorkflowRunEventPayload) -> EventKindPayload {

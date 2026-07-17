@@ -286,6 +286,14 @@ impl WorkflowRunRepositoryInterface for SqliteWorkflowRunRepositoryAdapterImpl {
         .await
     }
 
+    async fn commit_workflow_generation_task_completion(
+        &self,
+        commit: engine::workflow::WorkflowGenerationTaskCompletionCommit,
+    ) -> Result<engine::workflow::WorkflowRunAggregate, WorkflowApplicationError> {
+        self.blocking(move |connection, _| commit_generation_task_completion(connection, commit))
+            .await
+    }
+
     async fn list_workflow_run_events_after(
         &self,
         workflow_run_id: WorkflowRunId,

@@ -78,9 +78,7 @@ pub(crate) fn node_presentation_dto(
             producing_revision: value.producing_revision.get().to_string(),
             is_stale: value.is_stale,
             failure: value.failure.as_ref().map(|failure| {
-                crate::assistant_workflow_bridge::run_projection::execution_failure(
-                    &failure.capability_error,
-                )
+                crate::assistant_workflow_bridge::run_projection::node_execution_failure(failure)
             }),
             block_reason: value
                 .block_reason

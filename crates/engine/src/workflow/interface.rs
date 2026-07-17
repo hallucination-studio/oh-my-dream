@@ -11,8 +11,8 @@ use crate::workflow_graph::{
 };
 
 use super::{
-    WorkflowCreateRequestId, WorkflowRunAggregate, WorkflowRunEvent, WorkflowRunRequestId,
-    WorkflowRunTime,
+    WorkflowCreateRequestId, WorkflowGenerationTaskCompletionId, WorkflowRunAggregate,
+    WorkflowRunEvent, WorkflowRunRequestId, WorkflowRunTime,
 };
 
 /// Closed application and consumer-boundary failures for Workflow operations.
@@ -75,6 +75,9 @@ pub enum WorkflowApplicationError {
     /// A committed event could not be published.
     #[error("Workflow Run event publish failed")]
     WorkflowRunEventPublishFailure,
+    /// A terminal Task notification does not match its exact frozen origin or prior outcome.
+    #[error("Workflow Generation Task completion conflicts with the Run")]
+    WorkflowGenerationTaskCompletionConflict,
 }
 
 /// Atomic Workflow creation commit and its replay evidence.
@@ -164,6 +167,41 @@ impl WorkflowMutationCommit {
 pub struct WorkflowExecuteRunEffect {
     /// Admitted Run to coordinate.
     pub workflow_run_id: WorkflowRunId,
+}
+
+/// Atomic waiting-node completion and downstream execution intent.
+#[derive(Clone, Debug)]
+pub struct WorkflowGenerationTaskCompletionCommit {
+    run: WorkflowRunAggregate,
+    expected_last_event_count: usize,
+    completion_id: WorkflowGenerationTaskCompletionId,
+    effect: WorkflowExecuteRunEffect,
+}
+
+impl WorkflowGenerationTaskCompletionCommit {
+    /// Creates one atomic unit only for a newly appended terminal node event and matching Run.
+    pub fn try_new(
+        run: WorkflowRunAggregate,
+        expected_last_event_count: usize,
+        completion_id: WorkflowGenerationTaskCompletionId,
+        effect: WorkflowExecuteRunEffect,
+    ) -> Result<Self, WorkflowApplicationError> {
+        if effect.workflow_run_id != run.run_id()
+            || run.events().len() != expected_last_event_count.saturating_add(1)
+        {
+            return Err(WorkflowApplicationError::WorkflowGenerationTaskCompletionConflict);
+        }
+        Ok(Self { run, expected_last_event_count, completion_id, effect })
+    }
+
+    /// Separates the validated Run transition and exact downstream effect identity.
+    #[must_use]
+    pub fn into_parts(
+        self,
+    ) -> (WorkflowRunAggregate, usize, WorkflowGenerationTaskCompletionId, WorkflowExecuteRunEffect)
+    {
+        (self.run, self.expected_last_event_count, self.completion_id, self.effect)
+    }
 }
 
 /// Run admission evidence kept opaque until W4 constructs its frozen hash contract.
@@ -342,6 +380,11 @@ pub trait WorkflowRunRepositoryInterface: Send + Sync {
         &self,
         run: WorkflowRunAggregate,
         expected_last_event_count: usize,
+    ) -> Result<WorkflowRunAggregate, WorkflowApplicationError>;
+    /// Atomically commits one terminal Task outcome, event, and downstream execution effect.
+    async fn commit_workflow_generation_task_completion(
+        &self,
+        commit: WorkflowGenerationTaskCompletionCommit,
     ) -> Result<WorkflowRunAggregate, WorkflowApplicationError>;
     /// Loads at most `limit` events after an optional exclusive sequence cursor.
     async fn list_workflow_run_events_after(

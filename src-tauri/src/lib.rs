@@ -39,6 +39,7 @@ pub mod dto;
 pub mod generation_task_asset_sink_adapter;
 pub mod generation_task_start_adapter;
 pub mod generation_task_storage_adapter;
+pub mod generation_task_workflow_completion_adapter;
 mod managed_asset_access;
 pub(crate) mod metadata_sqlite;
 mod mock_generation;

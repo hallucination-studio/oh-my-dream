@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::sync::{
-    Mutex,
+    Arc, Mutex,
     atomic::{AtomicU8, Ordering},
 };
 
@@ -10,11 +10,15 @@ use engine::node_capability::{
 };
 use engine::workflow::{
     WorkflowAggregateRepositoryInterface, WorkflowApplicationError, WorkflowClockInterface,
-    WorkflowCreateCommandHash, WorkflowCreateReceipt, WorkflowCreationCommit,
-    WorkflowExecuteRunEffect, WorkflowIdentityGeneratorInterface, WorkflowLoadKey,
-    WorkflowManagedMediaPreviewSource, WorkflowMediaPreview, WorkflowMediaPreviewIssuerInterface,
-    WorkflowMutationCommit, WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt,
-    WorkflowRunAggregate, WorkflowRunEvent, WorkflowRunEventPublisherInterface, WorkflowRunLoadKey,
+    WorkflowCompleteGenerationTaskCommand, WorkflowCompleteGenerationTaskOutcome,
+    WorkflowCompleteGenerationTaskUseCase, WorkflowCreateCommandHash, WorkflowCreateReceipt,
+    WorkflowCreationCommit, WorkflowExecuteRunEffect, WorkflowGenerationTaskCompletionCommit,
+    WorkflowGenerationTaskCompletionId, WorkflowGenerationTaskCompletionOutcome,
+    WorkflowGenerationTaskFailure, WorkflowGenerationTaskOrigin,
+    WorkflowIdentityGeneratorInterface, WorkflowLoadKey, WorkflowManagedMediaPreviewSource,
+    WorkflowMediaPreview, WorkflowMediaPreviewIssuerInterface, WorkflowMutationCommit,
+    WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt, WorkflowRunAggregate,
+    WorkflowRunEvent, WorkflowRunEventPublisherInterface, WorkflowRunLoadKey,
     WorkflowRunRepositoryInterface, WorkflowRunRequestId, WorkflowRunScope, WorkflowRunState,
     WorkflowRunTime, WorkflowStartRunCommand,
 };
@@ -50,6 +54,9 @@ impl WorkflowContractFakeImpl {
     }
     pub(crate) fn has_execute_effect(&self, run_id: WorkflowRunId) -> bool {
         self.state.lock().unwrap().execute_effects.contains_key(&run_id)
+    }
+    fn seed_run(&self, run: WorkflowRunAggregate) {
+        self.state.lock().unwrap().runs.insert((run.project_id(), run.run_id()), run);
     }
 }
 
@@ -233,6 +240,22 @@ impl WorkflowRunRepositoryInterface for WorkflowContractFakeImpl {
         Ok(run)
     }
 
+    async fn commit_workflow_generation_task_completion(
+        &self,
+        commit: WorkflowGenerationTaskCompletionCommit,
+    ) -> Result<WorkflowRunAggregate, WorkflowApplicationError> {
+        let (run, expected, _, effect) = commit.into_parts();
+        let key = (run.project_id(), run.run_id());
+        let mut state = self.state.lock().map_err(|_| persistence())?;
+        let current = state.runs.get(&key).ok_or(WorkflowApplicationError::WorkflowRunNotFound)?;
+        if current.events().len() != expected {
+            return Err(WorkflowApplicationError::WorkflowRevisionConflict);
+        }
+        state.runs.insert(key, run.clone());
+        state.execute_effects.insert(effect.workflow_run_id, effect);
+        Ok(run)
+    }
+
     async fn list_workflow_run_events_after(
         &self,
         workflow_run_id: WorkflowRunId,
@@ -390,6 +413,86 @@ async fn run_repository_fake_admits_run_receipt_and_effect_as_one_unit() {
         .is_some()
     );
     assert_eq!(fake.load_workflow_run_admission_receipt(request_id).await.unwrap(), Some(receipt));
+}
+
+#[tokio::test]
+async fn generation_task_completion_commits_once_and_schedules_downstream_work() {
+    let fake = Arc::new(WorkflowContractFakeImpl::default());
+    let run_id = WorkflowRunId::from_uuid(uuid(40)).unwrap();
+    let project_id = project_id(41);
+    let workflow_id = workflow_id(42);
+    let node_id = engine::workflow_graph::WorkflowNodeId::from_uuid(uuid(43)).unwrap();
+    let execution_id = WorkflowNodeExecutionId::from_uuid(uuid(44)).unwrap();
+    let mut run = super::workflow_run_domain::queued_run(
+        run_id,
+        project_id,
+        workflow_id,
+        WorkflowRunScope::WholeWorkflow,
+        vec![(node_id, execution_id)],
+        WorkflowRunTime::from_utc_milliseconds(1).unwrap(),
+    )
+    .unwrap();
+    run.start(WorkflowRunTime::from_utc_milliseconds(2).unwrap()).unwrap();
+    run.start_node(execution_id, WorkflowRunTime::from_utc_milliseconds(3).unwrap()).unwrap();
+    run.wait_node_for_external_completion(
+        execution_id,
+        WorkflowRunTime::from_utc_milliseconds(4).unwrap(),
+    )
+    .unwrap();
+    let origin = WorkflowGenerationTaskOrigin {
+        project_id,
+        workflow_id,
+        workflow_revision: run.workflow_revision(),
+        workflow_run_id: run_id,
+        workflow_node_id: node_id,
+        node_execution_id: execution_id,
+        capability_contract_ref: run.plan().nodes()[0].capability_contract.clone(),
+    };
+    let previous_events = run.events().len();
+    fake.seed_run(run);
+    let capabilities = Arc::new(WorkflowNodeCapabilityRegistry::try_new([]).unwrap());
+    let use_case =
+        WorkflowCompleteGenerationTaskUseCase::new(fake.clone(), fake.clone(), capabilities);
+    let command = WorkflowCompleteGenerationTaskCommand {
+        completion_id: WorkflowGenerationTaskCompletionId::from_uuid(uuid(45)).unwrap(),
+        origin,
+        outcome: WorkflowGenerationTaskCompletionOutcome::Failed(
+            WorkflowGenerationTaskFailure::Timeout,
+        ),
+    };
+
+    assert_eq!(
+        use_case.complete_generation_task(command.clone()).await.unwrap(),
+        WorkflowCompleteGenerationTaskOutcome::Applied
+    );
+    assert_eq!(
+        use_case.complete_generation_task(command.clone()).await.unwrap(),
+        WorkflowCompleteGenerationTaskOutcome::AlreadyApplied
+    );
+    let mut conflicting_origin = command.clone();
+    conflicting_origin.origin.workflow_node_id =
+        engine::workflow_graph::WorkflowNodeId::from_uuid(uuid(46)).unwrap();
+    assert_eq!(
+        use_case.complete_generation_task(conflicting_origin).await.unwrap_err(),
+        WorkflowApplicationError::WorkflowGenerationTaskCompletionConflict
+    );
+    let mut different_terminal_outcome = command;
+    different_terminal_outcome.outcome = WorkflowGenerationTaskCompletionOutcome::Failed(
+        WorkflowGenerationTaskFailure::ProviderRejected,
+    );
+    assert_eq!(
+        use_case.complete_generation_task(different_terminal_outcome).await.unwrap(),
+        WorkflowCompleteGenerationTaskOutcome::OriginTerminal
+    );
+    let committed = fake.load_workflow_run(WorkflowRunLoadKey::Run(run_id)).await.unwrap().unwrap();
+    assert_eq!(committed.events().len(), previous_events + 1);
+    assert_eq!(
+        committed.node_executions()[0].failure(),
+        Some(&engine::workflow::WorkflowNodeExecutionFailure::GenerationTask(
+            WorkflowGenerationTaskFailure::Timeout,
+        ))
+    );
+    assert!(fake.has_execute_effect(run_id));
 }
 
 #[test]

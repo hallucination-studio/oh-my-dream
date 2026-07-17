@@ -70,7 +70,7 @@ fn event_payload(value: &WorkflowRunEventPayload) -> Value {
         WorkflowRunEventPayload::WorkflowNodeFailedEvent { node_execution_id, failure } => json!({
             "type": "node_failed",
             "node_execution_id": node_execution_id.as_uuid().to_string(),
-            "failure": execution_failure(&failure.capability_error),
+            "failure": node_execution_failure(failure),
         }),
         WorkflowRunEventPayload::WorkflowNodeBlockedEvent { node_execution_id, reason } => json!({
             "type": "node_blocked",
@@ -136,6 +136,20 @@ pub(crate) fn execution_failure(
         "failure": failure_source(value.failure()),
         "target": execution_target(value.target()),
     })
+}
+
+pub(crate) fn node_execution_failure(
+    value: &engine::workflow::WorkflowNodeExecutionFailure,
+) -> Value {
+    match value {
+        engine::workflow::WorkflowNodeExecutionFailure::Capability(error) => {
+            execution_failure(error)
+        }
+        engine::workflow::WorkflowNodeExecutionFailure::GenerationTask(failure) => json!({
+            "type": "generation_task",
+            "category": generation_task_failure(*failure),
+        }),
+    }
 }
 
 fn failure_source(value: &NodeCapabilityExecutionFailure) -> Value {
@@ -280,6 +294,23 @@ enum_tag!(generation_task_start_failure, engine::node_capability::NodeCapability
     engine::node_capability::NodeCapabilityGenerationTaskStartFailure::Cancelled => "cancelled",
     engine::node_capability::NodeCapabilityGenerationTaskStartFailure::DeadlineExceeded => "deadline_exceeded",
     engine::node_capability::NodeCapabilityGenerationTaskStartFailure::Persistence => "persistence",
+});
+
+enum_tag!(generation_task_failure, engine::workflow::WorkflowGenerationTaskFailure, {
+    engine::workflow::WorkflowGenerationTaskFailure::InvalidRequest => "invalid_request",
+    engine::workflow::WorkflowGenerationTaskFailure::Authentication => "authentication",
+    engine::workflow::WorkflowGenerationTaskFailure::PermissionDenied => "permission_denied",
+    engine::workflow::WorkflowGenerationTaskFailure::ContentPolicy => "content_policy",
+    engine::workflow::WorkflowGenerationTaskFailure::RateLimited => "rate_limited",
+    engine::workflow::WorkflowGenerationTaskFailure::ProviderUnavailable => "provider_unavailable",
+    engine::workflow::WorkflowGenerationTaskFailure::Timeout => "timeout",
+    engine::workflow::WorkflowGenerationTaskFailure::ProviderRejected => "provider_rejected",
+    engine::workflow::WorkflowGenerationTaskFailure::InvalidProviderResponse => "invalid_provider_response",
+    engine::workflow::WorkflowGenerationTaskFailure::AmbiguousSubmission => "ambiguous_submission",
+    engine::workflow::WorkflowGenerationTaskFailure::InputAssetUnavailable => "input_asset_unavailable",
+    engine::workflow::WorkflowGenerationTaskFailure::OutputAssetImport => "output_asset_import",
+    engine::workflow::WorkflowGenerationTaskFailure::Internal => "internal",
+    engine::workflow::WorkflowGenerationTaskFailure::GenerationTaskCancelled => "generation_task_cancelled",
 });
 
 enum_tag!(provider_category, NodeCapabilityProviderFailureCategory, {

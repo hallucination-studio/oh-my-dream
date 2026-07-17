@@ -92,9 +92,11 @@ pub enum WorkflowRunFailure {
 
 /// One node's safe structured execution failure.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WorkflowNodeExecutionFailure {
+pub enum WorkflowNodeExecutionFailure {
     /// Capability-owned structured execution error.
-    pub capability_error: NodeCapabilityExecutionError,
+    Capability(NodeCapabilityExecutionError),
+    /// Terminal Generation Task failure delivered after durable waiting.
+    GenerationTask(super::WorkflowGenerationTaskFailure),
 }
 
 /// Closed reason why one pending node cannot execute.

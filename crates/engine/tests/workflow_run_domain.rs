@@ -188,12 +188,12 @@ fn failed_nodes_block_descendants_and_finish_with_sorted_failure_ids() {
     run.start_node(failed_execution_id, time(3)).unwrap();
     run.fail_node(
         failed_execution_id,
-        WorkflowNodeExecutionFailure {
-            capability_error: NodeCapabilityExecutionError::invalid_capability_invocation(
+        WorkflowNodeExecutionFailure::Capability(
+            NodeCapabilityExecutionError::invalid_capability_invocation(
                 contract.contract_ref().clone(),
                 failed_execution_id,
             ),
-        },
+        ),
         time(4),
     )
     .unwrap();

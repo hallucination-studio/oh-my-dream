@@ -258,7 +258,7 @@ where
                 ),
             Err(capability_error) => run.fail_node(
                 execution_id,
-                WorkflowNodeExecutionFailure { capability_error },
+                WorkflowNodeExecutionFailure::Capability(capability_error),
                 self.clock.current_workflow_time()?,
             ),
         }?;

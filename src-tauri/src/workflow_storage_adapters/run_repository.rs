@@ -6,9 +6,10 @@ use std::collections::BTreeMap;
 use engine::{
     node_capability::WorkflowRunId,
     workflow::{
-        WorkflowApplicationError, WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt,
-        WorkflowRunAggregate, WorkflowRunEvent, WorkflowRunEventSequence, WorkflowRunLoadKey,
-        WorkflowRunRequestId, WorkflowRunRestoreData, WorkflowRunTime,
+        WorkflowApplicationError, WorkflowGenerationTaskCompletionCommit,
+        WorkflowRunAdmissionCommit, WorkflowRunAdmissionReceipt, WorkflowRunAggregate,
+        WorkflowRunEvent, WorkflowRunEventSequence, WorkflowRunLoadKey, WorkflowRunRequestId,
+        WorkflowRunRestoreData, WorkflowRunTime,
     },
     workflow_graph::{WorkflowId, WorkflowNodeId},
 };
@@ -380,6 +381,45 @@ pub(super) fn commit_run_transition(
     update_run(&transaction, &run, expected_event_count)?;
     replace_node_executions(&transaction, &run)?;
     insert_events(&transaction, &run.events()[expected_event_count..])?;
+    transaction.commit().map_err(|_| persistence())?;
+    Ok(run)
+}
+
+pub(super) fn commit_generation_task_completion(
+    connection: &mut Connection,
+    commit: WorkflowGenerationTaskCompletionCommit,
+) -> Result<WorkflowRunAggregate, WorkflowApplicationError> {
+    let (run, expected_event_count, completion_id, effect) = commit.into_parts();
+    let transaction = connection.transaction().map_err(|_| persistence())?;
+    let stored_count: i64 = transaction
+        .query_row(
+            "SELECT event_count FROM workflow_runs WHERE workflow_run_id = ?1",
+            [run.run_id().as_uuid().as_bytes().as_slice()],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|_| persistence())?
+        .ok_or(WorkflowApplicationError::WorkflowRunNotFound)?;
+    if usize::try_from(stored_count).ok() != Some(expected_event_count)
+        || run.events().len() != expected_event_count.saturating_add(1)
+    {
+        return Err(WorkflowApplicationError::WorkflowRevisionConflict);
+    }
+    update_run(&transaction, &run, expected_event_count)?;
+    replace_node_executions(&transaction, &run)?;
+    insert_events(&transaction, &run.events()[expected_event_count..])?;
+    let effect_id =
+        DesktopPostCommitEffectId::from_uuid(completion_id.as_uuid()).map_err(|_| persistence())?;
+    let created_at =
+        DesktopPostCommitTimestamp::from_epoch_millis(run.updated_at().as_utc_milliseconds())
+            .map_err(|_| persistence())?;
+    insert_ready_post_commit_effect(
+        &transaction,
+        effect_id,
+        DesktopPostCommitEffect::Workflow(effect),
+        created_at,
+    )
+    .map_err(|_| persistence())?;
     transaction.commit().map_err(|_| persistence())?;
     Ok(run)
 }

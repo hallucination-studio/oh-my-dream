@@ -4,13 +4,13 @@ use engine::node_capability::{
     NodeCapabilityReadinessCategory, NodeCapabilityReadinessIssue, NodeCapabilityReadinessTarget,
     WorkflowDataType, WorkflowManagedAssetIdBoundaryValue,
 };
-use engine::workflow::WorkflowApplicationError;
+use engine::workflow::{WorkflowApplicationError, WorkflowGenerationTaskFailure};
 use serde::{Deserialize, Serialize};
 
 use super::super::super::persistence;
 
 #[derive(Serialize, Deserialize)]
-pub(super) enum StagePayload {
+pub(in crate::workflow_storage_adapters::run) enum StagePayload {
     ResolveInputs,
     StartGenerationTask,
     CallProvider,
@@ -20,7 +20,7 @@ pub(super) enum StagePayload {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) enum TargetPayload {
+pub(in crate::workflow_storage_adapters::run) enum TargetPayload {
     Capability,
     Parameter(String),
     Input(String),
@@ -28,7 +28,7 @@ pub(super) enum TargetPayload {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) enum ExecutionSourcePayload {
+pub(in crate::workflow_storage_adapters::run) enum ExecutionSourcePayload {
     InvalidCapabilityInvocation,
     InvalidCapabilityResult,
     Readiness(ReadinessPayload),
@@ -44,13 +44,72 @@ pub(super) enum ExecutionSourcePayload {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) enum GenerationTaskStartFailurePayload {
+pub(in crate::workflow_storage_adapters::run) enum GenerationTaskStartFailurePayload {
     InvalidRequest,
     Conflict,
     Unavailable,
     Cancelled,
     DeadlineExceeded,
     Persistence,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(in crate::workflow_storage_adapters::run) enum GenerationTaskFailurePayload {
+    InvalidRequest,
+    Authentication,
+    PermissionDenied,
+    ContentPolicy,
+    RateLimited,
+    ProviderUnavailable,
+    Timeout,
+    ProviderRejected,
+    InvalidProviderResponse,
+    AmbiguousSubmission,
+    InputAssetUnavailable,
+    OutputAssetImport,
+    Internal,
+    GenerationTaskCancelled,
+}
+
+macro_rules! generation_task_failure_mapping {
+    ($value:expr, $source:ident, $target:ident) => {
+        match $value {
+            $source::InvalidRequest => $target::InvalidRequest,
+            $source::Authentication => $target::Authentication,
+            $source::PermissionDenied => $target::PermissionDenied,
+            $source::ContentPolicy => $target::ContentPolicy,
+            $source::RateLimited => $target::RateLimited,
+            $source::ProviderUnavailable => $target::ProviderUnavailable,
+            $source::Timeout => $target::Timeout,
+            $source::ProviderRejected => $target::ProviderRejected,
+            $source::InvalidProviderResponse => $target::InvalidProviderResponse,
+            $source::AmbiguousSubmission => $target::AmbiguousSubmission,
+            $source::InputAssetUnavailable => $target::InputAssetUnavailable,
+            $source::OutputAssetImport => $target::OutputAssetImport,
+            $source::Internal => $target::Internal,
+            $source::GenerationTaskCancelled => $target::GenerationTaskCancelled,
+        }
+    };
+}
+
+pub(super) fn encode_generation_task_failure(
+    value: WorkflowGenerationTaskFailure,
+) -> GenerationTaskFailurePayload {
+    generation_task_failure_mapping!(
+        value,
+        WorkflowGenerationTaskFailure,
+        GenerationTaskFailurePayload
+    )
+}
+
+pub(super) fn decode_generation_task_failure(
+    value: GenerationTaskFailurePayload,
+) -> WorkflowGenerationTaskFailure {
+    generation_task_failure_mapping!(
+        value,
+        GenerationTaskFailurePayload,
+        WorkflowGenerationTaskFailure
+    )
 }
 
 pub(super) fn encode_generation_task_start_failure(
@@ -104,7 +163,7 @@ pub(super) fn decode_generation_task_start_failure(
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) struct ReadinessPayload {
+pub(in crate::workflow_storage_adapters::run) struct ReadinessPayload {
     pub(super) category: ReadinessCategoryPayload,
     pub(super) target: ReadinessTargetPayload,
     pub(super) media_kind_mismatch: Option<(DataTypePayload, DataTypePayload)>,
@@ -129,7 +188,7 @@ pub(super) enum ReadinessCategoryPayload {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) enum ProviderCategoryPayload {
+pub(in crate::workflow_storage_adapters::run) enum ProviderCategoryPayload {
     InvalidSemanticRequest,
     AuthenticationFailed,
     PermissionDenied,
@@ -144,7 +203,7 @@ pub(super) enum ProviderCategoryPayload {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) enum MediaFailurePayload {
+pub(in crate::workflow_storage_adapters::run) enum MediaFailurePayload {
     Unavailable,
     KindMismatch { expected: DataTypePayload, observed: DataTypePayload },
     InvalidMedia,
@@ -157,7 +216,7 @@ pub(super) enum MediaFailurePayload {
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
-pub(super) enum DataTypePayload {
+pub(in crate::workflow_storage_adapters::run) enum DataTypePayload {
     Text,
     Image,
     Video,

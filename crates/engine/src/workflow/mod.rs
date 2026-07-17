@@ -5,6 +5,7 @@
 mod create_receipt;
 mod error;
 mod evaluate_mutation;
+mod generation_task_completion;
 mod interface;
 mod plan;
 mod query;
@@ -18,6 +19,7 @@ mod value;
 
 pub use error::*;
 pub use evaluate_mutation::*;
+pub use generation_task_completion::*;
 pub use interface::*;
 pub use plan::*;
 pub use query::*;
