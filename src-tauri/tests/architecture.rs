@@ -78,6 +78,44 @@ fn active_composition_uses_only_the_mock_task_path() {
 }
 
 #[test]
+fn legacy_generation_abstractions_are_absent_and_durable_task_path_remains() {
+    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("workspace root");
+    let source = workspace_source(&[
+        &workspace_root.join("crates/backends/src"),
+        &workspace_root.join("crates/nodes/src"),
+        &workspace_root.join("crates/tasks/src"),
+        &workspace_root.join("src-tauri/src"),
+    ]);
+    for required in [
+        "GenerationProviderInterface",
+        "GenerationProviderTaskHandle",
+        "GenerationTaskAggregate",
+        "NodeCapabilityGenerationTaskStarterInterface",
+    ] {
+        assert!(source.contains(required), "replacement path misses {required}");
+    }
+    for prohibited in [
+        "pub trait InferenceBackendInterface",
+        "pub struct TaskHandle",
+        "pub enum TaskStatus",
+        "pub trait TextToImageGeneratorInterface",
+        "pub trait ReferenceImageGeneratorInterface",
+        "pub trait ImageToVideoGeneratorInterface",
+        "pub trait ReferenceVideoGeneratorInterface",
+        "pub trait TextToAudioGeneratorInterface",
+        "pub struct MockBackendImpl",
+        "pub struct GenerationAdapters",
+        "pub type SharedAssetStore",
+        "pub trait AssetReferenceResolverInterface",
+    ] {
+        assert!(
+            !source.contains(prohibited),
+            "legacy generation abstraction remains: {prohibited}"
+        );
+    }
+}
+
+#[test]
 fn assistant_boundaries_do_not_leak_secrets_paths_or_sdk_state() {
     let leak_surface = [ASSISTANT_DTO, ASSISTANT_PRESENTATION, UI_API, UI_TAURI].join("\n");
     for prohibited in [
@@ -178,6 +216,26 @@ fn enum_variants(source: &str, name: &str) -> BTreeSet<String> {
         })
         .map(str::to_owned)
         .collect()
+}
+
+fn workspace_source(roots: &[&Path]) -> String {
+    let mut source = String::new();
+    for root in roots {
+        append_rust_sources(root, &mut source);
+    }
+    source
+}
+
+fn append_rust_sources(path: &Path, source: &mut String) {
+    for entry in fs::read_dir(path).expect("source directory should be readable") {
+        let path = entry.expect("source entry should be readable").path();
+        if path.is_dir() {
+            append_rust_sources(&path, source);
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            source.push_str(&fs::read_to_string(path).expect("Rust source should be readable"));
+            source.push('\n');
+        }
+    }
 }
 
 fn collect_trait_name_violations(directory: &Path, violations: &mut Vec<String>) {

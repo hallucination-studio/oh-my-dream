@@ -179,13 +179,10 @@ dependencies = [
  "engine",
  "nodes",
  "projects",
- "serde",
- "serde_json",
  "sha2",
  "tasks",
  "thiserror 2.0.18",
  "tokio",
- "tracing",
  "uuid",
 ]
 
@@ -2206,17 +2203,12 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 name = "nodes"
 version = "0.1.0"
 dependencies = [
- "assets",
  "async-trait",
  "engine",
  "projects",
- "serde",
- "serde_json",
  "sha2",
- "tempfile",
  "thiserror 2.0.18",
  "tokio",
- "tracing",
  "uuid",
 ]
 

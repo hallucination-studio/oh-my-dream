@@ -1,31 +1,10 @@
 //! oh-my-dream inference backends.
 //!
-//! Generation happens through pluggable backends behind a single trait. Each
-//! provider translates a neutral request into its own API and normalizes the
-//! response back. The first product milestone ships **only a mock backend** —
-//! no real cloud vendor, no network, no API keys — so the whole pipeline is
-//! locally testable. A `local` on-device backend is intentionally kept as a
-//! placeholder for the future.
+//! Concrete provider composites and route adapters selected by the Desktop composition root.
 
 #![forbid(unsafe_code)]
 
-pub mod error;
-pub mod request;
-pub mod task;
-pub mod traits;
-
 pub mod deterministic_provider;
 pub mod generation_provider_settings;
-pub mod local;
-pub mod mock;
 pub mod mock_generation_provider;
 pub mod provider_routing;
-
-pub use error::{BackendError, BackendResult};
-pub use mock::MockBackendImpl;
-pub use request::{
-    ImageToVideoRequest, ReferenceImageGenerationRequest, ReferenceVideoGenerationRequest,
-    TextToAudioRequest, TextToImageRequest,
-};
-pub use task::{TaskHandle, TaskProgress, TaskStatus};
-pub use traits::InferenceBackendInterface;

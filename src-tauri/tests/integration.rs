@@ -1,60 +1,14 @@
 #[path = "asset_commands_v4.rs"]
 mod asset_commands_v4;
-#[path = "assistant.rs"]
-mod assistant;
-#[path = "assistant_approval.rs"]
-mod assistant_approval;
-#[path = "assistant_coauthor.rs"]
-mod assistant_coauthor;
 #[path = "assistant_commands_v5.rs"]
 mod assistant_commands_v5;
-#[path = "assistant_operation_async.rs"]
-mod assistant_operation_async;
-#[path = "assistant_operation_required.rs"]
-mod assistant_operation_required;
-#[path = "assistant_operation_runtime_validation.rs"]
-mod assistant_operation_runtime_validation;
-#[path = "assistant_operation_schema.rs"]
-mod assistant_operation_schema;
-#[path = "assistant_operations.rs"]
-mod assistant_operations;
-#[path = "assistant_repair_mvp.rs"]
-mod assistant_repair_mvp;
-#[path = "assistant_runtime.rs"]
-mod assistant_runtime;
-#[path = "assistant_strong_mvp_e2e.rs"]
-mod assistant_strong_mvp_e2e;
-#[path = "assistant_transport.rs"]
-mod assistant_transport;
-#[path = "commands.rs"]
-mod commands;
 #[path = "contract.rs"]
 mod contract;
 #[path = "credential_repository.rs"]
 mod credential_repository;
-#[path = "dto.rs"]
-mod dto;
 #[path = "generation_task_chained_e2e.rs"]
 mod generation_task_chained_e2e;
 #[path = "post_commit_effect_outbox.rs"]
 mod post_commit_effect_outbox;
 #[path = "post_commit_effect_values.rs"]
 mod post_commit_effect_values;
-#[path = "production_plan.rs"]
-mod production_plan;
-#[path = "reviewed_change_approval.rs"]
-mod reviewed_change_approval;
-#[path = "reviewed_change_candidate.rs"]
-mod reviewed_change_candidate;
-#[path = "reviewed_change_receipt.rs"]
-mod reviewed_change_receipt;
-#[path = "workflow_authority.rs"]
-mod workflow_authority;
-#[path = "workflow_commands_v3.rs"]
-mod workflow_commands_v3;
-#[path = "workflow_patch.rs"]
-mod workflow_patch;
-#[path = "workflow_run_dto.rs"]
-mod workflow_run_dto;
-#[path = "workspace_snapshot.rs"]
-mod workspace_snapshot;

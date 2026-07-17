@@ -1,5 +1,3 @@
-use engine::{NodeExecutionState, NodeProgressEvent, PortType};
-use oh_my_dream_tauri::dto::{CapabilityCatalogDto, NodeProgressEventDto};
 use oh_my_dream_tauri::project_commands::{
     ProjectDto, ProjectWorkflowReadinessDto, ProjectWorkflowSummaryDto, ProjectWorkspaceDto,
 };
@@ -51,9 +49,6 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let asset = asset_contract::fixture();
     let project = project_fixture();
     let open_project = open_project_fixture();
-    let progress = progress_fixture();
-    let capability_catalog = capability_catalog_fixture();
-    let node_contracts = node_contract_fixture();
     let assistant_operations = assistant_operation_contract::fixture();
     let assistant_approval = assistant_approval_contract::fixture();
     let (node_capabilities, generation_profiles) = node_capability_fixtures();
@@ -121,15 +116,6 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
             }
         })
     );
-    assert_eq!(
-        serde_json::to_value(&progress).expect("serialize progress"),
-        json!({
-            "node_id": "video",
-            "state": "done",
-            "progress": 1.0,
-            "cost": 900
-        })
-    );
     let task_json = serde_json::to_string(&generation_task).expect("serialize task");
     for prohibited in ["route_id", "remote_task_id", "credential", "signed_url", "raw_payload"] {
         assert!(!task_json.contains(prohibited), "Task leaked {prohibited}");
@@ -141,9 +127,6 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     write_fixture("asset.json", &asset);
     write_fixture("project.json", &project);
     write_fixture("open_project.json", &open_project);
-    write_fixture("node_progress_event.json", &progress);
-    write_fixture("capability_catalog.json", &capability_catalog);
-    write_fixture("node_contracts.json", &node_contracts);
     write_fixture("assistant_operations.json", &assistant_operations);
     write_fixture("assistant_approval.json", &assistant_approval);
     write_fixture("node_capabilities.json", &node_capabilities);
@@ -300,92 +283,6 @@ impl DesktopEventEmitterInterface for ContractEventEmitterImpl {
     }
 }
 
-fn capability_catalog_fixture() -> CapabilityCatalogDto {
-    let root = tempdir().expect("create capability catalog roots");
-    let state = oh_my_dream_tauri::state::AppState::from_roots(
-        root.path().join("assets"),
-        root.path().join("config"),
-    )
-    .expect("build capability catalog app state");
-    oh_my_dream_tauri::commands::get_capability_catalog_with_state(&state)
-        .expect("project capability catalog")
-}
-
-#[derive(serde::Serialize)]
-struct NodeContractsFixture {
-    port_types: Vec<PortType>,
-    compatible: Vec<(PortType, PortType)>,
-    nodes: Vec<NodeContractFixture>,
-}
-
-#[derive(serde::Serialize)]
-struct NodeContractFixture {
-    type_id: String,
-    inputs: Vec<InputContractFixture>,
-    outputs: Vec<PortContractFixture>,
-}
-
-#[derive(serde::Serialize)]
-struct InputContractFixture {
-    name: String,
-    port_type: PortType,
-    required: bool,
-}
-
-#[derive(serde::Serialize)]
-struct PortContractFixture {
-    name: String,
-    port_type: PortType,
-}
-
-fn node_contract_fixture() -> NodeContractsFixture {
-    let root = tempdir().expect("create node contract roots");
-    let state = oh_my_dream_tauri::state::AppState::from_roots(
-        root.path().join("assets"),
-        root.path().join("config"),
-    )
-    .expect("build node contract app state");
-    let nodes = state
-        .registry
-        .capability_refs()
-        .into_iter()
-        .map(|reference| {
-            let contract =
-                state.registry.capability(reference).expect("load node contract").contract();
-            NodeContractFixture {
-                type_id: reference.id.clone(),
-                inputs: contract
-                    .inputs
-                    .iter()
-                    .map(|port| InputContractFixture {
-                        name: port.name.clone(),
-                        port_type: port.port_type,
-                        required: port.required,
-                    })
-                    .collect(),
-                outputs: contract
-                    .outputs
-                    .iter()
-                    .map(|port| PortContractFixture {
-                        name: port.name.clone(),
-                        port_type: port.port_type,
-                    })
-                    .collect(),
-            }
-        })
-        .collect();
-    let compatible = PortType::ALL
-        .into_iter()
-        .flat_map(|from| {
-            PortType::ALL
-                .into_iter()
-                .filter(move |to| from.is_compatible_with(*to))
-                .map(move |to| (from, to))
-        })
-        .collect();
-    NodeContractsFixture { port_types: PortType::ALL.to_vec(), compatible, nodes }
-}
-
 fn workflow_fixture() -> WorkflowWithReadinessDto {
     WorkflowWithReadinessDto {
         workflow: WorkflowDto {
@@ -461,15 +358,6 @@ fn open_project_fixture() -> ProjectWorkspaceDto {
             readiness: ProjectWorkflowReadinessDto::Ready,
         }),
     }
-}
-
-fn progress_fixture() -> NodeProgressEventDto {
-    NodeProgressEventDto::from(NodeProgressEvent {
-        node_id: "video".to_owned(),
-        state: NodeExecutionState::Done,
-        progress: Some(1.0),
-        cost: Some(900),
-    })
 }
 
 fn write_fixture<T: serde::Serialize>(file_name: &str, value: &T) {

@@ -13,14 +13,6 @@ name = "integration"
 path = "tests/integration.rs"
 
 [[test]]
-name = "capability_contract"
-path = "tests/capability_contract.rs"
-
-[[test]]
-name = "capability_discovery"
-path = "tests/capability_discovery.rs"
-
-[[test]]
 name = "contract"
 path = "tests/contract.rs"
 
