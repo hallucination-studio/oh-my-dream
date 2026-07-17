@@ -54,6 +54,9 @@ fn event_payload(value: &WorkflowRunEventPayload) -> Value {
             "node_execution_id": node_execution_id.as_uuid().to_string(),
             "progress_basis_points": progress_basis_points,
         }),
+        WorkflowRunEventPayload::WorkflowNodeWaitingForExternalCompletionEvent {
+            node_execution_id,
+        } => execution_event("node_waiting_for_external_completion", *node_execution_id),
         WorkflowRunEventPayload::WorkflowNodeSucceededEvent { node_execution_id, outputs } => {
             json!({
                 "type": "node_succeeded",

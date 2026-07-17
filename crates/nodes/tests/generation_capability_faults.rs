@@ -291,7 +291,7 @@ async fn execute(
     provider: ProviderOutcome,
     writer: WriterOutcome,
     request: NodeCapabilityExecutionRequest,
-) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
     capability(provider, writer).execute_node_capability(request).await
 }
 

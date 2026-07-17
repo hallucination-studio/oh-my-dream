@@ -78,7 +78,7 @@ macro_rules! asset_read_capability {
             async fn execute_node_capability(
                 &self,
                 request: NodeCapabilityExecutionRequest,
-            ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+            ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
                 execute_asset_read(
                     &self.managed_media_reader,
                     &self.contract,
@@ -93,6 +93,7 @@ macro_rules! asset_read_capability {
                     },
                 )
                 .await
+                .map(WorkflowNodeCapabilityExecutionOutcome::Completed)
             }
         }
     };

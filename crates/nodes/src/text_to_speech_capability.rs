@@ -80,7 +80,7 @@ where
     async fn execute_node_capability(
         &self,
         request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         let Some(selected_profile) = selected_generation_profile(&request.normalized_parameters, 1)
         else {
             return Err(invalid_invocation(&self.contract, &request));
@@ -123,6 +123,7 @@ where
         )
         .await?;
         complete_single_output(&self.contract, &request, &self.output_key, value)
+            .map(WorkflowNodeCapabilityExecutionOutcome::Completed)
     }
 }
 

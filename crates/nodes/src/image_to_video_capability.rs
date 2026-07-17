@@ -93,7 +93,7 @@ where
     async fn execute_node_capability(
         &self,
         request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         let Some(parameters) = image_to_video_parameters(&request.normalized_parameters) else {
             return Err(invalid_invocation(&self.contract, &request));
         };
@@ -143,6 +143,7 @@ where
         )
         .await?;
         complete_single_output(&self.contract, &request, &self.output_key, value)
+            .map(WorkflowNodeCapabilityExecutionOutcome::Completed)
     }
 }
 

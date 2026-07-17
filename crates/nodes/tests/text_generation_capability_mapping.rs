@@ -160,6 +160,8 @@ async fn text_to_image_maps_every_semantic_provider_and_media_write_field() {
             inputs: text_inputs(&capability, "prompt", "draw a moon", 1),
         })
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     let expected = WorkflowManagedImageRef::new(
         WorkflowManagedAssetIdBoundaryValue::from_bytes(uuid(240).into_bytes()).unwrap(),
@@ -199,6 +201,8 @@ async fn text_to_speech_maps_every_semantic_provider_and_media_write_field() {
             inputs: text_inputs(&capability, "text", "speak clearly", 2),
         })
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     let expected = WorkflowManagedAudioRef::new(
         WorkflowManagedAssetIdBoundaryValue::from_bytes(uuid(240).into_bytes()).unwrap(),

@@ -20,6 +20,8 @@ async fn literal_capability_normalizes_and_returns_exact_structured_text() {
     let outputs = capability
         .execute_node_capability(execution_request(&capability, normalized, 10))
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     let value = outputs.get(&NodeCapabilityOutputKey::new("text").unwrap()).unwrap();
     let WorkflowRuntimeValue::Text(value) = value else { panic!("expected Text output") };
@@ -58,6 +60,8 @@ async fn image_asset_capability_checks_readiness_and_returns_the_resolved_refere
     let outputs = capability
         .execute_node_capability(execution_request(&capability, normalized, 20))
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     assert_eq!(
         outputs.get(&NodeCapabilityOutputKey::new("image").unwrap()),
@@ -264,6 +268,8 @@ async fn video_asset_capability_returns_matching_typed_reference() {
     let video_outputs = video_capability
         .execute_node_capability(execution_request(&video_capability, video_parameters, 34))
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     assert_eq!(
         video_outputs.get(&NodeCapabilityOutputKey::new("video").unwrap()),
@@ -297,6 +303,8 @@ async fn audio_asset_capability_returns_matching_typed_reference() {
     let audio_outputs = audio_capability
         .execute_node_capability(execution_request(&audio_capability, audio_parameters, 35))
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     assert_eq!(
         audio_outputs.get(&NodeCapabilityOutputKey::new("audio").unwrap()),

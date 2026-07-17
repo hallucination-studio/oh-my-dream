@@ -268,6 +268,9 @@ const fn node_execution_state(value: engine::workflow::WorkflowNodeExecutionStat
     match value {
         WorkflowNodeExecutionState::Pending => "pending",
         WorkflowNodeExecutionState::Running => "running",
+        WorkflowNodeExecutionState::WaitingForExternalCompletion => {
+            "waiting_for_external_completion"
+        }
         WorkflowNodeExecutionState::Succeeded => "succeeded",
         WorkflowNodeExecutionState::Failed => "failed",
         WorkflowNodeExecutionState::Cancelled => "cancelled",

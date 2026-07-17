@@ -9,8 +9,8 @@ use engine::{
         NodeCapabilityInputContract, NodeCapabilityInputKey, NodeCapabilityNormalizedParameters,
         NodeCapabilityOutputContract, NodeCapabilityOutputKey, NodeCapabilityParameterError,
         NodeCapabilityParameterSet, NodeCapabilityReadinessIssue, NodeCapabilityReadinessRequest,
-        WorkflowDataType, WorkflowInputItemId, WorkflowNodeCapabilityInterface,
-        WorkflowNodeCapabilityRegistry, WorkflowNodeOutputSet,
+        WorkflowDataType, WorkflowInputItemId, WorkflowNodeCapabilityExecutionOutcome,
+        WorkflowNodeCapabilityInterface, WorkflowNodeCapabilityRegistry,
     },
     workflow_graph::{
         WorkflowAggregate, WorkflowAggregateRestoreData, WorkflowCanvasPosition, WorkflowCreatedAt,
@@ -210,7 +210,7 @@ impl WorkflowNodeCapabilityInterface for FakeCapabilityImpl {
     async fn execute_node_capability(
         &self,
         _request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         unreachable!("graph reconstruction never executes a capability")
     }
 }

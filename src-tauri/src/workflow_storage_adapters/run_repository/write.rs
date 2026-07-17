@@ -168,5 +168,6 @@ fn node_state(value: engine::workflow::WorkflowNodeExecutionState) -> i64 {
         engine::workflow::WorkflowNodeExecutionState::Failed => 3,
         engine::workflow::WorkflowNodeExecutionState::Cancelled => 4,
         engine::workflow::WorkflowNodeExecutionState::Blocked => 5,
+        engine::workflow::WorkflowNodeExecutionState::WaitingForExternalCompletion => 6,
     }
 }

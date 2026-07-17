@@ -10,8 +10,9 @@ use engine::node_capability::{
     NodeCapabilityParameterSet, NodeCapabilityReadinessIssue, NodeCapabilityReadinessRequest,
     WorkflowDataType, WorkflowManagedAssetIdBoundaryValue, WorkflowManagedAudioRef,
     WorkflowManagedContentFingerprint, WorkflowManagedImageRef, WorkflowManagedVideoRef,
-    WorkflowNodeCapabilityInterface, WorkflowNodeCapabilityRegistry, WorkflowNodeOutputSet,
-    WorkflowRuntimeValue, WorkflowTextPart, WorkflowTextValue,
+    WorkflowNodeCapabilityExecutionOutcome, WorkflowNodeCapabilityInterface,
+    WorkflowNodeCapabilityRegistry, WorkflowNodeOutputSet, WorkflowRuntimeValue, WorkflowTextPart,
+    WorkflowTextValue,
 };
 use engine::workflow::{
     WorkflowExecuteRunUseCase, WorkflowExecutionCancellationRegistry,
@@ -54,11 +55,12 @@ impl WorkflowNodeCapabilityInterface for FixedOutputCapabilityImpl {
     async fn execute_node_capability(
         &self,
         request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         WorkflowNodeOutputSet::try_new(
             &self.contract,
             BTreeMap::from([(output_key(), self.value.clone())]),
         )
+        .map(WorkflowNodeCapabilityExecutionOutcome::Completed)
         .map_err(|_| {
             NodeCapabilityExecutionError::invalid_capability_invocation(
                 self.contract.contract_ref().clone(),

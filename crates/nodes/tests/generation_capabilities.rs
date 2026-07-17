@@ -123,6 +123,8 @@ async fn c4_capabilities_publish_one_typed_available_managed_output() {
             1,
         ))
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     assert!(matches!(
         image_outputs.get(&NodeCapabilityOutputKey::new("image").unwrap()),
@@ -146,6 +148,8 @@ async fn c4_capabilities_publish_one_typed_available_managed_output() {
             2,
         ))
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     assert!(matches!(
         speech_outputs.get(&NodeCapabilityOutputKey::new("audio").unwrap()),
@@ -181,6 +185,8 @@ async fn assert_image_to_video_output() {
     let outputs = capability
         .execute_node_capability(execution_request(&capability, parameters, inputs, 3))
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     assert!(matches!(
         outputs.get(&NodeCapabilityOutputKey::new("video").unwrap()),

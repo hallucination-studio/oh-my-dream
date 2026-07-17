@@ -63,7 +63,7 @@ impl WorkflowNodeCapabilityInterface for ProvideLiteralTextCapabilityImpl {
     async fn execute_node_capability(
         &self,
         request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         let Some(text) = normalized_literal_text(&request.normalized_parameters)
             .filter(|_| request.inputs.is_empty())
             .filter(|_| request.origin.capability_contract_ref() == self.contract.contract_ref())
@@ -78,6 +78,7 @@ impl WorkflowNodeCapabilityInterface for ProvideLiteralTextCapabilityImpl {
         let mut values = BTreeMap::new();
         values.insert(self.output_key.clone(), WorkflowRuntimeValue::Text(text));
         WorkflowNodeOutputSet::try_new(&self.contract, values)
+            .map(WorkflowNodeCapabilityExecutionOutcome::Completed)
             .map_err(|_| invalid_output(&self.contract, &request, &self.output_key))
     }
 }

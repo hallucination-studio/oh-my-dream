@@ -119,7 +119,7 @@ export interface WorkflowRunDto {
   node_executions: Array<{
     node_id: string;
     node_execution_id: string;
-    state: "pending" | "running" | "succeeded" | "failed" | "cancelled" | "blocked";
+    state: "pending" | "running" | "waiting_for_external_completion" | "succeeded" | "failed" | "cancelled" | "blocked";
     progress_basis_points: number | null;
   }>;
 }
@@ -145,7 +145,7 @@ export interface WorkflowNodePresentationDto {
   latest_execution: {
     workflow_run_id: string;
     node_execution_id: string;
-    state: "pending" | "running" | "succeeded" | "failed" | "cancelled" | "blocked";
+    state: "pending" | "running" | "waiting_for_external_completion" | "succeeded" | "failed" | "cancelled" | "blocked";
     progress_basis_points: number | null;
     producing_revision: string;
     is_stale: boolean;

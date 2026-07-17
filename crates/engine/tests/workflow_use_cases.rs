@@ -8,8 +8,9 @@ use engine::node_capability::{
     NodeCapabilityExecutionRequest, NodeCapabilityNormalizedParameters,
     NodeCapabilityOutputContract, NodeCapabilityOutputKey, NodeCapabilityParameterError,
     NodeCapabilityParameterSet, NodeCapabilityReadinessIssue, NodeCapabilityReadinessRequest,
-    WorkflowDataType, WorkflowNodeCapabilityInterface, WorkflowNodeCapabilityRegistry,
-    WorkflowNodeOutputSet, WorkflowRuntimeValue, WorkflowTextPart, WorkflowTextValue,
+    WorkflowDataType, WorkflowNodeCapabilityExecutionOutcome, WorkflowNodeCapabilityInterface,
+    WorkflowNodeCapabilityRegistry, WorkflowNodeOutputSet, WorkflowRuntimeValue, WorkflowTextPart,
+    WorkflowTextValue,
 };
 use engine::workflow::{
     WorkflowApplicationError, WorkflowApplyMutationUseCase, WorkflowCheckReadinessUseCase,
@@ -52,7 +53,7 @@ impl WorkflowNodeCapabilityInterface for ReadinessCapabilityImpl {
     async fn execute_node_capability(
         &self,
         request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         WorkflowNodeOutputSet::try_new(
             &self.contract,
             BTreeMap::from([(
@@ -62,6 +63,7 @@ impl WorkflowNodeCapabilityInterface for ReadinessCapabilityImpl {
                 ),
             )]),
         )
+        .map(WorkflowNodeCapabilityExecutionOutcome::Completed)
         .map_err(|_| {
             NodeCapabilityExecutionError::invalid_capability_invocation(
                 self.contract.contract_ref().clone(),

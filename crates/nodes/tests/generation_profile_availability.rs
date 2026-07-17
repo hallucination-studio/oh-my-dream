@@ -248,7 +248,7 @@ impl WorkflowNodeCapabilityInterface for CapabilityFakeImpl {
     async fn execute_node_capability(
         &self,
         _request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         unreachable!()
     }
 }

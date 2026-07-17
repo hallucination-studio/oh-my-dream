@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS workflow_node_executions (
     workflow_run_id BLOB NOT NULL CHECK(length(workflow_run_id) = 16),
     workflow_node_id BLOB NOT NULL CHECK(length(workflow_node_id) = 16),
     node_execution_id BLOB NOT NULL CHECK(length(node_execution_id) = 16),
-    state INTEGER NOT NULL CHECK(state BETWEEN 0 AND 5),
+    state INTEGER NOT NULL CHECK(state BETWEEN 0 AND 6),
     progress_basis_points INTEGER CHECK(
         progress_basis_points IS NULL OR progress_basis_points BETWEEN 0 AND 10000
     ),

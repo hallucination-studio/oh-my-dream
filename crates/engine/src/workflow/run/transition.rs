@@ -76,6 +76,42 @@ impl WorkflowRunAggregate {
         )
     }
 
+    /// Idempotently commits a running node's durable external-completion handoff.
+    pub fn wait_node_for_external_completion(
+        &mut self,
+        execution_id: WorkflowNodeExecutionId,
+        occurred_at: WorkflowRunTime,
+    ) -> Result<(), WorkflowDomainError> {
+        if matches!(
+            self.state,
+            WorkflowRunState::Succeeded | WorkflowRunState::Failed | WorkflowRunState::Cancelled
+        ) {
+            return Err(WorkflowDomainError::WorkflowTerminalStateImmutable);
+        }
+        let state = self
+            .node_executions
+            .iter()
+            .find(|node| node.execution_id == execution_id)
+            .map(|node| node.state)
+            .ok_or(WorkflowDomainError::WorkflowIllegalNodeExecutionTransition)?;
+        if state == WorkflowNodeExecutionState::WaitingForExternalCompletion {
+            return Ok(());
+        }
+        self.ensure_event_can_be_recorded(occurred_at)?;
+        if self.state != WorkflowRunState::Running || state != WorkflowNodeExecutionState::Running {
+            return Err(WorkflowDomainError::WorkflowIllegalNodeExecutionTransition);
+        }
+        let node = self.node_mut(execution_id)?;
+        node.state = WorkflowNodeExecutionState::WaitingForExternalCompletion;
+        node.progress_basis_points = None;
+        self.push_event(
+            occurred_at,
+            WorkflowRunEventPayload::WorkflowNodeWaitingForExternalCompletionEvent {
+                node_execution_id: execution_id,
+            },
+        )
+    }
+
     /// Commits one running node's already contract-complete output set.
     pub fn succeed_node(
         &mut self,
@@ -85,7 +121,11 @@ impl WorkflowRunAggregate {
     ) -> Result<(), WorkflowDomainError> {
         self.ensure_event_can_be_recorded(occurred_at)?;
         let node = self.node_mut(execution_id)?;
-        if node.state != WorkflowNodeExecutionState::Running {
+        if !matches!(
+            node.state,
+            WorkflowNodeExecutionState::Running
+                | WorkflowNodeExecutionState::WaitingForExternalCompletion
+        ) {
             return Err(WorkflowDomainError::WorkflowIllegalNodeExecutionTransition);
         }
         node.state = WorkflowNodeExecutionState::Succeeded;
@@ -110,7 +150,11 @@ impl WorkflowRunAggregate {
     ) -> Result<(), WorkflowDomainError> {
         self.ensure_event_can_be_recorded(occurred_at)?;
         let node = self.node_mut(execution_id)?;
-        if node.state != WorkflowNodeExecutionState::Running {
+        if !matches!(
+            node.state,
+            WorkflowNodeExecutionState::Running
+                | WorkflowNodeExecutionState::WaitingForExternalCompletion
+        ) {
             return Err(WorkflowDomainError::WorkflowIllegalNodeExecutionTransition);
         }
         node.state = WorkflowNodeExecutionState::Failed;
@@ -167,7 +211,9 @@ impl WorkflowRunAggregate {
         if self.node_executions.iter().any(|node| {
             matches!(
                 node.state,
-                WorkflowNodeExecutionState::Pending | WorkflowNodeExecutionState::Running
+                WorkflowNodeExecutionState::Pending
+                    | WorkflowNodeExecutionState::Running
+                    | WorkflowNodeExecutionState::WaitingForExternalCompletion
             )
         }) {
             return Err(WorkflowDomainError::WorkflowIllegalRunTransition);
@@ -239,7 +285,9 @@ impl WorkflowRunAggregate {
             .filter(|node| {
                 matches!(
                     node.state,
-                    WorkflowNodeExecutionState::Pending | WorkflowNodeExecutionState::Running
+                    WorkflowNodeExecutionState::Pending
+                        | WorkflowNodeExecutionState::Running
+                        | WorkflowNodeExecutionState::WaitingForExternalCompletion
                 )
             })
             .map(|node| {

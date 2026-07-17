@@ -196,6 +196,18 @@ async fn atomically_admits_transitions_and_restores_complete_run_outputs_and_eve
 
     run.start(WorkflowRunTime::from_utc_milliseconds(2).unwrap()).unwrap();
     run.start_node(execution_id, WorkflowRunTime::from_utc_milliseconds(3).unwrap()).unwrap();
+    run.wait_node_for_external_completion(
+        execution_id,
+        WorkflowRunTime::from_utc_milliseconds(4).unwrap(),
+    )
+    .unwrap();
+    adapter.commit_workflow_run_transition(run.clone(), 1).await.unwrap();
+    let waiting =
+        adapter.load_workflow_run(WorkflowRunLoadKey::Run(run_id)).await.unwrap().unwrap();
+    assert_eq!(
+        waiting.node_executions()[0].state(),
+        engine::workflow::WorkflowNodeExecutionState::WaitingForExternalCompletion
+    );
     let outputs = WorkflowNodeOutputSet::try_new(
         &contract,
         BTreeMap::from([(
@@ -206,11 +218,11 @@ async fn atomically_admits_transitions_and_restores_complete_run_outputs_and_eve
         )]),
     )
     .unwrap();
-    run.succeed_node(execution_id, outputs, WorkflowRunTime::from_utc_milliseconds(4).unwrap())
+    run.succeed_node(execution_id, outputs, WorkflowRunTime::from_utc_milliseconds(5).unwrap())
         .unwrap();
-    run.finish(WorkflowRunTime::from_utc_milliseconds(5).unwrap()).unwrap();
+    run.finish(WorkflowRunTime::from_utc_milliseconds(6).unwrap()).unwrap();
 
-    adapter.commit_workflow_run_transition(run.clone(), 1).await.unwrap();
+    adapter.commit_workflow_run_transition(run.clone(), 4).await.unwrap();
     assert!(
         adapter.list_active_project_workflow_runs(run.project_id(), 32).await.unwrap().is_empty()
     );
@@ -238,17 +250,17 @@ async fn atomically_admits_transitions_and_restores_complete_run_outputs_and_eve
     assert_eq!(events, run.events());
     assert_eq!(events_after_three, run.events()[3..]);
     let pending_events = adapter.list_undelivered_workflow_run_events(10).await.unwrap();
-    assert_eq!(pending_events.len(), 4);
+    assert_eq!(pending_events.len(), 5);
     adapter
         .record_workflow_run_event_delivery_attempt(run_id, pending_events[0].sequence(), false)
         .await
         .unwrap();
-    assert_eq!(adapter.list_undelivered_workflow_run_events(10).await.unwrap().len(), 4);
+    assert_eq!(adapter.list_undelivered_workflow_run_events(10).await.unwrap().len(), 5);
     adapter
         .record_workflow_run_event_delivery_attempt(run_id, pending_events[0].sequence(), true)
         .await
         .unwrap();
-    assert_eq!(adapter.list_undelivered_workflow_run_events(10).await.unwrap().len(), 3);
+    assert_eq!(adapter.list_undelivered_workflow_run_events(10).await.unwrap().len(), 4);
     let output_row_count: i64 = connection
         .lock()
         .unwrap()

@@ -52,7 +52,13 @@ async fn assert_active_capability_behavior(
 ) {
     let request =
         execution_request(case.capability.as_ref(), normalized.clone(), case.inputs.clone(), seed);
-    let output = case.capability.execute_node_capability(request).await.unwrap();
+    let output = case
+        .capability
+        .execute_node_capability(request)
+        .await
+        .unwrap()
+        .into_completed_outputs()
+        .unwrap();
     let value = output.get(&case.expected_output_key).unwrap().clone();
     assert_eq!(value.data_type(), case.expected_output_type);
     let expected = WorkflowNodeOutputSet::try_new(
@@ -91,7 +97,9 @@ async fn assert_active_capability_behavior(
     assert_invalid_invocation(case.capability.execute_node_capability(invalid_inputs).await);
 }
 
-fn assert_invalid_invocation(result: Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError>) {
+fn assert_invalid_invocation(
+    result: Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError>,
+) {
     let error = result.unwrap_err();
     assert_eq!(error.stage(), NodeCapabilityExecutionStage::ResolveInputs);
     assert_eq!(error.target(), &NodeCapabilityExecutionTarget::Capability);

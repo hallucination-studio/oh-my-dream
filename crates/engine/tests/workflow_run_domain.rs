@@ -222,6 +222,43 @@ fn rejected_backdated_transition_does_not_mutate_run_state() {
 }
 
 #[test]
+fn external_completion_handoff_is_idempotent_and_rejected_for_mismatched_or_terminal_nodes() {
+    let execution_id = node_execution_id(57);
+    let mut run = queued_run(
+        run_id(55),
+        project_id(56),
+        workflow_id(57),
+        WorkflowRunScope::WholeWorkflow,
+        vec![(workflow_node_id(58), execution_id)],
+        time(100),
+    )
+    .unwrap();
+    run.start(time(101)).unwrap();
+    run.start_node(execution_id, time(102)).unwrap();
+
+    run.wait_node_for_external_completion(execution_id, time(103)).unwrap();
+    let event_count = run.events().len();
+    run.wait_node_for_external_completion(execution_id, time(103)).unwrap();
+
+    assert_eq!(run.events().len(), event_count);
+    assert_eq!(
+        run.node_executions()[0].state(),
+        WorkflowNodeExecutionState::WaitingForExternalCompletion
+    );
+    assert_eq!(
+        run.wait_node_for_external_completion(node_execution_id(59), time(104)),
+        Err(WorkflowDomainError::WorkflowIllegalNodeExecutionTransition)
+    );
+    assert_eq!(run.finish(time(104)), Err(WorkflowDomainError::WorkflowIllegalRunTransition));
+
+    run.cancel(time(105)).unwrap();
+    assert_eq!(
+        run.wait_node_for_external_completion(execution_id, time(106)),
+        Err(WorkflowDomainError::WorkflowTerminalStateImmutable)
+    );
+}
+
+#[test]
 fn restore_rejects_outcome_fields_inconsistent_with_node_state() {
     let run = queued_run(
         run_id(60),

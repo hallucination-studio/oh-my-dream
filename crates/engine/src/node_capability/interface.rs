@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use super::{
     NodeCapabilityContract, NodeCapabilityExecutionError, NodeCapabilityExecutionRequest,
     NodeCapabilityNormalizedParameters, NodeCapabilityParameterError, NodeCapabilityParameterSet,
-    NodeCapabilityReadinessIssue, NodeCapabilityReadinessRequest, WorkflowNodeOutputSet,
+    NodeCapabilityReadinessIssue, NodeCapabilityReadinessRequest,
+    WorkflowNodeCapabilityExecutionOutcome,
 };
 
 /// Workflow-owned behavior contract implemented by every exact node capability.
@@ -30,5 +31,5 @@ pub trait WorkflowNodeCapabilityInterface: Send + Sync {
     async fn execute_node_capability(
         &self,
         request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError>;
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError>;
 }

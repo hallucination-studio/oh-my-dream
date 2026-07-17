@@ -7,8 +7,8 @@ use engine::node_capability::{
     NodeCapabilityExecutionRequest, NodeCapabilityNormalizedParameters,
     NodeCapabilityOutputContract, NodeCapabilityOutputKey, NodeCapabilityParameterError,
     NodeCapabilityParameterSet, NodeCapabilityReadinessIssue, NodeCapabilityReadinessRequest,
-    NodeCapabilityRegistryError, WorkflowDataType, WorkflowNodeCapabilityInterface,
-    WorkflowNodeCapabilityRegistry, WorkflowNodeOutputSet,
+    NodeCapabilityRegistryError, WorkflowDataType, WorkflowNodeCapabilityExecutionOutcome,
+    WorkflowNodeCapabilityInterface, WorkflowNodeCapabilityRegistry,
 };
 
 #[test]
@@ -80,7 +80,7 @@ impl WorkflowNodeCapabilityInterface for FakeCapabilityImpl {
     async fn execute_node_capability(
         &self,
         _request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         unreachable!("registry tests do not execute capabilities")
     }
 }

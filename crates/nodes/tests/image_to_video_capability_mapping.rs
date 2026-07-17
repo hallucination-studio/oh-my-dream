@@ -144,6 +144,8 @@ async fn image_to_video_maps_source_prompt_duration_context_origin_and_derived_p
             inputs,
         })
         .await
+        .unwrap()
+        .into_completed_outputs()
         .unwrap();
     let expected = WorkflowManagedVideoRef::new(
         WorkflowManagedAssetIdBoundaryValue::from_bytes(uuid(240).into_bytes()).unwrap(),

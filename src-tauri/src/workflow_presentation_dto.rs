@@ -160,6 +160,9 @@ const fn execution_state(value: WorkflowNodeExecutionState) -> &'static str {
     match value {
         WorkflowNodeExecutionState::Pending => "pending",
         WorkflowNodeExecutionState::Running => "running",
+        WorkflowNodeExecutionState::WaitingForExternalCompletion => {
+            "waiting_for_external_completion"
+        }
         WorkflowNodeExecutionState::Succeeded => "succeeded",
         WorkflowNodeExecutionState::Failed => "failed",
         WorkflowNodeExecutionState::Cancelled => "cancelled",

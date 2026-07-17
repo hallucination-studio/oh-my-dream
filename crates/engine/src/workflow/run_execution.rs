@@ -6,9 +6,10 @@ use crate::node_capability::{
     NodeCapabilityExecutionCancellation, NodeCapabilityExecutionError,
     NodeCapabilityExecutionFailure, NodeCapabilityExecutionRequest, NodeCapabilityExecutionStage,
     NodeCapabilityExecutionTarget, NodeCapabilityReadinessDeadline, NodeCapabilityReadinessRequest,
-    NodeCapabilityReadinessTarget, WorkflowNodeCapabilityRegistry, WorkflowNodeExecutionContext,
-    WorkflowNodeExecutionId, WorkflowNodeExecutionOrigin, WorkflowNodeInputSet,
-    WorkflowNodeInputValue, WorkflowRunId, WorkflowRuntimeInputItem,
+    NodeCapabilityReadinessTarget, WorkflowNodeCapabilityExecutionOutcome,
+    WorkflowNodeCapabilityRegistry, WorkflowNodeExecutionContext, WorkflowNodeExecutionId,
+    WorkflowNodeExecutionOrigin, WorkflowNodeInputSet, WorkflowNodeInputValue, WorkflowRunId,
+    WorkflowRuntimeInputItem,
 };
 use crate::workflow_graph::WorkflowNodeId;
 
@@ -138,6 +139,11 @@ where
             run = self.block_failed_descendants(run).await?;
             let ready = ready_node_execution_ids(&run);
             if ready.is_empty() {
+                if run.node_executions().iter().any(|execution| {
+                    execution.state() == WorkflowNodeExecutionState::WaitingForExternalCompletion
+                }) {
+                    return Ok(run);
+                }
                 let previous = run.events().len();
                 run.finish(self.clock.current_workflow_time()?)?;
                 return self.commit_and_publish(run, previous).await;
@@ -234,7 +240,7 @@ where
         &self,
         run_id: WorkflowRunId,
         execution_id: WorkflowNodeExecutionId,
-        result: Result<crate::node_capability::WorkflowNodeOutputSet, NodeCapabilityExecutionError>,
+        result: Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError>,
     ) -> Result<(), WorkflowApplicationError> {
         let mut run = self.load_run(run_id).await?;
         if run.state() == WorkflowRunState::Cancelled {
@@ -242,9 +248,14 @@ where
         }
         let previous = run.events().len();
         match result {
-            Ok(outputs) => {
+            Ok(WorkflowNodeCapabilityExecutionOutcome::Completed(outputs)) => {
                 run.succeed_node(execution_id, outputs, self.clock.current_workflow_time()?)
             }
+            Ok(WorkflowNodeCapabilityExecutionOutcome::WaitingForGenerationTask) => run
+                .wait_node_for_external_completion(
+                    execution_id,
+                    self.clock.current_workflow_time()?,
+                ),
             Err(capability_error) => run.fail_node(
                 execution_id,
                 WorkflowNodeExecutionFailure { capability_error },

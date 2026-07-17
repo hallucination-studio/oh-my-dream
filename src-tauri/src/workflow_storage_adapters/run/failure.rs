@@ -52,6 +52,7 @@ pub(super) enum EventKindPayload {
     RunStarted,
     NodeStarted { execution_id: Uuid },
     NodeProgressed { execution_id: Uuid, progress_basis_points: u16 },
+    NodeWaitingForExternalCompletion { execution_id: Uuid },
     NodeSucceeded { execution_id: Uuid, outputs: OutputSetPayload },
     NodeFailed { execution_id: Uuid, failure: ExecutionFailurePayload },
     NodeBlocked { execution_id: Uuid, reason: BlockReasonPayload },
@@ -166,6 +167,11 @@ pub(super) fn encode_event(value: &WorkflowRunEventPayload) -> EventKindPayload 
             execution_id: node_execution_id.as_uuid(),
             progress_basis_points: *progress_basis_points,
         },
+        WorkflowRunEventPayload::WorkflowNodeWaitingForExternalCompletionEvent {
+            node_execution_id,
+        } => EventKindPayload::NodeWaitingForExternalCompletion {
+            execution_id: node_execution_id.as_uuid(),
+        },
         WorkflowRunEventPayload::WorkflowNodeSucceededEvent { node_execution_id, outputs } => {
             EventKindPayload::NodeSucceeded {
                 execution_id: node_execution_id.as_uuid(),
@@ -210,6 +216,11 @@ pub(super) fn decode_event(
             Ok(WorkflowRunEventPayload::WorkflowNodeProgressedEvent {
                 node_execution_id: execution_id_from(execution_id)?,
                 progress_basis_points,
+            })
+        }
+        EventKindPayload::NodeWaitingForExternalCompletion { execution_id } => {
+            Ok(WorkflowRunEventPayload::WorkflowNodeWaitingForExternalCompletionEvent {
+                node_execution_id: execution_id_from(execution_id)?,
             })
         }
         EventKindPayload::NodeSucceeded { execution_id, outputs } => {

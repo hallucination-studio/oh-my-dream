@@ -77,13 +77,16 @@ function executionState(
   state:
     | "pending"
     | "running"
+    | "waiting_for_external_completion"
     | "succeeded"
     | "failed"
     | "cancelled"
     | "blocked"
     | undefined,
 ) {
-  if (state === "running") return "running" as const;
+  if (state === "running" || state === "waiting_for_external_completion") {
+    return "running" as const;
+  }
   if (state === "succeeded") return "done" as const;
   if (state === "failed" || state === "blocked") return "error" as const;
   return "idle" as const;

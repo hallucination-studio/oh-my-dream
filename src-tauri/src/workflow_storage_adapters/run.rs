@@ -186,6 +186,7 @@ pub(super) fn decode_node_state_row(
         3 => Ok(WorkflowNodeExecutionState::Failed),
         4 => Ok(WorkflowNodeExecutionState::Cancelled),
         5 => Ok(WorkflowNodeExecutionState::Blocked),
+        6 => Ok(WorkflowNodeExecutionState::WaitingForExternalCompletion),
         _ => Err(persistence()),
     }
 }

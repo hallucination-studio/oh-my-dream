@@ -7,8 +7,9 @@ use async_trait::async_trait;
 use engine::node_capability::{
     NodeCapabilityContract, NodeCapabilityExecutionError, NodeCapabilityExecutionRequest,
     NodeCapabilityNormalizedParameters, NodeCapabilityParameterError, NodeCapabilityParameterSet,
-    NodeCapabilityReadinessIssue, NodeCapabilityReadinessRequest, WorkflowNodeCapabilityInterface,
-    WorkflowNodeCapabilityRegistry, WorkflowNodeOutputSet,
+    NodeCapabilityReadinessIssue, NodeCapabilityReadinessRequest,
+    WorkflowNodeCapabilityExecutionOutcome, WorkflowNodeCapabilityInterface,
+    WorkflowNodeCapabilityRegistry,
 };
 use engine::workflow::{
     WorkflowCancelRunUseCase, WorkflowExecuteRunUseCase, WorkflowExecutionCancellationRegistry,
@@ -32,6 +33,35 @@ struct BlockingCapabilityImpl {
     started: AtomicBool,
 }
 
+struct WaitingCapabilityImpl {
+    contract: NodeCapabilityContract,
+}
+
+#[async_trait]
+impl WorkflowNodeCapabilityInterface for WaitingCapabilityImpl {
+    fn node_capability_contract(&self) -> &NodeCapabilityContract {
+        &self.contract
+    }
+    fn normalize_node_parameters(
+        &self,
+        parameters: &NodeCapabilityParameterSet,
+    ) -> Result<NodeCapabilityNormalizedParameters, NodeCapabilityParameterError> {
+        self.contract.normalize_node_parameters(parameters)
+    }
+    async fn check_node_external_readiness(
+        &self,
+        _request: NodeCapabilityReadinessRequest,
+    ) -> Vec<NodeCapabilityReadinessIssue> {
+        Vec::new()
+    }
+    async fn execute_node_capability(
+        &self,
+        _request: NodeCapabilityExecutionRequest,
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
+        Ok(WorkflowNodeCapabilityExecutionOutcome::WaitingForGenerationTask)
+    }
+}
+
 #[async_trait]
 impl WorkflowNodeCapabilityInterface for BlockingCapabilityImpl {
     fn node_capability_contract(&self) -> &NodeCapabilityContract {
@@ -52,7 +82,7 @@ impl WorkflowNodeCapabilityInterface for BlockingCapabilityImpl {
     async fn execute_node_capability(
         &self,
         request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         self.started.store(true, Ordering::Release);
         while !request.context.cancellation.is_cancelled() {
             tokio::task::yield_now().await;
@@ -88,7 +118,7 @@ impl WorkflowNodeCapabilityInterface for ToggleReadinessCapabilityImpl {
     async fn execute_node_capability(
         &self,
         request: NodeCapabilityExecutionRequest,
-    ) -> Result<WorkflowNodeOutputSet, NodeCapabilityExecutionError> {
+    ) -> Result<WorkflowNodeCapabilityExecutionOutcome, NodeCapabilityExecutionError> {
         self.execution_calls.fetch_add(1, Ordering::AcqRel);
         Err(NodeCapabilityExecutionError::invalid_capability_invocation(
             self.contract.contract_ref().clone(),
@@ -130,6 +160,48 @@ async fn coordinator_executes_ready_branches_and_finishes_successfully() {
             node.state() == engine::workflow::WorkflowNodeExecutionState::Succeeded
         })
     );
+}
+
+#[tokio::test]
+async fn coordinator_durably_hands_waiting_nodes_to_external_completion() {
+    let repository = Arc::new(WorkflowContractFakeImpl::default());
+    let capability = Arc::new(WaitingCapabilityImpl { contract: contract() });
+    let registry = Arc::new(
+        WorkflowNodeCapabilityRegistry::try_new([
+            capability.clone() as Arc<dyn WorkflowNodeCapabilityInterface>
+        ])
+        .unwrap(),
+    );
+    let run =
+        admit_run(repository.clone(), registry.clone(), capability.node_capability_contract())
+            .await;
+
+    let executed = WorkflowExecuteRunUseCase::try_new(
+        repository.clone(),
+        repository.clone(),
+        repository,
+        registry,
+        Arc::new(WorkflowExecutionCancellationRegistry::default()),
+        2,
+    )
+    .unwrap()
+    .execute_workflow_run(run.run_id())
+    .await
+    .unwrap();
+
+    assert_eq!(executed.state(), WorkflowRunState::Running);
+    assert!(executed.node_executions().iter().any(|node| {
+        node.state() == engine::workflow::WorkflowNodeExecutionState::WaitingForExternalCompletion
+    }));
+    assert!(executed.node_executions().iter().all(|node| matches!(
+        node.state(),
+        engine::workflow::WorkflowNodeExecutionState::Pending
+            | engine::workflow::WorkflowNodeExecutionState::WaitingForExternalCompletion
+    )));
+    assert!(executed.events().iter().any(|event| matches!(
+        event.payload(),
+        engine::workflow::WorkflowRunEventPayload::WorkflowNodeWaitingForExternalCompletionEvent { .. }
+    )));
 }
 
 #[tokio::test]

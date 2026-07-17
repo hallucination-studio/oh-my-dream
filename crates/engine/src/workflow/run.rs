@@ -36,6 +36,11 @@ pub enum WorkflowRunEventPayload {
         /// Monotonic progress from zero through 10,000.
         progress_basis_points: u16,
     },
+    /// One node durably handed external completion to a Generation Task.
+    WorkflowNodeWaitingForExternalCompletionEvent {
+        /// Waiting execution.
+        node_execution_id: WorkflowNodeExecutionId,
+    },
     /// One node committed its complete output set.
     WorkflowNodeSucceededEvent {
         /// Successful execution.
@@ -57,7 +62,7 @@ pub enum WorkflowRunEventPayload {
         /// Safe structured block reason.
         reason: WorkflowNodeExecutionBlockReason,
     },
-    /// One pending or running node was cancelled.
+    /// One pending, running, or externally waiting node was cancelled.
     WorkflowNodeCancelledEvent {
         /// Cancelled execution.
         node_execution_id: WorkflowNodeExecutionId,

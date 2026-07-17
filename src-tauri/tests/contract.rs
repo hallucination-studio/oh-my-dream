@@ -184,9 +184,12 @@ impl DesktopEventEmitterInterface for ContractEventEmitterImpl {
 }
 
 fn capability_catalog_fixture() -> CapabilityCatalogDto {
-    let root = tempdir().expect("create capability catalog asset root");
-    let state = oh_my_dream_tauri::state::AppState::from_asset_root(root.path())
-        .expect("build capability catalog app state");
+    let root = tempdir().expect("create capability catalog roots");
+    let state = oh_my_dream_tauri::state::AppState::from_roots(
+        root.path().join("assets"),
+        root.path().join("config"),
+    )
+    .expect("build capability catalog app state");
     oh_my_dream_tauri::commands::get_capability_catalog_with_state(&state)
         .expect("project capability catalog")
 }
@@ -219,9 +222,12 @@ struct PortContractFixture {
 }
 
 fn node_contract_fixture() -> NodeContractsFixture {
-    let root = tempdir().expect("create node contract asset root");
-    let state = oh_my_dream_tauri::state::AppState::from_asset_root(root.path())
-        .expect("build node contract app state");
+    let root = tempdir().expect("create node contract roots");
+    let state = oh_my_dream_tauri::state::AppState::from_roots(
+        root.path().join("assets"),
+        root.path().join("config"),
+    )
+    .expect("build node contract app state");
     let nodes = state
         .registry
         .capability_refs()

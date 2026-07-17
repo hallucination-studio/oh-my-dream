@@ -117,7 +117,9 @@ fn run_and_nodes_match(data: &WorkflowRunRestoreData) -> bool {
     let no_active = data.node_executions.iter().all(|node| {
         !matches!(
             node.state,
-            WorkflowNodeExecutionState::Pending | WorkflowNodeExecutionState::Running
+            WorkflowNodeExecutionState::Pending
+                | WorkflowNodeExecutionState::Running
+                | WorkflowNodeExecutionState::WaitingForExternalCompletion
         )
     });
     match (&data.state, &data.failure) {
@@ -173,6 +175,12 @@ fn node_shape_is_valid(node: &WorkflowNodeExecutionRestoreData) -> bool {
                 && node.started_at.is_some()
                 && node.finished_at.is_none()
                 && node.progress_basis_points.is_none_or(|value| value <= 10_000)
+        }
+        WorkflowNodeExecutionState::WaitingForExternalCompletion => {
+            no_outcome
+                && node.started_at.is_some()
+                && node.finished_at.is_none()
+                && node.progress_basis_points.is_none()
         }
         WorkflowNodeExecutionState::Succeeded => {
             node.outputs.is_some()

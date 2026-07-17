@@ -112,6 +112,8 @@ pub enum WorkflowNodeExecutionState {
     Pending,
     /// Exact capability execution is active.
     Running,
+    /// A durable Generation Task owns external completion.
+    WaitingForExternalCompletion,
     /// A complete output set was committed.
     Succeeded,
     /// A structured execution failure was committed.

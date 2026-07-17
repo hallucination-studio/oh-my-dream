@@ -15,7 +15,7 @@ use crate::workflow_graph::{WorkflowId, WorkflowNodeId, WorkflowRevision};
 use super::{
     NodeCapabilityGenerationProfileRefParameterValue, NodeCapabilityNormalizedParameters,
     NodeCapabilityParameterKey, WorkflowDataType, WorkflowManagedAssetIdBoundaryValue,
-    WorkflowNodeExecutionId, WorkflowNodeInputSet, WorkflowRunId,
+    WorkflowNodeExecutionId, WorkflowNodeInputSet, WorkflowNodeOutputSet, WorkflowRunId,
 };
 
 /// Project-scoped pre-dispatch readiness request.
@@ -370,4 +370,24 @@ pub struct NodeCapabilityExecutionRequest {
     pub normalized_parameters: NodeCapabilityNormalizedParameters,
     /// Complete contract-validated runtime inputs.
     pub inputs: WorkflowNodeInputSet,
+}
+
+/// Closed outcome of one admitted Node Capability execution.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum WorkflowNodeCapabilityExecutionOutcome {
+    /// Immediate execution produced the complete declared output set.
+    Completed(WorkflowNodeOutputSet),
+    /// A durable Generation Task now owns external completion.
+    WaitingForGenerationTask,
+}
+
+impl WorkflowNodeCapabilityExecutionOutcome {
+    /// Consumes an immediate completion or returns `None` for durable waiting.
+    #[must_use]
+    pub fn into_completed_outputs(self) -> Option<WorkflowNodeOutputSet> {
+        match self {
+            Self::Completed(outputs) => Some(outputs),
+            Self::WaitingForGenerationTask => None,
+        }
+    }
 }
