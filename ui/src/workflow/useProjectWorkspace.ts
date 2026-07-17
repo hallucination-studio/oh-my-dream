@@ -113,7 +113,7 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
     const graph = fromWorkflow(
       editorWorkflow,
       setParam,
-      contractsRef.current.map(nodeSpecFromExactContract),
+      contractsRef.current.map((contract) => nodeSpecFromExactContract(contract)),
     );
     const normalized = toWorkflow(graph.nodes, graph.edges, workflow.project_id);
     markPersistedRef.current(normalized);
@@ -204,7 +204,7 @@ function useHydrateWorkspace(
       const graph = fromWorkflow(
         source,
         setParam,
-        contractsRef.current.map(nodeSpecFromExactContract),
+        contractsRef.current.map((contract) => nodeSpecFromExactContract(contract)),
       );
       const normalized = toWorkflow(graph.nodes, graph.edges, workspace.project.id);
       invalidateRun();

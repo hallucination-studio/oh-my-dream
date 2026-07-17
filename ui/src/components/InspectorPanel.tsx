@@ -99,7 +99,7 @@ export function InspectorPanel({
 
       {isGeneration && spec ? (
         <label className="insp__field">
-          <span className="insp__label">Generation profile</span>
+          <span className="insp__label">Generation model</span>
           <GenerationProfileSelector
             capability={spec.ref}
             value={typeof node.params.generation_profile_ref === "string"

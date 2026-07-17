@@ -108,6 +108,17 @@
 .insp__input.is-mono {
   font-family: var(--font-mono);
 }
+.insp__model-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.insp__model-state small {
+  color: var(--ink-2);
+  font-size: 10px;
+  text-align: right;
+}
 
 .insp__note {
   margin-top: 15px;

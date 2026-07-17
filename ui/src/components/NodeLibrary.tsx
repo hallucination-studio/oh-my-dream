@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { CapabilityRef, CapabilitySummary, NodeCapabilityContractDto } from "../api/types.ts";
+import { capabilityKey } from "../nodes/exactCapability.ts";
 import type { NodeTypeSpec } from "../nodes/catalog.ts";
 import { isPaletteVisible, paletteCreation } from "../nodes/catalog.ts";
 import { presentationFor } from "../nodes/exactCapability.ts";
@@ -9,23 +10,37 @@ import "./nodeLibrary.css";
 interface NodeLibraryProps {
   contracts: readonly NodeCapabilityContractDto[];
   loadedSpecs: readonly NodeTypeSpec[];
+  hiddenCapabilityKeys?: ReadonlySet<string>;
+  savedCapabilityKeys?: ReadonlySet<string>;
   onAdd: (reference: CapabilityRef) => void;
   onOpenAssets: () => void;
 }
 
-/** Paged presentation/status palette; exact contracts load only on addition. */
-export function NodeLibrary({ contracts, loadedSpecs, onAdd, onOpenAssets }: NodeLibraryProps) {
+/** Presents the authoritative capability registry with current profile status. */
+export function NodeLibrary({
+  contracts,
+  loadedSpecs,
+  hiddenCapabilityKeys = new Set(),
+  savedCapabilityKeys = new Set(),
+  onAdd,
+  onOpenAssets,
+}: NodeLibraryProps) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const offersAssetRoute = query.toLowerCase().includes("asset");
 
   const groups = useMemo(() => {
     const grouped: { category: string; nodes: CapabilitySummary[] }[] = [];
-    const visibleSummaries = contracts.map(contractSummary).filter((summary) =>
-      isPaletteVisible(summary) && (
-        summary.presentation.label.toLowerCase().includes(query.toLowerCase())
-        || summary.reference.id.includes(query.toLowerCase())
-      ));
+    const normalizedQuery = query.toLowerCase();
+    const visibleSummaries = contracts
+      .map((contract) => contractSummary(contract, loadedSpecs))
+      .filter((summary) =>
+        isPaletteVisible(summary) &&
+        (!hiddenCapabilityKeys.has(capabilityKey(summary.reference)) ||
+          savedCapabilityKeys.has(capabilityKey(summary.reference))) &&
+        (summary.presentation.label.toLowerCase().includes(normalizedQuery) ||
+          summary.reference.id.includes(normalizedQuery)),
+      );
     for (const summary of visibleSummaries) {
       let group = grouped.find((candidate) => candidate.category === summary.presentation.category);
       if (!group) {
@@ -35,7 +50,7 @@ export function NodeLibrary({ contracts, loadedSpecs, onAdd, onOpenAssets }: Nod
       group.nodes.push(summary);
     }
     return grouped;
-  }, [contracts, query]);
+  }, [contracts, hiddenCapabilityKeys, loadedSpecs, query, savedCapabilityKeys]);
 
   return (
     <aside className="nlib">
@@ -85,16 +100,23 @@ export function NodeLibrary({ contracts, loadedSpecs, onAdd, onOpenAssets }: Nod
                   {group.nodes.map((summary) => {
                     const spec = loadedSpecs.find((candidate) => sameRef(candidate.ref, summary.reference));
                     const creation = paletteCreation(summary);
+                    const reason = summary.status.reason;
                     return (
                       <button
                         key={`${summary.reference.id}@${summary.reference.version}`}
                         className="nlib__leaf"
                         draggable={creation.canAdd}
                         disabled={!creation.canAdd}
+                        aria-label={reason ? `${summary.presentation.label} — ${reason}` : summary.presentation.label}
                         title={creation.route
                           ? `Create from ${creation.route}`
-                          : summary.status.reason ?? summary.presentation.description}
-                        onDragStart={(event) => event.dataTransfer.setData("application/oh-node", JSON.stringify(summary.reference))}
+                          : reason ?? summary.presentation.description}
+                        onDragStart={(event) =>
+                          event.dataTransfer.setData(
+                            "application/oh-node",
+                            JSON.stringify(summary.reference),
+                          )
+                        }
                         onClick={() => onAdd(summary.reference)}
                       >
                         <span
@@ -121,17 +143,21 @@ export function NodeLibrary({ contracts, loadedSpecs, onAdd, onOpenAssets }: Nod
   );
 }
 
-function contractSummary(contract: NodeCapabilityContractDto): CapabilitySummary {
+function contractSummary(
+  contract: NodeCapabilityContractDto,
+  specs: readonly NodeTypeSpec[],
+): CapabilitySummary {
   const presentation = presentationFor(contract.capability_ref.id);
   const contextual_creation = contract.capability_ref.id.endsWith(".read_asset")
     ? { route: "asset_library" }
     : null;
+  const spec = specs.find((candidate) => sameRef(candidate.ref, contract.capability_ref));
   return {
     selector: { type_id: contract.capability_ref.id, mode: "" },
     reference: contract.capability_ref,
     presentation,
     contextual_creation,
-    status: { availability: "available", reason: null, provider_health: null, status_revision: 0 },
+    status: spec?.status ?? { availability: "available", reason: null, provider_health: null, status_revision: 0 },
   };
 }
 

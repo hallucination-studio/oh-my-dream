@@ -66,3 +66,23 @@ it("lists and gets Project-scoped mock Generation Tasks with bounded filters", a
   await expect(mockApi.generationTaskList(projectId, null, null, null, 0))
     .rejects.toThrow("generation_task.invalid_request");
 });
+
+it("returns the frozen Mock profile for each model capability", async () => {
+  await expect(mockApi.generationProfileListForCapability({
+    id: "image.generate_from_text",
+    version: "1.0",
+  })).resolves.toMatchObject([{
+    profile_ref: "image.high_quality_general@1",
+    availability: { state: "available" },
+  }]);
+  await expect(mockApi.generationProfileListForCapability({
+    id: "video.generate_from_image",
+    version: "1.0",
+  })).resolves.toMatchObject([{
+    profile_ref: "video.cinematic_image_animation@1",
+  }]);
+  await expect(mockApi.generationProfileListForCapability({
+    id: "text.provide_literal",
+    version: "1.0",
+  })).resolves.toEqual([]);
+});

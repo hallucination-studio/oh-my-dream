@@ -1,8 +1,14 @@
-import type { NodeCapabilityContractDto } from "../api/types.ts";
+import type {
+  CapabilityStatus,
+  GenerationProfileForCapability,
+  NodeCapabilityContractDto,
+} from "../api/types.ts";
 import type { NodeTypeSpec, ParamSpec, PortSpec } from "./catalog.ts";
 
 export function nodeSpecFromExactContract(
   contract: NodeCapabilityContractDto,
+  status: CapabilityStatus = availableStatus(),
+  defaultProfileRef: string | null = null,
 ): NodeTypeSpec {
   const presentation = presentationFor(contract.capability_ref.id);
   const inputs = contract.inputs.map((input) => ({
@@ -17,6 +23,13 @@ export function nodeSpecFromExactContract(
     cardinality: "one" as const,
     required: true,
   }));
+  const params = contract.parameters.map(parameterSpec);
+  if (defaultProfileRef !== null) {
+    const profileParameter = params.find((parameter) => parameter.name === "generation_profile_ref");
+    if (profileParameter && profileParameter.default === undefined) {
+      profileParameter.default = defaultProfileRef;
+    }
+  }
   return {
     selector: null,
     ref: contract.capability_ref,
@@ -27,17 +40,84 @@ export function nodeSpecFromExactContract(
     category: presentation.category,
     inputs,
     outputs,
-    params: contract.parameters.map(parameterSpec),
-    status: {
-      availability: "available",
-      reason: null,
-      provider_health: null,
-      status_revision: 0,
-    },
+    params,
+    status,
     contract: null,
     presentation,
     contextualCreationRoute:
       contract.capability_ref.id.endsWith(".read_asset") ? "asset_library" : null,
+  };
+}
+
+export type ProfileQueryResult =
+  | { state: "loading" }
+  | { state: "ready"; profiles: readonly GenerationProfileForCapability[] }
+  | { state: "error" };
+
+export interface CapabilityProfileProjection {
+  status: CapabilityStatus;
+  hasCompatibleProfile: boolean;
+  defaultProfileRef: string | null;
+}
+
+export function capabilityKey(reference: { id: string; version: string }): string {
+  return `${reference.id}@${reference.version}`;
+}
+
+export function isProfileBackedCapability(contract: NodeCapabilityContractDto): boolean {
+  return contract.parameters.some(
+    (parameter) => parameter.constraint.kind === "generation_profile_ref",
+  );
+}
+
+export function profileProjectionForCapability(
+  contract: NodeCapabilityContractDto,
+  result: ProfileQueryResult,
+): CapabilityProfileProjection {
+  if (!isProfileBackedCapability(contract)) {
+    return { status: availableStatus(), hasCompatibleProfile: true, defaultProfileRef: null };
+  }
+  if (result.state === "loading") {
+    return {
+      status: degradedStatus("Checking generation model availability"),
+      hasCompatibleProfile: true,
+      defaultProfileRef: null,
+    };
+  }
+  if (result.state === "error") {
+    return {
+      status: degradedStatus("Generation model availability is indeterminate"),
+      hasCompatibleProfile: true,
+      defaultProfileRef: null,
+    };
+  }
+  if (result.profiles.length === 0) {
+    return {
+      status: unavailableStatus("No generation model supports this node type"),
+      hasCompatibleProfile: false,
+      defaultProfileRef: null,
+    };
+  }
+  const available = result.profiles.some((profile) => profile.availability.state === "available");
+  if (available) {
+    return {
+      status: availableStatus(),
+      hasCompatibleProfile: true,
+      defaultProfileRef: result.profiles.length === 1 ? result.profiles[0]!.profile_ref : null,
+    };
+  }
+
+  const indeterminate = result.profiles.find(
+    (profile) => profile.availability.state === "indeterminate",
+  );
+  return {
+    status: indeterminate
+      ? degradedStatus(
+          indeterminate.availability.reason ?? "Generation model availability is indeterminate",
+        )
+      : unavailableStatus(reasonForUnavailableProfile(result.profiles)),
+    hasCompatibleProfile: true,
+    defaultProfileRef: null,
   };
 }
 
@@ -103,4 +183,23 @@ export function presentationFor(id: string) {
   };
   const value = values[id] ?? { label: id, category: "Other" };
   return { ...value, description: value.label, search_terms: [id] };
+}
+
+function availableStatus(): CapabilityStatus {
+  return { availability: "available", reason: null, provider_health: null, status_revision: 0 };
+}
+
+function unavailableStatus(reason: string): CapabilityStatus {
+  return { availability: "unavailable", reason, provider_health: null, status_revision: 0 };
+}
+
+function degradedStatus(reason: string): CapabilityStatus {
+  return { availability: "degraded", reason, provider_health: null, status_revision: 0 };
+}
+
+function reasonForUnavailableProfile(
+  profiles: readonly GenerationProfileForCapability[],
+): string {
+  return profiles.find((profile) => profile.availability.reason)?.availability.reason
+    ?? "Generation model is unavailable";
 }

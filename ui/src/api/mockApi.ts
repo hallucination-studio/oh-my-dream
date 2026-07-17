@@ -60,6 +60,23 @@ let mockGenerationProviderSettings = structuredClone(
 ) as GenerationProviderSettingsDto;
 const mockGenerationTasks = structuredClone(generationTasksFixture.tasks) as GenerationTaskSummaryDto[];
 const mockGenerationTaskDetail = structuredClone(generationTaskFixture) as GenerationTaskDto;
+const mockGenerationProfiles: Record<string, GenerationProfileForCapability> = {
+  "image.generate_from_text@1.0": {
+    profile_ref: "image.high_quality_general@1",
+    display_name: "Fast image model (sample)",
+    availability: availableProfileAvailability(),
+  },
+  "video.generate_from_image@1.0": {
+    profile_ref: "video.cinematic_image_animation@1",
+    display_name: "Fast video model (sample)",
+    availability: availableProfileAvailability(),
+  },
+  "audio.synthesize_speech_from_text@1.0": {
+    profile_ref: "speech.multilingual_narration@1",
+    display_name: "Fast audio model (sample)",
+    availability: availableProfileAvailability(),
+  },
+};
 
 async function listProjects() {
   return [...mockProjects.values()];
@@ -96,9 +113,20 @@ async function nodeCapabilityList(): Promise<NodeCapabilityContractDto[]> {
 }
 
 async function generationProfileListForCapability(
-  _reference: CapabilityRef,
+  reference: CapabilityRef,
 ): Promise<GenerationProfileForCapability[]> {
-  return [];
+  const profile = mockGenerationProfiles[`${reference.id}@${reference.version}`];
+  return profile ? [structuredClone(profile)] : [];
+}
+
+function availableProfileAvailability() {
+  return {
+    state: "available" as const,
+    reason: null,
+    retry_after_epoch_ms: null,
+    observed_at_epoch_ms: "0",
+    expires_at_epoch_ms: "30000",
+  };
 }
 
 async function generationProviderSettingsGet(): Promise<GenerationProviderSettingsDto> {

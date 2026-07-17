@@ -6,7 +6,8 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
-import { nodeSpecFromExactContract } from "./nodes/exactCapability.ts";
+import { capabilityKey } from "./nodes/exactCapability.ts";
+import { useNodeAvailability } from "./nodes/useNodeAvailability.ts";
 import type { FlowNodeData } from "./nodes/WorkflowFlowNode.tsx";
 import { typeColor } from "./nodes/typeColor.ts";
 import { nextNodeId, upsertIncomingEdge } from "./workflow/editor.ts";
@@ -61,10 +62,7 @@ export function App() {
   } = useAssistantAvailability();
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [exactContracts, setExactContracts] = useState<NodeCapabilityContractDto[]>([]);
-  const exactSpecs = useMemo(
-    () => exactContracts.map(nodeSpecFromExactContract),
-    [exactContracts],
-  );
+  const { specs: exactSpecs, hiddenCapabilityKeys } = useNodeAvailability(exactContracts);
   useEffect(() => {
     let active = true;
     void api.nodeCapabilityList().then((contracts) => {
@@ -108,6 +106,14 @@ export function App() {
     setStatus,
     invalidateRun,
   });
+  const savedCapabilityKeys = useMemo(
+    () => new Set(
+      ("workflowHead" in workspaceState ? workspaceState.workflowHead?.nodes ?? [] : []).map(
+        (node) => capabilityKey({ id: node.capability_id, version: node.capability_version }),
+      ),
+    ),
+    [workspaceState],
+  );
   workflowForRunRef.current =
     workspaceState.state === "ready" ? workspaceState.workflowHead : null;
   useNodePresentation(workflowForRunRef.current, selectedId, setNodes);
@@ -332,6 +338,8 @@ export function App() {
           <NodeLibrary
             contracts={exactContracts}
             loadedSpecs={exactSpecs}
+            hiddenCapabilityKeys={hiddenCapabilityKeys}
+            savedCapabilityKeys={savedCapabilityKeys}
             onAdd={(reference) => addNode(reference)}
             onOpenAssets={() => setTab("assets")}
           />
