@@ -53,6 +53,14 @@
   display: grid;
   gap: 8px;
 }
+.insp__asset-meta {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .insp__asset-action {
   width: fit-content;
   padding: 7px 12px;

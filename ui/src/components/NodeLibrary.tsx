@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { CapabilityRef, CapabilitySummary, NodeCapabilityContractDto } from "../api/types.ts";
 import { capabilityKey } from "../nodes/exactCapability.ts";
 import type { NodeTypeSpec } from "../nodes/catalog.ts";
-import { isPaletteVisible, paletteCreation } from "../nodes/catalog.ts";
+import { paletteCreation } from "../nodes/catalog.ts";
 import { presentationFor } from "../nodes/exactCapability.ts";
 import { nodeAccent } from "../nodes/typeColor.ts";
 import "./nodeLibrary.css";
@@ -39,7 +39,6 @@ export function NodeLibrary({
     const visibleSummaries = contracts
       .map((contract) => contractSummary(contract, loadedSpecs))
       .filter((summary) =>
-        isPaletteVisible(summary) &&
         (!hiddenCapabilityKeys.has(capabilityKey(summary.reference)) ||
           savedCapabilityKeys.has(capabilityKey(summary.reference))) &&
         (summary.presentation.label.toLowerCase().includes(normalizedQuery) ||

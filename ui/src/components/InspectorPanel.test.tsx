@@ -40,6 +40,45 @@ it("shows product Asset controls without exposing contextual params", () => {
   expect(onOpenAssets).toHaveBeenCalledOnce();
 });
 
+it("binds an asset through the picker with the canonical managed_asset value", () => {
+  const entry = catalog.capabilities.find(
+    (candidate) => candidate.contract.reference.id === "ImageAssetSource",
+  );
+  if (!entry) throw new Error("missing ImageAssetSource fixture");
+  const onParamChange = vi.fn();
+
+  render(
+    <InspectorPanel
+      node={{
+        id: "image-asset",
+        type: "ImageAssetSource",
+        params: {},
+        capability: nodeSpecFromBundle({
+          selector: entry.selector,
+          reference: entry.contract.reference,
+          contract: entry.contract,
+          presentation: entry.presentation,
+          status: entry.status,
+        }),
+      }}
+      onParamChange={onParamChange}
+      assetOptions={[
+        { id: "asset-1", title: "Mountain study" },
+        { id: "asset-2", title: "Harbor dusk" },
+      ]}
+    />,
+  );
+
+  const picker = screen.getByRole("combobox", { name: "Asset" });
+  expect(screen.getByText("Choose an asset")).toBeTruthy();
+  expect(screen.getByText("Harbor dusk")).toBeTruthy();
+  fireEvent.change(picker, { target: { value: "asset-2" } });
+  expect(onParamChange).toHaveBeenCalledWith("image-asset", "asset_id", {
+    kind: "managed_asset",
+    asset_id: "asset-2",
+  });
+});
+
 it("deletes the selected node and shows a connection panel for a selected edge", () => {
   const onDeleteNode = vi.fn();
   const onDeleteEdge = vi.fn();

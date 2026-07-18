@@ -407,6 +407,16 @@ export function App() {
       assetPresentation: data.assetPresentation,
     };
   }, [nodes, selectedId]);
+  // Asset nodes pick their source from the project's assets of the same media kind.
+  const selectedAssetOptions = useMemo(() => {
+    if (!selected || selected.capability?.contextualCreationRoute !== "asset_library") {
+      return [];
+    }
+    const outputKind = selected.capability.outputs[0]?.type;
+    return assets
+      .filter((asset) => asset.kind === outputKind)
+      .map((asset) => ({ id: asset.id, title: asset.displayName }));
+  }, [assets, selected]);
   const runNodeLabel = useCallback(
     (nodeId: string) => {
       const node = nodes.find((candidate) => candidate.id === nodeId);
@@ -588,6 +598,7 @@ export function App() {
             <InspectorPanel
               node={selected}
               onParamChange={setParam}
+              assetOptions={selectedAssetOptions}
               onRunThroughNode={(nodeId) =>
                 void runAfterBarrier("prepare_run", () => runCanonicalWorkflow(nodeId))
                   .then(() => setRunDetailsOpen(true))

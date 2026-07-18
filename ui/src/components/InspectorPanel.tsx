@@ -15,6 +15,26 @@ export interface SelectedNode {
   assetPresentation?: { title: string; available: boolean };
 }
 
+export interface AssetOption {
+  id: string;
+  title: string;
+}
+
+/** The managed_asset parameter value shape the canonical workflow serializer expects. */
+function managedAssetValue(assetId: string) {
+  return { kind: "managed_asset", asset_id: assetId };
+}
+
+/** Reads the bound asset id out of a node's raw parameters. */
+function boundAssetId(params: Record<string, unknown>): string {
+  const value = params["asset_id"];
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "asset_id" in value) {
+    return String((value as { asset_id: unknown }).asset_id);
+  }
+  return "";
+}
+
 export interface SelectedEdge {
   id: string;
   sourceLabel: string;
@@ -26,6 +46,7 @@ export function InspectorPanel({
   onParamChange,
   onOpenAssets = () => undefined,
   onRunThroughNode = () => undefined,
+  assetOptions = [],
   readinessIssues = [],
   runDisabled = false,
   onDeleteNode,
@@ -36,6 +57,7 @@ export function InspectorPanel({
   onParamChange: (nodeId: string, name: string, value: unknown) => void;
   onOpenAssets?: () => void;
   onRunThroughNode?: (nodeId: string) => void;
+  assetOptions?: AssetOption[];
   readinessIssues?: string[];
   runDisabled?: boolean;
   onDeleteNode?: (nodeId: string) => void;
@@ -95,12 +117,33 @@ export function InspectorPanel({
 
       {isAsset ? (
         <div className="insp__asset">
-          <span className="insp__label">Asset</span>
-          <b>
-            {node.assetPresentation?.available === false
-              ? "Asset unavailable"
-              : node.assetPresentation?.title ?? `Untitled ${spec?.selector?.type_id.toLowerCase() ?? "asset"}`}
-          </b>
+          <label className="insp__field">
+            <span className="insp__label">Asset</span>
+            <select
+              className="insp__input"
+              aria-label="Asset"
+              value={boundAssetId(node.params)}
+              onChange={(event) => {
+                if (event.target.value) {
+                  onParamChange(node.id, "asset_id", managedAssetValue(event.target.value));
+                }
+              }}
+            >
+              <option value="">Choose an asset</option>
+              {assetOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          {node.assetPresentation && boundAssetId(node.params) ? (
+            <p className="insp__asset-meta">
+              {node.assetPresentation.available
+                ? node.assetPresentation.title
+                : "The selected asset is not available."}
+            </p>
+          ) : null}
           <button className="insp__asset-action" onClick={onOpenAssets}>
             Open in Assets
           </button>

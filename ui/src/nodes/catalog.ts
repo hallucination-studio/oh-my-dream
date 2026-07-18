@@ -105,10 +105,6 @@ export function paletteCreation(summary: CapabilitySummary): {
 }
 
 /** Contextual capabilities are reached from their trusted route, not the generic palette. */
-export function isPaletteVisible(summary: CapabilitySummary): boolean {
-  return summary.contextual_creation === null;
-}
-
 /** Builds canonical params for a mode while preserving only shared fields. */
 export function paramsForMode(spec: NodeTypeSpec, current: Record<string, unknown>) {
   const params = Object.fromEntries(spec.params.map((param) => [

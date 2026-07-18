@@ -20,13 +20,14 @@ it("renders the exact capability list in creator language and stable group order
   expect(screen.getByRole("button", { name: "Text" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Generate image" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Create video" })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Image asset" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Image asset" })).toBeTruthy();
   const categories = screen
     .getAllByRole("button")
     .map((button) => button.textContent ?? "")
-    .filter((text) => /^(Inputs|Generate|Assets)/.test(text));
+    .filter((text) => /^(Inputs|Generate|Assets)\s*\d+$/.test(text));
   expect(categories[0]).toMatch(/^Inputs/);
   expect(categories[1]).toMatch(/^Generate/);
+  expect(categories[2]).toMatch(/^Assets/);
 });
 
 it("matches creator-language search aliases", () => {
