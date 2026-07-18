@@ -13,6 +13,7 @@ import {
   StrongAssistantTask,
 } from "./StrongAssistantTask.tsx";
 import { errorCode, failureCopy } from "../workflow/failureCopy.ts";
+import { toolLabel } from "./labels.ts";
 import {
   appendAssistantToken,
   setStepState,
@@ -120,7 +121,7 @@ export function AssistantDock({
         if (event.state === "started") {
           setItems((current) => [
             ...current,
-            { kind: "step", callId: event.tool_id, capability: event.tool_id, state: "running" },
+            { kind: "step", callId: event.tool_id, capability: toolLabel(event.tool_id), state: "running" },
           ]);
         } else {
           setItems((current) =>
@@ -146,7 +147,7 @@ export function AssistantDock({
         break;
       case "invocation_failed":
         presentationSequenceRef.current.delete(event.invocation_id);
-        setStatus((current) => ({ ...current, text: event.error.message }));
+        setStatus((current) => ({ ...current, text: failureCopy("Assistant turn", event.error.message) }));
         break;
     }
   };

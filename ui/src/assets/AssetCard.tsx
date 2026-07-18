@@ -19,8 +19,19 @@ export function AssetCard({
   return (
     <figure
       className={`ac${selected ? " is-selected" : ""}`}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      aria-label={`${asset.kind} asset ${asset.displayName}`}
       draggable
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
       onDragStart={(e) => e.dataTransfer.setData("application/oh-asset", asset.id)}
     >
       <div className={`ac__prev ac__prev--${asset.kind}`}>

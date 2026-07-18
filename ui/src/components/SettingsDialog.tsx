@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type WorkflowApi } from "../api/index.ts";
 import { APP_NAME, APP_VERSION } from "../appInfo.ts";
+import { useFocusTrap } from "./useFocusTrap.ts";
 import type {
   GenerationProviderSettingsActionDto,
   GenerationProviderSettingsDto,
@@ -30,6 +31,7 @@ export function SettingsDialog({
   const [state, setState] = useState<"idle" | "loading" | "saving">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
+  const dialogRef = useFocusTrap<HTMLDivElement>(open);
 
   useEffect(() => {
     if (!open) return;
@@ -95,7 +97,7 @@ export function SettingsDialog({
 
   return (
     <div className="scrim" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title" ref={dialogRef}>
         <div className="dialog__head">
           <b id="settings-title">Settings</b>
           <button ref={closeButton} className="dialog__close" onClick={onClose} aria-label="Close">

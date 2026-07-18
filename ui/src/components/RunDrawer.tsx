@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "./useFocusTrap.ts";
 import {
   api,
   type GenerationTaskDto,
@@ -29,6 +30,7 @@ export function RunDrawer({
   nodeLabel = () => "Step",
   canCancel = false,
   onCancel = () => undefined,
+  autoFocus = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -40,14 +42,17 @@ export function RunDrawer({
   nodeLabel?: (nodeId: string) => string;
   canCancel?: boolean;
   onCancel?: () => void;
+  /** Explicit opens focus the close control; run-admission opens must not steal focus. */
+  autoFocus?: boolean;
 }) {
   const [tasks, setTasks] = useState<GenerationTaskSummaryDto[]>([]);
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
   const [now, setNow] = useState(() => Date.now());
   const closeButton = useRef<HTMLButtonElement>(null);
+  const dialogRef = useFocusTrap<HTMLDivElement>(open);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !autoFocus) return;
     closeButton.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -94,7 +99,7 @@ export function RunDrawer({
   const task = selectTask(tasks, run, activeNodeId);
   return (
     <div className="rundrawer__scrim" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="rundrawer" role="dialog" aria-modal="true" aria-labelledby="run-drawer-title">
+      <div className="rundrawer" role="dialog" aria-modal="true" aria-labelledby="run-drawer-title" ref={dialogRef}>
         <header className="rundrawer__head">
           <div>
             <span className="rundrawer__eyebrow">Run information</span>
@@ -140,12 +145,7 @@ export function RunDrawer({
           {state === "idle" && run === null && (
             <p className="rundrawer__status" role="status">No Run is selected.</p>
           )}
-          {state === "idle" && run !== null && task !== null && <TaskDetails task={task} />}
-          {state === "idle" && run !== null && task === null && (
-            <p className="rundrawer__status" role="status">
-              This Run has no available Task for the selected Step.
-            </p>
-          )}
+          {state === "idle" && run !== null && task !== null && <TaskDetails task={task} nodeLabel={nodeLabel} />}
           {outputPreview && <OutputPreview outputs={outputPreview} />}
         </div>
       </div>
@@ -153,13 +153,19 @@ export function RunDrawer({
   );
 }
 
-function TaskDetails({ task }: { task: GenerationTaskSummaryDto | GenerationTaskDto }) {
+function TaskDetails({
+  task,
+  nodeLabel,
+}: {
+  task: GenerationTaskSummaryDto | GenerationTaskDto;
+  nodeLabel: (nodeId: string) => string;
+}) {
   return (
     <section className="rundrawer__task" aria-label="Step details">
       <div className="rundrawer__taskhead">
         <div>
           <span className="rundrawer__label">Step details</span>
-          <strong>{task.request_kind}</strong>
+          <strong>{nodeLabel(task.workflow_node_id)}</strong>
         </div>
         <span className={`rundrawer__badge rundrawer__badge--${task.status}`}>
           {statusLabel(task.status)}
@@ -179,20 +185,20 @@ function TaskDetails({ task }: { task: GenerationTaskSummaryDto | GenerationTask
       {task.prompt_preview && <p className="rundrawer__prompt">{task.prompt_preview}</p>}
       {task.failure && (
         <div className="rundrawer__failure" role="alert">
-          <strong>{task.failure.code}</strong>
-          <span>{task.failure.message}</span>
+          <strong>{task.failure.message ?? "This step failed."}</strong>
         </div>
       )}
       {"result" in task && task.result && <ResultSummary result={task.result} />}
       {!("result" in task) && task.has_result && (
-        <p className="rundrawer__result">Output is available in the Task result.</p>
+        <p className="rundrawer__result">Output is available in the step result.</p>
       )}
       <details className="rundrawer__diagnostics">
         <summary>Diagnostics</summary>
         <dl className="rundrawer__facts">
-          <div><dt>Profile reference</dt><dd className="is-mono">{task.generation_profile_ref}</dd></div>
+          <div><dt>Model reference</dt><dd className="is-mono">{task.generation_profile_ref}</dd></div>
           <div><dt>Provider id</dt><dd className="is-mono">{task.provider_id}</dd></div>
           <div><dt>Task id</dt><dd className="is-mono">{task.id}</dd></div>
+          {task.failure && <div><dt>Failure code</dt><dd className="is-mono">{task.failure.code}</dd></div>}
         </dl>
       </details>
     </section>

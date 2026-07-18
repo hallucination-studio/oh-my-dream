@@ -1,3 +1,5 @@
+import { assistantStateLabel, planItemLabel } from "./labels.ts";
+
 export type StrongAssistantTaskItem =
   | { kind: "plan"; itemId: string; status: string }
   | {
@@ -12,8 +14,8 @@ export function StrongAssistantTask({ item }: { item: StrongAssistantTaskItem })
     return (
       <section className="adock__task" aria-label="Production plan progress">
         <span>Plan</span>
-        <b>{item.itemId}</b>
-        <em>{item.status}</em>
+        <b>{planItemLabel(item.itemId)}</b>
+        <em>{assistantStateLabel(item.status)}</em>
       </section>
     );
   }
@@ -21,7 +23,7 @@ export function StrongAssistantTask({ item }: { item: StrongAssistantTaskItem })
     <section className={`adock__task is-${item.state}`} aria-label="Workflow run progress">
       <span>Run</span>
       <b>{item.detail}</b>
-      <em>{item.state}</em>
+      <em>{assistantStateLabel(item.state)}</em>
     </section>
   );
 }

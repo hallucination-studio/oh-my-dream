@@ -59,9 +59,11 @@ export function App() {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
+  const [runDetailsAutoFocus, setRunDetailsAutoFocus] = useState(true);
   const [runSnapshot, setRunSnapshot] = useState<WorkflowRunDto | null>(null);
   const { notice, notify } = useNotice();
   const [connect, setConnect] = useState<ConnectHighlight | null>(null);
+  useEffect(() => setConnect(null), [project?.id]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const {
@@ -177,7 +179,10 @@ export function App() {
       return;
     }
     void runAfterBarrier("prepare_run", runCanonicalWorkflow)
-      .then(() => setRunDetailsOpen(true))
+      .then(() => {
+        setRunDetailsAutoFocus(false);
+        setRunDetailsOpen(true);
+      })
       .catch((error: unknown) => {
         setStatus({ state: "failed", reason: failureCopy("Run workflow", error) });
       });
@@ -367,6 +372,7 @@ export function App() {
       setEdges((current) =>
         current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
       );
+      setConnect((current) => (current?.sourceId === nodeId ? null : current));
       setSelectedId(null);
     },
     [canEdit, markWorkflowMutation, setNodes, setEdges],
@@ -546,7 +552,10 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onRun={run}
         onCancel={cancel}
-        onOpenRunDetails={() => setRunDetailsOpen(true)}
+        onOpenRunDetails={() => {
+          setRunDetailsAutoFocus(true);
+          setRunDetailsOpen(true);
+        }}
         hasRunDetails={runSnapshot !== null}
         runDisabled={!runReady}
         runDisabledReason={runDisabledReason}
@@ -592,6 +601,7 @@ export function App() {
             onConnectEnd={() => setConnect(null)}
             isValidConnection={validateConnection}
             onSelectNode={(nodeId) => {
+              if (nodeId === null) setConnect(null);
               setSelectedId(nodeId);
               setSelectedEdgeId(null);
             }}
@@ -661,7 +671,10 @@ export function App() {
                 assetOptions={selectedAssetOptions}
                 onRunThroughNode={(nodeId) =>
                   void runAfterBarrier("prepare_run", () => runCanonicalWorkflow(nodeId))
-                    .then(() => setRunDetailsOpen(true))
+                    .then(() => {
+        setRunDetailsAutoFocus(false);
+        setRunDetailsOpen(true);
+      })
                     .catch((error: unknown) => setStatus({ state: "failed", reason: failureCopy("Run workflow", error) }))}
                 onOpenAssets={() => {
                   const assetId = selected?.params.asset_id;
@@ -710,6 +723,7 @@ export function App() {
         nodeLabel={runNodeLabel}
         canCancel={status.state === "running"}
         onCancel={cancel}
+        autoFocus={runDetailsAutoFocus}
       />
       {notice !== null && (
         <div className="bench__notice" role="status">

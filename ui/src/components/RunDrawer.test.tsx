@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type {
   GenerationTaskListPageDto,
@@ -108,7 +108,8 @@ describe("RunDrawer", () => {
       />,
     );
 
-    expect(await screen.findByText("This Run has no available Task for the selected Step.")).toBeTruthy();
+    await screen.findByText("Outputs");
+    expect(screen.queryByLabelText("Step details")).toBeNull();
     expect(screen.getByText("Outputs")).toBeTruthy();
     expect(screen.getAllByText("image")).toHaveLength(2);
     fireEvent.keyDown(window, { key: "Escape" });
@@ -145,7 +146,7 @@ describe("RunDrawer", () => {
         taskApi={{ generationTaskList: async () => ({ tasks: [], next_cursor: null }) }}
       />,
     );
-    expect(await screen.findByText("This Run has no available Task for the selected Step.")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByLabelText("Step details")).toBeNull());
   });
 });
 

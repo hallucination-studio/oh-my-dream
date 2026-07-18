@@ -35,10 +35,7 @@ export function AssetDetail({
         <span className={`adet__kind adet__kind--${asset.kind}`}>{asset.kind}</span>
         <p className="adet__prompt">{asset.displayName}</p>
 
-        <Row k="MIME" v={asset.mimeType} mono />
-        <Row k="Bytes" v={asset.byteLength} mono />
-        {asset.facts && <Row k="Details" v={asset.facts} mono />}
-        <Row k="State" v={asset.contentState} mono />
+        <Row k="Details" v={asset.facts ?? "—"} mono />
         {asset.sourceNodeType && (
           <Row
             k="From node"
