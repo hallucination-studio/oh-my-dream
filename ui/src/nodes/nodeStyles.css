@@ -124,7 +124,7 @@
   background: var(--ok);
 }
 .wf-pill--error {
-  color: var(--err);
+  color: color-mix(in srgb, var(--err) 78%, white);
   background: rgba(212, 99, 85, 0.14);
 }
 .wf-pill--error .wf-pill__dot {

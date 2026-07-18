@@ -152,7 +152,7 @@
   padding: 11px 12px;
   border-left: 2px solid var(--err);
   background: rgba(212, 99, 85, 0.1);
-  color: var(--err);
+  color: color-mix(in srgb, var(--err) 78%, white);
   font-size: 11px;
   line-height: 1.45;
 }

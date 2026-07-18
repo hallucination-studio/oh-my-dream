@@ -56,7 +56,7 @@
   letter-spacing: 0.05em;
 }
 .adet__kind--image { color: var(--t-image); }
-.adet__kind--video { color: var(--t-video); }
+.adet__kind--video { color: color-mix(in srgb, var(--t-video) 72%, white); }
 .adet__kind--audio { color: var(--t-audio); }
 .adet__prompt {
   font-size: 13px;
