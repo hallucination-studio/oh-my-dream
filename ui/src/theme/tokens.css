@@ -48,6 +48,7 @@
 
   /* Single restrained accent */
   --accent: var(--p-signal-teal);
+  --on-accent: #0d1715;
   --accent-strong: var(--p-signal-teal-strong);
   --accent-soft: rgba(38, 168, 143, 0.16);
 

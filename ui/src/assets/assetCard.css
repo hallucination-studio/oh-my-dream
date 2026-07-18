@@ -68,7 +68,7 @@
   width: 26px;
   height: 26px;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--surface);
   color: var(--ink);
   font-size: 12px;
   display: grid;

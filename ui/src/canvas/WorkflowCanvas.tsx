@@ -118,9 +118,9 @@ function CanvasInner(props: Props) {
           <MiniMap
             pannable
             className="bench__minimap"
-            bgColor="#f5f6fa"
-            maskColor="rgba(20,22,29,0.06)"
-            nodeColor="#c3c7d2"
+            bgColor="#151a1f"
+            maskColor="rgba(17,20,24,0.55)"
+            nodeColor="#343c46"
             nodeStrokeWidth={0}
           />
         </ReactFlow>

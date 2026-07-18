@@ -328,8 +328,8 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
 function BrandMark() {
   return (
     <svg className="adock__mk" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="1.2" y="1.2" width="21.6" height="21.6" rx="6.4" fill="#14161d" />
-      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="#fff" />
+      <rect x="1.2" y="1.2" width="21.6" height="21.6" rx="6.4" fill="var(--accent)" />
+      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="var(--on-accent)" />
     </svg>
   );
 }
@@ -337,7 +337,7 @@ function BrandMark() {
 function BrandGlyph({ large }: { large?: boolean } = {}) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width={large ? 24 : 12} height={large ? 24 : 12}>
-      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="#fff" />
+      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="var(--on-accent)" />
     </svg>
   );
 }

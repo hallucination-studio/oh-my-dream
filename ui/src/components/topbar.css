@@ -42,7 +42,7 @@
   border: 1px solid transparent;
 }
 .topbar__proj:hover {
-  background: rgba(20, 22, 29, 0.05);
+  background: rgba(235, 240, 243, 0.07);
 }
 .topbar__pdot {
   width: 7px;
@@ -90,7 +90,7 @@
   }
 }
 .topbar__state--ok {
-  color: #087a5f;
+  color: var(--ok);
 }
 .topbar__state--err {
   color: var(--err);
@@ -107,7 +107,7 @@
   place-items: center;
 }
 .topbar__gear:hover {
-  background: rgba(20, 22, 29, 0.05);
+  background: rgba(235, 240, 243, 0.07);
   color: var(--ink);
 }
 .topbar__details {
@@ -119,7 +119,7 @@
   color: var(--ink-2);
 }
 .topbar__details:hover {
-  background: rgba(20, 22, 29, 0.05);
+  background: rgba(235, 240, 243, 0.07);
   color: var(--ink);
 }
 .topbar__details svg {
@@ -138,11 +138,10 @@
   height: 28px;
   padding: 0 14px 0 12px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-radius: var(--r-sm);
   font-weight: 550;
   font-size: 12.5px;
-  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.35);
 }
 .topbar__run:hover {
   background: var(--accent-strong);
@@ -154,12 +153,12 @@
   box-shadow: none;
 }
 .topbar__run--cancel:hover {
-  background: rgba(20, 22, 29, 0.05);
+  background: rgba(235, 240, 243, 0.07);
 }
 .topbar__play {
   width: 0;
   height: 0;
-  border-left: 7px solid #fff;
+  border-left: 7px solid var(--on-accent);
   border-top: 4.5px solid transparent;
   border-bottom: 4.5px solid transparent;
 }

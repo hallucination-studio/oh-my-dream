@@ -2,7 +2,7 @@
   position: fixed;
   inset: 44px 0 0;
   z-index: 25;
-  background: rgba(20, 22, 40, 0.14);
+  background: rgba(0, 0, 0, 0.4);
 }
 .rundrawer {
   position: absolute;
@@ -85,12 +85,12 @@
   font-weight: 600;
 }
 .rundrawer__badge--succeeded {
-  background: rgba(15, 157, 118, 0.1);
+  background: rgba(85, 180, 139, 0.14);
   color: var(--ok);
 }
 .rundrawer__badge--failed,
 .rundrawer__badge--cancelled {
-  background: rgba(200, 70, 70, 0.1);
+  background: rgba(212, 99, 85, 0.14);
   color: var(--err);
 }
 .rundrawer__facts {
@@ -151,7 +151,7 @@
   gap: 5px;
   padding: 11px 12px;
   border-left: 2px solid var(--err);
-  background: rgba(200, 70, 70, 0.07);
+  background: rgba(212, 99, 85, 0.1);
   color: var(--err);
   font-size: 11px;
   line-height: 1.45;

@@ -1,7 +1,7 @@
 .scrim {
   position: fixed;
   inset: 0;
-  background: rgba(20, 22, 40, 0.28);
+  background: rgba(0, 0, 0, 0.45);
   display: grid;
   place-items: center;
   z-index: 30;
@@ -57,7 +57,7 @@
   text-align: left;
 }
 .dialog__navitem:hover {
-  background: rgba(20, 22, 29, 0.05);
+  background: rgba(235, 240, 243, 0.07);
 }
 .dialog__navitem.is-on {
   background: var(--accent-soft);
@@ -85,10 +85,9 @@
   height: 33px;
   padding: 0 20px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-radius: var(--r-md);
   font-weight: 600;
-  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.35);
 }
 .dialog__done:hover {
   background: var(--accent-strong);
@@ -152,7 +151,7 @@
 .close-dialog__discard {
   border-color: var(--accent) !important;
   background: var(--accent);
-  color: #fff !important;
+  color: var(--on-accent) !important;
 }
 
 .prov {
@@ -221,7 +220,7 @@
   outline: none;
 }
 .prow__v:focus {
-  background: #fff;
+  background: var(--surface);
   border-color: var(--accent);
 }
 
@@ -273,7 +272,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   transition: left 0.12s ease;
 }
@@ -317,7 +316,7 @@
   font-family: var(--font);
 }
 .aset__input:focus {
-  background: #fff;
+  background: var(--surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }

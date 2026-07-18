@@ -114,8 +114,8 @@ function WorkspaceState({ state }: { state: ProjectWorkspaceState }) {
 function BrandMark() {
   return (
     <svg className="topbar__mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="1.2" y="1.2" width="21.6" height="21.6" rx="6.4" fill="#14161d" />
-      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="#fff" />
+      <rect x="1.2" y="1.2" width="21.6" height="21.6" rx="6.4" fill="var(--accent)" />
+      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="var(--on-accent)" />
     </svg>
   );
 }

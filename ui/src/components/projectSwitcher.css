@@ -68,14 +68,14 @@
   outline: none;
 }
 .psw__new input:focus {
-  background: #fff;
+  background: var(--surface);
   border-color: var(--accent);
 }
 .psw__add {
   padding: 0 12px;
   border-radius: var(--r-sm);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 12px;
   font-weight: 600;
 }
