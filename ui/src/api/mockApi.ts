@@ -35,6 +35,9 @@ import {
   mockAssetImport,
   mockAssetIssuePreview,
   mockAssetList,
+  mockAssetPublish,
+  mockAssetsForNode,
+  mockPreviewFixture,
 } from "./mockAssets.ts";
 import nodeCapabilitiesFixture from "../__fixtures__/node_capabilities.json";
 import generationProviderSettingsFixture from "../__fixtures__/generation_provider_settings.json";
@@ -83,7 +86,7 @@ async function listProjects() {
 }
 
 async function createProject(name: string) {
-  const project = mockProject(MOCK_PROJECT_ID, name);
+  const project = mockProject(crypto.randomUUID(), name);
   mockProjects.set(project.id, project);
   return project;
 }
@@ -335,23 +338,71 @@ async function workflowGetNodePresentation(
   if (workflow.workflow_id !== workflowId) throw new Error("workflow.not_found");
   const node = workflow.nodes.find((candidate) => candidate.node_id === nodeId);
   if (!node) throw new Error("workflow.node_not_found");
-  const kind = node.capability_id.startsWith("image.")
-    ? "image"
-    : node.capability_id.startsWith("video.")
-      ? "video"
-      : node.capability_id.startsWith("audio.")
-        ? "audio"
-        : "text";
+  const kind = nodeKind(node);
+  const latest = latestMockExecution(projectId, nodeId);
+  if (kind === "text") {
+    const text = mockTextParam(node);
+    return {
+      node_id: nodeId,
+      current_revision: workflow.revision,
+      capability_id: node.capability_id,
+      capability_version: node.capability_version,
+      readiness: { state: "ready" },
+      latest_execution: latest,
+      presentation: { kind: "text", value: text ? [{ kind: "literal" as const, value: text }] : null },
+    };
+  }
+  const asset = mockAssetsForNode(projectId, nodeId).at(-1) ?? null;
   return {
     node_id: nodeId,
     current_revision: workflow.revision,
     capability_id: node.capability_id,
     capability_version: node.capability_version,
     readiness: { state: "ready" },
-    latest_execution: null,
-    presentation: kind === "text"
-      ? { kind: "text", value: null }
-      : { kind, value: null, preview_uri: null },
+    latest_execution: latest,
+    presentation: {
+      kind,
+      value: asset
+        ? {
+            asset_id: asset.asset_id,
+            content_fingerprint_hex: asset.content.content_fingerprint_hex,
+          }
+        : null,
+      preview_uri: asset ? mockPreviewFixture(kind, asset.display_name) : null,
+    },
+  };
+}
+
+function nodeKind(node: WorkflowDto["nodes"][number]): "image" | "video" | "audio" | "text" {
+  return node.capability_id.startsWith("image.")
+    ? "image"
+    : node.capability_id.startsWith("video.")
+      ? "video"
+      : node.capability_id.startsWith("audio.")
+        ? "audio"
+        : "text";
+}
+
+function latestMockExecution(
+  projectId: string,
+  nodeId: string,
+): WorkflowNodePresentationDto["latest_execution"] {
+  const entry = [...mockRuns.values()]
+    .filter((run) => run.project_id === projectId)
+    .sort((a, b) => Number(b.created_at_epoch_ms) - Number(a.created_at_epoch_ms))
+    .flatMap((run) => run.node_executions.map((execution) => ({ run, execution })))
+    .find(({ execution }) => execution.node_id === nodeId);
+  if (!entry) return null;
+  const workflow = mockCanonicalWorkflows.get(projectId);
+  return {
+    workflow_run_id: entry.run.workflow_run_id,
+    node_execution_id: entry.execution.node_execution_id,
+    state: entry.execution.state,
+    progress_basis_points: entry.execution.progress_basis_points,
+    producing_revision: entry.run.workflow_revision,
+    is_stale: workflow ? entry.run.workflow_revision !== workflow.revision : false,
+    failure: null,
+    block_reason: null,
   };
 }
 
@@ -361,24 +412,153 @@ function requireMockRun(id: string): WorkflowRunDto {
   return run;
 }
 
+const MOCK_STEP_MS = 120;
+
 function executeMockRun(runId: string): void {
+  void runMockRunSteps(runId);
+}
+
+async function runMockRunSteps(runId: string): Promise<void> {
   const run = requireMockRun(runId);
   if (run.state === "cancelled") return;
   appendMockRunEvent(runId, { type: "run_queued" });
+  appendMockRunEvent(runId, { type: "run_started" });
+  transitionMockRun(runId, "running");
+  const workflow = mockCanonicalWorkflows.get(run.project_id);
+  if (!workflow) return;
   for (const execution of run.node_executions) {
+    if (mockRunCancelled(runId)) return;
+    const node = workflow.nodes.find((candidate) => candidate.node_id === execution.node_id);
+    if (!node) continue;
+    updateMockExecution(runId, execution.node_execution_id, "running", 0);
     appendMockRunEvent(runId, {
       type: "node_started",
       node_execution_id: execution.node_execution_id,
     });
+    await mockDelay();
+    if (mockRunCancelled(runId)) return;
+    if (isMockGenerationCapability(node.capability_id)) {
+      updateMockExecution(runId, execution.node_execution_id, "running", 4200);
+      appendMockRunEvent(runId, {
+        type: "node_progressed",
+        node_execution_id: execution.node_execution_id,
+        progress_basis_points: 4200,
+      });
+      await mockDelay();
+      if (mockRunCancelled(runId)) return;
+    }
+    const outputs = produceMockOutputs(run, workflow, node);
+    updateMockExecution(runId, execution.node_execution_id, "succeeded", 10_000);
     appendMockRunEvent(runId, {
       type: "node_succeeded",
       node_execution_id: execution.node_execution_id,
-      outputs: [],
+      outputs,
     });
   }
-  const succeeded = { ...run, state: "succeeded" as const, updated_at_epoch_ms: String(Date.now()) };
-  mockRuns.set(runId, succeeded);
+  transitionMockRun(runId, "succeeded");
   appendMockRunEvent(runId, { type: "run_succeeded" });
+}
+
+function mockDelay(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, MOCK_STEP_MS));
+}
+
+function mockRunCancelled(runId: string): boolean {
+  return mockRuns.get(runId)?.state === "cancelled";
+}
+
+function transitionMockRun(runId: string, state: WorkflowRunDto["state"]): void {
+  const run = mockRuns.get(runId);
+  if (!run) return;
+  mockRuns.set(runId, { ...run, state, updated_at_epoch_ms: String(Date.now()) });
+}
+
+function updateMockExecution(
+  runId: string,
+  executionId: string,
+  state: "pending" | "running" | "succeeded",
+  progressBasisPoints: number,
+): void {
+  const run = mockRuns.get(runId);
+  if (!run) return;
+  mockRuns.set(runId, {
+    ...run,
+    updated_at_epoch_ms: String(Date.now()),
+    node_executions: run.node_executions.map((execution) =>
+      execution.node_execution_id === executionId
+        ? { ...execution, state, progress_basis_points: progressBasisPoints }
+        : execution,
+    ),
+  });
+}
+
+function isMockGenerationCapability(capabilityId: string): boolean {
+  return (
+    capabilityId === "image.generate_from_text" ||
+    capabilityId === "video.generate_from_image" ||
+    capabilityId === "audio.synthesize_speech_from_text"
+  );
+}
+
+function produceMockOutputs(
+  run: WorkflowRunDto,
+  workflow: WorkflowDto,
+  node: WorkflowDto["nodes"][number],
+): Array<{ key: string; value: import("./types.ts").JsonObject }> {
+  const capabilityId = node.capability_id;
+  if (capabilityId === "text.provide_literal") {
+    return [{ key: "text", value: { type: "text", value: mockTextParam(node) ?? "" } }];
+  }
+  if (capabilityId.endsWith(".read_asset")) {
+    const kind = capabilityId.split(".")[0] ?? "image";
+    const assetParam = node.parameters.find((param) => param.key === "asset_id")?.value;
+    return [{
+      key: kind,
+      value: {
+        type: kind,
+        asset_id: assetParam?.kind === "managed_asset" ? assetParam.asset_id : "",
+      },
+    }];
+  }
+  if (isMockGenerationCapability(capabilityId)) {
+    const kind = capabilityId.split(".")[0] as "image" | "video" | "audio";
+    const displayName = mockPromptFor(workflow, node) ?? `Generated ${kind}`;
+    const asset = mockAssetPublish(run.project_id, kind, displayName, {
+      kind: "workflow_node_output",
+      workflow_node_id: node.node_id,
+      workflow_run_id: run.workflow_run_id,
+    });
+    return [{
+      key: kind,
+      value: {
+        type: kind,
+        asset_id: asset.asset_id,
+        preview_uri: mockPreviewFixture(kind, asset.display_name),
+      },
+    }];
+  }
+  return [];
+}
+
+function mockTextParam(node: WorkflowDto["nodes"][number]): string | null {
+  const param = node.parameters.find((candidate) => candidate.key === "text")?.value;
+  return param?.kind === "text" && param.value.trim() ? param.value.trim().slice(0, 80) : null;
+}
+
+function mockPromptFor(
+  workflow: WorkflowDto,
+  node: WorkflowDto["nodes"][number],
+): string | null {
+  for (const binding of workflow.input_bindings) {
+    if (binding.target_node_id !== node.node_id) continue;
+    if (binding.input_key !== "prompt" && binding.input_key !== "text") continue;
+    const source = workflow.nodes.find(
+      (candidate) => candidate.node_id === binding.items[0]?.source_node_id,
+    );
+    const text = source ? mockTextParam(source) : null;
+    if (text) return text;
+  }
+  return null;
 }
 
 function appendMockRunEvent(
@@ -422,6 +602,35 @@ function applyCanonicalAction(workflow: WorkflowDto, action: WorkflowMutationAct
     node.parameters = action.parameters;
   } else if (action.kind === "move_node") {
     requireCanonicalNode(workflow, action.node_id).canvas_position = action.canvas_position;
+  } else if (action.kind === "bind_single_input") {
+    workflow.input_bindings = workflow.input_bindings.filter(
+      (binding) =>
+        binding.target_node_id !== action.target.node_id ||
+        binding.input_key !== action.target.input_key,
+    );
+    workflow.input_bindings.push({
+      target_node_id: action.target.node_id,
+      input_key: action.target.input_key,
+      kind: "single",
+      items: [{
+        input_item_id: action.item.input_item_id,
+        source_node_id: action.item.source_node_id,
+        source_output_key: action.item.source_output_key,
+        input_role_key: action.item.input_role_key,
+      }],
+    });
+  } else if (action.kind === "remove_input_item") {
+    for (const binding of workflow.input_bindings) {
+      if (
+        binding.target_node_id === action.target.node_id &&
+        binding.input_key === action.target.input_key
+      ) {
+        binding.items = binding.items.filter((item) => item.input_item_id !== action.input_item_id);
+      }
+    }
+    workflow.input_bindings = workflow.input_bindings.filter(
+      (binding) => binding.items.length > 0,
+    );
   }
 }
 
