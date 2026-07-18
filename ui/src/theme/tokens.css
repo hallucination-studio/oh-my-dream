@@ -1,59 +1,81 @@
 /*
  * Design tokens — oh-my-dream, a local AI creation bench.
  *
- * Direction: a flush, edge-to-edge desktop client on a cool neutral ground.
- * Solid panels butt against 1px hairlines — no floating cards, no window-edge
- * gaps, no drop shadows on the chrome. Only the workflow nodes float, because
- * they are the content on the canvas. A single restrained accent; data-type
- * color appears solely in the wiring (ports, edges, category dots).
+ * Three layers: a raw palette (layer 1, the frozen Visual Direction colors),
+ * semantic aliases (layer 2, stable names every component consumes), and the
+ * components themselves (layer 3, untouched by palette changes). Direction:
+ * a precise media workbench — dark, flush, 4px corners, one-pixel borders.
+ * Data-type color appears solely in the wiring (ports, edges, category dots).
  */
 
 :root {
-  /* Ink — cool near-black */
-  --ink: #14161d;
-  --ink-2: #3d424f;
-  --ink-3: #767c8b;
-  --ink-faint: #a6abb7;
+  /* Layer 1 — raw palette (docs/DESKTOP_UI.md, Visual Direction) */
+  --p-canvas-black: #111418;
+  --p-graphite: #1b2026;
+  --p-graphite-raised: #222931;
+  --p-graphite-sunk: #151a1f;
+  --p-steel: #343c46;
+  --p-studio-white: #ebf0f3;
+  --p-steel-text: #c4ced6;
+  --p-muted-steel: #9aa6ae;
+  --p-dim-steel: #6b7680;
+  --p-signal-teal: #26a88f;
+  --p-signal-teal-strong: #1f8f7b;
+  --p-image-amber: #d9933d;
+  --p-video-violet: #806be8;
+  --p-text-cyan: #52b8c7;
+  --p-audio-pink: #cf4a88;
+  --p-number-blue: #5b8def;
+  --p-running-gold: #d8ad4d;
+  --p-failure-coral: #d46355;
+  --p-success-green: #55b48b;
 
-  /* Solid chrome surfaces (no translucency, no gradients) */
-  --surface: #fbfcfe;
-  --surface-2: #f5f6fa;
-  --surface-sunk: #eef0f5;
+  /* Layer 2 — semantic aliases (names frozen; values point at the palette) */
+  --ink: var(--p-studio-white);
+  --ink-2: var(--p-steel-text);
+  --ink-3: var(--p-muted-steel);
+  --ink-faint: var(--p-dim-steel);
+
+  /* Solid chrome surfaces */
+  --surface: var(--p-graphite);
+  --surface-2: var(--p-graphite-raised);
+  --surface-sunk: var(--p-graphite-sunk);
+  --canvas: var(--p-canvas-black);
 
   /* Hairline dividers */
-  --hair: rgba(20, 22, 29, 0.08);
-  --hair-2: rgba(20, 22, 29, 0.13);
+  --hair: rgba(235, 240, 243, 0.09);
+  --hair-2: rgba(235, 240, 243, 0.16);
 
   /* Single restrained accent */
-  --accent: #4f46e5;
-  --accent-strong: #443bd4;
-  --accent-soft: rgba(79, 70, 229, 0.1);
+  --accent: var(--p-signal-teal);
+  --accent-strong: var(--p-signal-teal-strong);
+  --accent-soft: rgba(38, 168, 143, 0.16);
 
-  /* Status */
-  --ok: #0f9d76;
-  --warn: #d1892a;
-  --err: #dc4361;
+  /* Status — always paired with a label or icon */
+  --ok: var(--p-success-green);
+  --warn: var(--p-running-gold);
+  --err: var(--p-failure-coral);
 
   /* Data-type channels — used only in wiring */
-  --t-text: #10a596;
-  --t-image: #d97a34;
-  --t-video: #6a4ef0;
-  --t-audio: #cf4a88;
-  --t-model: #cf4a88;
-  --t-number: #3268e8;
+  --t-text: var(--p-text-cyan);
+  --t-image: var(--p-image-amber);
+  --t-video: var(--p-video-violet);
+  --t-audio: var(--p-audio-pink);
+  --t-model: var(--p-audio-pink);
+  --t-number: var(--p-number-blue);
 
   /* Type */
   --font: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /* Radius scale — modest; chrome is square, only nodes/controls round */
-  --r-sm: 6px;
-  --r-md: 8px;
-  --r-lg: 11px;
-  --r-xl: 14px;
+  /* Radius scale — the workbench uses 4px corners everywhere */
+  --r-sm: 4px;
+  --r-md: 4px;
+  --r-lg: 4px;
+  --r-xl: 4px;
 
-  /* The only shadows in the app belong to floating nodes and popovers. */
-  --shadow: 0 1px 2px rgba(20, 22, 40, 0.06), 0 3px 10px rgba(20, 22, 40, 0.05);
-  --shadow-lg: 0 4px 16px rgba(20, 22, 40, 0.09), 0 12px 40px rgba(20, 22, 40, 0.07);
-  --shadow-pop: 0 12px 44px rgba(20, 22, 40, 0.2);
+  /* Quiet elevation for floating nodes and popovers; no shadow stacks */
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.36);
+  --shadow-pop: 0 12px 44px rgba(0, 0, 0, 0.52);
 }
