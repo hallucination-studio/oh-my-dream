@@ -25,7 +25,8 @@ describe("RunDrawer", () => {
     const view = render(<RunDrawer open onClose={vi.fn()} projectId={PROJECT_ID} run={waitingRun()} taskApi={taskApi} />);
 
     expect(await screen.findByText("Queued")).toBeTruthy();
-    expect(screen.getByText("image.high_quality_general@1")).toBeTruthy();
+    expect(await screen.findByText("Fast image model (sample)")).toBeTruthy();
+    expect(screen.queryByText("Profile")).toBeNull();
     expect(list).toHaveBeenCalledWith(PROJECT_ID, null, null, null, 100);
 
     const running = { ...task, status: "running" as const, progress_percent: 42 };

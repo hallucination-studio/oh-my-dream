@@ -25,6 +25,7 @@ export function useWorkflowPersistence(
   const onErrorRef = useRef(onError);
   const closingRef = useRef(false);
   const [closeError, setCloseError] = useState<unknown>(null);
+  const [saving, setSaving] = useState(false);
   if (workflowRef.current.workflow !== workflow) {
     workflowRef.current = { workflow, revision: workflowRef.current.revision + 1 };
   }
@@ -32,6 +33,7 @@ export function useWorkflowPersistence(
 
   const markPersisted = useCallback((persisted: Workflow) => {
     persistedWorkflows.current.set(persisted.project_id, JSON.stringify(persisted));
+    setSaving(false);
   }, []);
 
   const persist = useCallback((next: Workflow): Promise<void> => {
@@ -44,6 +46,11 @@ export function useWorkflowPersistence(
         }
         await controller.enqueueDraft(next);
         persistedWorkflows.current.set(next.project_id, serialized);
+      })
+      .then(() => {
+        if (workflowRef.current.workflow === next) {
+          setSaving(false);
+        }
       });
     saveQueue.current = operation;
     return operation;
@@ -76,6 +83,7 @@ export function useWorkflowPersistence(
       return;
     }
     controller.noteDraft(workflow);
+    setSaving(true);
     const revision = workflowRef.current.revision;
     const timer = window.setTimeout(() => {
       void persist(workflow).catch((error: unknown) => {
@@ -158,7 +166,7 @@ export function useWorkflowPersistence(
       });
   }, []);
 
-  return { closeError, discardAndClose, keepEditing, markPersisted, saveCurrent };
+  return { closeError, discardAndClose, keepEditing, markPersisted, saveCurrent, saving };
 }
 
 function isTauriWindow(): boolean {

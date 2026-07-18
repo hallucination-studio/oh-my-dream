@@ -167,6 +167,7 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
     keepEditing: persistence.keepEditing,
     setParam,
     workspaceState,
+    saving: persistence.saving,
   };
 
   async function runAfterBarrier<T>(

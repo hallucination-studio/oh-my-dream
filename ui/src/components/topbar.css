@@ -172,3 +172,9 @@
 .topbar__run:disabled:hover {
   background: var(--accent);
 }
+
+.topbar__save {
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}

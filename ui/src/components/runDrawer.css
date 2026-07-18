@@ -270,3 +270,19 @@
   font-size: 11px;
   color: var(--ink-3);
 }
+
+.rundrawer__diagnostics {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.rundrawer__diagnostics summary {
+  cursor: pointer;
+  user-select: none;
+}
+.rundrawer__diagnostics .is-mono {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  user-select: all;
+  word-break: break-all;
+}

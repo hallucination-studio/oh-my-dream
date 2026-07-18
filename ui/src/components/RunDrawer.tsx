@@ -155,10 +155,10 @@ export function RunDrawer({
 
 function TaskDetails({ task }: { task: GenerationTaskSummaryDto | GenerationTaskDto }) {
   return (
-    <section className="rundrawer__task" aria-label="Generation Task">
+    <section className="rundrawer__task" aria-label="Step details">
       <div className="rundrawer__taskhead">
         <div>
-          <span className="rundrawer__label">Generation Task</span>
+          <span className="rundrawer__label">Step details</span>
           <strong>{task.request_kind}</strong>
         </div>
         <span className={`rundrawer__badge rundrawer__badge--${task.status}`}>
@@ -166,8 +166,8 @@ function TaskDetails({ task }: { task: GenerationTaskSummaryDto | GenerationTask
         </span>
       </div>
       <dl className="rundrawer__facts">
-        <div><dt>Profile</dt><dd>{task.generation_profile_ref}</dd></div>
-        <div><dt>Provider</dt><dd>{task.provider_display_name ?? task.provider_id}</dd></div>
+        <div><dt>Generation model</dt><dd><ModelName task={task} /></dd></div>
+        <div><dt>Provider</dt><dd>{task.provider_display_name ?? "Configured provider"}</dd></div>
         <div><dt>Created</dt><dd>{formatEpoch(task.created_at_epoch_ms)}</dd></div>
       </dl>
       {task.progress_percent !== null && (
@@ -187,8 +187,55 @@ function TaskDetails({ task }: { task: GenerationTaskSummaryDto | GenerationTask
       {!("result" in task) && task.has_result && (
         <p className="rundrawer__result">Output is available in the Task result.</p>
       )}
+      <details className="rundrawer__diagnostics">
+        <summary>Diagnostics</summary>
+        <dl className="rundrawer__facts">
+          <div><dt>Profile reference</dt><dd className="is-mono">{task.generation_profile_ref}</dd></div>
+          <div><dt>Provider id</dt><dd className="is-mono">{task.provider_id}</dd></div>
+          <div><dt>Task id</dt><dd className="is-mono">{task.id}</dd></div>
+        </dl>
+      </details>
     </section>
   );
+}
+
+/** Resolves the model display name by joining the profile list; never leaks the raw ref. */
+function ModelName({ task }: { task: GenerationTaskSummaryDto | GenerationTaskDto }) {
+  const [name, setName] = useState<string | null>(null);
+  useEffect(() => {
+    const capability = capabilityForRequestKind(task.request_kind);
+    if (!capability) return;
+    let active = true;
+    void api
+      .generationProfileListForCapability(capability)
+      .then((profiles) => {
+        if (!active) return;
+        setName(
+          profiles.find((profile) => profile.profile_ref === task.generation_profile_ref)
+            ?.display_name ?? null,
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [task.request_kind, task.generation_profile_ref]);
+  return <>{name ?? "Configured generation model"}</>;
+}
+
+function capabilityForRequestKind(
+  kind: GenerationTaskSummaryDto["request_kind"],
+): { id: string; version: string } | null {
+  switch (kind) {
+    case "image":
+      return { id: "image.generate_from_text", version: "1.0" };
+    case "video":
+      return { id: "video.generate_from_image", version: "1.0" };
+    case "voice":
+      return { id: "audio.synthesize_speech_from_text", version: "1.0" };
+    default:
+      return null;
+  }
 }
 
 function ResultSummary({ result }: { result: GenerationTaskDto["result"] }) {

@@ -17,6 +17,8 @@ export function TopBar({
   hasRunDetails,
   runDisabled = false,
   runDisabledReason = null,
+  runNodeLabel = (nodeId: string) => nodeId,
+  saving = null,
 }: {
   project: Project | null;
   status: RunStatus;
@@ -29,6 +31,8 @@ export function TopBar({
   hasRunDetails: boolean;
   runDisabled?: boolean;
   runDisabledReason?: string | null;
+  runNodeLabel?: (nodeId: string) => string;
+  saving?: boolean | null;
 }) {
   const running = status.state === "running";
   const cancelling = status.state === "cancelling";
@@ -46,10 +50,15 @@ export function TopBar({
         <span className="topbar__pn">{project?.name ?? "No project"}</span>
         <span className="topbar__car" aria-hidden="true">▾</span>
       </button>
+      {saving !== null && (
+        <span className="topbar__save" role="status">
+          {saving ? "Saving…" : "Saved"}
+        </span>
+      )}
 
       <div className="topbar__spacer" />
       <WorkspaceState state={workspaceState} />
-      <RunState status={status} />
+      <RunState status={status} runNodeLabel={runNodeLabel} />
       {hasRunDetails && (
         <button className="topbar__details" onClick={onOpenRunDetails} aria-label="Run details" title="Run details">
           <RunDetailsIcon />
@@ -129,7 +138,13 @@ function RunDetailsIcon() {
   );
 }
 
-function RunState({ status }: { status: RunStatus }) {
+function RunState({
+  status,
+  runNodeLabel,
+}: {
+  status: RunStatus;
+  runNodeLabel: (nodeId: string) => string;
+}) {
   switch (status.state) {
     case "idle":
       return null;
@@ -137,7 +152,7 @@ function RunState({ status }: { status: RunStatus }) {
       return (
         <span className="topbar__state" role="status">
           <span className="topbar__spin" aria-hidden="true" />
-          Running · {status.nodeId}…
+          {`Running · ${runNodeLabel(status.nodeId)} · ${Math.round(status.progress * 100)}%`}
         </span>
       );
     case "cancelling":

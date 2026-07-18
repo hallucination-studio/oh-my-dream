@@ -97,6 +97,7 @@ export function App() {
     keepEditing,
     setParam,
     workspaceState,
+    saving,
   } = useProjectWorkspace({
     project,
     setProject,
@@ -348,6 +349,8 @@ export function App() {
         hasRunDetails={runSnapshot !== null}
         runDisabled={!runReady}
         runDisabledReason={runDisabledReason}
+        runNodeLabel={runNodeLabel}
+        saving={project ? saving : null}
       />
       <ProjectSwitcher
         current={project}
