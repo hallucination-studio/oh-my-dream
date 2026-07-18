@@ -91,7 +91,7 @@ export function AssetLibrary({
 
         <div className="lib__grid">
           {error ? (
-            <p className="lib__msg lib__msg--err">Couldn’t load the library: {error}</p>
+            <p className="lib__msg lib__msg--err">{error}</p>
           ) : filtered.length === 0 ? (
             <p className="lib__msg">No media yet. Run a workflow to fill your library.</p>
           ) : (

@@ -139,7 +139,7 @@ export function InspectorPanel({
         </div>
       )}
       <button className="insp__asset-action" onClick={() => onRunThroughNode(node.id)}>
-        Run through this node
+        Run to here
       </button>
     </aside>
   );

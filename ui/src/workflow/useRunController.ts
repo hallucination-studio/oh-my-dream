@@ -6,6 +6,7 @@ import {
   type WorkflowRunEventPageDto,
 } from "../api/index.ts";
 import type { RunProgress, RunStatus, RunTerminalStatus } from "./types.ts";
+import { failureCopy } from "./failureCopy.ts";
 
 interface RunControllerOptions {
   getWorkflow: () => WorkflowDto | null;
@@ -75,7 +76,7 @@ export function useRunController(options: RunControllerOptions) {
       await repairEvents(admitted, request);
     } catch (error: unknown) {
       if (request === generation.current) {
-        setStatus({ state: "failed", reason: String(error) });
+        setStatus({ state: "failed", reason: failureCopy("Run workflow", error) });
       }
     }
   }, [getWorkflow, invalidateRun, onRunChanged, setStatus]);
@@ -85,7 +86,7 @@ export function useRunController(options: RunControllerOptions) {
     if (!run) return;
     setStatus({ state: "cancelling" });
     void api.workflowCancelRun(run.project_id, run.workflow_run_id).catch((error: unknown) => {
-      setStatus({ state: "cancel_failed", reason: String(error) });
+      setStatus({ state: "cancel_failed", reason: failureCopy("Cancel run", error) });
     });
   }, [setStatus]);
 

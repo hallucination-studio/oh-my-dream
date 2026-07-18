@@ -68,7 +68,7 @@ export function TopBar({
       ) : (
         <button className="topbar__run" onClick={onRun}>
           <span className="topbar__play" aria-hidden="true" />
-          Run
+          Run all
         </button>
       )}
     </header>

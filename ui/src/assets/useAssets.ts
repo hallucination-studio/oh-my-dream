@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/index.ts";
 import { assetFromDto, type AssetViewModel } from "./model.ts";
+import { failureCopy } from "../workflow/failureCopy.ts";
 
 export function useAssets(projectId: string | null) {
   const [assets, setAssets] = useState<AssetViewModel[]>([]);
@@ -30,7 +31,7 @@ export function useAssets(projectId: string | null) {
       setError(null);
     } catch (cause) {
       // Surface the failure to the drawer rather than silently showing empty.
-      setError(String(cause));
+      setError(failureCopy("Load library", cause));
     }
   }, [projectId]);
 

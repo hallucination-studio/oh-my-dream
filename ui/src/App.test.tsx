@@ -11,7 +11,7 @@ describe("App canonical workspace shell", () => {
     render(<App />);
 
     await waitFor(() => expect(screen.getByText("No project")).toBeTruthy());
-    expect(screen.getByRole("button", { name: "Run" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Run all" })).toBeTruthy();
     expect(screen.getByText("Nodes")).toBeTruthy();
   });
 });

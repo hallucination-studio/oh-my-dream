@@ -37,6 +37,7 @@ import { useAssistantAvailability } from "./assistant/useAssistantAvailability.t
 import { CloseFailureDialog } from "./components/CloseFailureDialog.tsx";
 import { parseCapabilityRef } from "./workflow/capabilitySelection.ts";
 import { useNodePresentation } from "./workflow/useNodePresentation.ts";
+import { failureCopy } from "./workflow/failureCopy.ts";
 import { RunDrawer } from "./components/RunDrawer.tsx";
 
 function isGraphMutation(change: { type: string }): boolean {
@@ -119,7 +120,7 @@ export function App() {
   useNodePresentation(workflowForRunRef.current, selectedId, setNodes);
   const run = useCallback(() => {
     void runAfterBarrier("prepare_run", runCanonicalWorkflow).catch((error: unknown) => {
-      setStatus({ state: "failed", reason: String(error) });
+      setStatus({ state: "failed", reason: failureCopy("Run workflow", error) });
     });
   }, [runAfterBarrier, runCanonicalWorkflow]);
 
@@ -353,7 +354,7 @@ export function App() {
             onJumpToNode={() => setTab("nodes")}
             onImport={(kind) => {
               void importAsset(kind).catch((error: unknown) => {
-                setStatus({ state: "failed", reason: String(error) });
+                setStatus({ state: "failed", reason: failureCopy("Import asset", error) });
               });
             }}
           />
@@ -375,7 +376,7 @@ export function App() {
               onParamChange={setParam}
               onRunThroughNode={(nodeId) =>
                 void runAfterBarrier("prepare_run", () => runCanonicalWorkflow(nodeId))
-                  .catch((error: unknown) => setStatus({ state: "failed", reason: String(error) }))}
+                  .catch((error: unknown) => setStatus({ state: "failed", reason: failureCopy("Run workflow", error) }))}
               onOpenAssets={() => {
                 const assetId = selected?.params.asset_id;
                 if (typeof assetId === "string") setSelectedAssetId(assetId);

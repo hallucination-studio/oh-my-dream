@@ -15,6 +15,7 @@ import { nodeSpecFromExactContract } from "../nodes/exactCapability.ts";
 import { toWorkflow } from "./serialize.ts";
 import type { RunStatus } from "./types.ts";
 import { useWorkflowPersistence } from "./useWorkflowPersistence.ts";
+import { failureCopy } from "./failureCopy.ts";
 import {
   CanonicalWorkspaceController,
   type WorkspaceBarrierReason,
@@ -103,7 +104,7 @@ export function useProjectWorkspace(options: ProjectWorkspaceOptions) {
     [edges, nodes, project],
   );
   const onPersistenceError = useCallback(
-    (error: unknown) => setStatus({ state: "failed", reason: String(error) }),
+    (error: unknown) => setStatus({ state: "failed", reason: failureCopy("Save workflow", error) }),
     [setStatus],
   );
   const persistence = useWorkflowPersistence(activeWorkflow, controller, onPersistenceError);
@@ -260,7 +261,7 @@ function useInitialWorkspace(
       })
       .catch((error: unknown) => {
         if (!cancelled && request === requestRef.current) {
-          const reason = String(error);
+          const reason = failureCopy("Load projects", error);
           setWorkspaceState({ state: "blocked", project: null, workflowHead: null, reason });
           setStatus({ state: "failed", reason });
         }
@@ -362,7 +363,7 @@ function preserveWorkspaceAfterFlushFailure(
   } else {
     setWorkspaceState({ state: "no_project" });
   }
-  setStatus({ state: "failed", reason: String(error) });
+  setStatus({ state: "failed", reason: failureCopy("Save workflow", error) });
 }
 
 function workflowHeadOf(state: ProjectWorkspaceState): WorkflowDto | null {
@@ -384,7 +385,7 @@ function blockWorkspace(
   setWorkspaceState: Dispatch<SetStateAction<ProjectWorkspaceState>>,
   setStatus: Dispatch<SetStateAction<RunStatus>>,
 ) {
-  const reason = String(error);
+  const reason = failureCopy("Open project", error);
   setWorkspaceState({ state: "blocked", project, workflowHead, reason });
   setStatus({ state: "failed", reason });
 }
