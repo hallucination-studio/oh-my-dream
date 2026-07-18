@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api, type Project } from "../api/index.ts";
+import { failureCopy } from "../workflow/failureCopy.ts";
 import "./projectSwitcher.css";
 
 export function ProjectSwitcher({
@@ -21,6 +22,7 @@ export function ProjectSwitcher({
   const [projects, setProjects] = useState<Project[]>([]);
   const [name, setName] = useState("");
   const [renameName, setRenameName] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,9 +55,10 @@ export function ProjectSwitcher({
     }
     api.createProject(trimmed).then((p) => {
       setName("");
+      setError(null);
       setProjects((currentProjects) => deduplicateProjects([p, ...currentProjects]));
       onOpenProject(p.id);
-    });
+    }).catch((cause: unknown) => setError(failureCopy("Create project", cause)));
   };
 
   const rename = () => {
@@ -63,15 +66,19 @@ export function ProjectSwitcher({
     if (!current || !trimmed || trimmed === current.name) return;
     void api.renameProject(current, trimmed).then(async (renamed) => {
       setRenameName("");
+      setError(null);
       onProjectRenamed(renamed);
       setProjects(await api.listProjects().then(deduplicateProjects));
-    });
+    }).catch((cause: unknown) => setError(failureCopy("Rename project", cause)));
   };
 
   return (
     <div className="psw" ref={ref}>
       <div className="psw__head">Projects</div>
       <div className="psw__list">
+        {projects.length === 0 && (
+          <p className="psw__empty">No projects yet — create your first one below.</p>
+        )}
         {projects.map((p) => (
           <button
             key={p.id}
@@ -94,6 +101,7 @@ export function ProjectSwitcher({
         />
         <button className="psw__add" onClick={create}>Create</button>
       </div>
+      {error && <p className="psw__error" role="alert">{error}</p>}
       {current ? (
         <div className="psw__new">
           <input

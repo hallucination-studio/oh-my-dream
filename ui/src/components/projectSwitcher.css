@@ -82,3 +82,14 @@
 .psw__add:hover {
   background: var(--accent-strong);
 }
+
+.psw__empty {
+  padding: 8px 10px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.psw__error {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--err);
+}

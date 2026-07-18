@@ -67,6 +67,12 @@ function displayValue(value: unknown, spec: ParamSpec): string {
   return String(value);
 }
 
+/** Text parameters with a large (or unbounded) contract maximum deserve a multiline editor. */
+function isLongText(spec: ParamSpec): boolean {
+  const maximum = spec.constraints?.maximum;
+  return maximum === undefined || maximum > 120;
+}
+
 export function ParameterInput({
   spec,
   value,
@@ -136,6 +142,27 @@ export function ParameterInput({
           </option>
         ))}
       </select>
+    );
+  }
+
+  // Long-form text (prompts) edits multiline; short values stay single-line.
+  if (spec.kind === "text" && isLongText(spec)) {
+    return (
+      <textarea
+        aria-label={spec.label}
+        className={className}
+        name={spec.name}
+        rows={4}
+        value={draft}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          const parsed = parseParameterInput(spec, event.target.value);
+          if (parsed.ok) onChange(parsed.value);
+        }}
+        onBlur={() => {
+          if (!parseParameterInput(spec, draft).ok) setDraft(committedValue);
+        }}
+      />
     );
   }
 

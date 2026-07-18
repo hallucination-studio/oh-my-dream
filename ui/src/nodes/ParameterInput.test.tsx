@@ -113,6 +113,29 @@ describe("ParameterInput", () => {
     expect(onParamChange).toHaveBeenCalledWith("video", "duration", 3.5);
   });
 
+  it("edits long-form text in a multiline control that round-trips", () => {
+    const onChange = vi.fn();
+    render(
+      <ParameterInput
+        spec={{
+          name: "text",
+          label: "text",
+          kind: "text",
+          required: true,
+          constraints: { maximum: 65536 },
+        }}
+        className="insp__input"
+        value="a sunset city"
+        onChange={onChange}
+      />,
+    );
+
+    const editor = screen.getByRole("textbox", { name: "text" });
+    expect(editor.tagName).toBe("TEXTAREA");
+    fireEvent.change(editor, { target: { value: "line one\nline two" } });
+    expect(onChange).toHaveBeenLastCalledWith("line one\nline two");
+  });
+
   it("offers exact modes for the selected modality", () => {
     const onModeChange = vi.fn();
     render(

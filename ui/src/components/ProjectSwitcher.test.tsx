@@ -39,6 +39,28 @@ describe("ProjectSwitcher", () => {
     expect(await screen.findByRole("button", { name: /Renamed Alpha/ })).toBeTruthy();
     expect(api.listProjects).toHaveBeenCalledTimes(2);
   });
+
+  it("guides an empty list and surfaces create failures", async () => {
+    vi.spyOn(api, "listProjects").mockResolvedValue([]);
+    vi.spyOn(api, "createProject").mockRejectedValue(new Error("disk full"));
+
+    render(
+      <ProjectSwitcher
+        current={null}
+        open
+        onClose={vi.fn()}
+        onOpenProject={vi.fn()}
+        onProjectRenamed={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("No projects yet — create your first one below.")).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "New project name" }), {
+      target: { value: "First" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Create project failed · disk full");
+  });
 });
 
 function project(id: string, name: string, revision: string): Project {

@@ -356,3 +356,10 @@
 .react-flow__handle.valid {
   box-shadow: 0 0 0 4px var(--accent-soft), 0 1px 3px rgba(0, 0, 0, 0.25);
 }
+
+textarea.wf-param__input {
+  resize: vertical;
+  min-height: 54px;
+  line-height: 1.45;
+  font-family: var(--font);
+}
