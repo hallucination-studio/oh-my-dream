@@ -103,37 +103,54 @@ chrome and does not collapse into a mobile layout.
 ```text
 +--------------------------------------------------------------------------------------+
 | Project / saved state       Run summary                              [Run all] [more] |
-+------+----------------------------------------------------------------+--------------+
-| rail | NODE LIBRARY          WORKFLOW CANVAS                          | WORK DRAWER  |
-|      | Search                                                         | Configure |  |
-|      | Text                [Text] -> [Generate image]                  | Run          |
-|      | Generate image                       |                         |              |
-|      | Create video                         v                         | selected     |
-|      | Assets                        [Create video]                    | node/run     |
-|      |                     [zoom] [fit] [minimap]                      | details      |
-+------+----------------------------------------------------------------+--------------+
++------+-------------------------------------------------------------------------------+
+|      |  (left overlay)                                          (right overlay)      |
+| rail |  NODE LIBRARY /        WORKFLOW CANVAS                      WORK DRAWER /      |
+|      |  ASSET LIBRARY         full-bleed, never resized           ASSISTANT          |
+|      |  + detail              by any panel                        (one at a time)    |
+|      |                        [zoom] [fit] [minimap]                                 |
++------+-------------------------------------------------------------------------------+
 ```
 
-- Rail: 56 px; switches the left panel between Nodes and Assets, toggles the Assistant dock, and
-  opens Settings as a modal dialog, without navigating away from the workspace.
-- Node Library: 304 px, optional and pinnable for the current UI session, grouped by creator
-  language: Inputs, Generate, and Assets.
-- Canvas: full available workspace area. Overlay panels cover it visually but do not resize it or
-  mutate graph coordinates, so opening a drawer never moves nodes or bends saved edges.
-- Work Drawer: 380 px overlay with `Configure` and `Run` tabs. `Configure` owns selected-node fields,
-  readiness guidance, and outputs; `Run` owns the admitted step timeline and Run controls.
-- Canvas controls: zoom, fit, and minimap stay against the lower-left visible canvas edge, offset
-  past an open left panel, and remain reachable while either overlay panel is open.
+### Shell regions
+
+Only three regions are inline and permanent: the top bar, the rail (56 px), and the canvas.
+Everything else is an overlay.
+
 - Top bar: Project context, saved state, a compact current/last Run summary, and the primary Run
   action. The primary action is always `Run all`; node-scoped `Run to here` stays in `Configure`.
-  Closing the Work Drawer never hides the Run summary.
-- Assistant dock: 320 px dock at the right workspace edge, toggled from the rail. Co-authoring stays
-  visible beside the canvas; opening or closing it never changes graph layout or execution state.
+  Closing any overlay never hides the Run summary.
+- Rail: 56 px; switches the left overlay between Nodes and Assets, toggles the Assistant in the
+  right slot, and opens Settings as a modal dialog, without navigating away from the workspace.
+- Canvas: fills every pixel the top bar and rail leave. Opening or closing any panel never
+  resizes it, never moves nodes, and never bends saved edges.
+
+### Overlay rules
+
+- Every panel — Node Library, Asset Library with its 300 px detail companion, Work Drawer, and
+  Assistant dock — is an overlay: it floats above the canvas with a shadowed edge and never
+  changes layout. Overlays sit between the top bar and the rail; they never cover either.
+- The right edge has one overlay slot. The Work Drawer (380 px, `Configure` and `Run` tabs) and
+  the Assistant dock (320 px) share it; exactly one is visible at a time. Switching preserves the
+  hidden surface's state — selection, scroll position, and the conversation. Until the Work
+  Drawer lands, the Inspector occupies the same slot under the same rules.
+- The right slot is empty until it has content: `Configure` when a node is selected, `Run` when
+  a Run is admitted or inspected, Assistant when toggled from the rail. With nothing selected
+  and no Run context, the slot stays closed instead of showing an empty panel.
+- The left edge has one overlay slot: the Node Library (304 px, grouped Inputs, Generate,
+  Assets) or the Asset Library with its detail companion, switched from the rail and pinnable
+  for the current UI session.
+- Node placement and fit-into-view measure the visible canvas — the area not covered by open
+  overlays — so a new node never lands beneath a panel and a fit never hides a node behind one.
+- Canvas controls: zoom, fit, and minimap cluster against the lower-left visible canvas edge,
+  offset past an open left overlay, and remain reachable while any overlay is open.
+- These rules hold identically at every supported size. No media query changes layout mechanics;
+  the overlay model is the only behavior from 1280x720 upward.
 - Settings: a modal dialog over the workspace. It is infrequent and must not compete with the
   canvas, so it is not a workspace view.
 
 The page must never render a node beneath another node. New nodes use a deterministic staggered
-placement and the canvas fits the new selection into view.
+placement inside the visible canvas and the canvas fits the new selection into view.
 
 ## DVStudio Reference Adaptation
 

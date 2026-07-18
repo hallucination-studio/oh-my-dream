@@ -43,9 +43,8 @@ Ordered by leverage. Each item closes register entries named in brackets.
   frozen Visual Direction and Product Language.
 - **A3 Interaction hardening batch** (UI-47…UI-57): placement/fit respect open panels, modal
   focus traps, wedged-state recovery, keyboard-connect exits.
-- **A4 Work Drawer overlay with Configure/Run tabs** (UI-15, UI-48, UI-73): the structural
-  convergence — overlay chrome that stops resizing the canvas, 56 px rail, 304 px library,
-  380 px drawer, parameter trim out of node bodies.
+- **A4 Work Drawer content** (UI-15, UI-73): the Configure tab fields, readiness guidance, and
+  Run tab timeline inside the shell S1 provides. The overlay chrome itself moved to S1.
 - **A5 Stale output treatment** (pairs with UI-39): the `Changed since run` state from Node
   Presentation, with consistent invalidation across nodes, Top bar, and previews.
 - **A6 Run details honesty pack** (UI-60, UI-77): actionable outputs (preview + jump to Asset),
@@ -66,6 +65,11 @@ Ordered by leverage. Each item closes register entries named in brackets.
 - **A12 Small convergences**: restore the seven-label Node Library with the Assets group (D1,
   closes UI-66); move the MiniMap to the lower-left canvas edge (D2); Settings Providers section
   per the frozen spec (D4) plus the About/Storage facts (UI-59).
+- **S1 Overlay shell** (UI-48, UI-83, UI-84, UI-85, part of UI-47): the canvas becomes the only
+  inline region; left overlay slot (Nodes / Assets + detail), right overlay slot (Inspector →
+  Work Drawer, Assistant) with one-at-a-time exclusivity and state preservation; placement and
+  fit measure the visible canvas; the <1100 px media query is removed; 56 px rail and 304 px
+  library land here. Frozen in DESKTOP_UI.md (Information Architecture, 2026-07-18).
 
 ## B. Undesigned surfaces
 
@@ -122,6 +126,9 @@ Things that work but feel wrong or unpolished.
 | UI-64 | ux | Node param labels uppercase-wrap (`DURATION SECONDS`) while the Inspector shows lowercase — inconsistent casing (verified live). | One casing rule for parameter labels; see D5. |
 | UI-65 | ux | Settings shows a meaningless `Rev 1` line (verified live). | Remove or explain in creator language. |
 | UI-66 | ux | Node Library lacks the spec'd seven-label Assets group; asset nodes are only creatable from the Asset Library (catalog.ts:107). | Product decision D1, then converge code or spec. |
+| UI-83 | ux | The Inspector is a permanent inline right column and the Assistant dock a fifth inline column; opening the Assistant crushes the canvas at supported widths (styles.css:55-69; verified live at 1440x900: canvas ~540 px, nodes sliding under panels). | The overlay shell (S1): the right edge becomes one overlay slot shared by Inspector/Work Drawer and Assistant, visible one at a time. |
+| UI-84 | ux | The assistant-as-overlay behavior only engages below 1100 px — under the 1280 px supported minimum, so it never helps at any supported size (styles.css media query). | Removed by S1; overlays are the only behavior at every size. |
+| UI-85 | ux | The empty Inspector permanently claims 292 px even with nothing selected (verified live). | S1: the right slot stays closed when it has no content (no selection, no Run, Assistant not toggled). |
 
 ## E. UI bugs
 
