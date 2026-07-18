@@ -89,7 +89,7 @@ export function WorkflowFlowNode({ data, selected, id: nodeId }: NodeProps) {
         </div>
       )}
 
-      {rt?.preview && (
+      {rt?.preview && (isGeneration || rt.preview.url) && (
         <Preview
           preview={rt.preview}
           emptyHint={isGeneration && state === "idle"

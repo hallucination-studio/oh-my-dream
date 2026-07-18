@@ -11,11 +11,11 @@
 
 :root {
   /* Layer 1 — raw palette (docs/DESKTOP_UI.md, Visual Direction) */
-  --p-canvas-black: #111418;
-  --p-graphite: #1b2026;
-  --p-graphite-raised: #222931;
-  --p-graphite-sunk: #151a1f;
-  --p-steel: #343c46;
+  --p-canvas-black: #0c0f12;
+  --p-graphite: #171c22;
+  --p-graphite-raised: #242c36;
+  --p-graphite-sunk: #12161b;
+  --p-steel: #3d4753;
   --p-studio-white: #ebf0f3;
   --p-steel-text: #c4ced6;
   --p-muted-steel: #9aa6ae;
@@ -44,8 +44,8 @@
   --canvas: var(--p-canvas-black);
 
   /* Hairline dividers */
-  --hair: rgba(235, 240, 243, 0.09);
-  --hair-2: rgba(235, 240, 243, 0.16);
+  --hair: rgba(235, 240, 243, 0.14);
+  --hair-2: rgba(235, 240, 243, 0.22);
 
   /* Single restrained accent */
   --accent: var(--p-signal-teal);

@@ -5,9 +5,9 @@
   position: relative;
   width: 304px;
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
   background: var(--surface-2);
-  border: 1px solid var(--hair);
+  border: 1px solid var(--hair-2);
   overflow: visible;
 }
 .wf-node--generation {
@@ -18,6 +18,7 @@
   inset: 0 auto 0 0;
   width: 3px;
   background: var(--type);
+  border-radius: var(--r-lg) 0 0 var(--r-lg);
   z-index: 2;
 }
 .wf-node.is-selected {
@@ -45,11 +46,13 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 8px 11px 8px 14px;
+  padding: 10px 12px 10px 14px;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 13.5px;
   letter-spacing: -0.01em;
+  background: rgba(235, 240, 243, 0.045);
   border-bottom: 1px solid var(--hair);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 /* The name clamps at two lines on a 20px line height; the state pill never wraps. */
 .wf-node__title > span:first-child {
@@ -86,12 +89,12 @@
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 9.5px;
+  gap: 5px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: var(--r-pill);
 }
 .wf-pill__dot {
@@ -102,7 +105,7 @@
 .wf-pill--idle,
 .wf-pill--cached {
   color: var(--ink-3);
-  background: rgba(235, 240, 243, 0.08);
+  background: rgba(235, 240, 243, 0.1);
 }
 .wf-pill--idle .wf-pill__dot,
 .wf-pill--cached .wf-pill__dot {
@@ -110,7 +113,7 @@
 }
 .wf-pill--running {
   color: var(--warn);
-  background: rgba(216, 173, 77, 0.14);
+  background: rgba(216, 173, 77, 0.18);
 }
 .wf-pill--running .wf-pill__dot {
   background: var(--warn);
@@ -118,14 +121,14 @@
 }
 .wf-pill--done {
   color: var(--ok);
-  background: rgba(85, 180, 139, 0.14);
+  background: rgba(85, 180, 139, 0.18);
 }
 .wf-pill--done .wf-pill__dot {
   background: var(--ok);
 }
 .wf-pill--error {
   color: color-mix(in srgb, var(--err) 78%, white);
-  background: rgba(212, 99, 85, 0.14);
+  background: rgba(212, 99, 85, 0.18);
 }
 .wf-pill--error .wf-pill__dot {
   background: var(--err);
@@ -174,6 +177,10 @@
   font-weight: 600;
   aspect-ratio: auto;
   padding: 12px;
+}
+.wf-preview--audio .wf-preview__empty {
+  color: var(--ink-faint);
+  font-weight: 400;
 }
 .wf-preview__img {
   width: 100%;
@@ -280,19 +287,19 @@
 .wf-port {
   position: absolute;
   top: 50%;
-  width: 11px;
-  height: 11px;
-  border: 2.5px solid var(--surface-2);
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--surface-2);
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 .wf-port-row .wf-port {
-  left: -6px;
+  left: -5px;
   transform: translateY(-50%);
 }
 .wf-port-row--out .wf-port {
   left: auto;
-  right: -6px;
+  right: -5px;
 }
 .react-flow__handle.wf-port:hover {
   transform: translateY(-50%) scale(1.3);
@@ -304,8 +311,10 @@
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 0 7px;
+  padding: 7px 0 8px;
   border-top: 1px solid var(--hair);
+  background: var(--surface-sunk);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 .wf-node__ports-col {
   display: grid;
