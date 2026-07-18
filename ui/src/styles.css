@@ -138,3 +138,11 @@ input {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Keep-alive assistant dock: hidden, never unmounted, so the conversation survives. */
+.adock-host {
+  display: contents;
+}
+.adock-host[hidden] {
+  display: none;
+}

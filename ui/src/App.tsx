@@ -585,15 +585,17 @@ export function App() {
               onDeleteEdge={deleteEdge}
             />
           </>
-        {assistantEnabled && assistantOpen && (
-          <AssistantDock
-            key={project?.id ?? "no-project"}
-            onClose={() => setAssistantOpen(false)}
-            getContext={assistantContext}
-            beforeSend={(restoreFocus) =>
-              runAfterBarrier("assistant_turn", () => undefined, restoreFocus)
-            }
-          />
+        {assistantEnabled && (
+          <div className={`adock-host${assistantOpen ? "" : " is-hidden"}`} hidden={!assistantOpen}>
+            <AssistantDock
+              key={project?.id ?? "no-project"}
+              onClose={() => setAssistantOpen(false)}
+              getContext={assistantContext}
+              beforeSend={(restoreFocus) =>
+                runAfterBarrier("assistant_turn", () => undefined, restoreFocus)
+              }
+            />
+          </div>
         )}
       </main>
 
