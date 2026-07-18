@@ -5,7 +5,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { recoveryNodeSpec, type NodeTypeSpec } from "./catalog.ts";
 import { ParameterInput } from "./ParameterInput.tsx";
-import { typeColor, nodeAccent } from "./typeColor.ts";
+import { typeColor, nodeAccent, portTypeLabel } from "./typeColor.ts";
 import type { NodeExecutionState } from "../workflow/types.ts";
 import "./nodeStyles.css";
 
@@ -29,7 +29,6 @@ export interface FlowNodeData {
   [key: string]: unknown;
 }
 
-const PORT_TOP = 64;
 
 export function WorkflowFlowNode({ data, selected }: NodeProps) {
   const nodeData = data as FlowNodeData;
@@ -44,10 +43,11 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
   const rt = nodeData.runtime;
   const state = rt?.state ?? "idle";
   const isAsset = spec.contextualCreationRoute === "asset_library";
+  const isGeneration = spec.presentation?.category === "Generate";
 
   return (
     <div
-      className={`wf-node is-${state}${selected ? " is-selected" : ""}${spec.status.availability !== "available" ? " is-degraded" : ""}`}
+      className={`wf-node${isGeneration ? " wf-node--generation" : ""} is-${state}${selected ? " is-selected" : ""}${spec.status.availability !== "available" ? " is-degraded" : ""}`}
       style={{ ["--accent" as string]: accent }}
     >
       <div className="wf-node__bar" />
@@ -103,26 +103,40 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
 
       {state !== "idle" && <Footer rt={rt} />}
 
-      {spec.inputs.map((port, i) => (
-        <Handle
-          key={`in-${port.name}`}
-          type="target"
-          position={Position.Left}
-          id={port.name}
-          className="wf-port"
-          style={{ top: PORT_TOP + i * 24, background: typeColor(port.type) }}
-        />
-      ))}
-      {spec.outputs.map((port, i) => (
-        <Handle
-          key={`out-${port.name}`}
-          type="source"
-          position={Position.Right}
-          id={port.name}
-          className="wf-port"
-          style={{ top: PORT_TOP + i * 24, background: typeColor(port.type) }}
-        />
-      ))}
+      {(spec.inputs.length > 0 || spec.outputs.length > 0) && (
+        <div className="wf-node__ports">
+          <div className="wf-node__ports-col">
+            {spec.inputs.map((port) => (
+              <div className="wf-port-row" key={`in-${port.name}`}>
+                <Handle
+                  type="target"
+                  position={Position.Left}
+                  id={port.name}
+                  className="wf-port"
+                  style={{ background: typeColor(port.type) }}
+                />
+                <span className="wf-port-row__name">{port.name}</span>
+                <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="wf-node__ports-col wf-node__ports-col--out">
+            {spec.outputs.map((port) => (
+              <div className="wf-port-row wf-port-row--out" key={`out-${port.name}`}>
+                <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
+                <span className="wf-port-row__name">{port.name}</span>
+                <Handle
+                  type="source"
+                  position={Position.Right}
+                  id={port.name}
+                  className="wf-port"
+                  style={{ background: typeColor(port.type) }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

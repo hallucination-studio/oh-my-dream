@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import catalogFixture from "../__fixtures__/capability_catalog.json";
 import type { CapabilityCatalog } from "../api/types.ts";
 import { nodeSpecFromBundle, recoveryNodeSpec } from "./catalog.ts";
+import { nodeSpecFromExactContract } from "./exactCapability.ts";
 import { WorkflowFlowNode, type FlowNodeData } from "./WorkflowFlowNode.tsx";
 
 const catalog = catalogFixture as unknown as CapabilityCatalog;
@@ -101,6 +102,35 @@ describe("WorkflowFlowNode", () => {
       expect(screen.getByText(label)).toBeTruthy();
       view.unmount();
     }
+  });
+  it("labels every port with its name and media type", () => {
+    renderNode({
+      type: "video.generate_from_image",
+      contractVersion: "1.0",
+      capability: nodeSpecFromExactContract({
+        capability_ref: { id: "video.generate_from_image", version: "1.0" },
+        parameters: [{
+          key: "generation_profile_ref",
+          constraint: { kind: "generation_profile_ref" },
+          presence: { kind: "required" },
+        }],
+        inputs: [
+          { key: "image", binding: { kind: "required_single_value", data_type: "image" } },
+          { key: "prompt", binding: { kind: "optional_single_value", data_type: "text" } },
+        ],
+        outputs: [{ key: "video", data_type: "video", is_primary: true }],
+        execution_kind: "content_generation",
+      }),
+      params: {},
+    });
+
+    const rows = document.querySelectorAll(".wf-port-row");
+    expect(rows).toHaveLength(3);
+    expect(screen.getAllByText("image").length).toBeGreaterThan(0);
+    expect(screen.getByText("prompt")).toBeTruthy();
+    expect(screen.getAllByText("video").length).toBeGreaterThan(0);
+    expect(screen.getByText("text")).toBeTruthy();
+    expect(document.querySelectorAll(".wf-port")).toHaveLength(3);
   });
 });
 

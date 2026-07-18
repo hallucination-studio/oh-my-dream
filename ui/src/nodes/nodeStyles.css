@@ -3,12 +3,15 @@
 
 .wf-node {
   position: relative;
-  width: 216px;
+  width: 304px;
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
   background: #fff;
   border: 1px solid var(--hair);
-  overflow: hidden;
+  overflow: visible;
+}
+.wf-node--generation {
+  width: 336px;
 }
 .wf-node__bar {
   position: absolute;
@@ -269,12 +272,61 @@
 }
 
 .wf-port {
+  position: absolute;
+  top: 50%;
   width: 11px;
   height: 11px;
   border: 2.5px solid #fff;
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
+.wf-port-row .wf-port {
+  left: -6px;
+  transform: translateY(-50%);
+}
+.wf-port-row--out .wf-port {
+  left: auto;
+  right: -6px;
+}
 .react-flow__handle.wf-port:hover {
-  transform: scale(1.3);
+  transform: translateY(-50%) scale(1.3);
+}
+
+/* Labeled port rows: every port shows its name and media type, laid out in
+   normal flow so ports never collide with node content. */
+.wf-node__ports {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0 7px;
+  border-top: 1px solid var(--hair);
+}
+.wf-node__ports-col {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.wf-node__ports-col--out {
+  margin-left: auto;
+  text-align: right;
+}
+.wf-port-row {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 10px;
+  font-size: 10px;
+}
+.wf-port-row--out {
+  justify-content: flex-end;
+}
+.wf-port-row__name {
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: capitalize;
+}
+.wf-port-row__type {
+  color: var(--ink-3);
+  font-size: 9px;
 }

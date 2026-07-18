@@ -25,3 +25,8 @@ export function nodeAccent(
 ): string {
   return typeColor(outputs[0]?.type ?? inputs[0]?.type);
 }
+
+/** Creator-facing label for a port's media type. */
+export function portTypeLabel(type: PortType): string {
+  return type === "string" ? "text" : type;
+}
