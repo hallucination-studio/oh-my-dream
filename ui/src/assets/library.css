@@ -100,3 +100,85 @@
 .lib__msg--err {
   color: var(--err);
 }
+
+.lib__mode {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hair);
+  color: var(--ink-2);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+}
+.lib__mode:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.lib__list {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  overflow-y: auto;
+}
+.lib__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--hair);
+  background: var(--surface);
+  text-align: left;
+  font-size: 12px;
+}
+.lib__row.is-on {
+  border-color: var(--accent);
+}
+.lib__rowkind {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+}
+.lib__rowname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lib__rowfacts {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.lib__clear {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+}
+.lib__skel {
+  aspect-ratio: 1;
+  border-radius: var(--r-lg);
+  background: var(--surface-sunk);
+  animation: lib-skel 1.2s ease-in-out infinite;
+}
+.lib__skel--row {
+  aspect-ratio: auto;
+  height: 34px;
+  border-radius: var(--r-sm);
+}
+@keyframes lib-skel {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lib__skel { animation: none; }
+}

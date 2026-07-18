@@ -38,6 +38,7 @@ export function AssetDetail({
 
         <Row k="MIME" v={asset.mimeType} mono />
         <Row k="Bytes" v={asset.byteLength} mono />
+        {asset.facts && <Row k="Details" v={asset.facts} mono />}
         <Row k="State" v={asset.contentState} mono />
         {asset.sourceNodeType && (
           <Row

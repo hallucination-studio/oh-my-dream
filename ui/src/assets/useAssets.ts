@@ -11,7 +11,10 @@ export function useAssets(projectId: string | null) {
   const [assets, setAssets] = useState<AssetViewModel[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const [loading, setLoading] = useState(false);
+
   const refresh = useCallback(async () => {
+    setLoading(true);
     try {
       if (!projectId) {
         setAssets([]);
@@ -32,6 +35,8 @@ export function useAssets(projectId: string | null) {
     } catch (cause) {
       // Surface the failure to the drawer rather than silently showing empty.
       setError(failureCopy("Load library", cause));
+    } finally {
+      setLoading(false);
     }
   }, [projectId]);
 
@@ -46,5 +51,5 @@ export function useAssets(projectId: string | null) {
     return imported;
   }, [projectId, refresh]);
 
-  return { assets, error, importAsset, refresh };
+  return { assets, error, loading, importAsset, refresh };
 }

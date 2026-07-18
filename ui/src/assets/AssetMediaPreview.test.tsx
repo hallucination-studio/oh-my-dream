@@ -33,5 +33,6 @@ const asset: AssetViewModel = {
   sourceNodeType: null,
   mimeType: "image/png",
   byteLength: "1",
+  facts: null,
   createdAtEpochMs: "1",
 };

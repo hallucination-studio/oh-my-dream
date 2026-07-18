@@ -82,7 +82,7 @@ export function App() {
     };
   }, []);
   const workflowForRunRef = useRef<import("./api/types.ts").WorkflowDto | null>(null);
-  const { assets, error: assetError, importAsset, refresh } = useAssets(project?.id ?? null);
+  const { assets, error: assetError, loading: assetsLoading, importAsset, refresh } = useAssets(project?.id ?? null);
   const { applyProgress, reset: resetRun, settle } = useRunProjection(setNodes, setEdges);
   const { cancel, invalidateRun, run: runCanonicalWorkflow } = useRunController({
     getWorkflow: () => workflowForRunRef.current,
@@ -523,6 +523,8 @@ export function App() {
           <AssetLibrary
             assets={assets}
             error={assetError}
+            loading={assetsLoading}
+            hasProject={project !== null}
             selectedAssetId={selectedAssetId}
             onSelectAsset={setSelectedAssetId}
             onAddToCanvas={(asset) => addAssetSource(asset.id)}

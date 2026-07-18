@@ -14,6 +14,7 @@ const asset: AssetViewModel = {
   sourceNodeType: "Workflow node",
   mimeType: "video/mp4",
   byteLength: "100",
+  facts: null,
   createdAtEpochMs: "0",
 };
 

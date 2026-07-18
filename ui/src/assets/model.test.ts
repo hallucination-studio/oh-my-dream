@@ -38,8 +38,30 @@ describe("assetFromDto", () => {
       sourceNodeType: "Workflow node",
       mimeType: "image/png",
       byteLength: "250",
+      facts: "1×1",
       createdAtEpochMs: "123",
     });
+  });
+
+  it.each([
+    [{ kind: "image", width: 1024, height: 768 }, "1024×768"],
+    [{ kind: "video", duration_seconds: 4, fps: 24 }, "4.0s · 24fps"],
+    [{ kind: "audio", duration_seconds: 6 }, "6.0s"],
+    [{ kind: "image" }, null],
+    [null, null],
+  ])("labels media facts from %s", (mediaFacts, expected) => {
+    const dto: AssetDto = {
+      asset_id: "asset-facts",
+      project_id: "project-1",
+      media_kind: "image",
+      content_state: "available",
+      display_name: "Facts",
+      created_at_epoch_ms: "1",
+      content: { content_fingerprint_hex: "0", byte_length: "1", mime_type: "image/png" },
+      media_facts: mediaFacts as AssetDto["media_facts"],
+      origin: null,
+    };
+    expect(assetFromDto(dto, null).facts).toBe(expected);
   });
 
   it.each(["image", "video", "audio"] as const)(
