@@ -16,6 +16,9 @@ interface NodeLibraryProps {
   onOpenAssets: () => void;
 }
 
+/** Creator-language group order: Inputs first, then Generate, then Assets. */
+const CATEGORY_ORDER = ["Inputs", "Generate", "Assets"];
+
 /** Presents the authoritative capability registry with current profile status. */
 export function NodeLibrary({
   contracts,
@@ -39,7 +42,10 @@ export function NodeLibrary({
         (!hiddenCapabilityKeys.has(capabilityKey(summary.reference)) ||
           savedCapabilityKeys.has(capabilityKey(summary.reference))) &&
         (summary.presentation.label.toLowerCase().includes(normalizedQuery) ||
-          summary.reference.id.includes(normalizedQuery)),
+          summary.reference.id.includes(normalizedQuery) ||
+          summary.presentation.search_terms.some((term) =>
+            term.toLowerCase().includes(normalizedQuery),
+          )),
       );
     for (const summary of visibleSummaries) {
       let group = grouped.find((candidate) => candidate.category === summary.presentation.category);
@@ -49,7 +55,15 @@ export function NodeLibrary({
       }
       group.nodes.push(summary);
     }
-    return grouped;
+    const order = (category: string) => {
+      const index = CATEGORY_ORDER.indexOf(category);
+      return index === -1 ? CATEGORY_ORDER.length : index;
+    };
+    return grouped.sort(
+      (left, right) =>
+        order(left.category) - order(right.category) ||
+        left.category.localeCompare(right.category),
+    );
   }, [contracts, hiddenCapabilityKeys, loadedSpecs, query, savedCapabilityKeys]);
 
   return (

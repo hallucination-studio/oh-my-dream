@@ -172,17 +172,45 @@ function portType(value: unknown): PortSpec["type"] {
 }
 
 export function presentationFor(id: string) {
-  const values: Record<string, { label: string; category: string }> = {
-    "text.provide_literal": { label: "Text", category: "Text" },
-    "image.read_asset": { label: "Image Asset", category: "Assets" },
-    "video.read_asset": { label: "Video Asset", category: "Assets" },
-    "audio.read_asset": { label: "Audio Asset", category: "Assets" },
-    "image.generate_from_text": { label: "Text to Image", category: "Generation" },
-    "video.generate_from_image": { label: "Image to Video", category: "Generation" },
-    "audio.synthesize_speech_from_text": { label: "Text to Speech", category: "Generation" },
+  const values: Record<string, { label: string; category: string; aliases: string[] }> = {
+    "text.provide_literal": {
+      label: "Text",
+      category: "Inputs",
+      aliases: ["prompt", "literal", "string"],
+    },
+    "image.read_asset": {
+      label: "Image asset",
+      category: "Assets",
+      aliases: ["picture", "photo"],
+    },
+    "video.read_asset": {
+      label: "Video asset",
+      category: "Assets",
+      aliases: ["clip", "movie"],
+    },
+    "audio.read_asset": {
+      label: "Audio asset",
+      category: "Assets",
+      aliases: ["sound", "music", "voice"],
+    },
+    "image.generate_from_text": {
+      label: "Generate image",
+      category: "Generate",
+      aliases: ["text to image", "t2i", "picture", "photo"],
+    },
+    "video.generate_from_image": {
+      label: "Create video",
+      category: "Generate",
+      aliases: ["image to video", "i2v", "clip", "animate"],
+    },
+    "audio.synthesize_speech_from_text": {
+      label: "Create speech",
+      category: "Generate",
+      aliases: ["text to speech", "tts", "voice", "narration"],
+    },
   };
-  const value = values[id] ?? { label: id, category: "Other" };
-  return { ...value, description: value.label, search_terms: [id] };
+  const value = values[id] ?? { label: id, category: "Other", aliases: [] };
+  return { label: value.label, category: value.category, description: value.label, search_terms: [id, ...value.aliases] };
 }
 
 function availableStatus(): CapabilityStatus {

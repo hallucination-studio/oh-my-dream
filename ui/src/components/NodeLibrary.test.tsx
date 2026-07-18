@@ -5,7 +5,7 @@ import { capabilityKey, nodeSpecFromExactContract } from "../nodes/exactCapabili
 import type { NodeCapabilityContractDto } from "../api/types.ts";
 import { NodeLibrary } from "./NodeLibrary.tsx";
 
-it("renders the exact capability list without legacy search or bundles", () => {
+it("renders the exact capability list in creator language and stable group order", () => {
   const exact = contracts as NodeCapabilityContractDto[];
   const onOpenAssets = vi.fn();
   render(
@@ -18,8 +18,47 @@ it("renders the exact capability list without legacy search or bundles", () => {
   );
 
   expect(screen.getByRole("button", { name: "Text" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Text to Image" })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Image Asset" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Generate image" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Create video" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Image asset" })).toBeNull();
+  const categories = screen
+    .getAllByRole("button")
+    .map((button) => button.textContent ?? "")
+    .filter((text) => /^(Inputs|Generate|Assets)/.test(text));
+  expect(categories[0]).toMatch(/^Inputs/);
+  expect(categories[1]).toMatch(/^Generate/);
+});
+
+it("matches creator-language search aliases", () => {
+  const exact = contracts as NodeCapabilityContractDto[];
+  render(
+    <NodeLibrary
+      contracts={exact}
+      loadedSpecs={exact.map((contract) => nodeSpecFromExactContract(contract))}
+      onAdd={vi.fn()}
+      onOpenAssets={vi.fn()}
+    />,
+  );
+
+  fireEvent.change(screen.getByRole("textbox", { name: "Search nodes" }), {
+    target: { value: "t2i" },
+  });
+  expect(screen.getByRole("button", { name: "Generate image" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Create video" })).toBeNull();
+});
+
+it("routes asset searches to the asset library", () => {
+  const exact = contracts as NodeCapabilityContractDto[];
+  const onOpenAssets = vi.fn();
+  render(
+    <NodeLibrary
+      contracts={exact}
+      loadedSpecs={exact.map((contract) => nodeSpecFromExactContract(contract))}
+      onAdd={vi.fn()}
+      onOpenAssets={onOpenAssets}
+    />,
+  );
+
   fireEvent.change(screen.getByRole("textbox", { name: "Search nodes" }), {
     target: { value: "asset" },
   });
@@ -47,7 +86,7 @@ it("disables unavailable model nodes, hides empty compatibility, and keeps saved
     />,
   );
 
-  const disabled = screen.getByRole("button", { name: "Text to Image — authentication_required" });
+  const disabled = screen.getByRole("button", { name: "Generate image — authentication_required" });
   expect((disabled as HTMLButtonElement).disabled).toBe(true);
 
   view.rerender(
@@ -59,7 +98,7 @@ it("disables unavailable model nodes, hides empty compatibility, and keeps saved
       onOpenAssets={vi.fn()}
     />,
   );
-  expect(screen.queryByRole("button", { name: /Text to Image/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: /Generate image/ })).toBeNull();
 
   view.rerender(
     <NodeLibrary
@@ -72,6 +111,6 @@ it("disables unavailable model nodes, hides empty compatibility, and keeps saved
     />,
   );
   expect(
-    (screen.getByRole("button", { name: "Text to Image — authentication_required" }) as HTMLButtonElement).disabled,
+    (screen.getByRole("button", { name: "Generate image — authentication_required" }) as HTMLButtonElement).disabled,
   ).toBe(true);
 });
