@@ -24,9 +24,9 @@ describe("AssetCard", () => {
       <AssetCard asset={asset} selected={false} onSelect={() => {}} onJump={() => {}} />,
     );
     expect(screen.getByText("video")).toBeTruthy();
-    const video = screen.getByLabelText("A red fox") as HTMLVideoElement;
-    expect(video.tagName).toBe("VIDEO");
-    expect(video.getAttribute("src")).toBe("desktop-asset://v1/preview");
+    const poster = screen.getByRole("img", { name: "A red fox" });
+    expect(poster.tagName).toBe("IMG");
+    expect(poster.getAttribute("src")).toBe("desktop-asset://v1/preview");
   });
 
   it("shows jump only when an origin node exists and no redundant project meta", () => {

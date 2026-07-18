@@ -149,13 +149,21 @@
 
 .wf-preview {
   margin: 9px 10px 0;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 16 / 9;
+  min-height: 176px;
   border-radius: var(--r-md);
   overflow: hidden;
   position: relative;
   border: 1px solid var(--hair);
   display: grid;
   place-items: center;
+}
+.wf-preview__empty {
+  font-size: 11px;
+  color: var(--ink-faint);
+  text-align: center;
+  padding: 0 12px;
+  line-height: 1.5;
 }
 .wf-preview--image { background: var(--surface-sunk); }
 .wf-preview--video { background: var(--surface-sunk); }

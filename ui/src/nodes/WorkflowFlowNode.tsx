@@ -89,7 +89,14 @@ export function WorkflowFlowNode({ data, selected, id: nodeId }: NodeProps) {
         </div>
       )}
 
-      {rt?.preview && <Preview preview={rt.preview} />}
+      {rt?.preview && (
+        <Preview
+          preview={rt.preview}
+          emptyHint={isGeneration && state === "idle"
+            ? `Run this step to create ${previewNoun(rt.preview.kind)}.`
+            : null}
+        />
+      )}
       {nodeData.textPresentation && (
         <div className="wf-node__asset">{nodeData.textPresentation}</div>
       )}
@@ -199,7 +206,7 @@ function SourcePortRow({
       onKeyDown={
         canStart
           ? (event) => {
-              if (event.key === "Enter") {
+              if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 data.onStartKeyboardConnect?.(nodeId, port.name);
               }
@@ -245,26 +252,36 @@ function StatePill({ state }: { state: NodeExecutionState }) {
   );
 }
 
-function Preview({ preview }: { preview: NonNullable<NodeRuntime["preview"]> }) {
+function Preview({
+  preview,
+  emptyHint,
+}: {
+  preview: NonNullable<NodeRuntime["preview"]>;
+  emptyHint?: string | null;
+}) {
   if (preview.kind === "audio") {
     return preview.url
       ? <audio className="wf-preview wf-preview--audio" controls src={preview.url} aria-label="Asset audio preview" />
-      : <div className="wf-preview wf-preview--audio" role="status">Audio unavailable</div>;
+      : <div className="wf-preview wf-preview--audio" role="status">{emptyHint ?? "Audio unavailable"}</div>;
   }
   return (
     <div className={`wf-preview wf-preview--${preview.kind}`}>
       {preview.url ? (
         <img className="wf-preview__img" src={preview.url} alt={preview.kind} />
       ) : (
-        <span className="wf-preview__tag">{preview.kind}</span>
+        <span className="wf-preview__empty">{emptyHint ?? <span className="wf-preview__tag">{preview.kind}</span>}</span>
       )}
-      {preview.kind === "video" && (
+      {preview.kind === "video" && preview.url ? (
         <span className="wf-preview__play" aria-hidden="true">
           <span className="wf-preview__tri" />
         </span>
-      )}
+      ) : null}
     </div>
   );
+}
+
+function previewNoun(kind: "image" | "video" | "audio"): string {
+  return kind === "image" ? "an image" : kind === "video" ? "a video" : "audio";
 }
 
 function Footer({ rt }: { rt?: NodeRuntime }) {

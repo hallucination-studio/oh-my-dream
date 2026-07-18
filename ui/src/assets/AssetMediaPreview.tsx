@@ -3,11 +3,10 @@ import type { AssetViewModel } from "./model.ts";
 interface Props {
   asset: AssetViewModel;
   className: string;
-  controls?: boolean;
 }
 
-/** Renders the signed preview URI through its exact media element. */
-export function AssetMediaPreview({ asset, className, controls = false }: Props) {
+/** Renders the issued preview URI through its media element. */
+export function AssetMediaPreview({ asset, className }: Props) {
   if (!asset.previewUrl) {
     return <span className={className}>{asset.kind === "audio" ? "♪" : asset.kind}</span>;
   }
@@ -15,16 +14,9 @@ export function AssetMediaPreview({ asset, className, controls = false }: Props)
     return <img className={className} src={asset.previewUrl} alt={asset.displayName} loading="lazy" />;
   }
   if (asset.kind === "video") {
-    return (
-      <video
-        className={className}
-        src={asset.previewUrl}
-        aria-label={asset.displayName}
-        controls={controls}
-        muted={!controls}
-        preload="metadata"
-      />
-    );
+    // Video previews are poster images until the preview-kind contract (G9)
+    // declares playable files; posters never render through <video>.
+    return <img className={className} src={asset.previewUrl} alt={asset.displayName} loading="lazy" />;
   }
   return (
     <audio

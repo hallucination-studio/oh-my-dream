@@ -17,6 +17,7 @@ import { useEffect, useRef } from "react";
 import { WorkflowFlowNode } from "../nodes/WorkflowFlowNode.tsx";
 import { WorkflowEdge } from "../nodes/WorkflowEdge.tsx";
 import { useMeasuredCanvas } from "./useMeasuredCanvas.ts";
+import { MINIMAP_THEME } from "./minimapTheme.ts";
 
 const nodeTypes = { workflow: WorkflowFlowNode };
 const edgeTypes = { workflow: WorkflowEdge };
@@ -189,9 +190,9 @@ function CanvasInner(props: Props) {
             position="bottom-left"
             style={{ left: insets.left + 12 }}
             className="bench__minimap"
-            bgColor="#151a1f"
-            maskColor="rgba(17,20,24,0.55)"
-            nodeColor="#343c46"
+            bgColor={MINIMAP_THEME.bg}
+            maskColor={MINIMAP_THEME.mask}
+            nodeColor={MINIMAP_THEME.node}
             nodeStrokeWidth={0}
           />
         </ReactFlow>

@@ -498,6 +498,15 @@ export function App() {
       })),
     [nodes, connect, startKeyboardConnect, completeKeyboardConnect],
   );
+  // Creator-language edge names: connections read as node labels, never UUIDs.
+  const canvasEdges = useMemo(
+    () =>
+      edges.map((edge) => ({
+        ...edge,
+        ariaLabel: `Connection from ${runNodeLabel(edge.source)} to ${runNodeLabel(edge.target)}`,
+      })),
+    [edges, runNodeLabel],
+  );
 
   const validateConnection = useCallback(
     (connection: { source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null }) =>
@@ -570,7 +579,7 @@ export function App() {
         <div className="bench__stage">
           <WorkflowCanvas
             nodes={canvasNodes}
-            edges={edges}
+            edges={canvasEdges}
             onNodesChange={handleNodesChange}
             onEdgesChange={handleEdgesChange}
             onConnect={onConnect}

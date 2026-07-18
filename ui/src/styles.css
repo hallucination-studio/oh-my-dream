@@ -25,10 +25,21 @@ body {
   background: var(--accent-soft);
 }
 
+:root {
+  color-scheme: dark;
+}
+
 /* React Flow keeps selection chrome off; the node skin owns it. */
 .react-flow__node.selected {
   outline: none;
   box-shadow: none;
+}
+
+/* Drag-select rectangle: Signal Teal on Canvas Black, never the light default. */
+.react-flow__selection {
+  background: rgba(38, 168, 143, 0.08);
+  border: 1px solid rgba(38, 168, 143, 0.45);
+  border-radius: 2px;
 }
 
 button {

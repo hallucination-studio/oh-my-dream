@@ -5,19 +5,18 @@ import type { AssetViewModel } from "./model.ts";
 
 it.each([
   ["image", "IMG"],
-  ["video", "VIDEO"],
+  ["video", "IMG"],
   ["audio", "AUDIO"],
 ] as const)("renders a signed %s URI through the matching media element", (kind, tagName) => {
   render(
     <AssetMediaPreview
       asset={{ ...asset, kind, displayName: kind }}
       className="preview"
-      controls
     />,
   );
-  const media = kind === "image"
-    ? screen.getByRole("img", { name: kind })
-    : screen.getByLabelText(kind);
+  const media = kind === "audio"
+    ? screen.getByLabelText(kind)
+    : screen.getByRole("img", { name: kind });
   expect(media.tagName).toBe(tagName);
   expect(media.getAttribute("src")).toBe("desktop-asset://v1/signed");
 });

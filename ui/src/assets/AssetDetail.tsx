@@ -28,7 +28,6 @@ export function AssetDetail({
         <AssetMediaPreview
           asset={asset}
           className={asset.previewUrl ? "adet__img" : "adet__glyph"}
-          controls
         />
       </div>
 

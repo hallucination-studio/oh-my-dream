@@ -48,9 +48,8 @@
   font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.32);
-  backdrop-filter: blur(6px);
+  color: var(--ink);
+  background: rgba(17, 20, 24, 0.72);
 }
 .ac__ov {
   position: absolute;

@@ -53,6 +53,11 @@
 .topbar__pn {
   font-weight: 550;
   font-size: 12.5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
 }
 .topbar__car {
   color: var(--ink-3);
