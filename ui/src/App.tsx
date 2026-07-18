@@ -148,12 +148,16 @@ export function App() {
     ).map((issue) => issue.copy);
   }, [nodes, readiness]);
   const run = useCallback(() => {
+    if (nodes.length === 0) {
+      notify("Add a node from the library before running");
+      return;
+    }
     void runAfterBarrier("prepare_run", runCanonicalWorkflow)
       .then(() => setRunDetailsOpen(true))
       .catch((error: unknown) => {
         setStatus({ state: "failed", reason: failureCopy("Run workflow", error) });
       });
-  }, [runAfterBarrier, runCanonicalWorkflow]);
+  }, [nodes.length, notify, runAfterBarrier, runCanonicalWorkflow]);
 
   const addNode = useCallback(
     (requested: string | CapabilityRef, position?: { x: number; y: number }, contextualParams?: Record<string, unknown>) => {
@@ -564,7 +568,18 @@ export function App() {
                 }}
                 onDrop={onDrop}
                 focusNodeId={focusedNodeId}
-            />
+            >
+              {nodes.length === 0 && (
+                <div className="bench__canvas-empty">
+                  <b>{project ? "Start your workflow" : "Welcome"}</b>
+                  <p>
+                    {project
+                      ? "Add a Text node from the library to begin."
+                      : "Create or open a Project from the top bar to start building."}
+                  </p>
+                </div>
+              )}
+            </WorkflowCanvas>
             <InspectorPanel
               node={selected}
               modeOptions={[]}

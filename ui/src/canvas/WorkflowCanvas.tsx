@@ -32,6 +32,7 @@ interface Props {
   onSelectNode: (nodeId: string | null) => void;
   onDrop: (event: React.DragEvent, position: { x: number; y: number }) => void;
   focusNodeId?: string | null;
+  children?: React.ReactNode;
 }
 
 /** Measured React Flow host that never mounts against a zero-sized container. */
@@ -124,6 +125,7 @@ function CanvasInner(props: Props) {
           />
         </ReactFlow>
       )}
+      {props.children}
     </div>
   );
 }

@@ -146,3 +146,22 @@ input {
 .adock-host[hidden] {
   display: none;
 }
+
+/* First-run canvas guidance: the empty state names the next valid action. */
+.bench__canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.bench__canvas-empty b {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.bench__canvas-empty p {
+  font-size: 12px;
+}
