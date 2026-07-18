@@ -67,7 +67,7 @@
 .ac__act {
   width: 26px;
   height: 26px;
-  border-radius: 7px;
+  border-radius: var(--r-md);
   background: var(--surface);
   color: var(--ink);
   font-size: 12px;

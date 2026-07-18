@@ -164,12 +164,17 @@
 }
 
 .topbar__run:disabled {
-  opacity: 0.55;
+  background: var(--surface-2);
+  color: var(--ink-faint);
+  border: 1px solid var(--hair);
   cursor: not-allowed;
   box-shadow: none;
 }
 .topbar__run:disabled:hover {
-  background: var(--accent);
+  background: var(--surface-2);
+}
+.topbar__run:disabled .topbar__play {
+  border-left-color: var(--ink-faint);
 }
 
 .topbar__save {

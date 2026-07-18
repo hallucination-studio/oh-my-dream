@@ -4,8 +4,9 @@
  * Three layers: a raw palette (layer 1, the frozen Visual Direction colors),
  * semantic aliases (layer 2, stable names every component consumes), and the
  * components themselves (layer 3, untouched by palette changes). Direction:
- * a precise media workbench — dark, flush, 4px corners, one-pixel borders.
- * Data-type color appears solely in the wiring (ports, edges, category dots).
+ * a precise media workbench — dark, flush, layered corners, one-pixel borders.
+ * Data-type color appears solely in the wiring (ports, edges, category dots,
+ * and the node type bar); selection and focus are always Signal Teal.
  */
 
 :root {
@@ -69,11 +70,12 @@
   --font: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  /* Radius scale — the workbench uses 4px corners everywhere */
-  --r-sm: 4px;
-  --r-md: 4px;
-  --r-lg: 4px;
-  --r-xl: 4px;
+  /* Radius scale — layered: controls 6, containers 8, cards/panels 10, dialogs 12 */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 12px;
+  --r-pill: 999px;
 
   /* Quiet elevation for floating nodes and popovers; no shadow stacks */
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.28);

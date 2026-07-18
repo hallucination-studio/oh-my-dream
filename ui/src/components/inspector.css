@@ -55,14 +55,33 @@
 }
 .insp__asset-action {
   width: fit-content;
-  padding: 7px 10px;
+  padding: 7px 12px;
   border: 1px solid var(--hair);
   border-radius: var(--r-sm);
-  background: var(--surface-sunk);
+  background: transparent;
+  color: var(--ink-2);
 }
 .insp__asset-action:hover,
 .insp__asset-action:focus-visible {
-  border-color: var(--accent);
+  border-color: var(--hair-2);
+  color: var(--ink);
+}
+.insp__asset-action--primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.insp__asset-action--primary:hover,
+.insp__asset-action--primary:focus-visible {
+  background: var(--accent-strong);
+  border-color: transparent;
+  color: var(--on-accent);
+}
+.insp__asset-action--primary:disabled {
+  background: var(--surface-2);
+  border-color: var(--hair);
+  color: var(--ink-faint);
 }
 
 .insp__grp {
@@ -163,7 +182,9 @@
 }
 .insp__asset-action--danger:hover,
 .insp__asset-action--danger:focus-visible {
-  border-color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 55%, transparent);
+  background: rgba(212, 99, 85, 0.08);
+  color: var(--err);
 }
 .insp__hint {
   margin-top: 8px;

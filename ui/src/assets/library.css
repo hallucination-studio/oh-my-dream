@@ -69,18 +69,20 @@
 .lib__chip {
   font-size: 12px;
   padding: 5px 12px;
-  border-radius: var(--r-sm);
-  background: var(--surface-sunk);
-  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: transparent;
+  border: 1px solid var(--hair);
   color: var(--ink-2);
+  white-space: nowrap;
 }
 .lib__chip:hover {
   border-color: var(--hair-2);
+  color: var(--ink);
 }
 .lib__chip.is-on {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .lib__grid {

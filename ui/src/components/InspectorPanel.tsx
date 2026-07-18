@@ -185,7 +185,7 @@ export function InspectorPanel({
         </div>
       )}
       <button
-        className="insp__asset-action"
+        className="insp__asset-action insp__asset-action--primary"
         onClick={() => onRunThroughNode(node.id)}
         disabled={runDisabled}
         title={runDisabled ? "Fix the issues above before running" : undefined}
