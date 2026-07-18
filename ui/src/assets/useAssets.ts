@@ -2,7 +2,7 @@
 // the asset drawer; refreshed after a successful run so freshly generated
 // media appears.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/index.ts";
 import { assetFromDto, type AssetViewModel } from "./model.ts";
 import { failureCopy } from "../workflow/failureCopy.ts";
@@ -12,8 +12,10 @@ export function useAssets(projectId: string | null) {
   const [error, setError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const generation = useRef(0);
 
   const refresh = useCallback(async () => {
+    const request = ++generation.current;
     setLoading(true);
     try {
       if (!projectId) {
@@ -30,13 +32,18 @@ export function useAssets(projectId: string | null) {
           return assetFromDto(asset, null);
         }
       }));
+      // A newer refresh (for example after a project switch) supersedes this one.
+      if (request !== generation.current) return;
       setAssets(projected);
       setError(null);
     } catch (cause) {
+      if (request !== generation.current) return;
       // Surface the failure to the drawer rather than silently showing empty.
       setError(failureCopy("Load library", cause));
     } finally {
-      setLoading(false);
+      if (request === generation.current) {
+        setLoading(false);
+      }
     }
   }, [projectId]);
 

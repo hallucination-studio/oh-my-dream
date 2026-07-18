@@ -19,6 +19,25 @@ describe("isValidConnection", () => {
     expect(isValidConnection(connection("image", "image", "image", "prompt"), nodes)).toBe(false);
     expect(isValidConnection(connection("prompt", "text", "video", "image"), nodes)).toBe(false);
   });
+
+  it("rejects self-loops and edges that would close a cycle", () => {
+    const nodes = [
+      flowNode("prompt", "TextPrompt"),
+      flowNode("image", "TextToImage"),
+      flowNode("video", "ImageToVideo"),
+    ];
+    const edges = [
+      { id: "e1", source: "prompt", target: "image" },
+      { id: "e2", source: "image", target: "video" },
+    ];
+
+    // Self-loop: rejected before any type check.
+    expect(isValidConnection(connection("prompt", "text", "prompt", "text"), nodes, edges)).toBe(false);
+    // video can already be reached from prompt, so wiring video back closes a cycle.
+    expect(isValidConnection(connection("video", "video", "prompt", "text"), nodes, edges)).toBe(false);
+    // A fresh downstream edge into the chain stays legal.
+    expect(isValidConnection(connection("image", "image", "video", "image"), nodes, edges)).toBe(true);
+  });
 });
 
 function flowNode(id: string, type: string): Node {

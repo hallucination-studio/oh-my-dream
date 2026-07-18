@@ -87,12 +87,20 @@ export function App() {
   const { specs: exactSpecs, hiddenCapabilityKeys } = useNodeAvailability(exactContracts);
   useEffect(() => {
     let active = true;
-    void api.nodeCapabilityList().then((contracts) => {
-      if (active) {
-        setExactContracts(contracts);
-        setContractsLoaded(true);
-      }
-    });
+    void api.nodeCapabilityList().then(
+      (contracts) => {
+        if (active) {
+          setExactContracts(contracts);
+          setContractsLoaded(true);
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setContractsLoaded(true);
+          setStatus({ state: "failed", reason: failureCopy("Load the node library", error) });
+        }
+      },
+    );
     return () => {
       active = false;
     };
@@ -260,7 +268,7 @@ export function App() {
 
   const attemptConnection = useCallback(
     (connection: Connection) => {
-      if (!isValidConnection(connection, nodes)) {
+      if (!isValidConnection(connection, nodes, edges)) {
         notify("Connection rejected · the port types are incompatible");
         return;
       }
@@ -282,7 +290,7 @@ export function App() {
         ),
       );
     },
-    [markWorkflowMutation, nodes, notify, setEdges],
+    [markWorkflowMutation, nodes, edges, notify, setEdges],
   );
 
   const onConnect = useCallback(
@@ -501,8 +509,9 @@ export function App() {
           targetHandle: connection.targetHandle ?? null,
         },
         nodes,
+        edges,
       ),
-    [nodes],
+    [nodes, edges],
   );
 
   const onDrop = useCallback(
