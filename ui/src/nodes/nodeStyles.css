@@ -330,3 +330,29 @@
   color: var(--ink-3);
   font-size: 9px;
 }
+
+/* Connection affordances: compatible targets stand out, invalid targets dim. */
+.wf-port-row[role="button"] {
+  cursor: pointer;
+  border-radius: var(--r-sm);
+}
+.wf-port-row[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.wf-port-row.is-compatible .wf-port-row__name {
+  color: var(--accent);
+}
+.wf-port-row.is-compatible .wf-port {
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.wf-port-row.is-incompatible {
+  opacity: 0.42;
+}
+.wf-port-row.is-source .wf-port-row__name {
+  color: var(--accent);
+  font-weight: 700;
+}
+.react-flow__handle.valid {
+  box-shadow: 0 0 0 4px var(--accent-soft), 0 1px 3px rgba(0, 0, 0, 0.25);
+}

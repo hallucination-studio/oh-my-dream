@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ReactFlowProvider, type NodeProps } from "@xyflow/react";
 import { describe, expect, it, vi } from "vitest";
 import catalogFixture from "../__fixtures__/capability_catalog.json";
@@ -103,6 +103,86 @@ describe("WorkflowFlowNode", () => {
       view.unmount();
     }
   });
+  it("exposes keyboard connection affordances on compatible targets only", () => {
+    const onStart = vi.fn();
+    const onComplete = vi.fn();
+    const capability = nodeSpecFromExactContract({
+      capability_ref: { id: "video.generate_from_image", version: "1.0" },
+      parameters: [{
+        key: "generation_profile_ref",
+        constraint: { kind: "generation_profile_ref" },
+        presence: { kind: "required" },
+      }],
+      inputs: [
+        { key: "image", binding: { kind: "required_single_value", data_type: "image" } },
+        { key: "prompt", binding: { kind: "optional_single_value", data_type: "text" } },
+      ],
+      outputs: [{ key: "video", data_type: "video", is_primary: true }],
+      execution_kind: "content_generation",
+    });
+
+    const props = {
+      id: "target-node",
+      selected: false,
+      data: {
+        type: "video.generate_from_image",
+        contractVersion: "1.0",
+        capability,
+        params: {},
+        connect: { sourceId: "other-node", sourceHandle: "image", sourceType: "image", keyboard: true },
+        onParamChange: vi.fn(),
+        onStartKeyboardConnect: onStart,
+        onCompleteKeyboardConnect: onComplete,
+      },
+    } as unknown as NodeProps;
+    render(
+      <ReactFlowProvider>
+        <WorkflowFlowNode {...props} />
+      </ReactFlowProvider>,
+    );
+
+    const compatible = screen.getByRole("button", { name: "Connect to image" });
+    expect(compatible.getAttribute("data-connect-target")).toBe("compatible");
+    expect(document.querySelector(".wf-port-row.is-incompatible")).not.toBeNull();
+    fireEvent.keyDown(compatible, { key: "Enter" });
+    expect(onComplete).toHaveBeenCalledWith("target-node", "image");
+  });
+
+  it("starts a keyboard connection from an output row", () => {
+    const onStart = vi.fn();
+    const props = {
+      id: "source-node",
+      selected: false,
+      data: {
+        type: "text.provide_literal",
+        contractVersion: "1.0",
+        capability: nodeSpecFromExactContract({
+          capability_ref: { id: "text.provide_literal", version: "1.0" },
+          parameters: [{
+            key: "text",
+            constraint: { kind: "text_utf8_bytes", minimum: 1, maximum: 65536 },
+            presence: { kind: "required" },
+          }],
+          inputs: [],
+          outputs: [{ key: "text", data_type: "text", is_primary: true }],
+          execution_kind: "pure_value",
+        }),
+        params: {},
+        connect: null,
+        onParamChange: vi.fn(),
+        onStartKeyboardConnect: onStart,
+      },
+    } as unknown as NodeProps;
+    render(
+      <ReactFlowProvider>
+        <WorkflowFlowNode {...props} />
+      </ReactFlowProvider>,
+    );
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Connect from text" }), { key: "Enter" });
+    expect(onStart).toHaveBeenCalledWith("source-node", "text");
+  });
+
   it("labels every port with its name and media type", () => {
     renderNode({
       type: "video.generate_from_image",

@@ -157,3 +157,16 @@
 .insp__asset-action:disabled:hover {
   border-color: var(--hair);
 }
+
+.insp__asset-action--danger {
+  color: var(--err);
+}
+.insp__asset-action--danger:hover,
+.insp__asset-action--danger:focus-visible {
+  border-color: var(--err);
+}
+.insp__hint {
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}

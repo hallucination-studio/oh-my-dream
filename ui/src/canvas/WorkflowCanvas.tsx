@@ -26,6 +26,9 @@ interface Props {
   onNodesChange: (changes: NodeChange<Node>[]) => void;
   onEdgesChange: (changes: EdgeChange<Edge>[]) => void;
   onConnect: (connection: Connection) => void;
+  onConnectStart: (nodeId: string, handleId: string) => void;
+  onConnectEnd: () => void;
+  isValidConnection: (connection: { source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null }) => boolean;
   onSelectNode: (nodeId: string | null) => void;
   onDrop: (event: React.DragEvent, position: { x: number; y: number }) => void;
 }
@@ -87,6 +90,15 @@ function CanvasInner(props: Props) {
           onNodesChange={props.onNodesChange}
           onEdgesChange={props.onEdgesChange}
           onConnect={props.onConnect}
+          onConnectStart={(_, params) => {
+            if (params.nodeId && params.handleId) {
+              props.onConnectStart(params.nodeId, params.handleId);
+            }
+          }}
+          onConnectEnd={props.onConnectEnd}
+          isValidConnection={props.isValidConnection}
+          connectionRadius={22}
+          deleteKeyCode={["Backspace", "Delete"]}
           onNodeClick={(_, node) => props.onSelectNode(node.id)}
           onPaneClick={() => props.onSelectNode(null)}
           defaultEdgeOptions={{ type: "workflow" }}

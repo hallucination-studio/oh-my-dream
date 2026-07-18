@@ -15,6 +15,12 @@ export interface SelectedNode {
   assetPresentation?: { title: string; available: boolean };
 }
 
+export interface SelectedEdge {
+  id: string;
+  sourceLabel: string;
+  targetLabel: string;
+}
+
 export function InspectorPanel({
   node,
   modeOptions = [],
@@ -24,6 +30,9 @@ export function InspectorPanel({
   onRunThroughNode = () => undefined,
   readinessIssues = [],
   runDisabled = false,
+  onDeleteNode,
+  selectedEdge = null,
+  onDeleteEdge,
 }: {
   node: SelectedNode | null;
   modeOptions?: NodeTypeSpec[];
@@ -33,7 +42,30 @@ export function InspectorPanel({
   onRunThroughNode?: (nodeId: string) => void;
   readinessIssues?: string[];
   runDisabled?: boolean;
+  onDeleteNode?: (nodeId: string) => void;
+  selectedEdge?: SelectedEdge | null;
+  onDeleteEdge?: (edgeId: string) => void;
 }) {
+  if (!node && selectedEdge) {
+    return (
+      <aside className="insp">
+        <div className="insp__head">
+          <span className="insp__badge" style={{ background: "var(--ink-3)" }} />
+          <b>Connection</b>
+        </div>
+        <p className="insp__note-plain">
+          {selectedEdge.sourceLabel} → {selectedEdge.targetLabel}
+        </p>
+        <button
+          className="insp__asset-action insp__asset-action--danger"
+          onClick={() => onDeleteEdge?.(selectedEdge.id)}
+        >
+          Delete connection
+        </button>
+        <p className="insp__hint">Backspace also deletes the selection.</p>
+      </aside>
+    );
+  }
   if (!node) {
     return (
       <aside className="insp">
@@ -160,6 +192,17 @@ export function InspectorPanel({
       >
         Run to here
       </button>
+      {onDeleteNode && (
+        <>
+          <button
+            className="insp__asset-action insp__asset-action--danger"
+            onClick={() => onDeleteNode(node.id)}
+          >
+            Delete node
+          </button>
+          <p className="insp__hint">Backspace also deletes the selection.</p>
+        </>
+      )}
     </aside>
   );
 }

@@ -6,8 +6,16 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { recoveryNodeSpec, type NodeTypeSpec } from "./catalog.ts";
 import { ParameterInput } from "./ParameterInput.tsx";
 import { typeColor, nodeAccent, portTypeLabel } from "./typeColor.ts";
-import type { NodeExecutionState } from "../workflow/types.ts";
+import type { NodeExecutionState, PortType } from "../workflow/types.ts";
 import "./nodeStyles.css";
+
+/** State of an in-flight connection drag or keyboard connection intent. */
+export interface ConnectHighlight {
+  sourceId: string;
+  sourceHandle: string;
+  sourceType: PortType;
+  keyboard: boolean;
+}
 
 export interface NodeRuntime {
   state: NodeExecutionState;
@@ -25,12 +33,15 @@ export interface FlowNodeData {
   runtime?: NodeRuntime;
   assetPresentation?: { title: string; available: boolean };
   textPresentation?: string | null;
+  connect?: ConnectHighlight | null;
   onParamChange: (name: string, value: unknown) => void;
+  onStartKeyboardConnect?: (nodeId: string, handle: string) => void;
+  onCompleteKeyboardConnect?: (nodeId: string, handle: string) => void;
   [key: string]: unknown;
 }
 
 
-export function WorkflowFlowNode({ data, selected }: NodeProps) {
+export function WorkflowFlowNode({ data, selected, id: nodeId }: NodeProps) {
   const nodeData = data as FlowNodeData;
   const spec =
     nodeData.capability ??
@@ -107,36 +118,105 @@ export function WorkflowFlowNode({ data, selected }: NodeProps) {
         <div className="wf-node__ports">
           <div className="wf-node__ports-col">
             {spec.inputs.map((port) => (
-              <div className="wf-port-row" key={`in-${port.name}`}>
-                <Handle
-                  type="target"
-                  position={Position.Left}
-                  id={port.name}
-                  className="wf-port"
-                  style={{ background: typeColor(port.type) }}
-                />
-                <span className="wf-port-row__name">{port.name}</span>
-                <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
-              </div>
+              <TargetPortRow key={`in-${port.name}`} port={port} nodeId={nodeId} data={nodeData} />
             ))}
           </div>
           <div className="wf-node__ports-col wf-node__ports-col--out">
             {spec.outputs.map((port) => (
-              <div className="wf-port-row wf-port-row--out" key={`out-${port.name}`}>
-                <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
-                <span className="wf-port-row__name">{port.name}</span>
-                <Handle
-                  type="source"
-                  position={Position.Right}
-                  id={port.name}
-                  className="wf-port"
-                  style={{ background: typeColor(port.type) }}
-                />
-              </div>
+              <SourcePortRow key={`out-${port.name}`} port={port} nodeId={nodeId} data={nodeData} />
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TargetPortRow({
+  port,
+  nodeId,
+  data,
+}: {
+  port: { name: string; type: PortType };
+  nodeId: string;
+  data: FlowNodeData;
+}) {
+  const connect = data.connect ?? null;
+  const active = connect !== null;
+  const compatible =
+    active && connect.sourceId !== nodeId && connect.sourceType === port.type;
+  const keyboardTarget = connect?.keyboard === true && compatible;
+  return (
+    <div
+      className={`wf-port-row${active ? (compatible ? " is-compatible" : " is-incompatible") : ""}`}
+      role={keyboardTarget ? "button" : undefined}
+      tabIndex={keyboardTarget ? 0 : undefined}
+      data-connect-target={keyboardTarget ? "compatible" : undefined}
+      aria-label={keyboardTarget ? `Connect to ${port.name}` : undefined}
+      onClick={keyboardTarget ? () => data.onCompleteKeyboardConnect?.(nodeId, port.name) : undefined}
+      onKeyDown={
+        keyboardTarget
+          ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                data.onCompleteKeyboardConnect?.(nodeId, port.name);
+              }
+            }
+          : undefined
+      }
+    >
+      <Handle
+        type="target"
+        position={Position.Left}
+        id={port.name}
+        className="wf-port"
+        style={{ background: typeColor(port.type) }}
+      />
+      <span className="wf-port-row__name">{port.name}</span>
+      <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
+    </div>
+  );
+}
+
+function SourcePortRow({
+  port,
+  nodeId,
+  data,
+}: {
+  port: { name: string; type: PortType };
+  nodeId: string;
+  data: FlowNodeData;
+}) {
+  const connect = data.connect ?? null;
+  const isSource =
+    connect !== null && connect.sourceId === nodeId && connect.sourceHandle === port.name;
+  const canStart = connect === null;
+  return (
+    <div
+      className={`wf-port-row wf-port-row--out${isSource ? " is-source" : ""}`}
+      role={canStart ? "button" : undefined}
+      tabIndex={canStart ? 0 : undefined}
+      aria-label={canStart ? `Connect from ${port.name}` : undefined}
+      onKeyDown={
+        canStart
+          ? (event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                data.onStartKeyboardConnect?.(nodeId, port.name);
+              }
+            }
+          : undefined
+      }
+    >
+      <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
+      <span className="wf-port-row__name">{port.name}</span>
+      <Handle
+        type="source"
+        position={Position.Right}
+        id={port.name}
+        className="wf-port"
+        style={{ background: typeColor(port.type) }}
+      />
     </div>
   );
 }

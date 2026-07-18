@@ -8,7 +8,7 @@ import {
 } from "@xyflow/react";
 import { capabilityKey } from "./nodes/exactCapability.ts";
 import { useNodeAvailability } from "./nodes/useNodeAvailability.ts";
-import type { FlowNodeData } from "./nodes/WorkflowFlowNode.tsx";
+import type { FlowNodeData, ConnectHighlight } from "./nodes/WorkflowFlowNode.tsx";
 import { typeColor } from "./nodes/typeColor.ts";
 import { nextNodeId, upsertIncomingEdge, isPersistedMutation } from "./workflow/editor.ts";
 import { firstFreeSlot } from "./canvas/placement.ts";
@@ -60,6 +60,8 @@ export function App() {
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [runSnapshot, setRunSnapshot] = useState<WorkflowRunDto | null>(null);
   const { notice, notify } = useNotice();
+  const [connect, setConnect] = useState<ConnectHighlight | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const {
     assistantEnabled,
     assistantOpen,
@@ -233,11 +235,8 @@ export function App() {
     }));
   }, [assets, setNodes]);
 
-  const onConnect = useCallback(
+  const attemptConnection = useCallback(
     (connection: Connection) => {
-      if (!canEdit) {
-        return;
-      }
       if (!isValidConnection(connection, nodes)) {
         notify("Connection rejected · the port types are incompatible");
         return;
@@ -260,7 +259,96 @@ export function App() {
         ),
       );
     },
-    [canEdit, markWorkflowMutation, nodes, notify, setEdges],
+    [markWorkflowMutation, nodes, notify, setEdges],
+  );
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!canEdit) {
+        return;
+      }
+      attemptConnection(connection);
+    },
+    [attemptConnection, canEdit],
+  );
+
+  const sourceTypeFor = useCallback(
+    (nodeId: string, handle: string) => {
+      const node = nodes.find((candidate) => candidate.id === nodeId);
+      const data = node?.data as FlowNodeData | undefined;
+      return data?.capability?.outputs.find((port) => port.name === handle)?.type ?? null;
+    },
+    [nodes],
+  );
+
+  const startKeyboardConnect = useCallback(
+    (nodeId: string, handle: string) => {
+      const sourceType = sourceTypeFor(nodeId, handle);
+      if (!canEdit || sourceType === null) return;
+      setConnect({ sourceId: nodeId, sourceHandle: handle, sourceType, keyboard: true });
+    },
+    [canEdit, sourceTypeFor],
+  );
+
+  const completeKeyboardConnect = useCallback(
+    (targetId: string, targetHandle: string) => {
+      if (!connect) return;
+      attemptConnection({
+        source: connect.sourceId,
+        sourceHandle: connect.sourceHandle,
+        target: targetId,
+        targetHandle,
+      });
+      setConnect(null);
+    },
+    [attemptConnection, connect],
+  );
+
+  // Keyboard connection intent: focus compatible targets, arrows cycle, Escape cancels.
+  useEffect(() => {
+    if (!connect?.keyboard) return;
+    const focusables = () =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-connect-target="compatible"]'));
+    focusables()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setConnect(null);
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const items = focusables();
+        if (items.length === 0) return;
+        const index = items.indexOf(document.activeElement as HTMLElement);
+        const step = event.key === "ArrowDown" ? 1 : -1;
+        items[(index + step + items.length) % items.length]?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [connect?.keyboard, connect?.sourceId]);
+
+  const deleteNode = useCallback(
+    (nodeId: string) => {
+      if (!canEdit) return;
+      markWorkflowMutation();
+      setNodes((current) => current.filter((node) => node.id !== nodeId));
+      setEdges((current) =>
+        current.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
+      );
+      setSelectedId(null);
+    },
+    [canEdit, markWorkflowMutation, setNodes, setEdges],
+  );
+
+  const deleteEdge = useCallback(
+    (edgeId: string) => {
+      if (!canEdit) return;
+      markWorkflowMutation();
+      setEdges((current) => current.filter((edge) => edge.id !== edgeId));
+      setSelectedEdgeId(null);
+    },
+    [canEdit, markWorkflowMutation, setEdges],
   );
 
   const handleNodesChange = useCallback(
@@ -280,6 +368,13 @@ export function App() {
     (changes: Parameters<typeof onEdgesChange>[0]) => {
       if (!canEdit) {
         return;
+      }
+      for (const change of changes) {
+        if (change.type === "select") {
+          setSelectedEdgeId((current) =>
+            change.selected ? change.id : current === change.id ? null : current,
+          );
+        }
       }
       if (changes.some(isGraphMutation)) {
         markWorkflowMutation();
@@ -323,6 +418,45 @@ export function App() {
       selected_asset_ids: selectedAssetId ? [selectedAssetId] : [],
     }),
     [project, selected, selectedAssetId, workspaceState],
+  );
+
+  const selectedEdge = useMemo(() => {
+    if (!selectedEdgeId) return null;
+    const edge = edges.find((candidate) => candidate.id === selectedEdgeId);
+    if (!edge) return null;
+    return {
+      id: edge.id,
+      sourceLabel: runNodeLabel(edge.source),
+      targetLabel: runNodeLabel(edge.target),
+    };
+  }, [edges, selectedEdgeId, runNodeLabel]);
+
+  const canvasNodes = useMemo(
+    () =>
+      nodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          connect,
+          onStartKeyboardConnect: startKeyboardConnect,
+          onCompleteKeyboardConnect: completeKeyboardConnect,
+        }
+      })),
+    [nodes, connect, startKeyboardConnect, completeKeyboardConnect],
+  );
+
+  const validateConnection = useCallback(
+    (connection: { source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null }) =>
+      isValidConnection(
+        {
+          source: connection.source,
+          sourceHandle: connection.sourceHandle ?? null,
+          target: connection.target,
+          targetHandle: connection.targetHandle ?? null,
+        },
+        nodes,
+      ),
+    [nodes],
   );
 
   const onDrop = useCallback(
@@ -402,12 +536,23 @@ export function App() {
 
           <>
             <WorkflowCanvas
-                nodes={nodes}
+                nodes={canvasNodes}
                 edges={edges}
                 onNodesChange={handleNodesChange}
                 onEdgesChange={handleEdgesChange}
                 onConnect={onConnect}
-                onSelectNode={setSelectedId}
+                onConnectStart={(nodeId, handleId) => {
+                  const sourceType = sourceTypeFor(nodeId, handleId);
+                  if (sourceType !== null) {
+                    setConnect({ sourceId: nodeId, sourceHandle: handleId, sourceType, keyboard: false });
+                  }
+                }}
+                onConnectEnd={() => setConnect(null)}
+                isValidConnection={validateConnection}
+                onSelectNode={(nodeId) => {
+                  setSelectedId(nodeId);
+                  setSelectedEdgeId(null);
+                }}
                 onDrop={onDrop}
             />
             <InspectorPanel
@@ -425,6 +570,9 @@ export function App() {
               }}
               readinessIssues={readinessIssueCopy}
               runDisabled={!runReady}
+              onDeleteNode={deleteNode}
+              selectedEdge={selectedEdge}
+              onDeleteEdge={deleteEdge}
             />
           </>
         {assistantEnabled && assistantOpen && (

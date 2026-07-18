@@ -29,6 +29,9 @@ it("mounts React Flow only after the parent has non-zero dimensions", () => {
       onNodesChange={vi.fn()}
       onEdgesChange={vi.fn()}
       onConnect={vi.fn()}
+      onConnectStart={vi.fn()}
+      onConnectEnd={vi.fn()}
+      isValidConnection={() => true}
       onSelectNode={vi.fn()}
       onDrop={vi.fn()}
     />,
@@ -68,6 +71,9 @@ it("does not publish another readiness state for an unchanged ResizeObserver mea
       onNodesChange={vi.fn()}
       onEdgesChange={vi.fn()}
       onConnect={vi.fn()}
+      onConnectStart={vi.fn()}
+      onConnectEnd={vi.fn()}
+      isValidConnection={() => true}
       onSelectNode={vi.fn()}
       onDrop={vi.fn()}
     />,
