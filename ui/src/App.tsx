@@ -10,7 +10,8 @@ import { capabilityKey } from "./nodes/exactCapability.ts";
 import { useNodeAvailability } from "./nodes/useNodeAvailability.ts";
 import type { FlowNodeData } from "./nodes/WorkflowFlowNode.tsx";
 import { typeColor } from "./nodes/typeColor.ts";
-import { nextNodeId, upsertIncomingEdge } from "./workflow/editor.ts";
+import { nextNodeId, upsertIncomingEdge, isPersistedMutation } from "./workflow/editor.ts";
+import { firstFreeSlot } from "./canvas/placement.ts";
 import { isValidConnection } from "./workflow/validate.ts";
 import {
   api,
@@ -42,8 +43,8 @@ import { useWorkflowReadiness } from "./workflow/useWorkflowReadiness.ts";
 import { projectReadinessIssues } from "./workflow/readinessCopy.ts";
 import { RunDrawer } from "./components/RunDrawer.tsx";
 
-function isGraphMutation(change: { type: string }): boolean {
-  return change.type === "add" || change.type === "remove" || change.type === "replace" || change.type === "position";
+function isGraphMutation(change: { type: string; dragging?: boolean }): boolean {
+  return isPersistedMutation(change);
 }
 
 export function App() {
@@ -175,7 +176,7 @@ export function App() {
             {
               id,
               type: "workflow",
-              position: position ?? { x: 140 + current.length * 60, y: 100 + current.length * 40 },
+              position: position ?? firstFreeSlot(current),
               data: {
                 type: reference.id,
                 contractVersion: reference.version,
@@ -323,15 +324,15 @@ export function App() {
   );
 
   const onDrop = useCallback(
-    (e: React.DragEvent) => {
+    (e: React.DragEvent, position: { x: number; y: number }) => {
       e.preventDefault();
       const encoded = e.dataTransfer.getData("application/oh-node");
       if (encoded) {
-        addNode(parseCapabilityRef(encoded), { x: e.clientX - 320, y: e.clientY - 90 });
+        addNode(parseCapabilityRef(encoded), position);
         return;
       }
       const assetId = e.dataTransfer.getData("application/oh-asset");
-      if (assetId) addAssetSource(assetId, { x: e.clientX - 320, y: e.clientY - 90 });
+      if (assetId) addAssetSource(assetId, position);
     },
     [addAssetSource, addNode],
   );

@@ -5,6 +5,12 @@ import { typeColor } from "../nodes/typeColor.ts";
 import type { Workflow } from "./types.ts";
 import type { NodeTypeSpec } from "../nodes/catalog.ts";
 
+/** A change worth marking as a Workflow mutation; in-progress drags persist on drag stop. */
+export function isPersistedMutation(change: { type: string; dragging?: boolean }): boolean {
+  if (change.type === "position") return change.dragging !== true;
+  return change.type === "add" || change.type === "remove" || change.type === "replace";
+}
+
 export interface EditorGraph {
   nodes: Node[];
   edges: Edge[];
