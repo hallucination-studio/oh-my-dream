@@ -41,6 +41,7 @@ import { useNodePresentation } from "./workflow/useNodePresentation.ts";
 import { failureCopy } from "./workflow/failureCopy.ts";
 import { useWorkflowReadiness } from "./workflow/useWorkflowReadiness.ts";
 import { projectReadinessIssues } from "./workflow/readinessCopy.ts";
+import { useNotice } from "./components/useNotice.ts";
 import { RunDrawer } from "./components/RunDrawer.tsx";
 
 function isGraphMutation(change: { type: string; dragging?: boolean }): boolean {
@@ -58,6 +59,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [runSnapshot, setRunSnapshot] = useState<WorkflowRunDto | null>(null);
+  const { notice, notify } = useNotice();
   const {
     assistantEnabled,
     assistantOpen,
@@ -194,19 +196,19 @@ export function App() {
   const addAssetSource = useCallback((assetId: string, position?: { x: number; y: number }) => {
     const asset = assets.find((candidate) => candidate.id === assetId);
     if (!asset) {
-      setStatus({ state: "failed", reason: "Asset is unavailable in the current workspace" });
+      notify("Add asset failed · it is unavailable in the current workspace");
       return;
     }
     const contract = exactContracts.find(
       (candidate) => candidate.capability_ref.id === `${asset.kind}.read_asset`,
     );
     if (!contract) {
-      setStatus({ state: "failed", reason: `This ${asset.kind} asset cannot be added right now` });
+      notify(`Add asset failed · this ${asset.kind} asset cannot be added right now`);
       return;
     }
     addNode(contract.capability_ref, position, { asset_id: asset.id });
     setSelectedAssetId(asset.id);
-  }, [addNode, assets, exactContracts]);
+  }, [addNode, assets, exactContracts, notify]);
 
   useEffect(() => {
     const assetIndex = new Map(assets.map((asset) => [asset.id, asset]));
@@ -237,7 +239,7 @@ export function App() {
         return;
       }
       if (!isValidConnection(connection, nodes)) {
-        setStatus({ state: "failed", reason: "Incompatible port types — connection rejected" });
+        notify("Connection rejected · the port types are incompatible");
         return;
       }
       const source = nodes.find((n) => n.id === connection.source);
@@ -258,7 +260,7 @@ export function App() {
         ),
       );
     },
-    [canEdit, markWorkflowMutation, nodes, setEdges],
+    [canEdit, markWorkflowMutation, nodes, notify, setEdges],
   );
 
   const handleNodesChange = useCallback(
@@ -392,7 +394,7 @@ export function App() {
             onJumpToNode={() => setTab("nodes")}
             onImport={(kind) => {
               void importAsset(kind).catch((error: unknown) => {
-                setStatus({ state: "failed", reason: failureCopy("Import asset", error) });
+                notify(failureCopy("Import asset", error));
               });
             }}
           />
@@ -455,6 +457,11 @@ export function App() {
         canCancel={status.state === "running"}
         onCancel={cancel}
       />
+      {notice !== null && (
+        <div className="bench__notice" role="status">
+          {notice}
+        </div>
+      )}
       {closeError !== null && (
         <CloseFailureDialog
           error={closeError}

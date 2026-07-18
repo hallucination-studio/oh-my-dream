@@ -20,9 +20,10 @@ export function useRunProjection(
             : node,
         ),
       );
+      // Only edges feeding the active node carry the running treatment.
       setEdges((current) => current.map((edge) => ({
         ...edge,
-        data: { ...edge.data, running: true },
+        data: { ...edge.data, running: edge.target === progress.nodeId },
       })));
     },
     [setNodes, setEdges],

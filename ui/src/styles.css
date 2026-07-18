@@ -118,3 +118,23 @@ input {
   border: 1px solid var(--hair);
   overflow: hidden;
 }
+
+/* Transient editor notice: one toast, never through Run status. */
+.bench__notice {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  max-width: min(480px, calc(100vw - 96px));
+  padding: 8px 14px;
+  border-radius: var(--r-md);
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 12px;
+  line-height: 1.4;
+  z-index: 30;
+  box-shadow: var(--shadow-pop);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

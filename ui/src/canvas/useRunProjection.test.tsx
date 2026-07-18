@@ -29,6 +29,30 @@ describe("useRunProjection", () => {
     expect(view.result.current.edges[0]?.data?.running).toBe(false);
   });
 
+  it("scopes the running treatment to edges feeding the active node", () => {
+    const initialEdges: Edge[] = [
+      { id: "a-b", source: "a", target: "b", data: {} },
+      { id: "b-c", source: "b", target: "c", data: {} },
+    ];
+    const view = renderHook(() => {
+      const [, setNodes] = useState([
+        nodeWithState("a", "done"),
+        nodeWithState("b", "running"),
+        nodeWithState("c", "running"),
+      ]);
+      const [edges, setEdges] = useState(initialEdges);
+      const projection = useRunProjection(setNodes, setEdges);
+      return { edges, projection };
+    });
+
+    act(() =>
+      view.result.current.projection.applyProgress({ nodeId: "b", progress: 0.5, nodeState: "running" }),
+    );
+
+    expect(view.result.current.edges[0]?.data?.running).toBe(true);
+    expect(view.result.current.edges[1]?.data?.running).toBe(false);
+  });
+
   it("selects a media preview even when a non-media output comes first", () => {
     const view = renderHook(() => {
       const [nodes, setNodes] = useState([nodeWithState("result", "running")]);
