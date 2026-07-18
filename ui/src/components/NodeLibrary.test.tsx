@@ -19,15 +19,16 @@ it("renders the exact capability list in creator language and stable group order
 
   expect(screen.getByRole("button", { name: "Text" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Generate image" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Create video" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Image asset" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Generate video" })).toBeTruthy();
+  // Asset nodes come from the Asset Library drag, not the palette.
+  expect(screen.queryByRole("button", { name: "Image asset" })).toBeNull();
   const categories = screen
     .getAllByRole("button")
     .map((button) => button.textContent ?? "")
-    .filter((text) => /^(Inputs|Generate|Assets)\s*\d+$/.test(text));
+    .filter((text) => /^(Inputs|Generate)\s*\d+$/.test(text));
   expect(categories[0]).toMatch(/^Inputs/);
   expect(categories[1]).toMatch(/^Generate/);
-  expect(categories[2]).toMatch(/^Assets/);
+  expect(categories).toHaveLength(2);
 });
 
 it("matches creator-language search aliases", () => {
@@ -45,7 +46,7 @@ it("matches creator-language search aliases", () => {
     target: { value: "t2i" },
   });
   expect(screen.getByRole("button", { name: "Generate image" })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Create video" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Generate video" })).toBeNull();
 });
 
 it("renders bounded skeletons while contracts load", () => {

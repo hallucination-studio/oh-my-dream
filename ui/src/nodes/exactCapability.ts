@@ -200,12 +200,12 @@ export function presentationFor(id: string) {
       aliases: ["text to image", "t2i", "picture", "photo"],
     },
     "video.generate_from_image": {
-      label: "Create video",
+      label: "Generate video",
       category: "Generate",
       aliases: ["image to video", "i2v", "clip", "animate"],
     },
     "audio.synthesize_speech_from_text": {
-      label: "Create speech",
+      label: "Generate speech",
       category: "Generate",
       aliases: ["text to speech", "tts", "voice", "narration"],
     },

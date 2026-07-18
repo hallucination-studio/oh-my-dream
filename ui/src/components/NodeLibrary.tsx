@@ -39,6 +39,9 @@ export function NodeLibrary({
     const visibleSummaries = contracts
       .map((contract) => contractSummary(contract, loadedSpecs))
       .filter((summary) =>
+        // Asset nodes are created by dragging from the Asset Library, never
+        // from the palette (docs/DESKTOP_UI.md, Graph Editing).
+        summary.contextual_creation === null &&
         (!hiddenCapabilityKeys.has(capabilityKey(summary.reference)) ||
           savedCapabilityKeys.has(capabilityKey(summary.reference))) &&
         (summary.presentation.label.toLowerCase().includes(normalizedQuery) ||

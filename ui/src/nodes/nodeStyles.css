@@ -1,25 +1,24 @@
 /* Workflow node card — solid, typed ports, status/progress/preview/cost.
  * Nodes float on the canvas (they are the content), so they keep a shadow. */
 
+/* Workflow node card — a white card whose identity is the pastel-tinted header. */
+
 .wf-node {
   position: relative;
   width: 304px;
   border-radius: var(--r-lg);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
-  background: var(--surface-2);
+  box-shadow: var(--shadow-lg);
+  background: var(--surface);
   border: 1px solid var(--hair-2);
   overflow: visible;
+  animation: wf-node-in 0.18s ease-out backwards;
+}
+@keyframes wf-node-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 .wf-node--generation {
   width: 336px;
-}
-.wf-node__bar {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--type);
-  border-radius: var(--r-lg) 0 0 var(--r-lg);
-  z-index: 2;
 }
 .wf-node.is-selected {
   border-color: var(--accent);
@@ -27,30 +26,40 @@
 }
 .wf-node.is-running {
   border-color: var(--warn);
-  box-shadow: var(--shadow-lg), 0 0 0 3px rgba(216, 173, 77, 0.18);
+}
+.wf-node.is-running::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: calc(var(--r-lg) + 3px);
+  border: 1.5px solid rgba(216, 173, 77, 0.55);
+  pointer-events: none;
+  animation: wf-run-pulse 1.7s ease-out infinite;
+}
+@keyframes wf-run-pulse {
+  0% { opacity: 0.85; transform: scale(0.996); }
+  70% { opacity: 0; transform: scale(1.02); }
+  100% { opacity: 0; transform: scale(1.02); }
 }
 .wf-node.is-error {
   border-color: var(--err);
 }
-.wf-node.is-error .wf-node__bar {
-  background: var(--err);
-}
 .wf-node.is-degraded {
   border-color: var(--warn);
 }
-.wf-node.is-degraded .wf-node__bar {
-  background: var(--warn);
-}
 
+/* The header is the node's identity: a pastel tint of the type color with
+   deep type-colored text (docs/DESKTOP_UI.md, Nodes). */
 .wf-node__title {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 10px 12px 10px 14px;
-  font-weight: 600;
-  font-size: 13.5px;
+  padding: 9px 12px;
+  font-weight: 650;
+  font-size: 13px;
   letter-spacing: -0.01em;
-  background: rgba(235, 240, 243, 0.045);
+  color: color-mix(in srgb, var(--type) 58%, var(--ink));
+  background: color-mix(in srgb, var(--type) 14%, #ffffff);
   border-bottom: 1px solid var(--hair);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
@@ -76,7 +85,7 @@
 
 .wf-node__recovery {
   padding: 7px 11px 7px 14px;
-  color: var(--warn);
+  color: var(--warn-text);
   background: rgba(216, 173, 77, 0.12);
   border-bottom: 1px solid var(--hair);
   font-size: 10px;
@@ -90,10 +99,10 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 9.5px;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   padding: 3px 8px;
   border-radius: var(--r-pill);
 }
@@ -105,14 +114,14 @@
 .wf-pill--idle,
 .wf-pill--cached {
   color: var(--ink-3);
-  background: rgba(235, 240, 243, 0.1);
+  background: rgba(255, 255, 255, 0.55);
 }
 .wf-pill--idle .wf-pill__dot,
 .wf-pill--cached .wf-pill__dot {
   background: var(--ink-3);
 }
 .wf-pill--running {
-  color: var(--warn);
+  color: var(--warn-text);
   background: rgba(216, 173, 77, 0.18);
 }
 .wf-pill--running .wf-pill__dot {
@@ -127,8 +136,8 @@
   background: var(--ok);
 }
 .wf-pill--error {
-  color: color-mix(in srgb, var(--err) 78%, white);
-  background: rgba(212, 99, 85, 0.18);
+  color: color-mix(in srgb, var(--err) 82%, black);
+  background: rgba(212, 99, 85, 0.16);
 }
 .wf-pill--error .wf-pill__dot {
   background: var(--err);
@@ -151,7 +160,7 @@
 }
 
 .wf-preview {
-  margin: 9px 10px 0;
+  margin: 0 11px 10px;
   aspect-ratio: 16 / 9;
   min-height: 176px;
   border-radius: var(--r-md);
@@ -213,10 +222,10 @@
 }
 
 .wf-node__body {
-  padding: 9px 11px 10px;
+  padding: 10px 11px;
   display: grid;
-  grid-template-columns: 64px 1fr;
-  gap: 7px 9px;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
   align-items: center;
 }
 .wf-param {
@@ -230,9 +239,10 @@
 }
 .wf-param__input {
   background: var(--surface-sunk);
-  border: 1px solid transparent;
+  border: 1px solid var(--hair);
   border-radius: var(--r-sm);
-  padding: 6px 9px;
+  height: 30px;
+  padding: 0 10px;
   font-size: 12px;
   color: var(--ink);
   outline: none;
@@ -278,7 +288,7 @@
 .wf-node--error {
   padding: 12px;
   color: var(--err);
-  background: var(--surface-2);
+  background: var(--surface);
   border: 1px solid var(--err);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
@@ -289,9 +299,9 @@
   top: 50%;
   width: 10px;
   height: 10px;
-  border: 2px solid var(--surface-2);
+  border: 2px solid var(--surface);
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 1px var(--hair-2);
 }
 .wf-port-row .wf-port {
   left: -5px;
@@ -311,7 +321,7 @@
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  padding: 7px 0 8px;
+  padding: 7px 12px 8px;
   border-top: 1px solid var(--hair);
   background: var(--surface-sunk);
   border-radius: 0 0 var(--r-lg) var(--r-lg);
@@ -329,9 +339,9 @@
   position: relative;
   display: flex;
   align-items: baseline;
-  gap: 5px;
-  padding: 2px 10px;
-  font-size: 10px;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 11px;
 }
 .wf-port-row--out {
   justify-content: flex-end;
@@ -343,8 +353,8 @@
 }
 .wf-port-row__type {
   color: var(--ink-faint);
-  font-size: 9px;
-  font-weight: 600;
+  font-size: 8.5px;
+  font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -362,7 +372,7 @@
   color: var(--accent);
 }
 .wf-port-row.is-compatible .wf-port {
-  box-shadow: 0 0 0 3px var(--accent-soft), 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .wf-port-row.is-incompatible {
   opacity: 0.42;
@@ -372,12 +382,14 @@
   font-weight: 700;
 }
 .react-flow__handle.valid {
-  box-shadow: 0 0 0 4px var(--accent-soft), 0 1px 3px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
 textarea.wf-param__input {
   resize: vertical;
-  min-height: 54px;
+  min-height: 60px;
+  height: auto;
+  padding: 8px 10px;
   line-height: 1.45;
   font-family: var(--font);
 }

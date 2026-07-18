@@ -74,13 +74,16 @@
 .psw__add {
   padding: 0 12px;
   border-radius: var(--r-sm);
-  background: var(--accent);
+  background: var(--dream-grad-loop);
+  background-size: 220% 220%;
+  animation: dream-drift 10s ease-in-out infinite;
+  box-shadow: var(--dream-glow);
   color: var(--on-accent);
   font-size: 12px;
   font-weight: 600;
 }
 .psw__add:hover {
-  background: var(--accent-strong);
+  filter: brightness(1.06);
 }
 
 .psw__empty {

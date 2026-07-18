@@ -46,7 +46,7 @@
   color: var(--ink-3);
 }
 .adock__ico:hover {
-  background: rgba(235, 240, 243, 0.07);
+  background: rgba(16, 24, 40, 0.05);
   color: var(--ink);
 }
 .adock__ico svg {
@@ -231,8 +231,8 @@
 .adock__approval-details dd { margin: 0; overflow-wrap: anywhere; }
 .adock__approval-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .adock__approval-actions button { padding: 6px 10px; border: 1px solid var(--hair); border-radius: var(--r-sm); }
-.adock__approval-actions .is-primary { color: var(--on-accent); background: var(--accent); border-color: transparent; }
-.adock__approval-actions .is-primary:hover { background: var(--accent-strong); }
+.adock__approval-actions .is-primary { color: var(--on-accent); background: var(--dream-grad-loop); background-size: 220% 220%; animation: dream-drift 10s ease-in-out infinite; box-shadow: var(--dream-glow); border-color: transparent; }
+.adock__approval-actions .is-primary:hover { filter: brightness(1.06); }
 .adock__preview { padding: 9px; border-radius: var(--r-sm); background: var(--surface); font-size: 11px; }
 .adock__preview strong { display: block; margin-bottom: 5px; }
 .adock__preview span { color: var(--ink-3); }

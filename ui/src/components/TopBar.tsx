@@ -110,14 +110,9 @@ function WorkspaceState({ state }: { state: ProjectWorkspaceState }) {
   );
 }
 
-// Geometric brand mark: a dark rounded square with an aperture play triangle.
+// Brand mark: the aurora drifts slowly across a rounded square with an aperture triangle.
 function BrandMark() {
-  return (
-    <svg className="topbar__mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="1.2" y="1.2" width="21.6" height="21.6" rx="6.4" fill="var(--accent)" />
-      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="var(--on-accent)" />
-    </svg>
-  );
+  return <span className="topbar__mark" aria-hidden="true" />;
 }
 
 function GearIcon() {

@@ -76,14 +76,17 @@
   color: var(--ink);
 }
 .insp__asset-action--primary {
-  background: var(--accent);
+  background: var(--dream-grad-loop);
+  background-size: 220% 220%;
+  animation: dream-drift 10s ease-in-out infinite;
+  box-shadow: var(--dream-glow);
   border-color: transparent;
   color: var(--on-accent);
   font-weight: 600;
 }
 .insp__asset-action--primary:hover,
 .insp__asset-action--primary:focus-visible {
-  background: var(--accent-strong);
+  filter: brightness(1.06);
   border-color: transparent;
   color: var(--on-accent);
 }

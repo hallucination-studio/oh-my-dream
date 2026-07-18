@@ -88,7 +88,7 @@
   border-radius: var(--r-sm);
 }
 .nlib__cathead:hover {
-  background: rgba(235, 240, 243, 0.06);
+  background: rgba(16, 24, 40, 0.05);
 }
 .nlib__tw {
   width: 0;

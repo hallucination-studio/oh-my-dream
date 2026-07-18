@@ -57,7 +57,7 @@
   text-align: left;
 }
 .dialog__navitem:hover {
-  background: rgba(235, 240, 243, 0.07);
+  background: rgba(16, 24, 40, 0.05);
 }
 .dialog__navitem.is-on {
   background: var(--accent-soft);
@@ -84,13 +84,16 @@
 .dialog__done {
   height: 33px;
   padding: 0 20px;
-  background: var(--accent);
+  background: var(--dream-grad-loop);
+  background-size: 220% 220%;
+  animation: dream-drift 10s ease-in-out infinite;
+  box-shadow: var(--dream-glow);
   color: var(--on-accent);
   border-radius: var(--r-md);
   font-weight: 600;
 }
 .dialog__done:hover {
-  background: var(--accent-strong);
+  filter: brightness(1.06);
 }
 
 @media (max-width: 520px) {
@@ -149,8 +152,8 @@
   color: var(--ink-2);
 }
 .close-dialog__discard {
-  border-color: var(--accent) !important;
-  background: var(--accent);
+  border-color: transparent !important;
+  background: var(--dream-grad);
   color: var(--on-accent) !important;
 }
 

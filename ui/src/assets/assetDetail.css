@@ -114,10 +114,13 @@
   background: var(--surface-sunk);
 }
 .adet__btn--pri {
-  background: var(--accent);
+  background: var(--dream-grad-loop);
+  background-size: 220% 220%;
+  animation: dream-drift 10s ease-in-out infinite;
+  box-shadow: var(--dream-glow);
   color: var(--on-accent);
   border: none;
 }
 .adet__btn--pri:hover {
-  background: var(--accent-strong);
+  filter: brightness(1.06);
 }

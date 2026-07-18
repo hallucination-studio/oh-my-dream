@@ -74,7 +74,7 @@ describe("RunDrawer", () => {
             { node_id: "node-c", node_execution_id: "exec-c", state: "pending", progress_basis_points: null },
           ],
         }}
-        nodeLabel={(nodeId) => ({ "node-a": "Text", [NODE_ID]: "Generate image", "node-c": "Create video" })[nodeId] ?? "Step"}
+        nodeLabel={(nodeId) => ({ "node-a": "Text", [NODE_ID]: "Generate image", "node-c": "Generate video" })[nodeId] ?? "Step"}
         canCancel
         onCancel={onCancel}
         taskApi={{ generationTaskList: async () => ({ tasks: [], next_cursor: null }) }}
@@ -84,7 +84,7 @@ describe("RunDrawer", () => {
     expect(await screen.findByText("Running 1 of 3 steps")).toBeTruthy();
     expect(screen.getByText("Text")).toBeTruthy();
     expect(screen.getByText("Generate image")).toBeTruthy();
-    expect(screen.getByText("Create video")).toBeTruthy();
+    expect(screen.getByText("Generate video")).toBeTruthy();
     expect(screen.getByText("Complete")).toBeTruthy();
     expect(screen.getByText("Waiting")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));

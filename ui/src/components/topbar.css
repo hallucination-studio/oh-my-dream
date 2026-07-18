@@ -18,11 +18,24 @@
   font-size: 13.5px;
   letter-spacing: -0.01em;
 }
-/* Real geometric mark: a dark rounded square with an aperture play triangle. */
+/* Brand mark: the aurora drifts slowly; the aperture triangle stays crisp. */
 .topbar__mark {
   width: 21px;
   height: 21px;
-  display: block;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--dream-grad-loop);
+  background-size: 220% 220%;
+  animation: dream-drift 10s ease-in-out infinite;
+  box-shadow: 0 2px 8px rgba(140, 100, 240, 0.35);
+}
+.topbar__mark::after {
+  content: "";
+  border-left: 7px solid #ffffff;
+  border-top: 4.5px solid transparent;
+  border-bottom: 4.5px solid transparent;
+  margin-left: 2px;
 }
 
 .topbar__sep {
@@ -42,7 +55,7 @@
   border: 1px solid transparent;
 }
 .topbar__proj:hover {
-  background: rgba(235, 240, 243, 0.07);
+  background: rgba(16, 24, 40, 0.05);
 }
 .topbar__pdot {
   width: 7px;
@@ -112,7 +125,7 @@
   place-items: center;
 }
 .topbar__gear:hover {
-  background: rgba(235, 240, 243, 0.07);
+  background: rgba(16, 24, 40, 0.05);
   color: var(--ink);
 }
 .topbar__details {
@@ -124,7 +137,7 @@
   color: var(--ink-2);
 }
 .topbar__details:hover {
-  background: rgba(235, 240, 243, 0.07);
+  background: rgba(16, 24, 40, 0.05);
   color: var(--ink);
 }
 .topbar__details svg {
@@ -142,14 +155,17 @@
   gap: 7px;
   height: 28px;
   padding: 0 14px 0 12px;
-  background: var(--accent);
+  background: var(--dream-grad-loop);
+  background-size: 220% 220%;
+  animation: dream-drift 10s ease-in-out infinite;
+  box-shadow: var(--dream-glow);
   color: var(--on-accent);
   border-radius: var(--r-sm);
   font-weight: 550;
   font-size: 12.5px;
 }
 .topbar__run:hover {
-  background: var(--accent-strong);
+  filter: brightness(1.06);
 }
 .topbar__run--cancel {
   background: transparent;
@@ -158,7 +174,7 @@
   box-shadow: none;
 }
 .topbar__run--cancel:hover {
-  background: rgba(235, 240, 243, 0.07);
+  background: rgba(16, 24, 40, 0.05);
 }
 .topbar__play {
   width: 0;

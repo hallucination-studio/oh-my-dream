@@ -37,8 +37,8 @@ body {
 
 /* Drag-select rectangle: Signal Teal on Canvas Black, never the light default. */
 .react-flow__selection {
-  background: rgba(38, 168, 143, 0.08);
-  border: 1px solid rgba(38, 168, 143, 0.45);
+  background: rgba(108, 92, 231, 0.08);
+  border: 1px solid rgba(108, 92, 231, 0.45);
   border-radius: 2px;
 }
 
@@ -48,6 +48,20 @@ button {
   border: none;
   color: inherit;
   background: none;
+}
+
+/* The aurora slowly travels its track on brand moments and solid primaries. */
+@keyframes dream-drift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 input {
@@ -116,7 +130,12 @@ input {
   min-height: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 1px 1px, rgba(235, 240, 243, 0.1) 1px, transparent 0) -1px -1px / 22px 22px,
+    radial-gradient(720px 460px at 78% -8%, rgba(160, 92, 240, 0.07), transparent 62%),
+    radial-gradient(560px 380px at 12% 108%, rgba(109, 123, 242, 0.06), transparent 60%),
+    linear-gradient(rgba(47, 111, 150, 0.05) 1px, transparent 1px) 0 0 / 100% 22px,
+    linear-gradient(90deg, rgba(47, 111, 150, 0.05) 1px, transparent 1px) 0 0 / 22px 100%,
+    linear-gradient(rgba(47, 111, 150, 0.08) 1px, transparent 1px) 0 0 / 100% 110px,
+    linear-gradient(90deg, rgba(47, 111, 150, 0.08) 1px, transparent 1px) 0 0 / 110px 100%,
     var(--canvas);
 }
 
