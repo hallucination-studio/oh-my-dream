@@ -21,6 +21,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+::selection {
+  background: var(--accent-soft);
+}
+
+/* React Flow keeps selection chrome off; the node skin owns it. */
+.react-flow__node.selected {
+  outline: none;
+  box-shadow: none;
+}
+
 button {
   font-family: var(--font);
   cursor: pointer;
