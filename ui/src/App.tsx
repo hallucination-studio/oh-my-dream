@@ -591,6 +591,7 @@ export function App() {
               key={project?.id ?? "no-project"}
               onClose={() => setAssistantOpen(false)}
               getContext={assistantContext}
+              nodeLabel={runNodeLabel}
               beforeSend={(restoreFocus) =>
                 runAfterBarrier("assistant_turn", () => undefined, restoreFocus)
               }

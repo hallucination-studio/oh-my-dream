@@ -42,12 +42,14 @@ export function AssistantDock({
   apiClient = api,
   getContext = GET_EMPTY_CONTEXT,
   beforeSend = PASS_BARRIER,
+  nodeLabel,
 }: {
   onClose: () => void;
   apiClient?: WorkflowApi;
   getContext?: () => AssistantContext;
   beforeSend?: (restoreFocus: () => void) => Promise<void>;
   onWorkflowHead?: (head: WorkflowHead) => void | Promise<void>;
+  nodeLabel?: (nodeId: string) => string;
 }) {
   const [draft, setDraft] = useState("");
   const [items, setItems] = useState<StreamItem[]>([]);
@@ -232,6 +234,7 @@ export function AssistantDock({
             approval={pendingApproval}
             busy={approvalBusy}
             onDecision={(value) => void decideApproval(value)}
+            nodeLabel={nodeLabel}
           />
         ) : null}
       </div>
