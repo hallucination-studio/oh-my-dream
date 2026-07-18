@@ -280,9 +280,6 @@ function StreamRow({
   if (item.kind === "assistant") {
     return (
       <div className="adock__a">
-        <span className="adock__amk">
-          <BrandGlyph />
-        </span>
         <div className="adock__abody">{item.text}</div>
       </div>
     );
@@ -337,7 +334,7 @@ function BrandMark() {
 function BrandGlyph({ large }: { large?: boolean } = {}) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" width={large ? 24 : 12} height={large ? 24 : 12}>
-      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="var(--on-accent)" />
+      <path d="M9.2 7.6 L16.6 12 L9.2 16.4 Z" fill="var(--accent)" />
     </svg>
   );
 }

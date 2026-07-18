@@ -70,14 +70,14 @@
   padding: 20px 8px;
 }
 .adock__glow {
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   margin: 0 auto 14px;
-  border-radius: 14px;
-  background: var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--surface-sunk);
+  border: 1px solid var(--hair);
   display: grid;
   place-items: center;
-  box-shadow: var(--shadow-lg);
 }
 .adock__empty h4 {
   margin: 0 0 5px;
@@ -99,7 +99,7 @@
   text-align: left;
   padding: 9px 12px;
   border-radius: var(--r-md);
-  background: var(--surface-2);
+  background: transparent;
   border: 1px solid var(--hair);
   font-size: 12.5px;
   color: var(--ink-2);
@@ -109,33 +109,23 @@
   color: var(--ink);
 }
 
-/* user message: right-aligned accent bubble */
+/* user message: right-aligned graphite bubble, never accent-filled */
 .adock__u {
   align-self: flex-end;
   max-width: 84%;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--hair);
   padding: 8px 12px;
-  border-radius: 12px 12px 3px 12px;
+  border-radius: var(--r-lg);
   font-size: 12.5px;
   line-height: 1.45;
   white-space: pre-wrap;
 }
 
-/* assistant message: full width with a small mark */
+/* assistant message: plain full-width text, no avatar or bubble chrome */
 .adock__a {
-  display: flex;
-  gap: 9px;
-}
-.adock__amk {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  background: var(--ink);
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  margin-top: 1px;
+  display: block;
 }
 .adock__abody {
   min-width: 0;
@@ -240,7 +230,8 @@
 .adock__approval-details dd { margin: 0; overflow-wrap: anywhere; }
 .adock__approval-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .adock__approval-actions button { padding: 6px 10px; border: 1px solid var(--hair); border-radius: var(--r-sm); }
-.adock__approval-actions .is-primary { color: white; background: var(--accent-strong); border-color: var(--accent-strong); }
+.adock__approval-actions .is-primary { color: var(--on-accent); background: var(--accent); border-color: transparent; }
+.adock__approval-actions .is-primary:hover { background: var(--accent-strong); }
 .adock__preview { padding: 9px; border-radius: var(--r-sm); background: var(--surface); font-size: 11px; }
 .adock__preview strong { display: block; margin-bottom: 5px; }
 .adock__preview span { color: var(--ink-3); }
@@ -281,14 +272,21 @@
   width: 30px;
   height: 30px;
   border-radius: var(--r-md);
-  background: var(--accent);
-  color: var(--on-accent);
-  border: none;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--hair-2);
   display: grid;
   place-items: center;
 }
 .adock__send:hover {
-  background: var(--accent-strong);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.adock__send:disabled {
+  color: var(--ink-faint);
+  border-color: var(--hair);
+  background: transparent;
+  cursor: not-allowed;
 }
 .adock__send svg {
   width: 15px;
