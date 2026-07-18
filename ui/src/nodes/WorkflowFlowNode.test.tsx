@@ -68,6 +68,40 @@ describe("WorkflowFlowNode", () => {
     expect(screen.getByText("Evening rain")).toBeTruthy();
     expect(screen.queryByText(/AudioAssetSource/)).toBeNull();
   });
+
+  it("maps execution states to creator-language pills", () => {
+    const entry = catalog.capabilities.find((candidate) => candidate.contract.reference.id === "VideoConcat");
+    if (!entry) throw new Error("missing VideoConcat fixture");
+    const capability = nodeSpecFromBundle({
+      selector: entry.selector,
+      reference: entry.contract.reference,
+      contract: entry.contract,
+      presentation: entry.presentation,
+      status: entry.status,
+    });
+
+    const cases: Array<[FlowNodeData["runtime"], string]> = [
+      [undefined, "Not run"],
+      [{ state: "running", progress: 0.4 }, "Running"],
+      [{ state: "done" }, "Complete"],
+      [{ state: "cached" }, "Complete"],
+      [{ state: "error" }, "Needs attention"],
+    ];
+    for (const [runtime, label] of cases) {
+      const props = {
+        id: "node",
+        selected: false,
+        data: { type: "VideoConcat", contractVersion: "1.0", capability, params: {}, runtime, onParamChange: () => {} },
+      } as unknown as NodeProps;
+      const view = render(
+        <ReactFlowProvider>
+          <WorkflowFlowNode {...props} />
+        </ReactFlowProvider>,
+      );
+      expect(screen.getByText(label)).toBeTruthy();
+      view.unmount();
+    }
+  });
 });
 
 function renderNode(data: Omit<FlowNodeData, "onParamChange">): void {

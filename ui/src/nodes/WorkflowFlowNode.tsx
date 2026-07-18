@@ -138,11 +138,11 @@ function Fragment({ label, children }: { label: string; children: React.ReactNod
 
 function StatePill({ state }: { state: NodeExecutionState }) {
   const text: Record<NodeExecutionState, string> = {
-    idle: "Idle",
+    idle: "Not run",
     running: "Running",
-    done: "Done",
-    cached: "Cached",
-    error: "Error",
+    done: "Complete",
+    cached: "Complete",
+    error: "Needs attention",
   };
   return (
     <span className={`wf-pill wf-pill--${state}`}>

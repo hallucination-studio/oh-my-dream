@@ -40,13 +40,23 @@
 
 .wf-node__title {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 8px 11px 8px 14px;
   font-weight: 600;
   font-size: 12.5px;
   letter-spacing: -0.01em;
   border-bottom: 1px solid var(--hair);
+}
+/* The name clamps at two lines on a 20px line height; the state pill never wraps. */
+.wf-node__title > span:first-child {
+  min-width: 0;
+  line-height: 20px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .wf-node__asset {
@@ -69,6 +79,8 @@
 
 .wf-pill {
   margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 4px;
