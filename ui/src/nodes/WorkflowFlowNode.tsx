@@ -179,7 +179,9 @@ function TargetPortRow({
         style={{ background: typeColor(port.type) }}
       />
       <span className="wf-port-row__name">{port.name}</span>
-      <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
+      {port.name.toLowerCase() !== portTypeLabel(port.type).toLowerCase() && (
+        <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
+      )}
     </div>
   );
 }
@@ -214,7 +216,9 @@ function SourcePortRow({
           : undefined
       }
     >
-      <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
+      {port.name.toLowerCase() !== portTypeLabel(port.type).toLowerCase() && (
+        <span className="wf-port-row__type">{portTypeLabel(port.type)}</span>
+      )}
       <span className="wf-port-row__name">{port.name}</span>
       <Handle
         type="source"

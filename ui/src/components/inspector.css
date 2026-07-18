@@ -98,8 +98,8 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink-faint);
-  margin: 4px 0 10px;
-  font-weight: 600;
+  margin: 6px 0 10px;
+  font-weight: 650;
 }
 
 .insp__fields {

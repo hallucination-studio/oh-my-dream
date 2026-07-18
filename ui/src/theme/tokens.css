@@ -11,15 +11,15 @@
 
 :root {
   /* Layer 1 — raw palette (docs/DESKTOP_UI.md, Visual Direction) */
-  --p-canvas-black: #0c0f12;
-  --p-graphite: #171c22;
-  --p-graphite-raised: #242c36;
-  --p-graphite-sunk: #12161b;
-  --p-steel: #3d4753;
-  --p-studio-white: #ebf0f3;
-  --p-steel-text: #c4ced6;
-  --p-muted-steel: #9aa6ae;
-  --p-dim-steel: #7d8892;
+  --p-canvas-black: #0b0d10;
+  --p-graphite: #14181d;
+  --p-graphite-raised: #222932;
+  --p-graphite-sunk: #10141a;
+  --p-steel: #39424e;
+  --p-studio-white: #f2f5f7;
+  --p-steel-text: #c7d0d9;
+  --p-muted-steel: #8b96a1;
+  --p-dim-steel: #646e79;
   --p-signal-teal: #26a88f;
   --p-signal-teal-strong: #1f8f7b;
   --p-image-amber: #d9933d;
@@ -44,8 +44,8 @@
   --canvas: var(--p-canvas-black);
 
   /* Hairline dividers */
-  --hair: rgba(235, 240, 243, 0.14);
-  --hair-2: rgba(235, 240, 243, 0.22);
+  --hair: rgba(235, 240, 243, 0.08);
+  --hair-2: rgba(235, 240, 243, 0.14);
 
   /* Single restrained accent */
   --accent: var(--p-signal-teal);
@@ -79,6 +79,6 @@
 
   /* Quiet elevation for floating nodes and popovers; no shadow stacks */
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.44);
   --shadow-pop: 0 12px 44px rgba(0, 0, 0, 0.52);
 }

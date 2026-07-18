@@ -116,7 +116,7 @@ input {
   min-height: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 1px 1px, rgba(235, 240, 243, 0.07) 1px, transparent 0) -1px -1px / 22px 22px,
+    radial-gradient(circle at 1px 1px, rgba(235, 240, 243, 0.1) 1px, transparent 0) -1px -1px / 22px 22px,
     var(--canvas);
 }
 
