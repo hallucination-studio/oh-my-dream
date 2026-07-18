@@ -166,3 +166,22 @@
   margin-top: auto;
   border-top: 1px solid var(--hair);
 }
+
+.nlib__skels {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+}
+.nlib__skel {
+  height: 26px;
+  border-radius: var(--r-sm);
+  background: var(--surface-sunk);
+  animation: nlib-skel 1.2s ease-in-out infinite;
+}
+@keyframes nlib-skel {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nlib__skel { animation: none; }
+}

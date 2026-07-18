@@ -25,9 +25,10 @@ export function NodeLibrary({
   loadedSpecs,
   hiddenCapabilityKeys = new Set(),
   savedCapabilityKeys = new Set(),
+  loading = false,
   onAdd,
   onOpenAssets,
-}: NodeLibraryProps) {
+}: NodeLibraryProps & { loading?: boolean }) {
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const offersAssetRoute = query.toLowerCase().includes("asset");
@@ -85,7 +86,15 @@ export function NodeLibrary({
         </div>
       </div>
 
-      <div className="nlib__tree">
+      <div className="nlib__tree" aria-busy={loading}>
+        {loading ? (
+          <div className="nlib__skels" role="status" aria-label="Loading node types">
+            {Array.from({ length: 6 }, (_, index) => (
+              <div key={index} className="nlib__skel" aria-hidden="true" />
+            ))}
+          </div>
+        ) : (
+          <>
         {offersAssetRoute && (
           <button
             className="nlib__route"
@@ -149,6 +158,8 @@ export function NodeLibrary({
         })}
         {groups.length === 0 && !offersAssetRoute && (
           <p className="nlib__empty">No nodes match "{query}".</p>
+        )}
+          </>
         )}
       </div>
 

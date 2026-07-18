@@ -47,6 +47,20 @@ it("matches creator-language search aliases", () => {
   expect(screen.queryByRole("button", { name: "Create video" })).toBeNull();
 });
 
+it("renders bounded skeletons while contracts load", () => {
+  render(
+    <NodeLibrary
+      contracts={[]}
+      loadedSpecs={[]}
+      loading
+      onAdd={vi.fn()}
+      onOpenAssets={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole("status", { name: "Loading node types" })).toBeTruthy();
+  expect(document.querySelectorAll(".nlib__skel")).toHaveLength(6);
+});
+
 it("routes asset searches to the asset library", () => {
   const exact = contracts as NodeCapabilityContractDto[];
   const onOpenAssets = vi.fn();

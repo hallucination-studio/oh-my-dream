@@ -71,11 +71,15 @@ export function App() {
   } = useAssistantAvailability();
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [exactContracts, setExactContracts] = useState<NodeCapabilityContractDto[]>([]);
+  const [contractsLoaded, setContractsLoaded] = useState(false);
   const { specs: exactSpecs, hiddenCapabilityKeys } = useNodeAvailability(exactContracts);
   useEffect(() => {
     let active = true;
     void api.nodeCapabilityList().then((contracts) => {
-      if (active) setExactContracts(contracts);
+      if (active) {
+        setExactContracts(contracts);
+        setContractsLoaded(true);
+      }
     });
     return () => {
       active = false;
@@ -520,6 +524,7 @@ export function App() {
             loadedSpecs={exactSpecs}
             hiddenCapabilityKeys={hiddenCapabilityKeys}
             savedCapabilityKeys={savedCapabilityKeys}
+            loading={!contractsLoaded}
             onAdd={(reference) => addNode(reference)}
             onOpenAssets={() => setTab("assets")}
           />
