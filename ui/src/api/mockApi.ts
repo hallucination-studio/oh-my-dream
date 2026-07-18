@@ -343,6 +343,10 @@ async function workflowCancelRun(
   workflowRunId: string,
 ): Promise<WorkflowRunDto> {
   const run = requireMockRun(workflowRunId);
+  // Cancelling a terminal run is rejected, mirroring the real backend.
+  if (run.state !== "queued" && run.state !== "running") {
+    throw new Error(`workflow.run_already_terminal: ${run.state}`);
+  }
   const cancelled = { ...run, state: "cancelled" as const, updated_at_epoch_ms: String(Date.now()) };
   mockRuns.set(workflowRunId, cancelled);
   appendMockRunEvent(workflowRunId, { type: "run_cancelled" });

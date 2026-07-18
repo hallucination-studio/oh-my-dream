@@ -138,6 +138,35 @@ it("honors cancellation between timed steps", async () => {
   expect(events.events.some((event) => event.payload.type === "run_succeeded")).toBe(false);
 });
 
+it("transitions the run through running and rejects cancelling a terminal run", async () => {
+  const project = await mockApi.createProject("States");
+  const { workflow, revision } = await buildAcceptanceWorkflow(project.id);
+
+  const run = await mockApi.workflowStartRun(project.id, workflow.workflow_id, revision, {
+    kind: "whole_workflow",
+  });
+  let running = run;
+  for (let i = 0; i < 30 && running.state === "queued"; i += 1) {
+    await delay(50);
+    running = await mockApi.workflowGetRun(project.id, run.workflow_run_id);
+  }
+  expect(running.state).toBe("running");
+  const events = await mockApi.workflowListRunEvents(project.id, run.workflow_run_id);
+  expect(events.events.some((event) => event.payload.type === "run_started")).toBe(true);
+
+  let terminal = running;
+  for (let i = 0; i < 60 && terminal.state !== "succeeded"; i += 1) {
+    await delay(100);
+    terminal = await mockApi.workflowGetRun(project.id, run.workflow_run_id);
+  }
+  expect(terminal.state).toBe("succeeded");
+  await expect(mockApi.workflowCancelRun(project.id, run.workflow_run_id)).rejects.toThrow(
+    "run_already_terminal",
+  );
+  const after = await mockApi.workflowGetRun(project.id, run.workflow_run_id);
+  expect(after.state).toBe("succeeded");
+});
+
 it("persists a canonical Workflow mutation in the browser mock", async () => {
   const project = await mockApi.createProject("Canonical");
   const workflow = await mockApi.workflowCreate(project.id);

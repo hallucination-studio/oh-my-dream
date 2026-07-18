@@ -222,6 +222,10 @@ export function useRunController(options: RunControllerOptions) {
       applyProgress(progress);
       setStatus({ state: "running", ...progress });
     }
+    if (type === "run_started") {
+      run.state = "running";
+      emitRunSnapshot();
+    }
     if (type === "run_succeeded") {
       settle({ state: "succeeded", outputs: runOutputs.current, steps: run.node_executions.length });
     }
