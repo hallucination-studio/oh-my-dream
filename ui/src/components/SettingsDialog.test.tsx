@@ -32,7 +32,7 @@ describe("Generation Provider Settings", () => {
       />,
     );
 
-    expect(await screen.findByRole("heading", { name: "Model routes" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Generation models" })).toBeTruthy();
     expect(screen.getAllByRole("checkbox")).toHaveLength(3);
     expect(screen.getAllByRole("combobox")).toHaveLength(3);
     expect(screen.getAllByRole("option", { name: /^Mock ·/ })).toHaveLength(3);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type WorkflowApi } from "../api/index.ts";
+import { APP_NAME, APP_VERSION } from "../appInfo.ts";
 import type {
   GenerationProviderSettingsActionDto,
   GenerationProviderSettingsDto,
@@ -8,7 +9,7 @@ import type {
 import "./settings.css";
 import "./modelSettings.css";
 
-const SECTIONS = ["models", "canvas", "storage", "about"] as const;
+const SECTIONS = ["models", "canvas", "about"] as const;
 type SettingsSection = (typeof SECTIONS)[number];
 type SettingsApi = Pick<
   WorkflowApi,
@@ -54,7 +55,7 @@ export function SettingsDialog({
       },
       () => {
         if (active) {
-          setMessage("Model routes could not be loaded.");
+          setMessage("Generation models could not be loaded.");
           setState("idle");
         }
       },
@@ -82,10 +83,10 @@ export function SettingsDialog({
           setSettings(await settingsApi.generationProviderSettingsGet());
           setMessage("Settings changed. Latest values loaded.");
         } catch {
-          setMessage("Model routes could not be reloaded.");
+          setMessage("Generation models could not be reloaded.");
         }
       } else {
-        setMessage("Model route change was not saved.");
+        setMessage("The model route change was not saved.");
       }
     } finally {
       setState("idle");
@@ -122,8 +123,14 @@ export function SettingsDialog({
                 message={message}
                 onApply={(action) => void apply(action)}
               />
+            ) : section === "canvas" ? (
+              <p className="dialog__grp">No canvas preferences yet.</p>
             ) : (
-              <p className="dialog__grp">Nothing here yet.</p>
+              <div className="dialog__about">
+                <b>{APP_NAME}</b>
+                <p>Version {APP_VERSION}</p>
+                <p>A local desktop AI creation client.</p>
+              </div>
             )}
           </div>
         </div>
@@ -150,10 +157,9 @@ function ModelRoutesPanel({
     <section className="mset" aria-busy={busy}>
       <div className="mset__head">
         <div>
-          <h2>Model routes</h2>
-          <p>Choose the local route used for new generation tasks.</p>
+          <h2>Generation models</h2>
+          <p>Choose which provider route serves each generation model.</p>
         </div>
-        {settings && <span className="mset__revision">Rev {settings.settings_revision}</span>}
       </div>
       {message && <p className="mset__message" role="status" aria-live="polite">{message}</p>}
       {settings === null ? (
@@ -202,7 +208,6 @@ function ModelRouteRow({
       <span className="mset__kind" aria-hidden="true">{kindLabel(profile.generation_kind)}</span>
       <div className="mset__route">
         <label htmlFor={inputId}>{name}</label>
-        <span>{profile.profile_ref}</span>
       </div>
       <select
         id={inputId}

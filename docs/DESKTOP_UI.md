@@ -445,21 +445,19 @@ Settings is a modal dialog over the workspace with a left section list, one cont
 `Done` action. A section with no available capability shows a short factual empty state; it never
 implies a function the command surface does not provide.
 
-- `Providers`: the generation provider list from the existing provider commands, choosing the active
-  provider, and setting a provider API key. Keys are write-only, stored by the credential vault, and
-  never displayed back.
+- `Models`: the generation model list from the provider settings commands. Each model row shows
+  its display name, the provider route serving it, and an enable toggle. Raw profile references
+  and revision counters never appear. Provider API keys are managed outside the app until a
+  backend credential command exists; no key field is shown before then.
 - `Assistant`: the master enable, and the OpenAI-protocol connection — Base URL, Model, and a
-  write-only API key — read and saved through the existing assistant configuration commands. The
-  Skills list and Developer mode from the reference mockup are specified but gated on backend
-  commands that do not exist yet; they are not built in this phase.
-- `Canvas`: editor preferences. None exist yet.
-- `Storage`: where Project data lives, as a read-only fact.
-- `About`: application name and version.
+  write-only API key. This section stays unbuilt until an assistant configuration command exists.
+  The Skills list and Developer mode from the reference mockup are likewise gated on backend
+  commands that do not exist yet.
+- `Canvas`: editor preferences. None exist yet; the section shows a short factual empty state.
+- `About`: application name and version, read from the frontend package itself.
 
-The provider and assistant configuration commands already exist in the desktop backend; wiring them
-into the frontend API boundary is a mechanical addition, not a new backend capability.
-
-Saving announces success or failure in place. Secrets never appear in copy, logs, or diagnostics.
+A Storage section returns only when a backend query can report where Project data lives. Saving
+announces success or failure in place. Secrets never appear in copy, logs, or diagnostics.
 
 ## Asset Flow
 

@@ -213,6 +213,7 @@ No code before the named authority exists.
 | G7 | Assistant configuration surface (B2) | A config query/command pair (the legacy one was removed) |
 | G8 | Scoped readiness for `Run to here` (UI-37) | A node-scoped readiness query |
 | G9 | Video preview rendering (UI-36) | A preview-kind declaration: poster image vs playable video file |
+| G10 | Provider API-key fields and the Storage section | Backend credential commands and a data-location query |
 
 ## Verification policy
 
