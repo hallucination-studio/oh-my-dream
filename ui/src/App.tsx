@@ -154,12 +154,14 @@ export function App() {
     workspaceState.state === "ready" ? workspaceState.workflowHead : null;
   useNodePresentation(workflowForRunRef.current, selectedId, setNodes);
   const readiness = useWorkflowReadiness(workflowForRunRef.current);
-  const runReady = readiness?.state === "ready";
+  const runReady = typeof readiness === "object" && readiness?.state === "ready";
   const runDisabledReason = readiness === null
     ? "Checking whether the workflow is ready to run"
-    : readiness.state === "blocked"
-      ? "Fix the listed issues before running"
-      : null;
+    : readiness === "error"
+      ? "Readiness check failed · retrying"
+      : readiness.state === "blocked"
+        ? "Fix the listed issues before running"
+        : null;
   const readinessIssueCopy = useMemo(() => {
     const inputType = (nodeId: string, inputKey: string) => {
       const node = nodes.find((candidate) => candidate.id === nodeId);
@@ -168,7 +170,7 @@ export function App() {
       return type === "string" ? "text" : type ?? null;
     };
     return projectReadinessIssues(
-      readiness,
+      readiness === "error" ? null : readiness,
       inputType,
       nodes.map((node) => node.id),
     ).map((issue) => issue.copy);
