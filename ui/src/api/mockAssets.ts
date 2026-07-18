@@ -1,28 +1,130 @@
+// Deterministic in-memory mock Asset store. Fixtures are visibly labelled
+// samples — they are test data, not claims that a vendor model ran.
+
 import type {
   AssetDto,
   AssetKind,
   AssetListPageDto,
   AssetPreviewDto,
+  JsonObject,
 } from "./types.ts";
 
+const store = new Map<string, AssetDto[]>();
+const counters = new Map<string, number>();
+
+const MIME: Record<AssetKind, string> = {
+  image: "image/png",
+  video: "video/mp4",
+  audio: "audio/mpeg",
+};
+
+const PREVIEW_COLORS: Record<AssetKind, { bg: string; fg: string }> = {
+  image: { bg: "#2a2118", fg: "#d9933d" },
+  video: { bg: "#211d2e", fg: "#806be8" },
+  audio: { bg: "#2a1a22", fg: "#cf4a88" },
+};
+
+/** Deterministic labelled preview fixture. Test data, not vendor output. */
+export function mockPreviewFixture(kind: AssetKind, label: string): string {
+  const colors = PREVIEW_COLORS[kind];
+  const glyph = kind === "video"
+    ? `<polygon points="72,42 72,78 104,60" fill="${colors.fg}"/>`
+    : kind === "image"
+      ? `<circle cx="88" cy="52" r="14" fill="${colors.fg}"/><rect x="48" y="72" width="80" height="12" rx="3" fill="${colors.fg}" opacity="0.6"/>`
+      : `<path d="M52 60h8l10-22 12 44 10-30 8 8h20" stroke="${colors.fg}" stroke-width="5" fill="none" stroke-linecap="round"/>`;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">` +
+    `<rect width="320" height="180" fill="${colors.bg}"/>` +
+    `<rect x="1" y="1" width="318" height="178" fill="none" stroke="${colors.fg}" stroke-opacity="0.4" stroke-dasharray="6 5"/>` +
+    `<g transform="translate(72,18)">${glyph}</g>` +
+    `<text x="160" y="122" text-anchor="middle" font-family="monospace" font-size="13" fill="${colors.fg}">DETERMINISTIC SAMPLE</text>` +
+    `<text x="160" y="142" text-anchor="middle" font-family="monospace" font-size="11" fill="${colors.fg}" opacity="0.75">mock ${kind} · ${escapeXml(label)}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+/** Adds one deterministic Asset to the store and returns it. */
+export function mockAssetPublish(
+  projectId: string,
+  kind: AssetKind,
+  displayName: string,
+  origin: JsonObject,
+): AssetDto {
+  const count = (counters.get(projectId) ?? 0) + 1;
+  counters.set(projectId, count);
+  const asset: AssetDto = {
+    asset_id: `mock-asset-${kind}-${String(count).padStart(3, "0")}`,
+    project_id: projectId,
+    media_kind: kind,
+    content_state: "available",
+    display_name: displayName,
+    created_at_epoch_ms: String(1_700_000_000_000 + count * 60_000),
+    content: {
+      content_fingerprint_hex: `mock${kind}${String(count).padStart(4, "0")}`.padEnd(16, "0"),
+      byte_length: String(48_000 + count * 137),
+      mime_type: MIME[kind],
+    },
+    media_facts: kind === "video"
+      ? { duration_seconds: 4, fps: 24 }
+      : kind === "image"
+        ? { width: 1024, height: 1024 }
+        : { duration_seconds: 6 },
+    origin,
+  };
+  const assets = store.get(projectId) ?? [];
+  assets.push(asset);
+  store.set(projectId, assets);
+  return structuredClone(asset);
+}
+
 export async function mockAssetImport(
-  _projectId: string,
-  _expectedMediaKind: AssetKind,
+  projectId: string,
+  expectedMediaKind: AssetKind,
 ): Promise<AssetDto | null> {
-  return null;
+  return mockAssetPublish(projectId, expectedMediaKind, `Imported ${expectedMediaKind} sample`, {
+    kind: "user_import",
+  });
 }
 
-export async function mockAssetGet(_projectId: string, assetId: string): Promise<AssetDto> {
-  throw new Error(`Mock backend has no asset store; cannot fetch asset ${assetId}`);
+export async function mockAssetGet(projectId: string, assetId: string): Promise<AssetDto> {
+  const asset = (store.get(projectId) ?? []).find((candidate) => candidate.asset_id === assetId);
+  if (!asset) throw new Error(`asset.not_found:${assetId}`);
+  return structuredClone(asset);
 }
 
-export async function mockAssetList(): Promise<AssetListPageDto> {
-  return { assets: [], next_cursor: null };
+export async function mockAssetList(
+  projectId: string,
+  mediaKind?: AssetKind | null,
+  cursor?: string | null,
+  limit = 100,
+): Promise<AssetListPageDto> {
+  const assets = (store.get(projectId) ?? []).filter(
+    (asset) => !mediaKind || asset.media_kind === mediaKind,
+  );
+  const start = cursor ? Math.max(0, assets.findIndex((asset) => asset.asset_id === cursor) + 1) : 0;
+  const page = assets.slice(start, start + limit);
+  return {
+    assets: structuredClone(page),
+    next_cursor: start + limit < assets.length ? page.at(-1)?.asset_id ?? null : null,
+  };
 }
 
 export async function mockAssetIssuePreview(
-  _projectId: string,
+  projectId: string,
   assetId: string,
 ): Promise<AssetPreviewDto> {
-  throw new Error(`Mock backend has no preview for asset ${assetId}`);
+  const asset = await mockAssetGet(projectId, assetId);
+  return {
+    asset_id: asset.asset_id,
+    preview_uri: mockPreviewFixture(asset.media_kind, asset.display_name),
+    expires_at_epoch_ms: String(Number(asset.created_at_epoch_ms) + 3_600_000),
+  };
 }
