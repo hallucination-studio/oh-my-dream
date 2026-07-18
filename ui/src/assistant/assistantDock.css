@@ -1,5 +1,6 @@
 /* Assistant dock: a flush right-side panel. Mirrors docs/ui-assistant.html. */
 .adock {
+  width: 320px;
   background: var(--surface);
   border-left: 1px solid var(--hair);
   display: grid;

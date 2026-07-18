@@ -1,5 +1,6 @@
 /* Right inspector: flush panel, hairline dividers, sunk fields. */
 .insp {
+  width: 292px;
   background: var(--surface);
   border-left: 1px solid var(--hair);
   padding: 14px;

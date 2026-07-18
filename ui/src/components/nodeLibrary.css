@@ -1,5 +1,6 @@
 /* Node library: flush panel, hairline dividers, category tree. */
 .nlib {
+  width: 304px;
   background: var(--surface);
   border-right: 1px solid var(--hair);
   display: flex;

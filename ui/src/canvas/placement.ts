@@ -8,23 +8,26 @@ const NODE_HEIGHT = 220;
 const GAP_X = 44;
 const GAP_Y = 40;
 const COLUMNS = 4;
-const ORIGIN = { x: 140, y: 100 };
+const DEFAULT_ORIGIN = { x: 140, y: 100 };
 const SCAN_LIMIT = 512;
 
-export function firstFreeSlot(nodes: readonly Node[]): { x: number; y: number } {
+export function firstFreeSlot(
+  nodes: readonly Node[],
+  origin: { x: number; y: number } = DEFAULT_ORIGIN,
+): { x: number; y: number } {
   for (let index = 0; index < SCAN_LIMIT; index += 1) {
-    const candidate = slot(index);
+    const candidate = slot(index, origin);
     if (!nodes.some((node) => overlaps(candidate, node))) return candidate;
   }
-  return slot(0);
+  return slot(0, origin);
 }
 
-function slot(index: number): { x: number; y: number } {
+function slot(index: number, origin: { x: number; y: number }): { x: number; y: number } {
   const column = index % COLUMNS;
   const row = Math.floor(index / COLUMNS);
   return {
-    x: ORIGIN.x + column * (NODE_WIDTH + GAP_X),
-    y: ORIGIN.y + row * (NODE_HEIGHT + GAP_Y),
+    x: origin.x + column * (NODE_WIDTH + GAP_X),
+    y: origin.y + row * (NODE_HEIGHT + GAP_Y),
   };
 }
 

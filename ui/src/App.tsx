@@ -5,6 +5,7 @@ import {
   type Connection,
   type Edge,
   type Node,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import { capabilityKey } from "./nodes/exactCapability.ts";
 import { useNodeAvailability } from "./nodes/useNodeAvailability.ts";
@@ -30,7 +31,7 @@ import { SettingsDialog } from "./components/SettingsDialog.tsx";
 import { AssetLibrary } from "./assets/AssetLibrary.tsx";
 import { useAssets } from "./assets/useAssets.ts";
 import { useRunProjection } from "./canvas/useRunProjection.ts";
-import { WorkflowCanvas } from "./canvas/WorkflowCanvas.tsx";
+import { WorkflowCanvas, type CanvasInsets } from "./canvas/WorkflowCanvas.tsx";
 import { useProjectWorkspace } from "./workflow/useProjectWorkspace.ts";
 import { useRunController } from "./workflow/useRunController.ts";
 import { AssistantDock } from "./assistant/AssistantDock.tsx";
@@ -70,6 +71,17 @@ export function App() {
     refreshAssistantEnabled,
   } = useAssistantAvailability();
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [leftOpen, setLeftOpen] = useState(true);
+  const rfInstance = useRef<ReactFlowInstance | null>(null);
+  const insetsRef = useRef<CanvasInsets>({ left: 304, right: 0 });
+  // Origin for new-node placement: the top-left of the visible canvas in flow
+  // coordinates, so nodes never land beneath an open overlay.
+  const placementOrigin = useCallback(() => {
+    const instance = rfInstance.current;
+    if (!instance) return undefined;
+    const point = instance.screenToFlowPosition({ x: 56 + insetsRef.current.left + 24, y: 68 });
+    return { x: point.x, y: point.y };
+  }, []);
   const [exactContracts, setExactContracts] = useState<NodeCapabilityContractDto[]>([]);
   const [contractsLoaded, setContractsLoaded] = useState(false);
   const { specs: exactSpecs, hiddenCapabilityKeys } = useNodeAvailability(exactContracts);
@@ -175,7 +187,7 @@ export function App() {
         candidate.ref.id === reference.id && candidate.ref.version === reference.version
       );
       if (!spec || spec.status.availability !== "available") return;
-        if (spec.contextualCreationRoute !== null && contextualParams === undefined) return;
+        // Asset nodes may start empty from the palette; the Inspector picker binds the asset.
         const params = contextualParams ?? Object.fromEntries(
           spec.params.flatMap((param) =>
             param.default === undefined ? [] : [[param.name, param.default]],
@@ -184,12 +196,14 @@ export function App() {
         markWorkflowMutation();
         setNodes((current) => {
           const id = nextNodeId(current);
+          // Selecting the new node opens Configure for it, per Graph Editing.
+          queueMicrotask(() => setSelectedId(id));
           return [
             ...current,
             {
               id,
               type: "workflow",
-              position: position ?? firstFreeSlot(current),
+              position: position ?? firstFreeSlot(current, placementOrigin()),
               data: {
                 type: reference.id,
                 contractVersion: reference.version,
@@ -201,7 +215,7 @@ export function App() {
           ];
         });
     },
-    [canEdit, exactSpecs, markWorkflowMutation, setNodes, setParam],
+    [canEdit, exactSpecs, markWorkflowMutation, setNodes, setParam, placementOrigin],
   );
 
   const addAssetSource = useCallback((assetId: string, position?: { x: number; y: number }) => {
@@ -450,6 +464,19 @@ export function App() {
     };
   }, [edges, selectedEdgeId, runNodeLabel]);
 
+  // Right overlay slot: Assistant (rail-toggled) or Inspector (selection-driven),
+  // one at a time, closed when neither has content.
+  const rightSlot: "assistant" | "inspector" | "closed" = assistantOpen
+    ? "assistant"
+    : selected !== null || selectedEdge !== null
+      ? "inspector"
+      : "closed";
+  const canvasInsets = useMemo<CanvasInsets>(() => ({
+    left: !leftOpen ? 0 : tab === "assets" ? (selectedAssetId !== null ? 640 : 340) : 304,
+    right: rightSlot === "assistant" ? 320 : rightSlot === "inspector" ? 292 : 0,
+  }), [leftOpen, rightSlot, selectedAssetId, tab]);
+  insetsRef.current = canvasInsets;
+
   const canvasNodes = useMemo(
     () =>
       nodes.map((node) => ({
@@ -516,118 +543,136 @@ export function App() {
         onProjectRenamed={setProject}
       />
 
-      <main
-        className={`bench__body${tab === "assets" ? " bench__body--assets" : ""}${
-          assistantOpen ? " bench__body--assistant" : ""
-        }`}
-      >
+      <main className="bench__body">
         <IconRail
           tab={tab}
           assistantEnabled={assistantEnabled}
           assistantOpen={assistantOpen}
-          onSelect={setTab}
+          onSelect={(next) => {
+            if (next === tab) {
+              setLeftOpen((open) => !open);
+            } else {
+              setTab(next);
+              setLeftOpen(true);
+            }
+          }}
           onToggleAssistant={() => setAssistantOpen((open) => !open)}
         />
-        {tab === "nodes" ? (
-          <NodeLibrary
-            contracts={exactContracts}
-            loadedSpecs={exactSpecs}
-            hiddenCapabilityKeys={hiddenCapabilityKeys}
-            savedCapabilityKeys={savedCapabilityKeys}
-            loading={!contractsLoaded}
-            onAdd={(reference) => addNode(reference)}
-            onOpenAssets={() => setTab("assets")}
-          />
-        ) : (
-          <AssetLibrary
-            assets={assets}
-            error={assetError}
-            loading={assetsLoading}
-            hasProject={project !== null}
-            selectedAssetId={selectedAssetId}
-            onSelectAsset={setSelectedAssetId}
-            onAddToCanvas={(asset) => addAssetSource(asset.id)}
-            onJumpToNode={(asset) => {
-              if (asset.sourceNodeId) {
-                setSelectedId(asset.sourceNodeId);
-                setFocusedNodeId(asset.sourceNodeId);
+        <div className="bench__stage">
+          <WorkflowCanvas
+            nodes={canvasNodes}
+            edges={edges}
+            onNodesChange={handleNodesChange}
+            onEdgesChange={handleEdgesChange}
+            onConnect={onConnect}
+            onConnectStart={(nodeId, handleId) => {
+              const sourceType = sourceTypeFor(nodeId, handleId);
+              if (sourceType !== null) {
+                setConnect({ sourceId: nodeId, sourceHandle: handleId, sourceType, keyboard: false });
               }
-              setTab("nodes");
             }}
-            onImport={(kind) => {
-              void importAsset(kind).catch((error: unknown) => {
-                notify(failureCopy("Import asset", error));
-              });
+            onConnectEnd={() => setConnect(null)}
+            isValidConnection={validateConnection}
+            onSelectNode={(nodeId) => {
+              setSelectedId(nodeId);
+              setSelectedEdgeId(null);
             }}
-          />
-        )}
+            onDrop={onDrop}
+            focusNodeId={focusedNodeId}
+            projectId={project?.id ?? null}
+            insets={canvasInsets}
+            onInit={(instance) => {
+              rfInstance.current = instance;
+            }}
+          >
+            {nodes.length === 0 && (
+              <div className="bench__canvas-empty">
+                <b>{project ? "Start your workflow" : "Welcome"}</b>
+                <p>
+                  {project
+                    ? "Add a Text node from the library to begin."
+                    : "Create or open a Project from the top bar to start building."}
+                </p>
+              </div>
+            )}
+          </WorkflowCanvas>
 
-          <>
-            <WorkflowCanvas
-                nodes={canvasNodes}
-                edges={edges}
-                onNodesChange={handleNodesChange}
-                onEdgesChange={handleEdgesChange}
-                onConnect={onConnect}
-                onConnectStart={(nodeId, handleId) => {
-                  const sourceType = sourceTypeFor(nodeId, handleId);
-                  if (sourceType !== null) {
-                    setConnect({ sourceId: nodeId, sourceHandle: handleId, sourceType, keyboard: false });
-                  }
-                }}
-                onConnectEnd={() => setConnect(null)}
-                isValidConnection={validateConnection}
-                onSelectNode={(nodeId) => {
-                  setSelectedId(nodeId);
-                  setSelectedEdgeId(null);
-                }}
-                onDrop={onDrop}
-                focusNodeId={focusedNodeId}
-            >
-              {nodes.length === 0 && (
-                <div className="bench__canvas-empty">
-                  <b>{project ? "Start your workflow" : "Welcome"}</b>
-                  <p>
-                    {project
-                      ? "Add a Text node from the library to begin."
-                      : "Create or open a Project from the top bar to start building."}
-                  </p>
-                </div>
+          {leftOpen && (
+            <div className="bench__left">
+              {tab === "nodes" ? (
+                <NodeLibrary
+                  contracts={exactContracts}
+                  loadedSpecs={exactSpecs}
+                  hiddenCapabilityKeys={hiddenCapabilityKeys}
+                  savedCapabilityKeys={savedCapabilityKeys}
+                  loading={!contractsLoaded}
+                  onAdd={(reference) => addNode(reference)}
+                  onOpenAssets={() => setTab("assets")}
+                />
+              ) : (
+                <AssetLibrary
+                  assets={assets}
+                  error={assetError}
+                  loading={assetsLoading}
+                  hasProject={project !== null}
+                  selectedAssetId={selectedAssetId}
+                  onSelectAsset={setSelectedAssetId}
+                  onAddToCanvas={(asset) => addAssetSource(asset.id)}
+                  onJumpToNode={(asset) => {
+                    if (asset.sourceNodeId) {
+                      setSelectedId(asset.sourceNodeId);
+                      setFocusedNodeId(asset.sourceNodeId);
+                    }
+                    setTab("nodes");
+                  }}
+                  onImport={(kind) => {
+                    void importAsset(kind).catch((error: unknown) => {
+                      notify(failureCopy("Import asset", error));
+                    });
+                  }}
+                />
               )}
-            </WorkflowCanvas>
-            <InspectorPanel
-              node={selected}
-              onParamChange={setParam}
-              assetOptions={selectedAssetOptions}
-              onRunThroughNode={(nodeId) =>
-                void runAfterBarrier("prepare_run", () => runCanonicalWorkflow(nodeId))
-                  .then(() => setRunDetailsOpen(true))
-                  .catch((error: unknown) => setStatus({ state: "failed", reason: failureCopy("Run workflow", error) }))}
-              onOpenAssets={() => {
-                const assetId = selected?.params.asset_id;
-                if (typeof assetId === "string") setSelectedAssetId(assetId);
-                setTab("assets");
-              }}
-              readinessIssues={readinessIssueCopy}
-              runDisabled={!runReady}
-              onDeleteNode={deleteNode}
-              selectedEdge={selectedEdge}
-              onDeleteEdge={deleteEdge}
-            />
-          </>
-        {assistantEnabled && (
-          <div className={`adock-host${assistantOpen ? "" : " is-hidden"}`} hidden={!assistantOpen}>
-            <AssistantDock
-              key={project?.id ?? "no-project"}
-              onClose={() => setAssistantOpen(false)}
-              getContext={assistantContext}
-              nodeLabel={runNodeLabel}
-              beforeSend={(restoreFocus) =>
-                runAfterBarrier("assistant_turn", () => undefined, restoreFocus)
-              }
-            />
+            </div>
+          )}
+
+          <div className={`bench__right${rightSlot === "closed" ? " is-closed" : ""}`}>
+            <div className="bench__right-pane" hidden={rightSlot !== "inspector"}>
+              <InspectorPanel
+                node={selected}
+                onParamChange={setParam}
+                assetOptions={selectedAssetOptions}
+                onRunThroughNode={(nodeId) =>
+                  void runAfterBarrier("prepare_run", () => runCanonicalWorkflow(nodeId))
+                    .then(() => setRunDetailsOpen(true))
+                    .catch((error: unknown) => setStatus({ state: "failed", reason: failureCopy("Run workflow", error) }))}
+                onOpenAssets={() => {
+                  const assetId = selected?.params.asset_id;
+                  if (typeof assetId === "string") setSelectedAssetId(assetId);
+                  setTab("assets");
+                  setLeftOpen(true);
+                }}
+                readinessIssues={readinessIssueCopy}
+                runDisabled={!runReady}
+                onDeleteNode={deleteNode}
+                selectedEdge={selectedEdge}
+                onDeleteEdge={deleteEdge}
+              />
+            </div>
+            {assistantEnabled && (
+              <div className="adock-host bench__right-pane" hidden={rightSlot !== "assistant"}>
+                <AssistantDock
+                  key={project?.id ?? "no-project"}
+                  onClose={() => setAssistantOpen(false)}
+                  getContext={assistantContext}
+                  nodeLabel={runNodeLabel}
+                  beforeSend={(restoreFocus) =>
+                    runAfterBarrier("assistant_turn", () => undefined, restoreFocus)
+                  }
+                />
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </main>
 
       <SettingsDialog

@@ -1,5 +1,6 @@
 /* Asset detail: flush right panel. */
 .adet {
+  width: 300px;
   background: var(--surface);
   border-left: 1px solid var(--hair);
   display: flex;

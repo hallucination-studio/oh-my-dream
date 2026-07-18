@@ -1,5 +1,6 @@
 /* Asset library: flush panel filling the workbench center column. */
 .lib {
+  width: 340px;
   background: var(--surface);
   border-right: 1px solid var(--hair);
   display: flex;

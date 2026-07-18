@@ -100,8 +100,10 @@ export function paletteCreation(summary: CapabilitySummary): {
   canAdd: boolean;
   route: string | null;
 } {
+  // Every available capability can be added from the palette, including asset
+  // nodes (they start empty and bind their asset through the Inspector picker).
   const route = summary.contextual_creation?.route ?? null;
-  return { canAdd: summary.status.availability === "available" && route === null, route };
+  return { canAdd: summary.status.availability === "available", route };
 }
 
 /** Contextual capabilities are reached from their trusted route, not the generic palette. */

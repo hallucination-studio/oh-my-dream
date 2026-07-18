@@ -43,9 +43,8 @@ function viewOf(
   if (kind === "required_parameter_missing" && typeof detail?.parameter_key === "string") {
     return {
       nodeId,
-      copy: detail.parameter_key === "generation_profile_ref"
-        ? "Choose a generation model."
-        : `Enter a value for ${label(detail.parameter_key)}.`,
+      copy: PARAMETER_GUIDANCE[detail.parameter_key]
+        ?? `Enter a value for ${label(detail.parameter_key)}.`,
     };
   }
   if (kind === "asset_unavailable") {
@@ -59,6 +58,13 @@ function objectOf(value: JsonValue | undefined): Record<string, JsonValue> | nul
     ? (value as Record<string, JsonValue>)
     : null;
 }
+
+/** Frozen creator guidance for required parameters (docs/DESKTOP_UI.md, Readiness). */
+const PARAMETER_GUIDANCE: Record<string, string> = {
+  generation_profile_ref: "Choose a generation model.",
+  asset_id: "Choose an asset.",
+  text: "Write the text.",
+};
 
 function article(key: string): string {
   return /^[aeiou]/i.test(key) ? "an" : "a";

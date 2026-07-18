@@ -158,7 +158,9 @@ export function AssetLibrary({
         </div>
       </section>
 
-      <AssetDetail asset={selected} onAddToCanvas={onAddToCanvas} onJumpToNode={onJumpToNode} />
+      {selected ? (
+        <AssetDetail asset={selected} onAddToCanvas={onAddToCanvas} onJumpToNode={onJumpToNode} />
+      ) : null}
     </>
   );
 }

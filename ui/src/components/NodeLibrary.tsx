@@ -130,9 +130,7 @@ export function NodeLibrary({
                         draggable={creation.canAdd}
                         disabled={!creation.canAdd}
                         aria-label={reason ? `${summary.presentation.label} — ${reason}` : summary.presentation.label}
-                        title={creation.route
-                          ? `Create from ${creation.route}`
-                          : reason ?? summary.presentation.description}
+                        title={reason ?? summary.presentation.description}
                         onDragStart={(event) =>
                           event.dataTransfer.setData(
                             "application/oh-node",
