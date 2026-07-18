@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { JsonValue } from "../api/types.ts";
 import type { ParamSpec } from "./catalog.ts";
+import { optionLabel } from "./parameterLabels.ts";
 
 export type ParameterValue = JsonValue;
 export type ParseResult = { ok: true; value: ParameterValue } | { ok: false; reason?: string };
@@ -138,7 +139,7 @@ export function ParameterInput({
         {spec.nullable && <option value="">None</option>}
         {(spec.options ?? []).filter((option) => option !== null).map((option) => (
           <option key={enumOptionValue(option)} value={enumOptionValue(option)}>
-            {String(option)}
+            {optionLabel(enumOptionValue(option))}
           </option>
         ))}
       </select>

@@ -23,8 +23,6 @@ export interface SelectedEdge {
 
 export function InspectorPanel({
   node,
-  modeOptions = [],
-  onModeChange = () => undefined,
   onParamChange,
   onOpenAssets = () => undefined,
   onRunThroughNode = () => undefined,
@@ -35,8 +33,6 @@ export function InspectorPanel({
   onDeleteEdge,
 }: {
   node: SelectedNode | null;
-  modeOptions?: NodeTypeSpec[];
-  onModeChange?: (mode: string) => void;
   onParamChange: (nodeId: string, name: string, value: unknown) => void;
   onOpenAssets?: () => void;
   onRunThroughNode?: (nodeId: string) => void;
@@ -109,22 +105,6 @@ export function InspectorPanel({
             Open in Assets
           </button>
         </div>
-      ) : spec?.selector ? (
-        <label className="insp__field">
-          <span className="insp__label">Mode</span>
-          <select
-            className="insp__input"
-            aria-label={`${spec.selector.type_id} mode`}
-            value={spec.selector.mode}
-            onChange={(event) => onModeChange(event.target.value)}
-          >
-            {(modeOptions.length > 0 ? modeOptions : [spec]).map((option) => (
-              <option key={option.ref.id} value={option.selector?.mode}>
-                {option.selector?.mode}
-              </option>
-            ))}
-          </select>
-        </label>
       ) : null}
 
       {spec && spec.status.availability !== "available" && (

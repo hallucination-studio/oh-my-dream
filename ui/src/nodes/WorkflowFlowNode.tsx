@@ -65,7 +65,6 @@ export function WorkflowFlowNode({ data, selected, id: nodeId }: NodeProps) {
       <div className="wf-node__title">
         <span>
           {isAsset ? spec.label : (spec.selector?.type_id ?? spec.label)}
-          {spec.selector && !isAsset && <small> · {spec.selector.mode}</small>}
         </span>
         <StatePill state={state} />
       </div>

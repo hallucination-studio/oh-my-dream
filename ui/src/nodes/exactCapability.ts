@@ -4,6 +4,7 @@ import type {
   NodeCapabilityContractDto,
 } from "../api/types.ts";
 import type { NodeTypeSpec, ParamSpec, PortSpec } from "./catalog.ts";
+import { parameterLabel } from "./parameterLabels.ts";
 
 export function nodeSpecFromExactContract(
   contract: NodeCapabilityContractDto,
@@ -138,7 +139,7 @@ function parameterSpec(
       : "text";
   return {
     name: parameter.key,
-    label: parameter.key.replaceAll("_", " "),
+    label: parameterLabel(parameter.key),
     kind,
     required: presence.kind === "required",
     default: defaultValue,

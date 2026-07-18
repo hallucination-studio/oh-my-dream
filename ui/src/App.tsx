@@ -587,7 +587,6 @@ export function App() {
             </WorkflowCanvas>
             <InspectorPanel
               node={selected}
-              modeOptions={[]}
               onParamChange={setParam}
               onRunThroughNode={(nodeId) =>
                 void runAfterBarrier("prepare_run", () => runCanonicalWorkflow(nodeId))

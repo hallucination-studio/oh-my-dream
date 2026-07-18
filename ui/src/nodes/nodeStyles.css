@@ -200,7 +200,7 @@
 .wf-node__body {
   padding: 9px 11px 10px;
   display: grid;
-  grid-template-columns: 56px 1fr;
+  grid-template-columns: 64px 1fr;
   gap: 7px 9px;
   align-items: center;
 }
@@ -208,9 +208,7 @@
   display: contents;
 }
 .wf-param__label {
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 10.5px;
   color: var(--ink-3);
   text-align: right;
   line-height: 1.15;

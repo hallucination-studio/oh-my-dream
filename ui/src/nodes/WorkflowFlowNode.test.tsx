@@ -28,7 +28,6 @@ describe("WorkflowFlowNode", () => {
     });
 
     expect(screen.getByText("Video")).toBeTruthy();
-    expect(screen.getByText(/concat/)).toBeTruthy();
     expect(document.querySelectorAll(".wf-port")).toHaveLength(2);
   });
 

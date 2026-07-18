@@ -10,6 +10,7 @@ import type {
   JsonValue,
 } from "../api/types.ts";
 import type { PortType } from "../workflow/types.ts";
+import { parameterLabel } from "./parameterLabels.ts";
 
 export interface PortSpec {
   name: string;
@@ -233,10 +234,7 @@ function constraintsFromSchema(schema: Record<string, unknown>): ParamConstraint
 }
 
 function labelFor(name: string): string {
-  return name
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return parameterLabel(name);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

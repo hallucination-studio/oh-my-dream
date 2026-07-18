@@ -135,27 +135,6 @@ describe("ParameterInput", () => {
     fireEvent.change(editor, { target: { value: "line one\nline two" } });
     expect(onChange).toHaveBeenLastCalledWith("line one\nline two");
   });
-
-  it("offers exact modes for the selected modality", () => {
-    const onModeChange = vi.fn();
-    render(
-      <InspectorPanel
-        node={{
-          id: "video",
-          type: "Video",
-          params: { mode: "image" },
-          capability: nodeSpec("ImageToVideo"),
-        }}
-        modeOptions={[nodeSpec("ImageToVideo"), nodeSpec("VideoConcat")]}
-        onModeChange={onModeChange}
-        onParamChange={vi.fn()}
-      />,
-    );
-
-    fireEvent.change(screen.getByLabelText("Video mode"), { target: { value: "concat" } });
-
-    expect(onModeChange).toHaveBeenCalledWith("concat");
-  });
 });
 
 function parameter(kind: ParamSpec["kind"]): ParamSpec {

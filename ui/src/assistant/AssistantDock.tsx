@@ -24,7 +24,7 @@ type StreamItem = AssistantStreamItem;
 
 const SUGGESTIONS = [
   "Build a text-to-image → image-to-video pipeline",
-  "Add a Text Prompt node and describe a sunset city",
+  "Add a Text node and describe a sunset city",
   "Explain what each node in my canvas does",
 ];
 const EMPTY_CONTEXT: AssistantContext = {
