@@ -38,6 +38,8 @@ import { CloseFailureDialog } from "./components/CloseFailureDialog.tsx";
 import { parseCapabilityRef } from "./workflow/capabilitySelection.ts";
 import { useNodePresentation } from "./workflow/useNodePresentation.ts";
 import { failureCopy } from "./workflow/failureCopy.ts";
+import { useWorkflowReadiness } from "./workflow/useWorkflowReadiness.ts";
+import { projectReadinessIssues } from "./workflow/readinessCopy.ts";
 import { RunDrawer } from "./components/RunDrawer.tsx";
 
 function isGraphMutation(change: { type: string }): boolean {
@@ -118,6 +120,26 @@ export function App() {
   workflowForRunRef.current =
     workspaceState.state === "ready" ? workspaceState.workflowHead : null;
   useNodePresentation(workflowForRunRef.current, selectedId, setNodes);
+  const readiness = useWorkflowReadiness(workflowForRunRef.current);
+  const runReady = readiness?.state === "ready";
+  const runDisabledReason = readiness === null
+    ? "Checking whether the workflow is ready to run"
+    : readiness.state === "blocked"
+      ? "Fix the listed issues before running"
+      : null;
+  const readinessIssueCopy = useMemo(() => {
+    const inputType = (nodeId: string, inputKey: string) => {
+      const node = nodes.find((candidate) => candidate.id === nodeId);
+      const data = node?.data as FlowNodeData | undefined;
+      const type = data?.capability?.inputs.find((port) => port.name === inputKey)?.type;
+      return type === "string" ? "text" : type ?? null;
+    };
+    return projectReadinessIssues(
+      readiness,
+      inputType,
+      nodes.map((node) => node.id),
+    ).map((issue) => issue.copy);
+  }, [nodes, readiness]);
   const run = useCallback(() => {
     void runAfterBarrier("prepare_run", runCanonicalWorkflow)
       .then(() => setRunDetailsOpen(true))
@@ -324,6 +346,8 @@ export function App() {
         onCancel={cancel}
         onOpenRunDetails={() => setRunDetailsOpen(true)}
         hasRunDetails={runSnapshot !== null}
+        runDisabled={!runReady}
+        runDisabledReason={runDisabledReason}
       />
       <ProjectSwitcher
         current={project}
@@ -393,6 +417,8 @@ export function App() {
                 if (typeof assetId === "string") setSelectedAssetId(assetId);
                 setTab("assets");
               }}
+              readinessIssues={readinessIssueCopy}
+              runDisabled={!runReady}
             />
           </>
         {assistantEnabled && assistantOpen && (

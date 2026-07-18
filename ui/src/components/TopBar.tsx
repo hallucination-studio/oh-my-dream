@@ -15,6 +15,8 @@ export function TopBar({
   onCancel,
   onOpenRunDetails,
   hasRunDetails,
+  runDisabled = false,
+  runDisabledReason = null,
 }: {
   project: Project | null;
   status: RunStatus;
@@ -25,6 +27,8 @@ export function TopBar({
   onCancel: () => void;
   onOpenRunDetails: () => void;
   hasRunDetails: boolean;
+  runDisabled?: boolean;
+  runDisabledReason?: string | null;
 }) {
   const running = status.state === "running";
   const cancelling = status.state === "cancelling";
@@ -66,7 +70,12 @@ export function TopBar({
           Retry Cancel
         </button>
       ) : (
-        <button className="topbar__run" onClick={onRun}>
+        <button
+          className="topbar__run"
+          onClick={onRun}
+          disabled={runDisabled}
+          title={runDisabledReason ?? undefined}
+        >
           <span className="topbar__play" aria-hidden="true" />
           Run all
         </button>

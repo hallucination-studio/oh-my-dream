@@ -163,3 +163,12 @@
   border-top: 4.5px solid transparent;
   border-bottom: 4.5px solid transparent;
 }
+
+.topbar__run:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.topbar__run:disabled:hover {
+  background: var(--accent);
+}

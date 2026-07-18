@@ -22,6 +22,8 @@ export function InspectorPanel({
   onParamChange,
   onOpenAssets = () => undefined,
   onRunThroughNode = () => undefined,
+  readinessIssues = [],
+  runDisabled = false,
 }: {
   node: SelectedNode | null;
   modeOptions?: NodeTypeSpec[];
@@ -29,6 +31,8 @@ export function InspectorPanel({
   onParamChange: (nodeId: string, name: string, value: unknown) => void;
   onOpenAssets?: () => void;
   onRunThroughNode?: (nodeId: string) => void;
+  readinessIssues?: string[];
+  runDisabled?: boolean;
 }) {
   if (!node) {
     return (
@@ -138,7 +142,22 @@ export function InspectorPanel({
           Generated media saves to the Library automatically, tagged with this project and prompt.
         </div>
       )}
-      <button className="insp__asset-action" onClick={() => onRunThroughNode(node.id)}>
+      {readinessIssues.length > 0 && (
+        <div className="insp__issues" role="status" aria-label="Ready to run issues">
+          <p className="insp__grp">Before this can run</p>
+          <ul className="insp__issuelist">
+            {readinessIssues.map((issue) => (
+              <li key={issue}>{issue}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <button
+        className="insp__asset-action"
+        onClick={() => onRunThroughNode(node.id)}
+        disabled={runDisabled}
+        title={runDisabled ? "Fix the issues above before running" : undefined}
+      >
         Run to here
       </button>
     </aside>
