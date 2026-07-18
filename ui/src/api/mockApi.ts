@@ -21,6 +21,7 @@ import type {
   WorkflowNodePresentationDto,
   WorkflowRunDto,
   WorkflowRunEventPageDto,
+  WorkflowReadinessDto,
   WorkflowRunScopeDto,
   WorkflowWithReadinessDto,
 } from "./types.ts";
@@ -226,7 +227,7 @@ async function workflowCreate(projectId: string): Promise<WorkflowDto> {
 async function workflowGetCurrent(projectId: string): Promise<WorkflowWithReadinessDto> {
   const workflow = mockCanonicalWorkflows.get(projectId);
   if (!workflow) throw new Error("workflow.not_found");
-  return { workflow: structuredClone(workflow), readiness: { state: "ready" } };
+  return { workflow: structuredClone(workflow), readiness: computeMockReadiness(workflow) };
 }
 
 async function workflowApplyMutation(
@@ -244,7 +245,49 @@ async function workflowApplyMutation(
   workflow.revision = String(Number(workflow.revision) + 1);
   workflow.updated_at_epoch_ms = String(Date.now());
   mockCanonicalWorkflows.set(projectId, workflow);
-  return { workflow: structuredClone(workflow), readiness: { state: "ready" } };
+  return { workflow: structuredClone(workflow), readiness: computeMockReadiness(workflow) };
+}
+
+/** Canonical-minimum mock readiness: required inputs bound and required parameters set. */
+function computeMockReadiness(workflow: WorkflowDto): WorkflowReadinessDto {
+  const contracts = nodeCapabilitiesFixture as NodeCapabilityContractDto[];
+  const issues: import("./types.ts").JsonObject[] = [];
+  for (const node of workflow.nodes) {
+    const contract = contracts.find(
+      (candidate) => candidate.capability_ref.id === node.capability_id,
+    );
+    if (!contract) continue;
+    for (const input of contract.inputs) {
+      if (input.binding.kind !== "required_single_value") continue;
+      const bound = workflow.input_bindings.some(
+        (binding) =>
+          binding.target_node_id === node.node_id &&
+          binding.input_key === input.key &&
+          binding.items.length > 0,
+      );
+      if (!bound) {
+        issues.push({
+          kind: "required_input_missing",
+          node_id: node.node_id,
+          detail: { input_key: input.key },
+        });
+      }
+    }
+    for (const parameter of contract.parameters) {
+      if (parameter.presence.kind !== "required") continue;
+      const value = node.parameters.find((candidate) => candidate.key === parameter.key)?.value;
+      const present =
+        value !== undefined && !(value.kind === "text" && value.value.trim() === "");
+      if (!present) {
+        issues.push({
+          kind: "required_parameter_missing",
+          node_id: node.node_id,
+          detail: { parameter_key: parameter.key },
+        });
+      }
+    }
+  }
+  return issues.length > 0 ? { state: "blocked", issues } : { state: "ready" };
 }
 
 async function workflowCheckReadiness(
@@ -262,7 +305,16 @@ async function workflowStartRun(
   workflowRevision: string,
   scope: WorkflowRunScopeDto,
 ): Promise<WorkflowRunDto> {
-  const workflow = (await workflowGetCurrent(projectId)).workflow;
+  const current = await workflowGetCurrent(projectId);
+  if (current.readiness.state === "blocked") {
+    const first = current.readiness.issues[0];
+    const kind =
+      typeof first === "object" && first !== null && !Array.isArray(first)
+        ? String((first as import("./types.ts").JsonObject).kind)
+        : "unknown";
+    throw new Error(`workflow.not_ready:${kind}`);
+  }
+  const workflow = current.workflow;
   const now = String(Date.now());
   const run: WorkflowRunDto = {
     workflow_run_id: crypto.randomUUID(),
@@ -347,7 +399,7 @@ async function workflowGetNodePresentation(
       current_revision: workflow.revision,
       capability_id: node.capability_id,
       capability_version: node.capability_version,
-      readiness: { state: "ready" },
+      readiness: computeMockReadiness(workflow),
       latest_execution: latest,
       presentation: { kind: "text", value: text ? [{ kind: "literal" as const, value: text }] : null },
     };
@@ -358,7 +410,7 @@ async function workflowGetNodePresentation(
     current_revision: workflow.revision,
     capability_id: node.capability_id,
     capability_version: node.capability_version,
-    readiness: { state: "ready" },
+    readiness: computeMockReadiness(workflow),
     latest_execution: latest,
     presentation: {
       kind,

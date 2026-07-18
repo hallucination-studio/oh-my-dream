@@ -223,3 +223,48 @@ it("returns the frozen Mock profile for each model capability", async () => {
     version: "1.0",
   })).resolves.toEqual([]);
 });
+
+it("reports canonical readiness and rejects a blocked workflow", async () => {
+  const project = await mockApi.createProject("Readiness");
+  const workflow = await mockApi.workflowCreate(project.id);
+  const nodeId = crypto.randomUUID();
+  const blocked = await mockApi.workflowApplyMutation(
+    project.id,
+    workflow.workflow_id,
+    workflow.revision,
+    [{
+      kind: "add_node",
+      node_id: nodeId,
+      capability: { id: "image.generate_from_text", version: "1.0" },
+      parameters: [],
+      canvas_position: { x: 0, y: 0 },
+    }],
+  );
+
+  expect(blocked.readiness.state).toBe("blocked");
+  if (blocked.readiness.state !== "blocked") throw new Error("expected blocked readiness");
+  const kinds = blocked.readiness.issues.map((issue) =>
+    typeof issue === "object" && issue !== null && !Array.isArray(issue)
+      ? (issue as { kind?: string }).kind
+      : undefined,
+  );
+  expect(kinds).toContain("required_input_missing");
+  expect(kinds).toContain("required_parameter_missing");
+
+  await expect(
+    mockApi.workflowStartRun(project.id, workflow.workflow_id, blocked.workflow.revision, {
+      kind: "whole_workflow",
+    }),
+  ).rejects.toThrow("workflow.not_ready");
+});
+
+it("admits a fully bound and configured workflow", async () => {
+  const project = await mockApi.createProject("Ready");
+  const { workflow, revision } = await buildAcceptanceWorkflow(project.id);
+  const current = await mockApi.workflowGetCurrent(project.id);
+  expect(current.readiness.state).toBe("ready");
+  const run = await mockApi.workflowStartRun(project.id, workflow.workflow_id, revision, {
+    kind: "whole_workflow",
+  });
+  expect(run.state).toBe("queued");
+});
