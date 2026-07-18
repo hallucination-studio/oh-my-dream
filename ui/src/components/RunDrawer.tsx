@@ -7,6 +7,13 @@ import {
   type WorkflowRunDto,
 } from "../api/index.ts";
 import type { RunOutputs } from "../workflow/types.ts";
+import {
+  elapsedMs,
+  formatElapsed,
+  projectRunTimeline,
+  runHeadline,
+  stepStateLabel,
+} from "../workflow/runTimeline.ts";
 import "./runDrawer.css";
 
 type TaskApi = Pick<WorkflowApi, "generationTaskList">;
@@ -19,6 +26,9 @@ export function RunDrawer({
   activeNodeId,
   outputPreview,
   taskApi = api,
+  nodeLabel = () => "Step",
+  canCancel = false,
+  onCancel = () => undefined,
 }: {
   open: boolean;
   onClose: () => void;
@@ -27,9 +37,13 @@ export function RunDrawer({
   activeNodeId?: string | null;
   outputPreview?: RunOutputs | null;
   taskApi?: TaskApi;
+  nodeLabel?: (nodeId: string) => string;
+  canCancel?: boolean;
+  onCancel?: () => void;
 }) {
   const [tasks, setTasks] = useState<GenerationTaskSummaryDto[]>([]);
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [now, setNow] = useState(() => Date.now());
   const closeButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -69,6 +83,12 @@ export function RunDrawer({
     };
   }, [open, projectId, run, taskApi]);
 
+  useEffect(() => {
+    if (!open || run === null || (run.state !== "queued" && run.state !== "running")) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [open, run]);
+
   if (!open) return null;
 
   const task = selectTask(tasks, run, activeNodeId);
@@ -78,13 +98,39 @@ export function RunDrawer({
         <header className="rundrawer__head">
           <div>
             <span className="rundrawer__eyebrow">Run information</span>
-            <h2 id="run-drawer-title">Task details</h2>
+            <h2 id="run-drawer-title">Run details</h2>
           </div>
           <button ref={closeButton} className="rundrawer__close" onClick={onClose} aria-label="Close run details">
             ×
           </button>
         </header>
         <div className="rundrawer__body" aria-busy={state === "loading"}>
+          {run !== null && (
+            <section className="rundrawer__timeline" aria-label="Run steps">
+              <div className="rundrawer__runhead">
+                <strong>{runHeadline(run)}</strong>
+                <span className="rundrawer__elapsed">{formatElapsed(elapsedMs(run, now))}</span>
+                {canCancel && (
+                  <button className="rundrawer__cancel" onClick={onCancel}>
+                    Cancel run
+                  </button>
+                )}
+              </div>
+              <ol className="rundrawer__steps">
+                {projectRunTimeline(run).map((step, index) => (
+                  <li key={step.executionId} data-state={step.state}>
+                    <span className="rundrawer__stepstate">{stepStateLabel(step.state)}</span>
+                    <span className="rundrawer__stepname">{nodeLabel(step.nodeId)}</span>
+                    <span className="rundrawer__stepmeta">
+                      {step.progressBasisPoints !== null
+                        ? `${Math.round(step.progressBasisPoints / 100)}%`
+                        : `Step ${index + 1} of ${run.node_executions.length}`}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           {state === "loading" && <p className="rundrawer__status" role="status">Loading Task information…</p>}
           {state === "error" && (
             <p className="rundrawer__status rundrawer__status--error" role="status">

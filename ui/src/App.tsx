@@ -119,9 +119,11 @@ export function App() {
     workspaceState.state === "ready" ? workspaceState.workflowHead : null;
   useNodePresentation(workflowForRunRef.current, selectedId, setNodes);
   const run = useCallback(() => {
-    void runAfterBarrier("prepare_run", runCanonicalWorkflow).catch((error: unknown) => {
-      setStatus({ state: "failed", reason: failureCopy("Run workflow", error) });
-    });
+    void runAfterBarrier("prepare_run", runCanonicalWorkflow)
+      .then(() => setRunDetailsOpen(true))
+      .catch((error: unknown) => {
+        setStatus({ state: "failed", reason: failureCopy("Run workflow", error) });
+      });
   }, [runAfterBarrier, runCanonicalWorkflow]);
 
   const addNode = useCallback(
@@ -275,6 +277,14 @@ export function App() {
       assetPresentation: data.assetPresentation,
     };
   }, [nodes, selectedId]);
+  const runNodeLabel = useCallback(
+    (nodeId: string) => {
+      const node = nodes.find((candidate) => candidate.id === nodeId);
+      const data = node?.data as FlowNodeData | undefined;
+      return data?.capability?.label ?? "Step";
+    },
+    [nodes],
+  );
   const assistantContext = useCallback(
     () => ({
       project_id: project?.id ?? null,
@@ -376,6 +386,7 @@ export function App() {
               onParamChange={setParam}
               onRunThroughNode={(nodeId) =>
                 void runAfterBarrier("prepare_run", () => runCanonicalWorkflow(nodeId))
+                  .then(() => setRunDetailsOpen(true))
                   .catch((error: unknown) => setStatus({ state: "failed", reason: failureCopy("Run workflow", error) }))}
               onOpenAssets={() => {
                 const assetId = selected?.params.asset_id;
@@ -410,6 +421,9 @@ export function App() {
         run={runSnapshot}
         activeNodeId={status.state === "running" ? status.nodeId : null}
         outputPreview={status.state === "succeeded" ? status.outputs : null}
+        nodeLabel={runNodeLabel}
+        canCancel={status.state === "running"}
+        onCancel={cancel}
       />
       {closeError !== null && (
         <CloseFailureDialog

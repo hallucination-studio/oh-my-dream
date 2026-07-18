@@ -39,7 +39,7 @@ describe("RunDrawer", () => {
       />,
     );
     expect(await screen.findByText("Running")).toBeTruthy();
-    expect(screen.getByText("42%")).toBeTruthy();
+    expect(screen.getAllByText("42%").length).toBeGreaterThan(0);
 
     const failed = {
       ...running,
@@ -56,6 +56,38 @@ describe("RunDrawer", () => {
       />,
     );
     expect(await screen.findByText("Safe failure")).toBeTruthy();
+  });
+
+  it("renders the step timeline with labels, elapsed, and a cancel action", async () => {
+    const onCancel = vi.fn();
+    render(
+      <RunDrawer
+        open
+        onClose={vi.fn()}
+        projectId={PROJECT_ID}
+        run={{
+          ...waitingRun(),
+          node_executions: [
+            { node_id: "node-a", node_execution_id: "exec-a", state: "succeeded", progress_basis_points: 10_000 },
+            { node_id: NODE_ID, node_execution_id: EXECUTION_ID, state: "running", progress_basis_points: 4200 },
+            { node_id: "node-c", node_execution_id: "exec-c", state: "pending", progress_basis_points: null },
+          ],
+        }}
+        nodeLabel={(nodeId) => ({ "node-a": "Text", [NODE_ID]: "Generate image", "node-c": "Create video" })[nodeId] ?? "Step"}
+        canCancel
+        onCancel={onCancel}
+        taskApi={{ generationTaskList: async () => ({ tasks: [], next_cursor: null }) }}
+      />,
+    );
+
+    expect(await screen.findByText("Running 1 of 3 steps")).toBeTruthy();
+    expect(screen.getByText("Text")).toBeTruthy();
+    expect(screen.getByText("Generate image")).toBeTruthy();
+    expect(screen.getByText("Create video")).toBeTruthy();
+    expect(screen.getByText("Complete")).toBeTruthy();
+    expect(screen.getByText("Waiting")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));
+    expect(onCancel).toHaveBeenCalledOnce();
   });
 
   it("does not select a stale Task and preserves output-only preview", async () => {

@@ -120,6 +120,33 @@ export function useRunController(options: RunControllerOptions) {
 
   return { cancel, invalidateRun, run };
 
+  function nextExecutionState(
+    type: string,
+    current: WorkflowRunDto["node_executions"][number]["state"],
+  ): WorkflowRunDto["node_executions"][number]["state"] {
+    switch (type) {
+      case "node_started":
+        return "running";
+      case "node_succeeded":
+        return "succeeded";
+      case "node_failed":
+        return "failed";
+      case "node_blocked":
+        return "blocked";
+      case "node_cancelled":
+        return "cancelled";
+      default:
+        return current;
+    }
+  }
+
+  function emitRunSnapshot(): void {
+    const run = activeRun.current;
+    if (run) {
+      onRunChanged?.({ ...run, node_executions: [...run.node_executions] });
+    }
+  }
+
   async function processEvent(
     event: import("../api/types.ts").DurableWorkflowRunEventDto,
     request: number,
@@ -179,6 +206,9 @@ export function useRunController(options: RunControllerOptions) {
           : terminal
             ? 10_000
             : 0;
+      execution.state = nextExecutionState(type, execution.state);
+      execution.progress_basis_points = progressBasisPoints;
+      emitRunSnapshot();
       const progress: RunProgress = {
         nodeId: execution.node_id,
         progress: progressBasisPoints / 10_000,
@@ -200,7 +230,17 @@ export function useRunController(options: RunControllerOptions) {
   }
 
   function settle(status: RunTerminalStatus): void {
-    onRunChanged?.(activeRun.current);
+    const run = activeRun.current;
+    if (run) {
+      const terminal =
+        status.state === "succeeded" ? "succeeded" : status.state === "cancelled" ? "cancelled" : "failed";
+      onRunChanged?.({
+        ...run,
+        state: terminal,
+        updated_at_epoch_ms: String(Date.now()),
+        node_executions: [...run.node_executions],
+      });
+    }
     activeRun.current = null;
     stopListening.current?.();
     stopListening.current = null;
