@@ -9,28 +9,49 @@ Backend semantics remain owned by the documents mapped from [`BACKEND.md`](BACKE
 
 ## Verified status (2026-07-18)
 
-- `npm run test --prefix ui`: 118 tests, 33 files, green. `npm run typecheck --prefix ui`: clean.
+- `npm run test --prefix ui`: 120 tests, 39 files, green. `npm run typecheck --prefix ui`: clean.
 - Live walkthrough (Chrome DevTools MCP, mock backend, 1440x900): opened Mock Project, added
-  Text → Generate image → Create video from the library, connected both edges by keyboard only,
+  Text → Generate image → Generate video from the library, connected both edges by keyboard only,
   watched readiness gate `Run all` until the graph was complete, ran to `3 steps complete · 2
   assets created` with both node previews, and found both Assets in the Library. Zero console
   errors or warnings for the whole path.
 - Baseline commits: `e39b25e..b7ffe42` (25 tasks, workstreams W1–W8).
 
+### Bright-studio landing (2026-07-18, verified at 1280x720 / 1440x900 / 1920x1080)
+
+The dark workbench direction was retired after live review. The frozen direction is now the
+bright studio: white chrome, pastel-tinted node headers, blueprint grid canvas, the aurora
+accent for brand moments, and the motion language (aurora drift, edge flow, running pulse, node
+mount). Landed: overlay shell (left/right single slots), seven-label → four-label palette
+(asset nodes now come only from the Asset Library drag, per user decision), unified `Generate X`
+naming, asset picker for dragged asset nodes, run/readiness bugfix batch, interaction batch,
+and the light reskin with mockup-exact node metrics. Commits `8597733..bf40bfc` plus design
+freezes `6c62d00`, `d293462`, `5a231d2`.
+
+Closed with live evidence: UI-34 (run_started tracked), UI-35 (not a bug — mock runs are
+sub-second), UI-36 (posters render via `<img>`), UI-38, UI-40, UI-41, UI-42, UI-43, UI-44,
+UI-45, UI-47 (graph-anchored placement), UI-48 (overlay shell), UI-49, UI-50, UI-51 (focus
+traps), UI-52, UI-53, UI-54, UI-55, UI-56, UI-57, UI-58 (fixed 340 px panel), UI-59, UI-60
+(jargon line removed; actionable outputs remain A6), UI-61, UI-62, UI-63, UI-64, UI-65, UI-66
+(superseded: asset nodes left the palette again by product decision), UI-67 (tinted header is
+the type identity now), UI-68, UI-69, UI-70, UI-71, UI-72, UI-73, UI-74, UI-75, UI-76 (contrast
+floors lifted; recheck after the reskin), UI-77 (jargon swept), UI-78, UI-83, UI-84, UI-85.
+UI-39's mechanism was disproved live; the residual all-or-nothing invalidation moves to A5.
+
 ## Landed baseline
 
 | Area | Live today |
 | --- | --- |
-| Workspace shell | Rail + Node Library + canvas + Inspector + Top bar, dark workbench theme, inline panels. |
-| Node Library | Creator labels, Inputs/Generate groups, alias search, 1.0 version badge. |
-| Graph editing | Labeled ports (name + media type), 22 px hit radius, live `isValidConnection` with compatible-target highlight, keyboard connect, visible node/edge delete, slot placement, drag-stop persistence, transient editor notices. |
-| Node presentation | 304/336 px widths, creator pills (Not run/Running/Complete/Needs attention), two-line title clamp, typed-output previews. |
+| Workspace shell | Rail + Node Library + canvas + Inspector + Top bar, bright-studio light theme, overlay panels. |
+| Node Library | Unified `Generate X` labels, Inputs/Generate groups, alias search; asset nodes are not in the palette. |
+| Graph editing | Labeled ports (name + media type), 22 px hit radius, live `isValidConnection` with cycle/self-loop guards and compatible-target highlight, keyboard connect, visible node/edge delete, graph-anchored slot placement, drag-stop persistence, transient editor notices. |
+| Node presentation | White cards with pastel type-tinted headers, creator pills (Not run/Running/Complete/Needs attention), two-line title clamp, typed-output previews. |
 | Generation model selection | Single-model auto-select, read-only row, empty/loading/error states, `Generation model` label. |
-| Run | Engine-owned readiness gating with issue list, run details dialog with step timeline, cancel, output accumulation, honest summary (`3 steps complete · 2 assets created`). |
-| Asset Library | Kind chips with counts, grid/list toggle, search, import, detail facts (dimensions/duration), jump-to-source (selects and centers), skeletons, contextual empty states. |
+| Run | Engine-owned readiness gating with issue list, run details drawer with step timeline, cancel, output accumulation, honest summary (`3 steps complete · 2 assets created`). |
+| Asset Library | Kind chips with counts, grid/list toggle, search, import, detail facts (dimensions/duration), jump-to-source (selects and centers), skeletons, contextual empty states; drag-to-canvas creates bound asset nodes. |
 | Assistant | Send-path availability gating, keep-alive dock, creator-language approval summary, deterministic mock reply. |
 | First-run | Empty-canvas guidance, empty-run block, Project switcher failure surfacing, multiline prompt editing, contract skeletons. |
-| Visual | Three-layer tokens (palette → semantic → component), dark React Flow chrome, verified at 1280x720/1440x900/1920x1080. |
+| Visual | Bright studio light theme, blueprint grid canvas, aurora accent with drift animation, running pulse and edge flow, verified at 1280x720/1440x900/1920x1080. |
 | Browser mock | In-memory Asset store, timed run execution, canonical readiness, typed Image+Video Assets with labelled deterministic previews. |
 
 ## A. Waiting to implement (ungated)
@@ -45,6 +66,8 @@ Ordered by leverage. Each item closes register entries named in brackets.
   focus traps, wedged-state recovery, keyboard-connect exits.
 - **A4 Work Drawer content** (UI-15, UI-73): the Configure tab fields, readiness guidance, and
   Run tab timeline inside the shell S1 provides. The overlay chrome itself moved to S1.
+- **A5 Stale output treatment** (pairs with UI-39): the `Changed since run` state from Node
+  Presentation, with consistent invalidation across nodes, Top bar, and previews.
 - **A5 Stale output treatment** (pairs with UI-39): the `Changed since run` state from Node
   Presentation, with consistent invalidation across nodes, Top bar, and previews.
 - **A6 Run details honesty pack** (UI-60, UI-77): actionable outputs (preview + jump to Asset),
