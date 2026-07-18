@@ -90,7 +90,7 @@ function CanvasInner(props: Props) {
     const node = instance.getNode(nodeId);
     if (!rect || !node) return;
     const width = node.measured?.width ?? node.width ?? 336;
-    const height = node.measured?.height ?? node.height ?? 200;
+    const height = node.measured?.height ?? node.height ?? 360;
     const zoom = Math.min(instance.getViewport().zoom, 1);
     const cx = node.position.x + width / 2;
     const cy = node.position.y + height / 2;
@@ -110,7 +110,7 @@ function CanvasInner(props: Props) {
     const node = instance.getNode(nodeId);
     if (!rect || !node) return true;
     const width = node.measured?.width ?? node.width ?? 336;
-    const height = node.measured?.height ?? node.height ?? 200;
+    const height = node.measured?.height ?? node.height ?? 360;
     const tl = flowToScreenPosition(node.position);
     const br = flowToScreenPosition({ x: node.position.x + width, y: node.position.y + height });
     return tl.x >= rect.left && br.x <= rect.right && tl.y >= rect.top && br.y <= rect.bottom;

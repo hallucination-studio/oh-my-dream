@@ -15,7 +15,7 @@ it("never overlaps existing nodes, even after deletions leave gaps", () => {
   expect(firstFreeSlot(nodes)).toEqual({ x: 520, y: 100 });
   // Once every slot on the first row is taken, placement moves to the next row.
   const fullRow = [0, 1, 2, 3].map((i) => nodeAt(`n${i}`, 140 + i * 380, 100));
-  expect(firstFreeSlot(fullRow)).toEqual({ x: 140, y: 360 });
+  expect(firstFreeSlot(fullRow)).toEqual({ x: 140, y: 500 });
 });
 
 function nodeAt(id: string, x: number, y: number): Node {

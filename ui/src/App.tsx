@@ -84,6 +84,18 @@ export function App() {
     const point = instance.screenToFlowPosition({ x: 56 + insetsRef.current.left + 24, y: 68 });
     return { x: point.x, y: point.y };
   }, []);
+  // Column count for the slot grid: only as many as fit the visible canvas,
+  // so a new node never lands past the right overlay and triggers a pan.
+  const placementColumns = useCallback(() => {
+    const instance = rfInstance.current;
+    const zoom = instance?.getViewport().zoom || 1;
+    const stageWidth = window.innerWidth - 56;
+    const visibleFlowWidth = Math.max(
+      0,
+      (stageWidth - insetsRef.current.left - insetsRef.current.right - 48) / zoom,
+    );
+    return Math.max(1, Math.floor((visibleFlowWidth + 44) / 380));
+  }, []);
   const [exactContracts, setExactContracts] = useState<NodeCapabilityContractDto[]>([]);
   const [contractsLoaded, setContractsLoaded] = useState(false);
   const { specs: exactSpecs, hiddenCapabilityKeys } = useNodeAvailability(exactContracts);
@@ -213,12 +225,20 @@ export function App() {
           const id = nextNodeId(current);
           // Selecting the new node opens Configure for it, per Graph Editing.
           queueMicrotask(() => setSelectedId(id));
+          // Slots anchor to the existing graph (stable across viewport pans);
+          // only an empty graph anchors to the visible canvas origin.
+          const anchor = current.length > 0
+            ? {
+                x: Math.min(...current.map((node) => node.position.x)),
+                y: Math.min(...current.map((node) => node.position.y)),
+              }
+            : placementOrigin();
           return [
             ...current,
             {
               id,
               type: "workflow",
-              position: position ?? firstFreeSlot(current, placementOrigin()),
+              position: position ?? firstFreeSlot(current, anchor, placementColumns()),
               data: {
                 type: reference.id,
                 contractVersion: reference.version,
@@ -230,7 +250,7 @@ export function App() {
           ];
         });
     },
-    [canEdit, exactSpecs, markWorkflowMutation, setNodes, setParam, placementOrigin],
+    [canEdit, exactSpecs, markWorkflowMutation, setNodes, setParam, placementOrigin, placementColumns],
   );
 
   const addAssetSource = useCallback((assetId: string, position?: { x: number; y: number }) => {
