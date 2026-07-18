@@ -103,6 +103,12 @@ export function AssistantDock({
       if (projectId) {
         void apiClient.assistantGetPendingWorkflowChange(projectId).then(setPendingApproval);
       }
+      // Resync to the latest seen sequence so the stream keeps flowing after a
+      // gap; the authoritative refetch covers pending state and missed content
+      // is never fabricated.
+      if (Number.isSafeInteger(sequence) && sequence > previous) {
+        presentationSequenceRef.current.set(event.invocation_id, sequence);
+      }
       return;
     }
     presentationSequenceRef.current.set(event.invocation_id, sequence);

@@ -86,10 +86,17 @@ export function useRunController(options: RunControllerOptions) {
     invalidateRun();
     const request = ++generation.current;
     setStatus({ state: "running", nodeId: workflow.nodes[0]?.node_id ?? "", progress: 0 });
-    stopListening.current = await api.observeWorkflowRunEvents((event) => {
-      eventQueue.current = eventQueue.current.then(() => processEvent(event, request));
-    });
+    let unsubscribe: (() => void) | null = null;
     try {
+      unsubscribe = await api.observeWorkflowRunEvents((event) => {
+        eventQueue.current = eventQueue.current.then(() => processEvent(event, request));
+      });
+      if (request !== generation.current) {
+        // A newer run (or invalidation) superseded this one; do not leak the observer.
+        unsubscribe();
+        return;
+      }
+      stopListening.current = unsubscribe;
       const admitted = await api.workflowStartRun(
         workflow.project_id,
         workflow.workflow_id,
@@ -103,6 +110,9 @@ export function useRunController(options: RunControllerOptions) {
       onRunChanged?.(admitted);
       await repairEvents(admitted, request);
     } catch (error: unknown) {
+      // Admission failures must not leak the observer registered above.
+      unsubscribe?.();
+      if (stopListening.current === unsubscribe) stopListening.current = null;
       if (request === generation.current) {
         setStatus({ state: "failed", reason: failureCopy("Run workflow", error) });
       }
@@ -113,9 +123,21 @@ export function useRunController(options: RunControllerOptions) {
     const run = activeRun.current;
     if (!run) return;
     setStatus({ state: "cancelling" });
-    void api.workflowCancelRun(run.project_id, run.workflow_run_id).catch((error: unknown) => {
-      setStatus({ state: "cancel_failed", reason: failureCopy("Cancel run", error) });
-    });
+    void api.workflowCancelRun(run.project_id, run.workflow_run_id).then(
+      (cancelled) => {
+        // Reconcile immediately when cancellation already terminated the run,
+        // so a missed run_cancelled event cannot wedge the UI in Cancelling…
+        if (
+          activeRun.current?.workflow_run_id === cancelled.workflow_run_id &&
+          cancelled.state === "cancelled"
+        ) {
+          settle({ state: "cancelled" });
+        }
+      },
+      (error: unknown) => {
+        setStatus({ state: "cancel_failed", reason: failureCopy("Cancel run", error) });
+      },
+    );
   }, [setStatus]);
 
   return { cancel, invalidateRun, run };
