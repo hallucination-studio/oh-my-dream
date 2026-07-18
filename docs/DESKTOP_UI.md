@@ -41,11 +41,13 @@ is not success.
 - Keyboard-operable node selection, connection, deletion, and Run controls.
 - A deterministic mock Text-to-Image -> Image-to-Video path with typed Asset read-back.
 - Asset Library view, Assistant dock, and Settings dialog presentation as specified below.
+- Run history and multiple Workflows per Project are product scope. Their presentation design
+  is pending; it will be frozen in this document before any implementation.
 
 ### Out of scope
 
 - Mobile or touch-first layouts.
-- Multiple Workflows, Workflow history, retry-in-place, cost accounting, provider-native task
+- Retry-in-place, cost accounting, provider-native task
   controls, or provider-native progress.
 - Backend commands, DTO fields, business states, or compatibility rules beyond the frozen contracts.
 - Skills management and Developer mode in Settings: the reference mockup specifies them, but no
@@ -74,6 +76,24 @@ UI copy names what the creator controls, never the internal boundary that carrie
 Raw identifiers, enum keys, error debug strings, `generation_profile_ref`, tool identifiers, and
 provider route names must not appear as primary UI text. Technical identifiers may appear only in a
 copyable diagnostics section after a failure.
+
+### Labels and copy
+
+Every visible label follows one copy system, on the node body, in the Inspector, and in the Work
+Drawer alike:
+
+- Sentence case: capitalize only the first word (`Aspect ratio`, never `Aspect Ratio` or
+  `ASPECT RATIO`). CSS never uppercases a parameter or control label; only structural eyebrows
+  (`Nodes`, `Parameters`, `Outputs`) may use tracked small caps.
+- Human words with units in parentheses: `Text`, `Aspect ratio`, `Duration (seconds)`, `Asset`,
+  `Generation model`. Parameter keys (`aspect_ratio`, `duration_seconds`) never appear.
+- Every enum option gets a human label: `square` → `Square 1:1`, `landscape_16_9` →
+  `Landscape 16:9`, `landscape_4_3` → `Landscape 4:3`, `portrait_3_4` → `Portrait 3:4`,
+  `portrait_9_16` → `Portrait 9:16`. The same rule applies to any future option set.
+- The same parameter carries the identical label on the node body and in the Inspector.
+- Live values (elapsed time, progress, revision) use the tabular monospace face; labels never do.
+- Actions are verb-first and name the outcome (`Run all`, `Add to canvas`, `Delete node`);
+  failures follow `Action · reason` and name the recovery step.
 
 ## Information Architecture
 
@@ -153,8 +173,36 @@ The workspace should feel like a precise media workbench, not a dashboard or gen
 
 The signature element is the typed connection path: a connection carries the output media color
 from the source port through the edge to the matching target port. Everything else remains quiet.
-Surfaces use 4 px corners and one-pixel borders. No gradients, glass blur, particles, decorative
-cards, oversized rounding, animated glow, or shadow stacks are introduced.
+No gradients, glass blur, particles, decorative cards, oversized rounding, animated glow, or
+shadow stacks are introduced.
+
+### Geometry
+
+Corners follow a layered radius scale instead of one uniform value: 6 px on controls and inputs,
+8 px on chips and small containers, 10 px on nodes, cards, and panels, 12 px on modal dialogs,
+and a full pill radius on status pills and toggles. Tiny identity marks (category dots, badges)
+may stay square. One-pixel borders everywhere.
+
+### Controls
+
+Each surface has exactly one solid primary action: a Signal Teal fill with dark text. Every other
+action is a ghost button — transparent fill, one-pixel hairline border, ink text, and a hover
+that brightens the border or lifts the background. A destructive action is a coral ghost: coral
+text and border on hover, never a bare red text link and never a solid red fill. A disabled
+primary loses its fill entirely (raised surface, faint text, hairline border) so it can never be
+mistaken for an active action.
+
+Selection and focus are always Signal Teal. Execution status uses the status palette — Running
+Gold for running borders, pills, and progress; Failure Coral and Success Green likewise — and is
+always paired with a label. Data-type color appears only in the wiring and the node's 3 px type
+bar, never in selection, status, or buttons.
+
+### Assistant presentation
+
+The conversation is quiet: the creator's messages are right-aligned graphite bubbles (never teal),
+assistant replies are plain full-width text without avatars or bubble chrome, and suggestion
+starters are ghost chips. The composer is a sunk field with a ghost icon send action. Tool
+activity reads as labeled steps with status icons, not as chat bubbles.
 
 ## Graph Editing
 

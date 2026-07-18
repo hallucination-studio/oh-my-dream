@@ -55,6 +55,17 @@ Ordered by leverage. Each item closes register entries named in brackets.
 - **A8 Pending-edge visual semantics**: visually distinct uncommitted edge; the engine-findings
   half stays gated on G1.
 - **A9 Hygiene batch** (UI-79…UI-82): dead code removal, named error swallowing, mock reset hooks.
+- **A10 Visual convergence (V1)** (UI-63, UI-67, parts of UI-74/76): layered radius scale, one
+  solid primary per surface with ghost secondaries and coral-ghost danger, quiet Assistant
+  (graphite user bubbles, no avatars, ghost chips and send), node type-vs-accent separation
+  (teal selection, gold running status, type color only in the bar and ports). Design frozen
+  2026-07-18 in DESKTOP_UI.md (Geometry, Controls, Assistant presentation).
+- **A11 Label copy system (V2)** (UI-64, part of UI-77): sentence-case human labels everywhere,
+  human option labels for every enum, node/Inspector label parity, no CSS uppercase on labels.
+  Frozen in DESKTOP_UI.md (Labels and copy).
+- **A12 Small convergences**: restore the seven-label Node Library with the Assets group (D1,
+  closes UI-66); move the MiniMap to the lower-left canvas edge (D2); Settings Providers section
+  per the frozen spec (D4) plus the About/Storage facts (UI-59).
 
 ## B. Undesigned surfaces
 
@@ -73,8 +84,10 @@ design lands in `DESKTOP_UI.md`.
 - **B6 First-launch onboarding** — anything beyond the current empty states (sample project,
   guided first run).
 - **B7 Asset export flow** — blocked on G5 (no export command).
-- **B8 Run history browser** — currently out of scope; needs product decision D3.
-- **B9 Multiple Workflows per Project** — currently out of scope; needs product decision D3.
+- **B8 Run history browser** — admitted into product scope 2026-07-18; the presentation design
+  must be frozen in DESKTOP_UI.md before implementation.
+- **B9 Multiple Workflows per Project** — admitted into product scope 2026-07-18; same design-
+  first rule.
 
 ## C. Interaction issues
 
@@ -163,22 +176,20 @@ Export command; button removed).
 The rest of UI-1…UI-33 landed in W1–W8 and are verified by the test suite and the walkthrough
 above.
 
-## Design decisions needed
+## Design decisions (resolved 2026-07-18)
 
-Product calls required before the matching work can be planned. The current code and the frozen
-design disagree; one side must move.
-
-- **D1 Node Library Assets group.** Spec: all seven node labels visible, grouped Inputs /
-  Generate / Assets. Code: asset nodes are hidden from the palette and created only from the
-  Asset Library (`contextual_creation = asset_library`). Restore the group or amend the design.
-- **D2 MiniMap placement.** Spec: zoom, fit, and minimap against the lower-left canvas edge.
-  Code: minimap sits bottom-right (React Flow convention). Converge or amend.
-- **D3 Run history and multiple Workflows.** Both currently out of scope. Confirm they stay out
-  of the desktop MVP or schedule design.
-- **D4 Settings Providers.** Spec: a Providers section (list, active provider, write-only keys).
-  Code ships a `Models routes` section over mock settings. Converge to the spec or redesign.
-- **D5 Parameter label casing.** Node bodies render uppercase micro-labels that wrap; the
-  Inspector renders lowercase keys. Pick one rule.
+- **Geometry**: layered radius scale (6/8/10/12 px + pill) replaces the uniform 4 px.
+- **Buttons**: one solid teal primary per surface; ghost secondaries; coral-ghost danger;
+  disabled primaries lose their fill.
+- **Assistant**: graphite user bubbles, no avatars, ghost suggestions and send.
+- **D1 Node Library**: restore the spec's seven visible labels with the Assets group; the Asset
+  Library drag-route stays as an additional path.
+- **D2 MiniMap**: lower-left with the zoom/fit cluster, per spec.
+- **D3 Run history and multiple Workflows**: admitted into scope; design first (B8/B9), no
+  implementation before the sections are frozen in DESKTOP_UI.md.
+- **D4 Settings**: converge to the spec's Providers section; the Models-routes section's fate is
+  decided in that work (fold or keep as a Models section).
+- **D5 Labels**: the sentence-case Labels-and-copy system in DESKTOP_UI.md governs every surface.
 
 ## Design-authorization gates
 
