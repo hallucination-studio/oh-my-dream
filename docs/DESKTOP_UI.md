@@ -137,9 +137,9 @@ Everything else is an overlay.
 - The right slot is empty until it has content: `Configure` when a node is selected, `Run` when
   a Run is admitted or inspected, Assistant when toggled from the rail. With nothing selected
   and no Run context, the slot stays closed instead of showing an empty panel.
-- The left edge has one overlay slot: the Node Library (304 px, grouped Inputs, Generate,
-  Assets) or the Asset Library with its detail companion, switched from the rail and pinnable
-  for the current UI session.
+- The left edge has one overlay slot: the Node Library (304 px, grouped Inputs and Generate) or
+  the Asset Library with its detail companion, switched from the rail and pinnable for the
+  current UI session.
 - Node placement and fit-into-view measure the visible canvas — the area not covered by open
   overlays — so a new node never lands beneath a panel and a fit never hides a node behind one.
 - Canvas controls: zoom, fit, and minimap cluster against the lower-left visible canvas edge,
@@ -173,25 +173,52 @@ The following DVStudio patterns are deliberately not adopted:
 
 ## Visual Direction
 
-The workspace should feel like a precise media workbench, not a dashboard or generic AI product.
+The workspace is a bright studio: clean white chrome on a light floor, with two signature
+moments — the typed connection path and the aurora.
 
-- `Canvas Black` `#111418`: infinite canvas and the deepest workspace plane.
-- `Graphite Panel` `#1B2026`: node bodies and overlay panels.
-- `Steel Border` `#343C46`: structural dividers and idle controls.
-- `Studio White` `#EBF0F3`: primary copy and high-emphasis icons.
-- `Muted Steel` `#9AA6AE`: secondary copy and metadata.
-- `Signal Teal` `#26A88F`: selection, focus, and primary actions only.
-- `Image Amber` `#D9933D`, `Video Violet` `#806BE8`, and `Text Cyan` `#52B8C7`: typed ports and
-  output identity, never status on their own.
-- `Running Gold` `#D8AD4D`, `Failure Coral` `#D46355`, and `Success Green` `#55B48B`: execution
-  states, always paired with labels or icons.
+### Chrome palette
+
+- `Studio Floor` `#EDF0F3`: the canvas ground.
+- `Panel White` `#FFFFFF`: overlay panels, cards, and node bodies.
+- `Panel Mist` `#FAFBFC` and `Panel Frost` `#F0F3F6`: recessed fields and strips.
+- `Hairline` `#E2E6EA` / `#D5DBE1`: one-pixel structural dividers.
+- `Ink` `#1A1D21`, `Ink Two` `#454D56`, `Ink Three` `#7C8690`, `Ink Faint` `#9AA3AC`: the text
+  ladder; hierarchy comes from ink depth, not size games.
 - Typography: the existing system UI stack for interface copy; a tabular monospace face only for
   elapsed time, progress, revision, and diagnostic IDs.
 
-The signature element is the typed connection path: a connection carries the output media color
-from the source port through the edge to the matching target port. Everything else remains quiet.
-No gradients, glass blur, particles, decorative cards, oversized rounding, animated glow, or
-shadow stacks are introduced.
+### The aurora (signature accent)
+
+The product's dream lives in one controlled gradient — `Dusk Blue` `#6D7BF2` into `Dream Violet`
+`#A05CF0` at 135°, always paired with a soft violet glow. It appears only at brand moments and at
+the solid primary action of a surface (`Run all`, `Run to here`, `Done`, `Approve`). A flat
+companion, `Dream Ink` `#6C5CE7`, carries every text-level accent: selection, focus, links, and
+active chips. The aurora never fills large surfaces.
+
+### Type colors and status
+
+- `Text Cyan` `#2F9DB2`, `Image Amber` `#C07F2E`, `Video Violet` `#6F5BD8`, and `Audio Pink`
+  `#C2417C`: typed ports, edges, and the node header tint — never status on their own.
+- `Running Gold` `#D8AD4D` (text variant `#B8860B`), `Failure Coral` `#CF4F42`, and `Success
+  Green` `#2E9E73`: execution states, always paired with labels or icons.
+
+### The typed connection path (signature element)
+
+A connection carries the output media color from the source port through the edge to the matching
+target port. Everything else remains quiet. No glass blur, particles, decorative cards, oversized
+rounding, or shadow stacks are introduced.
+
+### Nodes
+
+A node is a white card whose identity lives entirely in its header: a pastel tint of the node's
+type color (the type color at about 14% into white) with deep type-colored text. The body stays
+white and the port strip is `Panel Frost`. The 3 px type bar is retired — the tinted header is
+the type identity. Generation nodes keep their 16:9 result region at a 176 px minimum.
+
+### Canvas
+
+The canvas floor is `Studio Floor` with a blueprint grid: fine blue-gray lines at 22 px and a
+stronger line every fifth, giving graph-paper structure without noise.
 
 ### Geometry
 
@@ -202,24 +229,38 @@ may stay square. One-pixel borders everywhere.
 
 ### Controls
 
-Each surface has exactly one solid primary action: a Signal Teal fill with dark text. Every other
-action is a ghost button — transparent fill, one-pixel hairline border, ink text, and a hover
-that brightens the border or lifts the background. A destructive action is a coral ghost: coral
-text and border on hover, never a bare red text link and never a solid red fill. A disabled
-primary loses its fill entirely (raised surface, faint text, hairline border) so it can never be
+Each surface has exactly one solid primary action: the aurora gradient with white text. Every
+other action is a ghost button — transparent fill, one-pixel hairline border, ink text, and a
+hover that brightens the border or lifts the background. A destructive action is a coral ghost:
+coral text and border on hover, never a bare red text link and never a solid red fill. A disabled
+primary loses its fill entirely (frost surface, faint text, hairline border) so it can never be
 mistaken for an active action.
 
-Selection and focus are always Signal Teal. Execution status uses the status palette — Running
+Selection and focus are always `Dream Ink`. Execution status uses the status palette — Running
 Gold for running borders, pills, and progress; Failure Coral and Success Green likewise — and is
-always paired with a label. Data-type color appears only in the wiring and the node's 3 px type
-bar, never in selection, status, or buttons.
+always paired with a label. Data-type color appears only in the wiring and the node header tint,
+never in selection, status, or buttons.
 
 ### Assistant presentation
 
-The conversation is quiet: the creator's messages are right-aligned graphite bubbles (never teal),
-assistant replies are plain full-width text without avatars or bubble chrome, and suggestion
-starters are ghost chips. The composer is a sunk field with a ghost icon send action. Tool
-activity reads as labeled steps with status icons, not as chat bubbles.
+The conversation is quiet: the creator's messages are right-aligned `Panel Frost` bubbles, never
+accent-filled; assistant replies are plain full-width text without avatars or bubble chrome, and
+suggestion starters are ghost chips. The composer is a recessed field with a ghost icon send
+action. Tool activity reads as labeled steps with status icons, not as chat bubbles.
+
+### Motion
+
+Motion exists only where something is alive; an idle studio is perfectly still.
+
+- `Aurora drift`: the aurora gradient slowly travels its track on the brand mark and solid
+  primary buttons (10 s loop, background-position ease-in-out).
+- `Edge flow`: a connection whose target step is running shows energy moving along the typed path
+  (dash offset, 0.9 s linear).
+- `Running pulse`: a running node breathes one gold ring outward (1.7 s ease-out) beside its
+  progress bar and blinking Running pill.
+- `Node mount`: a newly added node rises 8 px and fades in (180 ms ease-out, 60 ms stagger).
+- UI transitions (panels, selection, hover) run 120–250 ms ease-out.
+- `prefers-reduced-motion` disables all of the above.
 
 ## Graph Editing
 
@@ -227,8 +268,9 @@ activity reads as labeled steps with status icons, not as chat bubbles.
 
 - Clicking a library item adds one node at a visible, non-overlapping position and selects it.
 - Dragging remains available for spatial placement.
-- The library uses `Text`, `Generate image`, `Create video`, `Create speech`, `Image asset`, `Video
-  asset`, and `Audio asset` as visible labels, grouped in the stable order Inputs, Generate, Assets.
+- The library uses `Text`, `Generate image`, `Generate video`, and `Generate speech` as visible
+  labels, grouped in the stable order Inputs, Generate. Asset nodes are not in the palette: an
+  Asset node is created by dragging a card from the Asset Library onto the canvas.
 - Library search also matches creator-language aliases such as `prompt`, `t2i`, `clip`, and `voice`,
   never only the contract identifier.
 - Input and Asset nodes are 304 px wide; generation nodes are 336 px wide. They do not scale down
