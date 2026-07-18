@@ -59,7 +59,7 @@ export function WorkflowFlowNode({ data, selected, id: nodeId }: NodeProps) {
   return (
     <div
       className={`wf-node${isGeneration ? " wf-node--generation" : ""} is-${state}${selected ? " is-selected" : ""}${spec.status.availability !== "available" ? " is-degraded" : ""}`}
-      style={{ ["--accent" as string]: accent }}
+      style={{ ["--type" as string]: accent }}
     >
       <div className="wf-node__bar" />
       <div className="wf-node__title">
