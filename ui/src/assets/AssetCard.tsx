@@ -29,23 +29,23 @@ export function AssetCard({
           className={asset.previewUrl ? "ac__img" : "ac__glyph"}
         />
         <span className="ac__kind">{asset.kind}</span>
-        <div className="ac__ov">
-          <button
-            className="ac__act"
-            onClick={(e) => {
-              e.stopPropagation();
-              onJump();
-            }}
-            aria-label="Jump to source node"
-          >
-            ↗
-          </button>
-        </div>
+        {asset.sourceNodeId && (
+          <div className="ac__ov">
+            <button
+              className="ac__act"
+              onClick={(e) => {
+                e.stopPropagation();
+                onJump();
+              }}
+              aria-label="Jump to source node"
+            >
+              ↗
+            </button>
+          </div>
+        )}
       </div>
       <figcaption className="ac__prompt">{asset.displayName}</figcaption>
       <div className="ac__meta">
-        <span className="ac__pj" />
-        Current project
         <span className="ac__dt">{formatTime(asset.createdAtEpochMs)}</span>
       </div>
     </figure>

@@ -31,6 +31,7 @@ interface Props {
   isValidConnection: (connection: { source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null }) => boolean;
   onSelectNode: (nodeId: string | null) => void;
   onDrop: (event: React.DragEvent, position: { x: number; y: number }) => void;
+  focusNodeId?: string | null;
 }
 
 /** Measured React Flow host that never mounts against a zero-sized container. */
@@ -46,6 +47,14 @@ function CanvasInner(props: Props) {
   const { canvasRef, canvasReady } = useMeasuredCanvas();
   const { screenToFlowPosition, fitView } = useReactFlow();
   const knownIds = useRef<Set<string> | null>(null);
+  const focusedRef = useRef<string | null>(null);
+
+  // Bring an externally requested node (for example an Asset's origin) into view.
+  useEffect(() => {
+    if (!props.focusNodeId || props.focusNodeId === focusedRef.current) return;
+    focusedRef.current = props.focusNodeId;
+    void fitView({ nodes: [{ id: props.focusNodeId }], padding: 0.3, maxZoom: 1, duration: 250 });
+  }, [props.focusNodeId, fitView]);
 
   // Fit the graph after hydration, and bring each newly added node into view.
   useEffect(() => {

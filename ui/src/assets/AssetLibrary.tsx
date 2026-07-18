@@ -65,7 +65,7 @@ export function AssetLibrary({
               name="asset-library-search"
               aria-label="Search assets"
               value={query}
-              placeholder="Search by prompt or model…"
+              placeholder="Search by prompt or name…"
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>

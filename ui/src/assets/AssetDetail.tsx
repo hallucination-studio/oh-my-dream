@@ -53,7 +53,6 @@ export function AssetDetail({
       </div>
 
       <div className="adet__actions">
-        <button className="adet__btn">Export</button>
         <button className="adet__btn adet__btn--pri" onClick={() => onAddToCanvas(asset)}>
           ＋ Add to canvas
         </button>

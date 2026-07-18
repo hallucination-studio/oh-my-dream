@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { AssetCard } from "./AssetCard.tsx";
 import type { AssetViewModel } from "./model.ts";
 
@@ -26,5 +26,25 @@ describe("AssetCard", () => {
     const video = screen.getByLabelText("A red fox") as HTMLVideoElement;
     expect(video.tagName).toBe("VIDEO");
     expect(video.getAttribute("src")).toBe("desktop-asset://v1/preview");
+  });
+
+  it("shows jump only when an origin node exists and no redundant project meta", () => {
+    const onJump = vi.fn();
+    const view = render(
+      <AssetCard asset={asset} selected={false} onSelect={() => {}} onJump={onJump} />,
+    );
+    expect(screen.queryByText("Current project")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Jump to source node" }));
+    expect(onJump).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <AssetCard
+        asset={{ ...asset, sourceNodeId: null, sourceNodeType: null }}
+        selected={false}
+        onSelect={() => {}}
+        onJump={onJump}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Jump to source node" })).toBeNull();
   });
 });

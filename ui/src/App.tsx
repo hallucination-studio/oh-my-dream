@@ -62,6 +62,7 @@ export function App() {
   const { notice, notify } = useNotice();
   const [connect, setConnect] = useState<ConnectHighlight | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const {
     assistantEnabled,
     assistantOpen,
@@ -525,7 +526,13 @@ export function App() {
             selectedAssetId={selectedAssetId}
             onSelectAsset={setSelectedAssetId}
             onAddToCanvas={(asset) => addAssetSource(asset.id)}
-            onJumpToNode={() => setTab("nodes")}
+            onJumpToNode={(asset) => {
+              if (asset.sourceNodeId) {
+                setSelectedId(asset.sourceNodeId);
+                setFocusedNodeId(asset.sourceNodeId);
+              }
+              setTab("nodes");
+            }}
             onImport={(kind) => {
               void importAsset(kind).catch((error: unknown) => {
                 notify(failureCopy("Import asset", error));
@@ -554,6 +561,7 @@ export function App() {
                   setSelectedEdgeId(null);
                 }}
                 onDrop={onDrop}
+                focusNodeId={focusedNodeId}
             />
             <InspectorPanel
               node={selected}
