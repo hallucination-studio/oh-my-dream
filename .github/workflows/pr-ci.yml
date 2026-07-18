@@ -2,9 +2,10 @@ name: PR CI Check
 
 on:
   pull_request:
+  workflow_dispatch:
 
 concurrency:
-  group: pr-ci-${{ github.event.pull_request.number }}
+  group: pr-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -29,6 +30,7 @@ jobs:
             curl \
             wget \
             file \
+            ffmpeg \
             libxdo-dev \
             libssl-dev \
             libayatana-appindicator3-dev \
