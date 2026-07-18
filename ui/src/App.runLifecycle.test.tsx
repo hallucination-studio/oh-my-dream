@@ -59,6 +59,74 @@ describe("canonical Workflow Run event repair", () => {
     await waitFor(() => expect(list).toHaveBeenCalledWith(PROJECT_ID, RUN_ID, "1", 500));
     await waitFor(() => expect(applyProgress).toHaveBeenCalledTimes(2));
   });
+
+  it("accumulates node outputs and settles with a steps count", async () => {
+    let observe: ((event: DurableWorkflowRunEventDto) => void) | null = null;
+    vi.spyOn(api, "observeWorkflowRunEvents").mockImplementation(async (next) => {
+      observe = next;
+      return () => undefined;
+    });
+    vi.spyOn(api, "workflowStartRun").mockResolvedValue({
+      workflow_run_id: RUN_ID,
+      project_id: PROJECT_ID,
+      workflow_id: WORKFLOW_ID,
+      workflow_revision: "1",
+      scope: { kind: "whole_workflow" },
+      state: "queued",
+      created_at_epoch_ms: "1",
+      updated_at_epoch_ms: "1",
+      node_executions: [{
+        node_id: NODE_ID,
+        node_execution_id: EXECUTION_ID,
+        state: "pending",
+        progress_basis_points: null,
+      }],
+    });
+    vi.spyOn(api, "workflowListRunEvents").mockResolvedValue({ events: [], next_sequence: null });
+    const settleProjection = vi.fn();
+    const setStatus = vi.fn();
+    const view = renderHook(() => useRunController({
+      getWorkflow: () => workflow(),
+      setStatus,
+      resetProjection: vi.fn(),
+      applyProgress: vi.fn(),
+      settleProjection,
+      onSucceeded: vi.fn(),
+    }));
+
+    await act(() => view.result.current.run());
+    act(() => {
+      observe?.({
+        workflow_run_id: RUN_ID,
+        sequence: "1",
+        occurred_at_epoch_ms: "1",
+        payload: {
+          type: "node_succeeded",
+          node_execution_id: EXECUTION_ID,
+          outputs: [{
+            key: "image",
+            value: { type: "image", asset_id: "asset-1", preview_uri: "data:image/svg+xml;utf8,x" },
+          }],
+        },
+      });
+      observe?.({
+        workflow_run_id: RUN_ID,
+        sequence: "2",
+        occurred_at_epoch_ms: "2",
+        payload: { type: "run_succeeded" },
+      });
+    });
+
+    await waitFor(() =>
+      expect(settleProjection).toHaveBeenCalledWith({
+        state: "succeeded",
+        steps: 1,
+        outputs: {
+          [NODE_ID]: { image: { kind: "image", value: "data:image/svg+xml;utf8,x" } },
+        },
+      }),
+    );
+  });
 });
 
 function event(

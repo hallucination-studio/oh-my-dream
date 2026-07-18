@@ -39,17 +39,40 @@ describe("useRunProjection", () => {
 
     act(() => view.result.current.projection.settle({
       state: "succeeded",
+      steps: 1,
       outputs: {
         result: {
           description: { kind: "string", value: "finished" },
-          image: { kind: "image", value: "asset://image-1" },
+          image: { kind: "image", value: "desktop-asset://v1/token" },
         },
       },
     }));
 
     expect(runtimeOf(view.result.current.nodes, "result")?.preview).toEqual({
       kind: "image",
-      url: "asset://image-1",
+      url: "desktop-asset://v1/token",
+    });
+  });
+
+  it("never renders opaque refs or raw asset ids as previews", () => {
+    const view = renderHook(() => {
+      const [nodes, setNodes] = useState([nodeWithState("result", "running")]);
+      const [, setEdges] = useState<Edge[]>([]);
+      const projection = useRunProjection(setNodes, setEdges);
+      return { nodes, projection };
+    });
+
+    act(() => view.result.current.projection.settle({
+      state: "succeeded",
+      steps: 1,
+      outputs: {
+        result: { image: { kind: "image", value: "mock-asset-image-001" } },
+      },
+    }));
+
+    expect(runtimeOf(view.result.current.nodes, "result")?.preview).toEqual({
+      kind: "image",
+      url: null,
     });
   });
 });

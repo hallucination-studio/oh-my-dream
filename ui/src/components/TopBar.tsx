@@ -141,12 +141,26 @@ function RunState({ status }: { status: RunStatus }) {
       );
     case "cancelled":
       return <span className="topbar__state" role="status">Cancelled</span>;
-    case "succeeded":
+    case "succeeded": {
+      const assets = Object.values(status.outputs).reduce(
+        (count, outputs) =>
+          count +
+          Object.values(outputs).filter(
+            (output) =>
+              output.kind === "image" || output.kind === "video" || output.kind === "audio",
+          ).length,
+        0,
+      );
+      const stepsLabel = `${status.steps} ${status.steps === 1 ? "step" : "steps"} complete`;
+      const assetsLabel =
+        assets > 0 ? ` · ${assets} ${assets === 1 ? "asset" : "assets"} created` : "";
       return (
         <span className="topbar__state topbar__state--ok" role="status">
-          Done · {Object.keys(status.outputs).length} outputs
+          {stepsLabel}
+          {assetsLabel}
         </span>
       );
+    }
     case "failed":
       return (
         <span className="topbar__state topbar__state--err" role="status">

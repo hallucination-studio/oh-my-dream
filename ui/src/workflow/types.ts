@@ -46,7 +46,7 @@ export interface RunProgress {
 
 export type RunTerminalStatus =
   | { state: "cancelled" }
-  | { state: "succeeded"; outputs: RunOutputs }
+  | { state: "succeeded"; outputs: RunOutputs; steps: number }
   | { state: "failed"; reason: string };
 
 export type RunLifecycleStatus =

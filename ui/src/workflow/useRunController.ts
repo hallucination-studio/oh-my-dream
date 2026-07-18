@@ -5,8 +5,34 @@ import {
   type WorkflowRunDto,
   type WorkflowRunEventPageDto,
 } from "../api/index.ts";
-import type { RunProgress, RunStatus, RunTerminalStatus } from "./types.ts";
+import type { RunOutputs, RunProgress, RunStatus, RunTerminalStatus } from "./types.ts";
 import { failureCopy } from "./failureCopy.ts";
+
+/** Accumulates one node's outputs from a `node_succeeded` payload, mirroring the backend shape. */
+function accumulateOutputs(
+  target: RunOutputs,
+  nodeId: string,
+  outputs: unknown,
+): void {
+  if (!Array.isArray(outputs)) return;
+  for (const entry of outputs) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
+    const { key, value } = entry as { key?: unknown; value?: unknown };
+    if (typeof key !== "string" || typeof value !== "object" || value === null) continue;
+    const record = value as Record<string, unknown>;
+    const type = record.type;
+    if (type === "image" || type === "video" || type === "audio") {
+      const preview = typeof record.preview_uri === "string" ? record.preview_uri : null;
+      const assetId = typeof record.asset_id === "string" ? record.asset_id : "";
+      (target[nodeId] ??= {})[key] = { kind: type, value: preview ?? assetId };
+    } else if (type === "text") {
+      (target[nodeId] ??= {})[key] = {
+        kind: "string",
+        value: typeof record.value === "string" ? record.value : "",
+      };
+    }
+  }
+}
 
 interface RunControllerOptions {
   getWorkflow: () => WorkflowDto | null;
@@ -30,6 +56,7 @@ export function useRunController(options: RunControllerOptions) {
   } = options;
   const generation = useRef(0);
   const activeRun = useRef<WorkflowRunDto | null>(null);
+  const runOutputs = useRef<RunOutputs>({});
   const stopListening = useRef<(() => void) | null>(null);
   const seen = useRef(new Set<string>());
   const lastSequence = useRef(0n);
@@ -38,6 +65,7 @@ export function useRunController(options: RunControllerOptions) {
   const invalidateRun = useCallback(() => {
     generation.current += 1;
     activeRun.current = null;
+    runOutputs.current = {};
     onRunChanged?.(null);
     stopListening.current?.();
     stopListening.current = null;
@@ -142,6 +170,9 @@ export function useRunController(options: RunControllerOptions) {
     );
     if (execution && type.startsWith("node_")) {
       const terminal = type === "node_succeeded";
+      if (terminal) {
+        accumulateOutputs(runOutputs.current, execution.node_id, event.payload.outputs);
+      }
       const progressBasisPoints =
         typeof event.payload.progress_basis_points === "number"
           ? event.payload.progress_basis_points
@@ -161,7 +192,9 @@ export function useRunController(options: RunControllerOptions) {
       applyProgress(progress);
       setStatus({ state: "running", ...progress });
     }
-    if (type === "run_succeeded") settle({ state: "succeeded", outputs: {} });
+    if (type === "run_succeeded") {
+      settle({ state: "succeeded", outputs: runOutputs.current, steps: run.node_executions.length });
+    }
     if (type === "run_cancelled") settle({ state: "cancelled" });
     if (type === "run_failed") settle({ state: "failed", reason: "Workflow Run failed" });
   }

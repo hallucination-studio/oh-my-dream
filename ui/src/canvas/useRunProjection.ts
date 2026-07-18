@@ -94,6 +94,6 @@ function mediaPreviewFrom(outputs: RunOutputs[string]): NodeRuntime["preview"] {
 }
 
 function mediaUrl(value: string): string | null {
-  // Mock outputs are opaque refs (mock://…); real backends return asset URLs.
-  return value.startsWith("mock://") ? null : value;
+  // Only real, renderable URIs reach preview elements — never opaque refs or raw asset ids.
+  return /^(data:|https?:|blob:|desktop-asset:)/.test(value) ? value : null;
 }
