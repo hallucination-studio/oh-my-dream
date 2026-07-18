@@ -65,6 +65,38 @@ it("renders typed deltas and repairs a sequence gap through pending authority", 
   await waitFor(() => expect(pending).toHaveBeenCalledWith(CONTEXT.project_id));
 });
 
+it("shows the unavailable state from the authoritative error and recovers on success", async () => {
+  const unavailable = Object.assign(new Error("The selected generation provider is unavailable."), {
+    code: "provider.unavailable",
+  });
+  const send = vi.fn()
+    .mockRejectedValueOnce(unavailable)
+    .mockResolvedValueOnce({ invocation_id: "invocation", final_text: "done" });
+  render(
+    <AssistantDock
+      onClose={() => {}}
+      apiClient={api({ assistantSendMessage: send })}
+      getContext={() => CONTEXT}
+    />,
+  );
+
+  const composer = screen.getByPlaceholderText("Message the assistant");
+  fireEvent.change(composer, { target: { value: "Build a film" } });
+  fireEvent.click(screen.getByLabelText("Send"));
+
+  expect(
+    await screen.findByText(/The assistant is unavailable right now/),
+  ).toBeTruthy();
+  expect(screen.queryByText(/provider\.unavailable/)).toBeNull();
+
+  fireEvent.change(composer, { target: { value: "Try again" } });
+  fireEvent.click(screen.getByLabelText("Send"));
+  await waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+  await waitFor(() =>
+    expect(screen.queryByText(/The assistant is unavailable right now/)).toBeNull(),
+  );
+});
+
 function api(overrides: Partial<WorkflowApi>): WorkflowApi {
   return {
     assistantSendMessage: vi.fn(),

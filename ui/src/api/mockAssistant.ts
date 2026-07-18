@@ -8,6 +8,7 @@ import type {
 } from "./types.ts";
 
 let pendingChange: AssistantPendingWorkflowChange | null = null;
+let unavailable = false;
 const observers = new Set<(event: AssistantPresentationEvent) => void>();
 const INVOCATION_ID = "90000000-0000-4000-8000-000000000001";
 
@@ -17,10 +18,23 @@ export function primeMockAssistantApproval(
   pendingChange = change;
 }
 
+/** Mirrors the backend `provider.unavailable` DesktopErrorDto shape for UI tests. */
+export function primeMockAssistantUnavailable(next = true): void {
+  unavailable = next;
+}
+
+function unavailableError(): Error {
+  const error = new Error("The selected generation provider is unavailable.");
+  (error as unknown as Record<string, unknown>).code = "provider.unavailable";
+  (error as unknown as Record<string, unknown>).retryable = true;
+  return error;
+}
+
 export async function assistantSendMessage(
   input: AssistantSendInput,
 ): Promise<AssistantSendMessageResult> {
   if (!input.project_id) throw new Error("Open a project before using the assistant");
+  if (unavailable) throw unavailableError();
   emit({
     invocation_id: INVOCATION_ID,
     sequence: "1",

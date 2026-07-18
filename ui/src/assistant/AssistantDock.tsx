@@ -12,6 +12,7 @@ import { AssistantApprovalCard } from "./AssistantApprovalCard.tsx";
 import {
   StrongAssistantTask,
 } from "./StrongAssistantTask.tsx";
+import { errorCode, failureCopy } from "../workflow/failureCopy.ts";
 import {
   appendAssistantToken,
   setStepState,
@@ -50,6 +51,7 @@ export function AssistantDock({
 }) {
   const [draft, setDraft] = useState("");
   const [items, setItems] = useState<StreamItem[]>([]);
+  const [unavailable, setUnavailable] = useState<string | null>(null);
   const [status, setStatus] = useState<{ text: string; connected: boolean }>({
     text: "Ready",
     connected: true,
@@ -160,11 +162,18 @@ export function AssistantDock({
         workflow_revision: workspace.workflow_revision?.toString() ?? null,
         text,
       });
-      setStatus((current) => ({ ...current, text: "Ready" }));
+      setUnavailable(null);
+      setStatus({ text: "Ready", connected: true });
       setDraft("");
     } catch (error: unknown) {
-      const message = String(error);
-      setStatus((current) => ({ ...current, text: message }));
+      if (errorCode(error) === "provider.unavailable") {
+        setUnavailable(
+          "The assistant is unavailable right now — the local model provider did not respond. Check your model configuration, then try again.",
+        );
+        setStatus({ text: "Unavailable", connected: false });
+      } else {
+        setStatus((current) => ({ ...current, text: failureCopy("Send message", error) }));
+      }
       composerRef.current?.focus();
     } finally {
       sendingRef.current = false;
@@ -186,11 +195,10 @@ export function AssistantDock({
       setPendingApproval(null);
       setStatus((current) => ({ ...current, text: approved ? "Applied" : "Rejected" }));
     } catch (error: unknown) {
-      const message = String(error);
       const replacement =
         await apiClient.assistantGetPendingWorkflowChange(pendingApproval.project_id);
       setPendingApproval(replacement);
-      setStatus((current) => ({ ...current, text: message }));
+      setStatus((current) => ({ ...current, text: failureCopy("Apply change", error) }));
     } finally {
       setApprovalBusy(false);
     }
@@ -229,6 +237,11 @@ export function AssistantDock({
       </div>
 
       <div className="adock__composer">
+        {unavailable && (
+          <p className="adock__unavailable" role="status">
+            {unavailable}
+          </p>
+        )}
         <div className="adock__cbox">
           <textarea
             ref={composerRef}
