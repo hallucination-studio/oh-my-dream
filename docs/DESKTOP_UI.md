@@ -1,29 +1,12 @@
 # Desktop Creation Workspace Specification
 
-## Status
+## Authority
 
-Living document. The canvas workspace, Node Library, graph editing, Run lifecycle, Asset
-Library, and Assistant dock are implemented in `ui/`. The Work Drawer with its Run timeline,
-engine-owned readiness presentation, keyboard connection, magnetic ports, deterministic mock
-Asset production, Settings content, and the dark visual direction are specified here and still
-pending. This document defines presentation and interaction only. Backend semantics remain
-owned by the documents mapped from [`BACKEND.md`](BACKEND.md).
-
-### Implementation snapshot (2026-07)
-
-| Area | State | Gap to this specification |
-| --- | --- | --- |
-| Workspace shell (rail, panels, canvas, top bar) | Implemented | Panels are inline and resize the canvas; the overlay Work Drawer is pending. Rail is 44 px, target 56 px. |
-| Node Library | Implemented | Groups follow backend categories; creator-language grouping (Inputs, Generate, Assets) is pending. |
-| Graph editing by pointer | Implemented | Pending-edge semantics, magnetic ports, compatible-target highlight, and keyboard connection are pending. |
-| Node presentation | Implemented | One contract-driven node component; creator-language labels, stale treatment, and instructional empty states are pending. |
-| Generation model selection | Implemented | The label still reads `Generation profile`; single-model default and the no-model empty state are pending. |
-| Run controls and monitoring | Implemented | Run all, Run to here, cancel, and per-node progress work; the Run tab step timeline and admission-open behavior are pending. |
-| Asset Library | Implemented | Grid browsing, kind filter, search, import, detail, and drag-to-canvas work; list mode, dimensions/duration, and Export are pending. |
-| Assistant dock | Implemented | Streaming, tool activity, and approval cards work; availability gating is a stub. |
-| Settings | Shell only | The dialog and navigation exist; every section is an empty stub. |
-| Deterministic browser mock | Partial | Runs, cancellation, and failure injection work; typed Asset production, previews, canonical readiness, and model listing are pending. |
-| Visual direction | Pending | The implemented theme is light; the dark workbench palette below is not applied yet. |
+This document is the frozen presentation and interaction authority for the desktop workspace.
+It defines the target design only — it intentionally contains no implementation status, progress,
+or issue tracking. What is implemented, what is pending, and every known gap lives in
+[`ROADMAP.md`](ROADMAP.md). Backend semantics remain owned by the documents mapped from
+[`BACKEND.md`](BACKEND.md).
 
 ## Objective
 
@@ -86,6 +69,7 @@ UI copy names what the creator controls, never the internal boundary that carrie
 | Production Plan | Plan | The assistant's working outline for the current request. |
 | Assistant Workflow Change | Proposed change | The exact workflow edit the assistant asks the creator to approve. |
 | Approval decision | Review change | Approving applies the proposed change; rejecting discards it. |
+| Generation Task | Step details | The model-side record of one step, shown only as step details inside Run details. |
 
 Raw identifiers, enum keys, error debug strings, `generation_profile_ref`, tool identifiers, and
 provider route names must not appear as primary UI text. Technical identifiers may appear only in a
@@ -190,9 +174,9 @@ cards, oversized rounding, animated glow, or shadow stacks are introduced.
 - Every port shows its name and media type; it is not an unlabeled dot.
 - The visible port gem is 10 px. A separate zoom-invariant screen-space hit layer provides a 22 px
   radius pointer target without making the node look oversized.
-- During a drag, a compatible target begins magnetic pull within 8 px, locks visually within 5 px,
-  and commits when released anywhere inside its 22 px hit radius. These distances are screen-space
-  values and do not shrink when the canvas is zoomed out.
+- During a drag, a compatible target highlights as the pointer approaches and locks when the
+  pointer enters its 22 px hit radius; the connection commits when released anywhere inside that
+  radius. The radius is a screen-space value and does not shrink when the canvas is zoomed out.
 - The canvas owns pointer capture for the complete drag. Panning is suspended until commit, cancel,
   or pointer loss, and every exit path clears the temporary edge and target highlights.
 - Starting a connection highlights only compatible targets and dims invalid targets.
@@ -236,6 +220,7 @@ preview, never a broken media element.
 | succeeded with current output | Complete | typed output preview |
 | succeeded with stale output | Changed since run | old preview with stale treatment; Run action remains available |
 | failed/blocked | Needs attention | structured reason and the field/connection to fix |
+| waiting for external completion | Running | `Waiting for the model`, with the last supplied progress |
 | cancelled | Cancelled | no fabricated result |
 
 An Image or Video preview is rendered only when the current node presentation contains a complete,
@@ -551,204 +536,3 @@ Asset read-back, console output, and the accessibility tree. Full Cargo and E2E 
   with the canvas.
 - Settings sections without backend commands stay unbuilt; a non-functional stub that implies
   capability is worse than an absent section.
-
-## Fix Batch 1 — Copy, Layout, Mock Production, and Run Summary
-
-The first fix batch closes the gap between the implemented shell and this specification. It is
-frontend-only: no backend commands, DTO fields, or Workflow semantics change.
-
-### Problems observed
-
-1. **Jargon in visible copy.** The Inspector labels the model control `Generation profile`, the
-   selector's accessible name and placeholder say `profile`, node labels use contract vocabulary
-   (`Text to Image`), and state pills use internal vocabulary (`Idle`, `Done`, `Cached`, `Error`).
-   All violate the Product Language table.
-2. **Text collision and wrapping bugs.** Node titles and state pills share one flex row with no
-   truncation rules; parameter labels wrap awkwardly in a 56 px grid column; the Top Bar project
-   name and Run summary lack `min-width: 0` containment; Node Library leaves and Asset card
-   metadata can overflow at 1280x720.
-3. **Undersized, under-specified nodes.** Nodes are 216 px wide instead of 304/336 px. A Video
-   node renders a play affordance without a preview URI. Generation nodes show no instructional
-   empty state before their first Run.
-4. **The deterministic acceptance path is impossible.** The browser mock lists no generation
-   models, reports `ready` unconditionally, emits `node_succeeded` with `outputs: []`, and has no
-   Asset store — so a mock Run ends with `Done · 0 outputs`, which this specification forbids.
-   Separately, the Run controller settles every successful Run with `outputs: {}`, so even the
-   real backend cannot produce a node preview or an honest completion summary through this path.
-5. **Model selection has no product behavior.** One available model is not selected by default,
-   and zero available models renders an empty `<select>` instead of the specified empty state.
-
-### DVStudio adaptations for this batch
-
-Only CSS-level and vocabulary-level patterns transfer from the Vue 3 reference:
-
-| Pattern | Application |
-| --- | --- |
-| Truncation system (ellipsis trio, two-line clamp, flex `min-width: 0`) | The shared mechanism required by the accessibility section, applied to node titles, pills, buttons, the Top Bar, library leaves, and Asset cards. |
-| Node title two-line clamp | Title keeps a 20 px minimum line height and clamps at two lines; the state pill never wraps. |
-| Progress row with percent | Running nodes show the bar plus a determinate percent when the backend supplies basis points. |
-| Filter chips with counts | Asset Library kind chips show per-kind counts. |
-| Search aliases | Node presentations carry creator-language aliases and the Node Library matches them (Graph Editing). |
-| Verb-first failure copy | Failure copy keeps the `Action · reason` shape already used in the Top Bar. |
-
-Not adopted: glow and bloom effects, L-shaped corner brackets, glass blur, sci-fi square radii,
-Canvas-2D edge rendering, the `Task`/`Blueprint Log` vocabulary, provider-native task panels, and
-DVStudio's 240 px resizable nodes.
-
-### Batch decisions
-
-1. **Copy map.** `Generation profile` becomes `Generation model` everywhere, including accessible
-   names; `Select a profile` becomes `Select a model`; the pill mapping is idle `Not run`, running
-   `Running`, done and cached `Complete`, error `Needs attention`; the Top Bar action reads
-   `Run all`; the Inspector node action reads `Run to here`. `generation_profile_ref` remains a
-   parameter key only and never appears as visible copy.
-2. **Node presentation.** Widths move to the frozen 304/336 px via a generation modifier class.
-   The result region keeps its 16:9 frame at a 176 px minimum height. Generation nodes with no
-   current typed output show `Run this step to create an image. / a video. / audio.` The video
-   play affordance renders only when a preview URI exists.
-3. **Model selection** follows the Generation Model Selection section exactly: one available
-   model auto-selects and renders read-only; none renders the specified empty sentence plus safe
-   availability reasons; several render the inline select with disabled, reason-labelled options.
-4. **Deterministic mock** follows the Deterministic Browser Mock section, with these concrete
-   fixtures: `mockAssets` becomes a real in-memory per-project store; previews are inline SVG data
-   URIs visibly labelled `Deterministic sample — mock image / video / audio`;
-   `generationProfileListForCapability` returns exactly one available `Fast … model (sample)` per
-   generation capability. Mock readiness mirrors the canonical minimum from the stored Workflow —
-   required inputs bound, `generation_profile_ref` set on generation nodes, `asset_id` set on
-   Asset nodes — and `workflowStartRun` rejects a blocked Workflow as the real backend does.
-   `executeMockRun` advances in timed steps so queued, started, progress, and terminal events are
-   observable in stable order, honors cancellation between steps, creates one typed Asset per
-   generation node with `workflow_node_output` origin, and emits `node_succeeded` outputs in the
-   real backend's `{ key, value: { type, asset_id?, preview_uri? } }` payload shape.
-   `workflowGetNodePresentation` returns the node's current typed output and `preview_uri` once
-   its Asset exists.
-5. **Run summary contract (frontend types only).** The succeeded terminal status gains a `steps`
-   count known by the Run controller at settle time. The controller accumulates `RunOutputs` from
-   `node_succeeded` payloads instead of settling with `{}`: media outputs prefer `preview_uri`
-   and fall back to the opaque `asset_id`; text outputs keep their literal. The projection passes
-   only `data:`, `https?:`, and `blob:` URIs into preview elements, so neither opaque refs nor raw
-   asset ids ever reach an `<img>`. The Top Bar success copy is `3 steps complete · 2 assets
-   created`, omitting the assets clause when zero; `Done · 0 outputs` can no longer appear.
-6. **Truncation and overflow system.** The shared mechanism from the accessibility section lands
-   per surface, and the node parameter label column widens from 56 px to 64 px with a two-line
-   clamp.
-
-### Out of this batch
-
-Tracked in the implementation snapshot, not in this batch: the overlay Work Drawer with its Run
-step timeline; the dark workbench palette; readiness gating on Run buttons and the Configure
-issue list; magnetic ports, compatible-target highlighting, and keyboard connection; real-backend
-node previews driven by `workflowGetNodePresentation`; Settings section wiring; Asset list mode
-and Export. Register items UI-5, UI-8, UI-9, UI-15, UI-17, and UI-18 carry their own later
-dispositions in the Open Issue Register, as do UI-23, UI-24, and UI-25.
-
-### Task breakdown
-
-Each task lands with its focused tests green.
-
-- **T1 Copy and labels** — decision 1 plus library group ordering and alias matching, with the
-  exact-capability, node, Inspector, and Node Library tests updated.
-- **T2 Model selection** — decision 3, with auto-select, read-only, and empty-state test cases.
-- **T3 Node presentation and truncation** — decisions 2 and 6 across node, Top Bar, Inspector,
-  library, and Asset card styles, with node empty-state and play-affordance tests.
-- **T4 Run summary** — decision 5 across Run types, controller, projection, and Top Bar, with the
-  run-lifecycle tests updated.
-- **T5 Deterministic mock** — decision 4, with readiness-rejection and two-Asset acceptance-path
-  tests.
-- **T6 Docs and sweep** — refresh the implementation snapshot; run the focused checks below.
-- **T7 Wiring and ports** — Open Issue Register UI-1 through UI-4, UI-6, UI-7, and UI-29,
-  including the transient editor notice channel that takes editor messages out of Run status and
-  the fit-new-node-into-view behavior.
-- **T8 Small sweeps** — register UI-10 through UI-14, UI-16, and UI-19: Top Bar label and saved
-  state, Export removal, real jump-to-source, search placeholder, edge glow removal, and
-  verb-first error copy.
-- **T9 First-run usability** — register UI-20 through UI-22 and UI-26 through UI-32: canvas empty
-  state, multiline prompt editing, empty-Run blocking, approval-card summary, Asset card cleanup,
-  loading skeletons, empty-state copy, Project switcher failures, and a keep-alive Assistant dock.
-
-T1–T3 are independent; T4 and T5 are independent of each other; T7–T9 are independent;
-T6 is last.
-
-### Verification
-
-The focused commands from Commands and Verification, plus a manual browser pass at the three
-desktop sizes: build Text -> Generate image -> Create video in the mock, run it, and confirm two
-previews, `3 steps complete · 2 assets created`, both Assets in the Library with labelled sample
-previews, and no text collision at any size. The word `profile` must not appear in visible UI
-copy.
-
-## Open Issue Register
-
-Every known UI problem awaiting resolution, each with code evidence and a planned disposition.
-Severities: `bug` (user-visible wrong behavior), `spec` (violates this specification), `ux`
-(confusing but functional), `perf` (wasteful), `watch` (verify later). Dispositions name the
-batch that owns the fix; `Ask first` items must not be fixed unilaterally.
-
-### Wiring and ports
-
-| ID | Severity | Problem (evidence) | Required resolution | Disposition |
-| --- | --- | --- | --- | --- |
-| UI-1 | bug | Every edge animates on any node progress: `useRunProjection.applyProgress` sets `running: true` on all edges. | Scope the running treatment to edges feeding the currently running node, or drop it until scoped data exists. | Fix Batch 1 |
-| UI-2 | spec | Ports are unlabeled dots; the two inputs of Create video are indistinguishable. The Graph Editing section requires every port to show its name and media type. | Render port name and media type next to every port. | Fix Batch 1 |
-| UI-3 | bug | Port vertical offsets are hardcoded (`PORT_TOP = 64 + i*24`) and collide with wrapped titles, Asset rows, and recovery banners. | Position ports from their logical content rows, not constants. | Fix Batch 1 |
-| UI-4 | bug | Drop placement uses fixed `clientX - 320 / clientY - 90` offsets — wrong under pan/zoom and with any open panel. | Convert drop coordinates with `screenToFlowPosition` against the measured canvas. | Fix Batch 1 |
-| UI-5 | ux | No live connection feedback: React Flow receives no `isValidConnection`, so invalid targets are discovered only on drop. | Live validation during the drag, highlighting compatible targets and dimming invalid ones. | Interaction batch, with magnetic ports |
-| UI-6 | bug | A rejected connection is reported as a Run failure in the Top Bar, clobbering real Run state. | A transient editor notice channel (toast plus live region); Run status carries Run facts only. | Fix Batch 1 |
-| UI-7 | bug | Library placement staggers by node count (`140 + n*60`), so additions after deletions overlap existing nodes. | Deterministic first-free-slot placement that never overlaps. | Fix Batch 1 |
-| UI-8 | perf | Dragging a node enqueues a serialized `move_node` mutation per animation frame. | Persist the position only on drag stop, using the `dragging` flag. | Performance batch |
-| UI-9 | spec | Port compatibility is re-implemented in React (`canConnectPorts`); Graph Editing requires engine-owned connection findings. | Engine findings at connect time; the UI pre-check is load-bearing until then, so it stays. | Ask first |
-
-### Top Bar and Run
-
-| ID | Severity | Problem (evidence) | Required resolution | Disposition |
-| --- | --- | --- | --- | --- |
-| UI-10 | spec | `Running · {nodeId}…` shows the raw node UUID as primary copy, which Product Language forbids. | Show the creator-facing node label and the determinate percent. | Fix Batch 1 |
-| UI-11 | ux | No saved-state indicator; only booting, opening, and unavailable states appear. | Show `Saving…` / `Saved` derived from the persistence queue. | Fix Batch 1 |
-
-### Assets
-
-| ID | Severity | Problem (evidence) | Required resolution | Disposition |
-| --- | --- | --- | --- | --- |
-| UI-12 | spec | `Export` in the Asset detail panel has no handler — a capability with no backing command. | Remove the button until an export command exists. | Fix Batch 1 |
-| UI-13 | bug | Jump to source only switches the rail tab; it neither selects nor centers the source node. | Select the source node and fit it into view. | Fix Batch 1 |
-| UI-14 | ux | The library search placeholder `Search by prompt or model…` promises a model fact Asset DTOs do not carry. | Placeholder names searchable facts only, such as `Search by prompt or name…`. | Fix Batch 1 |
-
-### Nodes and canvas
-
-| ID | Severity | Problem (evidence) | Required resolution | Disposition |
-| --- | --- | --- | --- | --- |
-| UI-15 | spec | Node bodies inline every parameter; Node Presentation allows only the two most important editable values. | Accepted interim until the Configure tab exists; trim bodies when it lands. | Work Drawer batch |
-| UI-16 | spec | The running edge treatment uses an animated `drop-shadow` glow, which Visual Direction forbids. | Keep the dash-flow animation, drop the glow. | Fix Batch 1 |
-| UI-17 | watch | Video previews render through `<img>`; a video-file preview URI would break. | Confirm the backend preview protocol always issues thumbnails; otherwise render `<video>`. | Watch |
-| UI-18 | ux | MiniMap colors are hardcoded light hexes. | Move to tokens. | Palette batch (deferred) |
-
-### Copy and errors
-
-| ID | Severity | Problem (evidence) | Required resolution | Disposition |
-| --- | --- | --- | --- | --- |
-| UI-19 | spec | Several paths surface raw `String(error)` as primary copy, for example Run status and the Asset library error row. | Verb-first `Action · reason` copy naming the failed action and the recovery action. | Fix Batch 1 |
-
-### First-run and everyday usability
-
-Issues found by walking the acceptance path as a first-time user: launch, create a Project, build,
-connect, run, inspect, browse Assets, and review an Assistant proposal.
-
-| ID | Severity | Problem (evidence) | Required resolution | Disposition |
-| --- | --- | --- | --- | --- |
-| UI-20 | spec | The empty canvas gives no next-action guidance — neither with no Project nor with an empty Workflow, though every empty state must explain the next valid action. | An on-canvas empty state that names the first step (`Create a Project` / `Add a Text node to begin`). | Fix Batch 1 (T9) |
-| UI-21 | ux | The prompt parameter allows 64 KB of text per contract but edits in a single-line input, both on the node and in the Inspector. | A multiline editor for long text parameters in the Inspector; the node body keeps a one-line summary until Configure exists. | Fix Batch 1 (T9) |
-| UI-22 | ux | `Run all` on an empty Workflow admits and reports a meaningless success. | Block admission with a notice that names the next step. | Fix Batch 1 (T9) |
-| UI-23 | spec | Node and edge deletion is keyboard-only and undiscoverable; Graph Editing requires pointer and keyboard operability. | A visible delete action on the selected node and edge, plus shortcut hints. | Interaction batch |
-| UI-24 | ux | No undo/redo: destructive deletes are unrecoverable. `runUndo`/`runRedo` barrier wrappers exist but no history model backs them. | A history design keyed to canonical mutation receipts. | Needs design |
-| UI-25 | ux | Two nodes of the same type are indistinguishable; there is no instance label. | A Workflow node-label field. | Ask first |
-| UI-26 | spec | The approval card renders raw mutation JSON, a hex digest, and `Repair Run {uuid}`; the Assistant Dock section requires an exact creator-language summary. | Summarize each mutation as creator-language facts (node added/removed, connection changed, setting changed); digests and ids move to copyable diagnostics. | Fix Batch 1 (T9) |
-| UI-27 | ux | Every Asset card repeats `Current project`, and the jump action renders even for imported Assets with no source node — a dead affordance. | Drop the redundant meta line; show jump only when an origin node exists. | Fix Batch 1 (T9) |
-| UI-28 | spec | No loading skeletons anywhere: contracts, models, presentations, and Assets load silently. | Bounded skeletons per the accessibility section. | Fix Batch 1 (T9) |
-| UI-29 | ux | Adding a node does not fit it into view; Information Architecture requires the canvas to fit each new selection into view. | Fit the newly added node into view on creation. | Fix Batch 1 (T7) |
-| UI-30 | ux | The empty-library copy only says to run a workflow — it ignores Import and gives wrong guidance when no Project is open. | Contextual copy: import as an equal next action; open-a-Project guidance when none is open. | Fix Batch 1 (T9) |
-| UI-31 | ux | The Project switcher's empty list gives no guidance, and create/rename failures are silent (no `catch`). | An empty-list hint plus surfaced, verb-first failures. | Fix Batch 1 (T9) |
-| UI-32 | ux | Closing the Assistant dock unmounts it and discards the visible conversation; no history command exists. | Keep the dock mounted and hidden as the interim; durable history needs a backend command. | Fix Batch 1 (T9) interim; history Ask first |
-
-Already tracked in the implementation snapshot and not repeated here: readiness gating on Run
-buttons, stale output treatment, Assistant availability gating, Settings sections, inline panels
-versus overlay chrome, deterministic mock production, and the Work Drawer itself.

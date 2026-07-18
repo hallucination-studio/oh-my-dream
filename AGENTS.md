@@ -6,6 +6,8 @@
 
 The frozen backend architecture starts at [`docs/BACKEND.md`](docs/BACKEND.md). Its document map identifies the single authority for Project, Workflow, Node Capability, Generation Profile/Provider, Generation Task, Asset, Assistant, Desktop, and Storage semantics. All exported backend names follow [`docs/BACKEND_GLOSSARY.md`](docs/BACKEND_GLOSSARY.md). Do not redefine those contracts in README files, implementation notes, DTO docs, or new ADRs.
 
+The desktop UI has exactly two documents: [`docs/DESKTOP_UI.md`](docs/DESKTOP_UI.md) freezes the target design and holds no status; [`docs/ROADMAP.md`](docs/ROADMAP.md) tracks implementation status, the open-issue register, and gated work. Never put progress snapshots in the design document or design rules in the roadmap.
+
 ## Architecture and Dependency Rules
 
 > **Core principle:** Business code depends on stable abstractions, and concrete adapters depend inward on interfaces owned by the business code that consumes them. Each business concept has one authoritative source of semantics; every other form is only a boundary representation.
