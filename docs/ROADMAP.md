@@ -38,6 +38,23 @@ the type identity now), UI-68, UI-69, UI-70, UI-71, UI-72, UI-73, UI-74, UI-75, 
 floors lifted; recheck after the reskin), UI-77 (jargon swept), UI-78, UI-83, UI-84, UI-85.
 UI-39's mechanism was disproved live; the residual all-or-nothing invalidation moves to A5.
 
+### Mockup-parity pass (2026-07-18, verified at 1280x720 / 1440x900 / 1920x1080)
+
+The approved light-studio mockup (`.build/design-light-mockup.html`) is now implemented
+pixel-faithfully, and the right-slot intent machine is repaired end to end. Landed: the rail
+Assistant toggle acts on the visible slot instead of the background flag, so the Assistant can
+always be brought forward and closed again, and its rail state reflects what is on screen
+(`605c60d`); fixed pastel header pairs per media type with deep type-colored titles and pills,
+dashed empty preview frames that fill with produced media, `Panel Mist` port strips, 320/336 px
+node widths, blueprint-grid canvas, mockup-measured Top bar (46 px), rail, Node Library (static
+group heads, plain leaves, the no-asset-nodes note), and Inspector (300 px, 82 px right-aligned
+field labels, aurora primary, deep-gold issue copy); overlay shadows lightened and
+`color-scheme` corrected to light; the four frozen motions carry the mockup values (aurora
+drift 10 s, edge flow 7-7 dash 0.9 s while running, running pulse 1.7 s with the 0.9 s pill
+blink, node mount 180 ms) (`4fd6352`, doc freeze `4d33a5c`). Live evidence: full connect → run
+→ `2 steps complete · 1 asset created` → filled preview path, Assistant/Inspector forward-swap
+cycle in both directions, zero app console errors at all three sizes.
+
 ## Landed baseline
 
 | Area | Live today |
