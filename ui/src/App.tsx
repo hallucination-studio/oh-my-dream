@@ -602,7 +602,7 @@ export function App() {
         <IconRail
           tab={tab}
           assistantEnabled={assistantEnabled}
-          assistantOpen={assistantOpen}
+          assistantOpen={rightSlot === "assistant"}
           onSelect={(next) => {
             if (next === tab) {
               setLeftOpen((open) => !open);
@@ -612,10 +612,16 @@ export function App() {
             }
           }}
           onToggleAssistant={() => {
-            setAssistantOpen((open) => {
-              setSlotOverride(open ? null : "assistant");
-              return !open;
-            });
+            // Toggle by visible slot, not background state: when the Assistant
+            // is backgrounded by a selection, the next click must bring it
+            // forward — never silently close it.
+            if (rightSlot === "assistant") {
+              setSlotOverride(null);
+              setAssistantOpen(false);
+            } else {
+              setSlotOverride("assistant");
+              setAssistantOpen(true);
+            }
           }}
         />
         <div className="bench__stage">
