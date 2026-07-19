@@ -157,11 +157,6 @@ export function NodeLibrary({
         )}
       </div>
 
-      <p className="nlib__foot">
-        <b>No asset nodes here.</b>
-        <br />
-        Asset usage starts from the Library — drag a card onto the canvas.
-      </p>
     </aside>
   );
 }

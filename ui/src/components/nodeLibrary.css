@@ -141,21 +141,6 @@
   padding: 8px 12px;
 }
 
-/* The footer note explains the one rule of the palette: no asset nodes. */
-.nlib__foot {
-  margin: auto 14px 14px;
-  padding: 10px 12px;
-  border-radius: var(--r-md);
-  background: var(--accent-soft);
-  border: 1px solid rgba(15, 157, 135, 0.28);
-  color: #0b6e5e;
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-.nlib__foot b {
-  font-weight: 650;
-}
-
 .nlib__skels {
   display: grid;
   gap: 6px;
