@@ -134,8 +134,10 @@ Everything else is an overlay.
   the Assistant dock (320 px) share it; exactly one is visible at a time, and the hidden surface
   keeps its state — selection, scroll position, and the conversation. The slot follows the last
   explicit intent: a node or edge selection brings `Configure` forward, and a rail toggle brings
-  the Assistant forward, even over an active selection. Until the Work Drawer lands, the
-  Inspector occupies the same slot under the same rules.
+  the Assistant forward, even over an active selection. The rail toggle acts on the visible
+  surface, not the background state: when the Assistant is forward it closes the Assistant, and
+  otherwise it brings the Assistant forward. Until the Work Drawer lands, the Inspector (300 px)
+  occupies the same slot under the same rules.
 - The right slot is empty until it has content: `Configure` when a node is selected, `Run` when
   a Run is admitted or inspected, Assistant when toggled from the rail. With nothing selected
   and no Run context, the slot stays closed instead of showing an empty panel.
@@ -201,8 +203,9 @@ active chips. The aurora never fills large surfaces.
 
 - `Text Cyan` `#2F9DB2`, `Image Amber` `#C07F2E`, `Video Violet` `#6F5BD8`, and `Audio Pink`
   `#C2417C`: typed ports, edges, and the node header tint — never status on their own.
-- `Running Gold` `#D8AD4D` (text variant `#B8860B`), `Failure Coral` `#CF4F42`, and `Success
-  Green` `#2E9E73`: execution states, always paired with labels or icons.
+- `Running Gold` `#D8AD4D` (text variant `#B8860B`, deep variant `#8A6508` on tinted fills),
+  `Failure Coral` `#CF4F42`, and `Success Green` `#2E9E73`: execution states, always paired with
+  labels or icons.
 
 ### The typed connection path (signature element)
 
@@ -212,10 +215,14 @@ rounding, or shadow stacks are introduced.
 
 ### Nodes
 
-A node is a white card whose identity lives entirely in its header: a pastel tint of the node's
-type color (the type color at about 14% into white) with deep type-colored text. The body stays
-white and the port strip is `Panel Frost`. The 3 px type bar is retired — the tinted header is
-the type identity. Generation nodes keep their 16:9 result region at a 176 px minimum.
+A node is a white card whose identity lives entirely in its header: a frozen pastel tint with
+deep type-colored text — one fixed pair per media type, never derived on the fly: Text
+`#DDF0F4`/`#1D6D7D`, Image `#F7E8D2`/`#8A5A16`, Video `#E8E4F9`/`#5242A8`, Audio
+`#F8E1EC`/`#97255C`. The header pill carries the same deep type color on a translucent white
+fill. The body stays white and the port strip is `Panel Mist`. The 3 px type bar is retired —
+the tinted header is the type identity. Generation nodes keep a 16:9 result region (92 px
+minimum); before the first run it is a dashed `Panel Mist` placeholder inviting the run, and it
+fills with the produced media.
 
 ### Canvas
 
@@ -260,7 +267,7 @@ Motion exists only where something is alive; an idle studio is perfectly still.
   (dash offset, 0.9 s linear).
 - `Running pulse`: a running node breathes one gold ring outward (1.7 s ease-out) beside its
   progress bar and blinking Running pill.
-- `Node mount`: a newly added node rises 8 px and fades in (180 ms ease-out, 60 ms stagger).
+- `Node mount`: a newly added node rises 8 px and fades in (180 ms ease-out).
 - UI transitions (panels, selection, hover) run 120–250 ms ease-out.
 - `prefers-reduced-motion` disables all of the above.
 
@@ -275,7 +282,7 @@ Motion exists only where something is alive; an idle studio is perfectly still.
   Asset node is created by dragging a card from the Asset Library onto the canvas.
 - Library search also matches creator-language aliases such as `prompt`, `t2i`, `clip`, and `voice`,
   never only the contract identifier.
-- Input and Asset nodes are 304 px wide; generation nodes are 336 px wide. They do not scale down
+- Input and Asset nodes are 320 px wide; generation nodes are 336 px wide. They do not scale down
   into compact or mobile variants.
 
 ### Connecting nodes
