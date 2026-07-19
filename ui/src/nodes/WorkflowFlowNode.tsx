@@ -82,26 +82,13 @@ export function WorkflowFlowNode({ data, selected, id: nodeId }: NodeProps) {
         </div>
       )}
 
-      {state === "running" && (
-        <div className="wf-node__prog">
-          <i style={{ width: `${Math.round((rt?.progress ?? 0) * 100)}%` }} />
-        </div>
-      )}
-
-      {rt?.preview && (isGeneration || rt.preview.url) && (
-        <Preview
-          preview={rt.preview}
-          emptyHint={isGeneration && state === "idle"
-            ? `Run this step to create ${previewNoun(rt.preview.kind)}.`
-            : null}
-        />
-      )}
-      {nodeData.textPresentation && (
-        <div className="wf-node__asset">{nodeData.textPresentation}</div>
-      )}
-
       {spec.params.length > 0 && !isAsset && (
         <div className="wf-node__body">
+          {state === "running" && (
+            <div className="wf-node__prog">
+              <i style={{ width: `${Math.round((rt?.progress ?? 0) * 100)}%` }} />
+            </div>
+          )}
           {spec.params
             .filter((param) => param.name !== "generation_profile_ref")
             .map((param) => (
@@ -115,6 +102,18 @@ export function WorkflowFlowNode({ data, selected, id: nodeId }: NodeProps) {
             </Fragment>
             ))}
         </div>
+      )}
+
+      {rt?.preview && (isGeneration || rt.preview.url) && (
+        <Preview
+          preview={rt.preview}
+          emptyHint={isGeneration && state === "idle"
+            ? `Run this step to create ${previewNoun(rt.preview.kind)}.`
+            : null}
+        />
+      )}
+      {nodeData.textPresentation && (
+        <div className="wf-node__asset">{nodeData.textPresentation}</div>
       )}
 
       {state !== "idle" && <Footer rt={rt} />}

@@ -74,6 +74,9 @@ export function App() {
   } = useAssistantAvailability();
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [leftOpen, setLeftOpen] = useState(true);
+  // Explicit rail toggle brings the Assistant forward; a new selection brings
+  // the Inspector forward. The hidden surface keeps its state either way.
+  const [slotOverride, setSlotOverride] = useState<"assistant" | null>(null);
   const rfInstance = useRef<ReactFlowInstance | null>(null);
   const insetsRef = useRef<CanvasInsets>({ left: 304, right: 0 });
   // Origin for new-node placement: the top-left of the visible canvas in flow
@@ -500,13 +503,16 @@ export function App() {
     };
   }, [edges, selectedEdgeId, runNodeLabel]);
 
-  // Right overlay slot: Assistant (rail-toggled) or Inspector (selection-driven),
-  // one at a time, closed when neither has content.
-  const rightSlot: "assistant" | "inspector" | "closed" = assistantOpen
-    ? "assistant"
-    : selected !== null || selectedEdge !== null
-      ? "inspector"
-      : "closed";
+  // Right overlay slot: the last explicit intent wins — the Assistant after a
+  // rail toggle, the Inspector after a selection. With neither, it stays closed.
+  const rightSlot: "assistant" | "inspector" | "closed" =
+    slotOverride === "assistant" && assistantOpen
+      ? "assistant"
+      : selected !== null || selectedEdge !== null
+        ? "inspector"
+        : assistantOpen
+          ? "assistant"
+          : "closed";
   const canvasInsets = useMemo<CanvasInsets>(() => ({
     left: !leftOpen ? 0 : tab === "assets" ? (selectedAssetId !== null ? 640 : 340) : 304,
     right: rightSlot === "assistant" ? 320 : rightSlot === "inspector" ? 292 : 0,
@@ -605,7 +611,12 @@ export function App() {
               setLeftOpen(true);
             }
           }}
-          onToggleAssistant={() => setAssistantOpen((open) => !open)}
+          onToggleAssistant={() => {
+            setAssistantOpen((open) => {
+              setSlotOverride(open ? null : "assistant");
+              return !open;
+            });
+          }}
         />
         <div className="bench__stage">
           <WorkflowCanvas
@@ -624,6 +635,7 @@ export function App() {
             isValidConnection={validateConnection}
             onSelectNode={(nodeId) => {
               if (nodeId === null) setConnect(null);
+              if (nodeId !== null) setSlotOverride(null);
               setSelectedId(nodeId);
               setSelectedEdgeId(null);
             }}
@@ -715,7 +727,10 @@ export function App() {
               <div className="adock-host bench__right-pane" hidden={rightSlot !== "assistant"}>
                 <AssistantDock
                   key={project?.id ?? "no-project"}
-                  onClose={() => setAssistantOpen(false)}
+                  onClose={() => {
+                    setSlotOverride(null);
+                    setAssistantOpen(false);
+                  }}
                   getContext={assistantContext}
                   nodeLabel={runNodeLabel}
                   beforeSend={(restoreFocus) =>

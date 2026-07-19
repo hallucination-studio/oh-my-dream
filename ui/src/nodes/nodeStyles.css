@@ -148,9 +148,12 @@
 }
 
 .wf-node__prog {
+  grid-column: 1 / -1;
   height: 3px;
   background: rgba(216, 173, 77, 0.16);
   position: relative;
+  border-radius: 2px;
+  overflow: hidden;
 }
 .wf-node__prog i {
   position: absolute;
