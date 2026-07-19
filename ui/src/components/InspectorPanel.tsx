@@ -207,24 +207,26 @@ export function InspectorPanel({
           </ul>
         </div>
       )}
-      <button
-        className="insp__asset-action insp__asset-action--primary"
-        onClick={() => onRunThroughNode(node.id)}
-        disabled={runDisabled}
-        title={runDisabled ? "Fix the issues above before running" : undefined}
-      >
-        Run to here
-      </button>
-      {onDeleteNode && (
-        <>
+      <div className="insp__actions">
+        <button
+          className="insp__asset-action insp__asset-action--primary"
+          onClick={() => onRunThroughNode(node.id)}
+          disabled={runDisabled}
+          title={runDisabled ? "Fix the issues above before running" : undefined}
+        >
+          Run to here
+        </button>
+        {onDeleteNode && (
           <button
             className="insp__asset-action insp__asset-action--danger"
             onClick={() => onDeleteNode(node.id)}
           >
             Delete node
           </button>
-          <p className="insp__hint">Backspace also deletes the selection.</p>
-        </>
+        )}
+      </div>
+      {onDeleteNode && (
+        <p className="insp__hint">Backspace also deletes the selection.</p>
       )}
     </aside>
   );

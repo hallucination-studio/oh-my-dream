@@ -5,7 +5,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { recoveryNodeSpec, type NodeTypeSpec } from "./catalog.ts";
 import { ParameterInput } from "./ParameterInput.tsx";
-import { typeColor, nodeAccent, portTypeLabel } from "./typeColor.ts";
+import { typeColor, nodeAccent, nodeHeaderTint, portTypeLabel } from "./typeColor.ts";
 import type { NodeExecutionState, PortType } from "../workflow/types.ts";
 import "./nodeStyles.css";
 
@@ -51,15 +51,26 @@ export function WorkflowFlowNode({ data, selected, id: nodeId }: NodeProps) {
     );
 
   const accent = nodeAccent(spec.outputs, spec.inputs);
+  const headerTint = nodeHeaderTint(spec.outputs, spec.inputs);
   const rt = nodeData.runtime;
   const state = rt?.state ?? "idle";
   const isAsset = spec.contextualCreationRoute === "asset_library";
   const isGeneration = spec.presentation?.category === "Generate";
+  // Idle generation nodes still show the dashed preview frame: the kind comes
+  // from the output type, the URL fills in once a run produces media.
+  const previewKind = rt?.preview?.kind ?? (isGeneration ? mediaKind(spec.outputs[0]?.type) : null);
+  const preview = previewKind ? { kind: previewKind, url: rt?.preview?.url ?? null } : null;
 
   return (
     <div
       className={`wf-node${isGeneration ? " wf-node--generation" : ""} is-${state}${selected ? " is-selected" : ""}${spec.status.availability !== "available" ? " is-degraded" : ""}`}
-      style={{ ["--type" as string]: accent }}
+      style={
+        {
+          ["--type" as string]: accent,
+          ["--type-bg" as string]: headerTint.bg,
+          ["--type-fg" as string]: headerTint.fg,
+        }
+      }
     >
       <div className="wf-node__title">
         <span>
@@ -104,12 +115,14 @@ export function WorkflowFlowNode({ data, selected, id: nodeId }: NodeProps) {
         </div>
       )}
 
-      {rt?.preview && (isGeneration || rt.preview.url) && (
+      {preview && (isGeneration || preview.url) && (
         <Preview
-          preview={rt.preview}
+          preview={preview}
           emptyHint={isGeneration && state === "idle"
-            ? `Run this step to create ${previewNoun(rt.preview.kind)}.`
-            : null}
+            ? `Run this step to create ${previewNoun(preview.kind)}.`
+            : state === "running" && !preview.url
+              ? `${Math.round((rt?.progress ?? 0) * 100)}%`
+              : null}
         />
       )}
       {nodeData.textPresentation && (
@@ -264,10 +277,10 @@ function Preview({
   if (preview.kind === "audio") {
     return preview.url
       ? <audio className="wf-preview wf-preview--audio" controls src={preview.url} aria-label="Asset audio preview" />
-      : <div className="wf-preview wf-preview--audio" role="status">{emptyHint ?? "Audio unavailable"}</div>;
+      : <div className="wf-preview wf-preview--audio wf-preview--empty" role="status">{emptyHint ?? "Audio unavailable"}</div>;
   }
   return (
-    <div className={`wf-preview wf-preview--${preview.kind}`}>
+    <div className={`wf-preview wf-preview--${preview.kind}${preview.url ? "" : " wf-preview--empty"}`}>
       {preview.url ? (
         <img className="wf-preview__img" src={preview.url} alt={preview.kind} />
       ) : (
@@ -284,6 +297,10 @@ function Preview({
 
 function previewNoun(kind: "image" | "video" | "audio"): string {
   return kind === "image" ? "an image" : kind === "video" ? "a video" : "audio";
+}
+
+function mediaKind(type: PortType | undefined): "image" | "video" | "audio" | null {
+  return type === "image" || type === "video" || type === "audio" ? type : null;
 }
 
 function Footer({ rt }: { rt?: NodeRuntime }) {

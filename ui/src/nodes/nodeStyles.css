@@ -5,7 +5,7 @@
 
 .wf-node {
   position: relative;
-  width: 304px;
+  width: 320px;
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
   background: var(--surface);
@@ -25,7 +25,7 @@
   box-shadow: var(--shadow-lg), 0 0 0 3px var(--accent-soft);
 }
 .wf-node.is-running {
-  border-color: var(--warn);
+  border-color: rgba(184, 134, 11, 0.55);
 }
 .wf-node.is-running::after {
   content: "";
@@ -48,18 +48,17 @@
   border-color: var(--warn);
 }
 
-/* The header is the node's identity: a pastel tint of the type color with
+/* The header is the node's identity: the frozen pastel tint of the type with
    deep type-colored text (docs/DESKTOP_UI.md, Nodes). */
 .wf-node__title {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   padding: 9px 12px;
   font-weight: 650;
   font-size: 13px;
-  letter-spacing: -0.01em;
-  color: color-mix(in srgb, var(--type) 58%, var(--ink));
-  background: color-mix(in srgb, var(--type) 14%, #ffffff);
+  color: var(--type-fg);
+  background: var(--type-bg);
   border-bottom: 1px solid var(--hair);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
@@ -113,20 +112,20 @@
 }
 .wf-pill--idle,
 .wf-pill--cached {
-  color: var(--ink-3);
+  color: var(--type-fg);
   background: rgba(255, 255, 255, 0.55);
 }
 .wf-pill--idle .wf-pill__dot,
 .wf-pill--cached .wf-pill__dot {
-  background: var(--ink-3);
+  background: var(--type-fg);
 }
 .wf-pill--running {
-  color: var(--warn-text);
-  background: rgba(216, 173, 77, 0.18);
+  color: var(--warn-deep);
+  background: rgba(216, 173, 77, 0.16);
 }
 .wf-pill--running .wf-pill__dot {
   background: var(--warn);
-  animation: wf-blink 0.8s ease-in-out infinite;
+  animation: wf-blink 0.9s ease-in-out infinite;
 }
 .wf-pill--done {
   color: var(--ok);
@@ -165,13 +164,18 @@
 .wf-preview {
   margin: 0 11px 10px;
   aspect-ratio: 16 / 9;
-  min-height: 176px;
+  min-height: 92px;
   border-radius: var(--r-md);
   overflow: hidden;
   position: relative;
-  border: 1px solid var(--hair);
+  border: 1px solid transparent;
   display: grid;
   place-items: center;
+}
+/* The empty preview is a dashed placeholder: run to fill it. */
+.wf-preview--empty {
+  border: 1px dashed var(--hair-2);
+  background: var(--surface-2);
 }
 .wf-preview__empty {
   font-size: 11px;
@@ -238,10 +242,10 @@
   font-size: 10.5px;
   color: var(--ink-3);
   text-align: right;
-  line-height: 1.15;
+  line-height: 1.2;
 }
 .wf-param__input {
-  background: var(--surface-sunk);
+  background: var(--surface-2);
   border: 1px solid var(--hair);
   border-radius: var(--r-sm);
   height: 30px;
@@ -326,7 +330,7 @@
   gap: 8px;
   padding: 7px 12px 8px;
   border-top: 1px solid var(--hair);
-  background: var(--surface-sunk);
+  background: var(--surface-2);
   border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 .wf-node__ports-col {

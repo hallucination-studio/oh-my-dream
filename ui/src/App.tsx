@@ -515,7 +515,7 @@ export function App() {
           : "closed";
   const canvasInsets = useMemo<CanvasInsets>(() => ({
     left: !leftOpen ? 0 : tab === "assets" ? (selectedAssetId !== null ? 640 : 340) : 304,
-    right: rightSlot === "assistant" ? 320 : rightSlot === "inspector" ? 292 : 0,
+    right: rightSlot === "assistant" ? 320 : rightSlot === "inspector" ? 300 : 0,
   }), [leftOpen, rightSlot, selectedAssetId, tab]);
   insetsRef.current = canvasInsets;
 

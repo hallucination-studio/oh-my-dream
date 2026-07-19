@@ -5,14 +5,14 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 8px 0;
-  gap: 4px;
+  padding-top: 10px;
+  gap: 6px;
 }
 
 .rail__btn {
   position: relative;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: var(--r-md);
   display: grid;
   place-items: center;
@@ -29,15 +29,15 @@
 }
 .rail__btn.is-on {
   color: var(--accent);
-  background: transparent;
+  background: var(--accent-soft);
 }
 /* Active tab reads as a left edge bar, the desktop-tool idiom. */
 .rail__btn.is-on::before {
   content: "";
   position: absolute;
-  left: -8px;
-  top: 7px;
-  bottom: 7px;
+  left: -9px;
+  top: 8px;
+  bottom: 8px;
   width: 2.5px;
   border-radius: 0 2px 2px 0;
   background: var(--accent);

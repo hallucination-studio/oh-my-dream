@@ -115,7 +115,6 @@ export function NodeLibrary({
                 className={`nlib__cathead${isCollapsed ? "" : " is-open"}`}
                 onClick={() => setCollapsed((current) => ({ ...current, [group.category]: !current[group.category] }))}
               >
-                <span className="nlib__tw" aria-hidden="true" />
                 <span className="nlib__cdot" style={{ background: categoryColor(group.nodes[0], loadedSpecs) }} />
                 <span className="nlib__cn">{group.category}</span>
                 <span className="nlib__cc">{group.nodes.length}</span>
@@ -123,7 +122,6 @@ export function NodeLibrary({
               {!isCollapsed && (
                 <div className="nlib__leaves">
                   {group.nodes.map((summary) => {
-                    const spec = loadedSpecs.find((candidate) => sameRef(candidate.ref, summary.reference));
                     const creation = paletteCreation(summary);
                     const reason = summary.status.reason;
                     return (
@@ -142,10 +140,6 @@ export function NodeLibrary({
                         }
                         onClick={() => onAdd(summary.reference)}
                       >
-                        <span
-                          className="nlib__ld"
-                          style={{ background: spec ? nodeAccent(spec.outputs, spec.inputs) : "var(--ink-3)" }}
-                        />
                         {summary.presentation.label}
                         <span className="nlib__lg" aria-hidden="true">{summary.reference.version}</span>
                       </button>
@@ -163,7 +157,11 @@ export function NodeLibrary({
         )}
       </div>
 
-      <p className="nlib__foot">Drag onto the canvas, or select a node to load its exact contract.</p>
+      <p className="nlib__foot">
+        <b>No asset nodes here.</b>
+        <br />
+        Asset usage starts from the Library — drag a card onto the canvas.
+      </p>
     </aside>
   );
 }

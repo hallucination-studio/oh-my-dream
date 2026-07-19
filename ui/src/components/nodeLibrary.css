@@ -9,8 +9,7 @@
 }
 
 .nlib__head {
-  padding: 11px 12px 10px;
-  border-bottom: 1px solid var(--hair);
+  padding: 12px 14px 10px;
 }
 .nlib__title {
   font-weight: 650;
@@ -18,17 +17,17 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink-faint);
-  margin-bottom: 9px;
+  margin-bottom: 10px;
 }
 .nlib__search {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   height: 30px;
   padding: 0 10px;
   border-radius: var(--r-sm);
-  background: var(--surface-sunk);
-  border: 1px solid transparent;
+  background: var(--surface-2);
+  border: 1px solid var(--hair);
   color: var(--ink-faint);
 }
 .nlib__search:focus-within {
@@ -46,7 +45,7 @@
   border: none;
   outline: none;
   color: var(--ink);
-  font-size: 12.5px;
+  font-size: 12px;
   width: 100%;
 }
 .nlib__search input::placeholder {
@@ -56,7 +55,7 @@
 .nlib__tree {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 4px 0 8px;
 }
 
 .nlib__route {
@@ -82,29 +81,18 @@
 .nlib__cathead {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   width: 100%;
-  padding: 6px 8px;
+  padding: 8px 12px 4px;
   border-radius: var(--r-sm);
 }
 .nlib__cathead:hover {
   background: rgba(16, 24, 40, 0.05);
 }
-.nlib__tw {
-  width: 0;
-  height: 0;
-  border-left: 5px solid var(--ink-faint);
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  transition: transform 0.12s ease;
-}
-.nlib__cathead.is-open .nlib__tw {
-  transform: rotate(90deg);
-}
 .nlib__cdot {
   width: 7px;
   height: 7px;
-  border-radius: 2px;
+  border-radius: 50%;
 }
 .nlib__cn {
   flex: 1;
@@ -119,32 +107,22 @@
 }
 
 .nlib__leaves {
-  margin: 1px 0 3px 12px;
-  padding-left: 9px;
-  border-left: 1px solid var(--hair);
   display: flex;
   flex-direction: column;
-  gap: 1px;
 }
 .nlib__leaf {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 6px 9px;
-  border-radius: var(--r-sm);
+  padding: 5px 12px 5px 26px;
   font-size: 12.5px;
   color: var(--ink-2);
   text-align: left;
   cursor: grab;
 }
 .nlib__leaf:hover {
-  background: var(--surface-sunk);
+  background: var(--surface-2);
   color: var(--ink);
-}
-.nlib__ld {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
 }
 .nlib__lg {
   margin-left: auto;
@@ -156,16 +134,26 @@
   opacity: 1;
 }
 
-.nlib__empty,
-.nlib__foot {
+.nlib__empty {
   font-size: 11px;
   line-height: 1.5;
   color: var(--ink-2);
   padding: 8px 12px;
 }
+
+/* The footer note explains the one rule of the palette: no asset nodes. */
 .nlib__foot {
-  margin-top: auto;
-  border-top: 1px solid var(--hair);
+  margin: auto 14px 14px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  border: 1px solid rgba(15, 157, 135, 0.28);
+  color: #0b6e5e;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.nlib__foot b {
+  font-weight: 650;
 }
 
 .nlib__skels {

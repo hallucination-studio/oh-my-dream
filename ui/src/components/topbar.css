@@ -3,7 +3,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 10px 0 12px;
+  padding: 0 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--hair);
 }
@@ -11,31 +11,30 @@
 .topbar__brand {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
 }
 .topbar__brand b {
   font-weight: 650;
   font-size: 13.5px;
-  letter-spacing: -0.01em;
 }
 /* Brand mark: the aurora drifts slowly; the aperture triangle stays crisp. */
 .topbar__mark {
-  width: 21px;
-  height: 21px;
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
   border-radius: 6px;
   background: var(--dream-grad-loop);
   background-size: 220% 220%;
   animation: dream-drift 10s ease-in-out infinite;
-  box-shadow: 0 2px 8px rgba(140, 100, 240, 0.35);
+  box-shadow: 0 2px 8px rgba(140, 100, 240, 0.4);
 }
 .topbar__mark::after {
   content: "";
   border-left: 7px solid #ffffff;
   border-top: 4.5px solid transparent;
   border-bottom: 4.5px solid transparent;
-  margin-left: 2px;
+  margin-left: 1px;
 }
 
 .topbar__sep {
@@ -47,7 +46,7 @@
 .topbar__proj {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   height: 28px;
   padding: 0 10px;
   border-radius: var(--r-sm);
@@ -115,12 +114,12 @@
 }
 
 .topbar__gear {
-  width: 29px;
-  height: 29px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--r-sm);
   background: transparent;
   border: 1px solid transparent;
-  color: var(--ink-2);
+  color: var(--ink-3);
   display: grid;
   place-items: center;
 }
@@ -161,7 +160,7 @@
   box-shadow: var(--dream-glow);
   color: var(--on-accent);
   border-radius: var(--r-sm);
-  font-weight: 550;
+  font-weight: 600;
   font-size: 12.5px;
 }
 .topbar__run:hover {
@@ -200,6 +199,6 @@
 
 .topbar__save {
   font-size: 11px;
-  color: var(--ink-3);
+  color: var(--ink-faint);
   white-space: nowrap;
 }

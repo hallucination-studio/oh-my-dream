@@ -29,8 +29,18 @@
   --p-video-violet: #6f5bd8;
   --p-audio-pink: #c2417c;
   --p-number-blue: #4f7cf0;
+  /* Pastel node-header tints + their deep text colors (one pair per media type) */
+  --p-h-text-bg: #ddf0f4;
+  --p-h-text-fg: #1d6d7d;
+  --p-h-image-bg: #f7e8d2;
+  --p-h-image-fg: #8a5a16;
+  --p-h-video-bg: #e8e4f9;
+  --p-h-video-fg: #5242a8;
+  --p-h-audio-bg: #f8e1ec;
+  --p-h-audio-fg: #97255c;
   --p-running-gold: #d8ad4d;
   --p-running-gold-text: #b8860b;
+  --p-running-gold-deep: #8a6508;
   --p-failure-coral: #cf4f42;
   --p-success-green: #2e9e73;
 
@@ -68,6 +78,7 @@
   --ok: var(--p-success-green);
   --warn: var(--p-running-gold);
   --warn-text: var(--p-running-gold-text);
+  --warn-deep: var(--p-running-gold-deep);
   --err: var(--p-failure-coral);
 
   /* Data-type channels — used only in wiring and the node header tint */
