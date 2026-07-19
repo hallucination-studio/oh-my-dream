@@ -131,9 +131,11 @@ Everything else is an overlay.
   Assistant dock — is an overlay: it floats above the canvas with a shadowed edge and never
   changes layout. Overlays sit between the top bar and the rail; they never cover either.
 - The right edge has one overlay slot. The Work Drawer (380 px, `Configure` and `Run` tabs) and
-  the Assistant dock (320 px) share it; exactly one is visible at a time. Switching preserves the
-  hidden surface's state — selection, scroll position, and the conversation. Until the Work
-  Drawer lands, the Inspector occupies the same slot under the same rules.
+  the Assistant dock (320 px) share it; exactly one is visible at a time, and the hidden surface
+  keeps its state — selection, scroll position, and the conversation. The slot follows the last
+  explicit intent: a node or edge selection brings `Configure` forward, and a rail toggle brings
+  the Assistant forward, even over an active selection. Until the Work Drawer lands, the
+  Inspector occupies the same slot under the same rules.
 - The right slot is empty until it has content: `Configure` when a node is selected, `Run` when
   a Run is admitted or inspected, Assistant when toggled from the rail. With nothing selected
   and no Run context, the slot stays closed instead of showing an empty panel.
