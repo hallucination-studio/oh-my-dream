@@ -8,10 +8,8 @@ use tokio::{
 };
 
 use super::{AssistantProtocolProcessInterface, AssistantProtocolProcessLauncherInterface};
+use crate::assistant_model_runner::AssistantModelRuntimeConnectionReaderInterface;
 use crate::assistant_process_command::AssistantSidecarCommand;
-use crate::credential_repository::{
-    AssistantModelCredentialId, AssistantModelCredentialRepositoryInterface,
-};
 
 #[derive(Clone)]
 pub struct AssistantSidecarCommandProcessLauncherImpl {
@@ -60,46 +58,39 @@ impl AssistantProtocolProcessLauncherInterface for AssistantSidecarCommandProces
     }
 }
 
-/// Loads the plaintext credential only for one bounded sidecar invocation.
+/// Loads one current tested provider connection for every new sidecar invocation.
 #[derive(Clone)]
-pub struct CredentialedAssistantSidecarProcessLauncherAdapterImpl {
+pub struct DynamicAssistantSidecarProcessLauncherAdapterImpl {
     command: AssistantSidecarCommand,
-    credentials: Arc<dyn AssistantModelCredentialRepositoryInterface>,
-    credential_id: AssistantModelCredentialId,
-    enabled: bool,
+    connection_reader: Arc<dyn AssistantModelRuntimeConnectionReaderInterface>,
 }
 
-impl CredentialedAssistantSidecarProcessLauncherAdapterImpl {
+impl DynamicAssistantSidecarProcessLauncherAdapterImpl {
     #[must_use]
     pub fn new(
         command: AssistantSidecarCommand,
-        credentials: Arc<dyn AssistantModelCredentialRepositoryInterface>,
-        credential_id: AssistantModelCredentialId,
-        enabled: bool,
+        connection_reader: Arc<dyn AssistantModelRuntimeConnectionReaderInterface>,
     ) -> Self {
-        Self { command, credentials, credential_id, enabled }
+        Self { command, connection_reader }
     }
 }
 
 #[async_trait]
 impl AssistantProtocolProcessLauncherInterface
-    for CredentialedAssistantSidecarProcessLauncherAdapterImpl
+    for DynamicAssistantSidecarProcessLauncherAdapterImpl
 {
     async fn launch_assistant_protocol_process(
         &self,
     ) -> Result<Box<dyn AssistantProtocolProcessInterface>, AssistantApplicationError> {
-        if !self.enabled {
-            return Err(AssistantApplicationError::ModelUnavailable);
-        }
-        let secret = self
-            .credentials
-            .load_assistant_model_credential(&self.credential_id)
-            .await
-            .map_err(|_| AssistantApplicationError::ModelUnavailable)?;
-        let value = std::str::from_utf8(secret.as_bytes())
+        let connection = self.connection_reader.load_assistant_model_runtime_connection().await?;
+        let api_key = std::str::from_utf8(connection.api_key().as_bytes())
             .map_err(|_| AssistantApplicationError::ModelUnavailable)?;
         let launcher = AssistantSidecarCommandProcessLauncherImpl::new(
-            self.command.clone().env("OMD_ASSISTANT_API_KEY", value),
+            self.command
+                .clone()
+                .env("OMD_ASSISTANT_BASE_URL", connection.base_url().as_str())
+                .env("OMD_ASSISTANT_MODEL", connection.model_id().as_str())
+                .env("OMD_ASSISTANT_API_KEY", api_key),
         );
         launcher.launch_assistant_protocol_process().await
     }
@@ -163,3 +154,7 @@ async fn terminate_child(child: &mut Child) {
     let _ = child.kill().await;
     let _ = child.wait().await;
 }
+
+#[cfg(test)]
+#[path = "process_tests.rs"]
+mod tests;

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import os
 import sys
 from collections.abc import Mapping
 from typing import Any, BinaryIO, cast
 
 from agents import Agent, Model, Runner, RunState, SQLiteSession, Tool
+from agents.models.openai_responses import OpenAIResponsesModel
 from agents.stream_events import RawResponsesStreamEvent
+from openai import AsyncOpenAI
 
 from .protocol_v1 import TOOL_IDS, FrameKind, ProtocolError, ProtocolFrame
 from .protocol_v1_io import ProtocolChannel
@@ -21,9 +25,13 @@ from .system_prompt import build_system_prompt
 AGENT_ID = "workflow_coauthor@1"
 REVIEWER_AGENT_ID = "workflow_change_reviewer@1"
 SDK_VERSION = "0.18.1"
-CONTRACT_EPOCH = 1
-MODEL_NAME = "gpt-5.4"
+CONTRACT_EPOCH = 2
+MODEL_PROFILE_REF = "assistant.workflow_coauthor@1"
 MAX_TURNS = 16
+
+
+class ContinuationIncompatibleError(ProtocolError):
+    """The stored continuation belongs to another model route or contract epoch."""
 
 
 class ProtocolV1App:
@@ -32,10 +40,12 @@ class ProtocolV1App:
         reader: BinaryIO,
         writer: BinaryIO,
         *,
-        model: Model | str | None = MODEL_NAME,
+        model: Model | str | None = None,
+        route_fingerprint: str = "0" * 64,
     ) -> None:
         self._channel = ProtocolChannel(reader, writer)
         self._model = model
+        self._route_fingerprint = route_fingerprint
 
     async def run_once(self) -> None:
         try:
@@ -72,7 +82,7 @@ class ProtocolV1App:
     async def _resume(self, frame: ProtocolFrame) -> None:
         payload = frame.payload
         envelope = _mapping(payload["envelope"], "envelope")
-        state_json, contracts, session_id = _opaque_bundle(envelope)
+        state_json, contracts, session_id = _opaque_bundle(envelope, self._route_fingerprint)
         self._channel.write(FrameKind.INVOCATION_ACCEPTED, {"agent_id": AGENT_ID})
         tools = self._tools(contracts, payload["trusted_result"])
         agent = self._agent(tools)
@@ -147,7 +157,12 @@ class ProtocolV1App:
         if result.interruptions:
             if len(result.interruptions) != 1:
                 raise ProtocolError("only one approval may be pending")
-            envelope = _continuation_envelope(result, contracts, session_id)
+            envelope = _continuation_envelope(
+                result,
+                contracts,
+                session_id,
+                self._route_fingerprint,
+            )
             self._channel.write(
                 FrameKind.CONTINUATION_ENVELOPE_READY,
                 {"envelope": envelope},
@@ -171,11 +186,16 @@ class ProtocolV1App:
             self._channel.write(FrameKind.MODEL_OUTPUT_DELTA, {"text": text})
 
     def _fail(self, error: Exception) -> None:
-        category = "ProtocolViolation" if isinstance(error, (ProtocolError, ValueError)) else "SdkFailure"
+        if isinstance(error, ContinuationIncompatibleError):
+            category = "ContinuationIncompatible"
+            safe_message = "Assistant continuation is incompatible"
+        else:
+            category = "ProtocolViolation" if isinstance(error, (ProtocolError, ValueError)) else "SdkFailure"
+            safe_message = "Assistant invocation failed"
         try:
             self._channel.write(
                 FrameKind.INVOCATION_FAILED,
-                {"category": category, "safe_message": "Assistant invocation failed"},
+                {"category": category, "safe_message": safe_message},
             )
         except Exception:
             return
@@ -239,6 +259,7 @@ def _continuation_envelope(
     result: Any,
     contracts: list[Mapping[str, Any]],
     session_id: str,
+    route_fingerprint: str,
 ) -> dict[str, object]:
     state = result.to_state().to_json(strict_context=True)
     if not isinstance(state, dict):
@@ -249,6 +270,7 @@ def _continuation_envelope(
         "sdk_version": SDK_VERSION,
         "agent_id": AGENT_ID,
         "tool_ids": [contract["tool_id"] for contract in contracts],
+        "route_fingerprint": route_fingerprint,
         "opaque_state": json.dumps(
             {
                 "sdk_state": state,
@@ -262,14 +284,16 @@ def _continuation_envelope(
 
 def _opaque_bundle(
     envelope: Mapping[str, Any],
+    route_fingerprint: str,
 ) -> tuple[dict[str, Any], list[Mapping[str, Any]], str]:
     if (
         envelope.get("protocol_version") != 1
         or envelope.get("contract_epoch") != CONTRACT_EPOCH
         or envelope.get("sdk_version") != SDK_VERSION
         or envelope.get("agent_id") != AGENT_ID
+        or envelope.get("route_fingerprint") != route_fingerprint
     ):
-        raise ProtocolError("continuation metadata mismatch")
+        raise ContinuationIncompatibleError("continuation metadata mismatch")
     bundle = _mapping(
         json.loads(cast(str, envelope["opaque_state"])),
         "opaque_state",
@@ -286,8 +310,36 @@ def _opaque_bundle(
     return _mapping(bundle["sdk_state"], "sdk_state"), contracts, session_id
 
 
+def _route_fingerprint(base_url: str, model_id: str) -> str:
+    canonical = json.dumps(
+        [MODEL_PROFILE_REF, base_url, model_id],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()
+    return hashlib.sha256(canonical).hexdigest()
+
+
+async def _run_production(reader: BinaryIO, writer: BinaryIO) -> None:
+    base_url = os.environ["OMD_ASSISTANT_BASE_URL"]
+    model_id = os.environ["OMD_ASSISTANT_MODEL"]
+    async with AsyncOpenAI(
+        base_url=base_url,
+        api_key=os.environ["OMD_ASSISTANT_API_KEY"],
+    ) as client:
+        model = OpenAIResponsesModel(
+            model=model_id,
+            openai_client=client,
+        )
+        await ProtocolV1App(
+            reader,
+            writer,
+            model=model,
+            route_fingerprint=_route_fingerprint(base_url, model_id),
+        ).run_once()
+
+
 def main() -> None:
-    asyncio.run(ProtocolV1App(sys.stdin.buffer, sys.stdout.buffer).run_once())
+    asyncio.run(_run_production(sys.stdin.buffer, sys.stdout.buffer))
 
 
 def run() -> None:

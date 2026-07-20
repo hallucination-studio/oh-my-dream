@@ -27,7 +27,7 @@ async fn config_initializes_defaults_round_trips_and_rejects_corruption() {
         )
         .unwrap();
     let stored: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
-    assert_eq!(schema_version, 2);
+    assert_eq!(schema_version, 3);
     assert_eq!(stored["generation_provider_routes"].as_array().unwrap().len(), 3);
     let has_legacy_column: bool = connection
         .lock()
@@ -148,7 +148,7 @@ async fn current_config_rejects_noncanonical_bytes() {
         .unwrap()
         .execute(
             "INSERT INTO desktop_backend_config(singleton_id, schema_version, revision, config_json)
-             VALUES (1, 2, 1, ?1)",
+             VALUES (1, 3, 1, ?1)",
             [encoded],
         )
         .unwrap();
@@ -157,6 +157,38 @@ async fn current_config_rejects_noncanonical_bytes() {
         adapter.load_or_initialize_desktop_backend_config().await,
         Err(DesktopBackendConfigRepositoryError::InvalidConfig)
     );
+}
+
+#[tokio::test]
+async fn config_schema_two_is_rejected_without_rewrite() {
+    let connection = connection();
+    let adapter =
+        SqliteDesktopBackendSettingsAdapterImpl::try_new(Arc::clone(&connection)).unwrap();
+    let encoded = current_config::encode(&DesktopBackendConfig::default()).unwrap();
+    connection
+        .lock()
+        .unwrap()
+        .execute(
+            "INSERT INTO desktop_backend_config(singleton_id, schema_version, revision, config_json)
+             VALUES (1, 2, 7, ?1)",
+            [&encoded],
+        )
+        .unwrap();
+
+    assert_eq!(
+        adapter.load_or_initialize_desktop_backend_config().await,
+        Err(DesktopBackendConfigRepositoryError::InvalidConfig)
+    );
+    let stored: (i64, i64, Vec<u8>) = connection
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT schema_version, revision, config_json FROM desktop_backend_config",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(stored, (2, 7, encoded));
 }
 
 #[tokio::test]

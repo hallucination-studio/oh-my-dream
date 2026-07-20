@@ -62,6 +62,7 @@ tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

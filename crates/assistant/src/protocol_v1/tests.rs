@@ -156,6 +156,7 @@ fn encoder_rejects_an_incompatible_continuation_before_transport() {
                 sdk_version: "wrong".to_owned(),
                 agent_id: "workflow_coauthor@1".to_owned(),
                 tool_ids: Vec::new(),
+                route_fingerprint: "0".repeat(64),
                 opaque_state: "state".to_owned(),
             },
             trusted_result: serde_json::json!({}),

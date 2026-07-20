@@ -76,7 +76,7 @@ pub(super) fn resume_frame(
     let envelope: ContinuationEnvelopePayload =
         serde_json::from_slice(request.continuation.as_bytes())
             .map_err(|_| AssistantApplicationError::ContinuationIncompatible)?;
-    Ok(AssistantProtocolFrame {
+    let frame = AssistantProtocolFrame {
         protocol_version: ASSISTANT_PROTOCOL_VERSION,
         invocation_id: request.invocation_id.as_uuid().to_string(),
         direction_sequence: 1,
@@ -84,7 +84,10 @@ pub(super) fn resume_frame(
             envelope,
             trusted_result: parse_json(request.input.as_bytes())?,
         }),
-    })
+    };
+    encode_assistant_protocol_frame(&frame)
+        .map_err(|_| AssistantApplicationError::ContinuationIncompatible)?;
+    Ok(frame)
 }
 
 fn tool_contracts() -> Result<Vec<InvocationToolContract>, AssistantApplicationError> {

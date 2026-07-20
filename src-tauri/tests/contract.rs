@@ -6,6 +6,9 @@ use oh_my_dream_tauri::{
         DesktopAssetImportSourcePickerError, DesktopAssetImportSourcePickerInterface,
         DesktopPickedAssetImportSource,
     },
+    assistant_provider_settings_commands::{
+        AssistantProviderModelsDto, AssistantProviderSettingsDto,
+    },
     composition::{DesktopApplicationPaths, DesktopCompositionRoot},
     generation_provider_settings_commands::{
         GenerationProviderSettingsBindingDto, GenerationProviderSettingsDto,
@@ -53,6 +56,10 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     let assistant_approval = assistant_approval_contract::fixture();
     let (node_capabilities, generation_profiles) = node_capability_fixtures();
     let generation_provider_settings = generation_provider_settings_fixture();
+    let assistant_provider_settings = assistant_provider_settings_fixture();
+    let assistant_provider_models = AssistantProviderModelsDto {
+        models: vec!["gpt-5.4".to_owned(), "local-text-model".to_owned()],
+    };
     let generation_task = generation_task_fixture();
     let generation_tasks = GenerationTaskListPageDto {
         tasks: vec![generation_task.summary.clone(), failed_task_summary(&generation_task.summary)],
@@ -120,6 +127,12 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     for prohibited in ["route_id", "remote_task_id", "credential", "signed_url", "raw_payload"] {
         assert!(!task_json.contains(prohibited), "Task leaked {prohibited}");
     }
+    let assistant_settings_json =
+        serde_json::to_string(&assistant_provider_settings).expect("serialize settings");
+    assert!(assistant_settings_json.contains("has_api_key"));
+    for prohibited in ["\"api_key\"", "credential", "provider_body", "native_runtime"] {
+        assert!(!assistant_settings_json.contains(prohibited), "Settings leaked {prohibited}");
+    }
     assistant_operation_contract::assert_fixture(&assistant_operations);
     write_fixture("workflow.json", &workflow);
     write_fixture("workflow_run.json", &workflow_run);
@@ -132,8 +145,20 @@ fn writes_frontend_contract_fixtures_with_frozen_dto_shapes() {
     write_fixture("node_capabilities.json", &node_capabilities);
     write_fixture("generation_profiles.json", &generation_profiles);
     write_fixture("generation_provider_settings.json", &generation_provider_settings);
+    write_fixture("assistant_provider_settings.json", &assistant_provider_settings);
+    write_fixture("assistant_provider_models.json", &assistant_provider_models);
     write_fixture("generation_task.json", &generation_task);
     write_fixture("generation_tasks.json", &generation_tasks);
+}
+
+fn assistant_provider_settings_fixture() -> AssistantProviderSettingsDto {
+    AssistantProviderSettingsDto {
+        settings_revision: "3".to_owned(),
+        enabled: true,
+        base_url: "http://localhost:11434/v1".to_owned(),
+        model_id: Some("local-text-model".to_owned()),
+        has_api_key: true,
+    }
 }
 
 fn failed_task_summary(summary: &GenerationTaskSummaryDto) -> GenerationTaskSummaryDto {

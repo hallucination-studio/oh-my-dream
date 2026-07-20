@@ -1,4 +1,8 @@
 from pathlib import Path
+import json
+import os
+import subprocess
+import sys
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -39,6 +43,7 @@ def test_package_entrypoint_only_forwards_to_protocol_v1_runtime():
     entrypoint = (ASSISTANT_ROOT / "__main__.py").read_text(encoding="utf-8")
 
     assert "protocol_v1_app" in entrypoint
+    assert "provider_control" in entrypoint
     assert "server" not in entrypoint
 
 
@@ -48,3 +53,46 @@ def test_frozen_specs_use_protocol_only_entrypoints():
 
     assert "frozen_entrypoint.py" in production_spec
     assert "frozen_smoke_entrypoint.py" in smoke_spec
+
+
+def test_packaged_smoke_covers_provider_discovery_and_text_invocation():
+    smoke = (REPOSITORY_ROOT / "scripts/smoke-assistant.sh").read_text()
+    provider_smoke = (
+        REPOSITORY_ROOT / "scripts/smoke-packaged-assistant-provider.py"
+    ).read_text()
+
+    assert "smoke-packaged-assistant-provider.py" in smoke
+    assert "OH_MY_DREAM_ASSISTANT_PROVIDER_ACTION" in provider_smoke
+    assert '"test_model"' in provider_smoke
+    assert "OMD_ASSISTANT_BASE_URL" in provider_smoke
+    assert "InvocationCompleted" in provider_smoke
+    assert "Local Assistant response" in provider_smoke
+
+
+def test_module_entrypoint_dispatches_one_shot_provider_control():
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "OH_MY_DREAM_ASSISTANT_MODE": "provider_control",
+            "OH_MY_DREAM_ASSISTANT_PROVIDER_ACTION": "test_model",
+            "OH_MY_DREAM_ASSISTANT_PROVIDER_BASE_URL": "https://provider.test/v1",
+            "OH_MY_DREAM_ASSISTANT_PROVIDER_API_KEY": "test-key",
+        }
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-m", "assistant"],
+        cwd=REPOSITORY_ROOT,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 0
+    assert completed.stderr == ""
+    assert json.loads(completed.stdout) == {
+        "ok": False,
+        "error": "invalid_control_input",
+    }

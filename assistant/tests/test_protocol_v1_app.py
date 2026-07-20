@@ -28,7 +28,13 @@ from openai.types.responses import (
 )
 from openai.types.responses.response_prompt_param import ResponsePromptParam
 
-from assistant.protocol_v1_app import ProtocolV1App
+from assistant.protocol_v1_app import (
+    ContinuationIncompatibleError,
+    ProtocolV1App,
+    _opaque_bundle,
+    _route_fingerprint,
+    _run_production,
+)
 from assistant.protocol_v1 import FrameKind
 from assistant.protocol_v1_reviewer import ReviewerOutput, review_workflow_change
 
@@ -46,6 +52,89 @@ TOOL_IDS = [
     "assistant.workflow.get_change@1",
     "assistant.workflow.request_apply@1",
 ]
+
+
+@pytest.mark.asyncio
+async def test_production_runtime_uses_configured_responses_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class ClientFake:
+        def __init__(self, **kwargs: object) -> None:
+            captured["client_kwargs"] = kwargs
+
+        async def __aenter__(self) -> ClientFake:
+            captured["entered"] = True
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            captured["closed"] = True
+
+    class ResponsesModelFake:
+        def __init__(self, model: str, openai_client: object) -> None:
+            captured["model_id"] = model
+            captured["client"] = openai_client
+
+    async def run_once_fake(self: ProtocolV1App) -> None:
+        captured["app_model"] = self._model
+        captured["route_fingerprint"] = self._route_fingerprint
+
+    monkeypatch.setenv("OMD_ASSISTANT_BASE_URL", "http://localhost:11434/v1")
+    monkeypatch.setenv("OMD_ASSISTANT_MODEL", "local-text-model")
+    monkeypatch.setenv("OMD_ASSISTANT_API_KEY", "secret-value")
+    monkeypatch.setattr("assistant.protocol_v1_app.AsyncOpenAI", ClientFake)
+    monkeypatch.setattr("assistant.protocol_v1_app.OpenAIResponsesModel", ResponsesModelFake)
+    monkeypatch.setattr(ProtocolV1App, "run_once", run_once_fake)
+
+    await _run_production(io.BytesIO(), io.BytesIO())
+
+    assert captured["client_kwargs"] == {
+        "base_url": "http://localhost:11434/v1",
+        "api_key": "secret-value",
+    }
+    assert captured["model_id"] == "local-text-model"
+    assert captured["client"] is not None
+    assert captured["app_model"] is not None
+    assert captured["route_fingerprint"] == _route_fingerprint(
+        "http://localhost:11434/v1",
+        "local-text-model",
+    )
+    assert captured["entered"] is True
+    assert captured["closed"] is True
+
+
+def test_route_fingerprint_excludes_api_key_and_binds_endpoint_and_model() -> None:
+    original = _route_fingerprint("http://localhost:11434/v1", "text-model")
+
+    assert original == _route_fingerprint("http://localhost:11434/v1", "text-model")
+    assert original != _route_fingerprint("http://localhost:11435/v1", "text-model")
+    assert original != _route_fingerprint("http://localhost:11434/v1", "other-model")
+
+
+def test_continuation_rejects_a_changed_model_route() -> None:
+    envelope = {
+        "protocol_version": 1,
+        "contract_epoch": 2,
+        "sdk_version": "0.18.1",
+        "agent_id": "workflow_coauthor@1",
+        "tool_ids": TOOL_IDS,
+        "route_fingerprint": _route_fingerprint("http://localhost:11434/v1", "text-model"),
+        "opaque_state": json.dumps(
+            {
+                "sdk_state": {},
+                "tool_contracts": contracts(),
+                "session_id": "session-1",
+            },
+            separators=(",", ":"),
+        ),
+    }
+
+    with pytest.raises(ContinuationIncompatibleError, match="continuation metadata mismatch"):
+        _opaque_bundle(
+            envelope,
+            _route_fingerprint("http://localhost:11434/v1", "other-model"),
+        )
 
 
 class OneToolModel(Model):

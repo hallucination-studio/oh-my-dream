@@ -28,6 +28,12 @@ use super::{DesktopApplicationPaths, DesktopCompositionError, node_capabilities}
 use crate::{
     asset_import_source_picker::DesktopAssetImportSourcePickerInterface,
     asset_preview_protocol::DesktopAssetPreviewProtocolAdapterImpl,
+    assistant_process_command::configured_assistant_command,
+    assistant_provider_probe_adapter::PythonOpenAiAssistantProviderAdapterImpl,
+    assistant_provider_settings::{
+        AssistantProviderModelsListUseCase, AssistantProviderSettingsDisableUseCase,
+        AssistantProviderSettingsGetUseCase, AssistantProviderSettingsTestAndApplyUseCase,
+    },
     backend_settings_adapter::SqliteDesktopBackendSettingsAdapterImpl,
     desktop_backend_config::DesktopBackendConfigRepositoryInterface,
     desktop_bridges::{
@@ -86,6 +92,26 @@ pub struct DesktopActivatedCommandDependencies {
     /// Revision-CAS Mock provider Settings mutation boundary.
     pub generation_provider_settings_apply:
         Arc<GenerationProviderSettingsApplyUseCase<SqliteDesktopBackendSettingsAdapterImpl>>,
+    /// Sanitized Assistant provider Settings query boundary.
+    pub assistant_provider_settings_get:
+        Arc<AssistantProviderSettingsGetUseCase<SqliteDesktopBackendSettingsAdapterImpl>>,
+    /// Candidate Assistant provider model discovery boundary.
+    pub assistant_provider_models_list: Arc<
+        AssistantProviderModelsListUseCase<
+            PythonOpenAiAssistantProviderAdapterImpl,
+            SqliteDesktopBackendSettingsAdapterImpl,
+        >,
+    >,
+    /// Tested-only Assistant provider Settings mutation boundary.
+    pub assistant_provider_settings_test_and_apply: Arc<
+        AssistantProviderSettingsTestAndApplyUseCase<
+            PythonOpenAiAssistantProviderAdapterImpl,
+            SqliteDesktopBackendSettingsAdapterImpl,
+        >,
+    >,
+    /// Assistant provider disable boundary.
+    pub assistant_provider_settings_disable:
+        Arc<AssistantProviderSettingsDisableUseCase<SqliteDesktopBackendSettingsAdapterImpl>>,
     /// Project-scoped Generation Task get boundary.
     pub generation_task_get:
         Arc<GenerationTaskGetUseCase<SqliteGenerationTaskRepositoryAdapterImpl>>,
@@ -244,9 +270,23 @@ async fn dependencies(
         node_composition.task_provider_contracts.clone(),
     ));
     let generation_provider_settings_apply = Arc::new(GenerationProviderSettingsApplyUseCase::new(
-        settings,
+        settings.clone(),
         node_composition.task_provider_contracts.clone(),
     ));
+    let assistant_probe = Arc::new(PythonOpenAiAssistantProviderAdapterImpl::new(
+        configured_assistant_command().map_err(|_| DesktopCompositionError::Business)?,
+    ));
+    let assistant_provider_settings_get =
+        Arc::new(AssistantProviderSettingsGetUseCase::new(settings.clone()));
+    let assistant_provider_models_list = Arc::new(AssistantProviderModelsListUseCase::new(
+        assistant_probe.clone(),
+        settings.clone(),
+    ));
+    let assistant_provider_settings_test_and_apply = Arc::new(
+        AssistantProviderSettingsTestAndApplyUseCase::new(assistant_probe, settings.clone()),
+    );
+    let assistant_provider_settings_disable =
+        Arc::new(AssistantProviderSettingsDisableUseCase::new(settings));
     let clock = Arc::new(SystemProjectClockAdapterImpl);
     let get_current = Arc::new(WorkflowGetCurrentUseCase::new(workflow_repository.clone()));
     let summary: Arc<dyn ProjectWorkflowSummaryReaderInterface> =
@@ -330,6 +370,10 @@ async fn dependencies(
         )),
         generation_provider_settings_get,
         generation_provider_settings_apply,
+        assistant_provider_settings_get,
+        assistant_provider_models_list,
+        assistant_provider_settings_test_and_apply,
+        assistant_provider_settings_disable,
         generation_task_get: Arc::new(GenerationTaskGetUseCase::new(
             node_composition.task_repository.clone(),
         )),

@@ -133,6 +133,11 @@ where
                 )
                 .await
                 .map(Some),
+            AssistantProtocolPayload::InvocationFailed(failure)
+                if failure.category == "ContinuationIncompatible" =>
+            {
+                Err(AssistantApplicationError::ContinuationIncompatible)
+            }
             AssistantProtocolPayload::InvocationFailed(_) => {
                 Err(AssistantApplicationError::ModelUnavailable)
             }

@@ -24,7 +24,7 @@ use crate::{
     },
     assistant_commands_v5::{DesktopAssistantCommandAdapterImpl, DesktopAssistantCommandInterface},
     assistant_model_runner::{
-        CredentialedAssistantSidecarProcessLauncherAdapterImpl,
+        DynamicAssistantSidecarProcessLauncherAdapterImpl,
         PythonAgentsAssistantModelRunnerAdapterImpl,
     },
     assistant_presentation::TauriAssistantPresentationEventPublisherAdapterImpl,
@@ -37,9 +37,7 @@ use crate::{
     assistant_workflow_bridge::{
         DesktopAssistantWorkflowBridgeAdapterImpl, DesktopAssistantWorkspaceBridgeAdapterImpl,
     },
-    credential_repository::{
-        AssistantModelCredentialId, AssistantModelCredentialRepositoryInterface,
-    },
+    backend_settings_adapter::SqliteDesktopBackendSettingsAdapterImpl,
     desktop_backend_config::DesktopBackendConfig,
     post_commit_worker::DesktopAssistantEffectExecutorInterface,
     workflow_adapters::{
@@ -70,13 +68,13 @@ pub(super) fn compose(
     connection: Arc<Mutex<Connection>>,
     config_root: &Path,
     config: &DesktopBackendConfig,
-    credentials: Arc<dyn AssistantModelCredentialRepositoryInterface>,
+    settings: Arc<SqliteDesktopBackendSettingsAdapterImpl>,
     workflow_repository: Arc<SqliteWorkflowRunRepositoryAdapterImpl>,
     nodes: &DesktopNodeCapabilityComposition,
     emitter: Arc<dyn DesktopEventEmitterInterface>,
 ) -> Result<DesktopAssistantComposition, DesktopCompositionError> {
     let (workflow, workspace) = compose_bridges(workflow_repository, nodes);
-    compose_application(connection, config_root, config, credentials, emitter, workflow, workspace)
+    compose_application(connection, config_root, config, settings, emitter, workflow, workspace)
 }
 
 fn compose_bridges(
@@ -130,7 +128,7 @@ fn compose_application(
     connection: Arc<Mutex<Connection>>,
     config_root: &Path,
     config: &DesktopBackendConfig,
-    credentials: Arc<dyn AssistantModelCredentialRepositoryInterface>,
+    settings: Arc<SqliteDesktopBackendSettingsAdapterImpl>,
     emitter: Arc<dyn DesktopEventEmitterInterface>,
     workflow: AssistantWorkflowBridge,
     workspace: AssistantWorkspaceBridge,
@@ -160,7 +158,7 @@ fn compose_application(
         continuations.clone(),
     );
     let runner = PythonAgentsAssistantModelRunnerAdapterImpl::new(
-        compose_launcher(config, credentials)?,
+        compose_launcher(settings)?,
         DesktopAssistantProtocolToolExecutorAdapterImpl::new(dispatcher),
         DesktopAssistantToolExecutionContextFactoryAdapterImpl::new(
             Arc::new(SystemAssistantClockAdapterImpl),
@@ -186,17 +184,8 @@ fn compose_application(
 }
 
 fn compose_launcher(
-    config: &DesktopBackendConfig,
-    credentials: Arc<dyn AssistantModelCredentialRepositoryInterface>,
-) -> Result<CredentialedAssistantSidecarProcessLauncherAdapterImpl, DesktopCompositionError> {
+    settings: Arc<SqliteDesktopBackendSettingsAdapterImpl>,
+) -> Result<DynamicAssistantSidecarProcessLauncherAdapterImpl, DesktopCompositionError> {
     let command = configured_assistant_command().map_err(|_| DesktopCompositionError::Business)?;
-    let credential_id =
-        AssistantModelCredentialId::new(config.assistant_model.credential_id.clone())
-            .map_err(|_| DesktopCompositionError::Config)?;
-    Ok(CredentialedAssistantSidecarProcessLauncherAdapterImpl::new(
-        command,
-        credentials,
-        credential_id,
-        config.assistant_model.enabled,
-    ))
+    Ok(DynamicAssistantSidecarProcessLauncherAdapterImpl::new(command, settings))
 }

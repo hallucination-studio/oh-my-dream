@@ -207,6 +207,26 @@ async fn runner_aborts_process_after_protocol_failure() {
 }
 
 #[tokio::test]
+async fn runner_maps_route_mismatch_to_continuation_incompatible() {
+    let (launcher, _state) = launcher([
+        incoming(1, "InvocationAccepted", json!({"agent_id": "workflow_coauthor@1"})),
+        incoming(
+            2,
+            "InvocationFailed",
+            json!({
+                "category": "ContinuationIncompatible",
+                "safe_message": "Assistant continuation is incompatible",
+            }),
+        ),
+    ]);
+
+    assert_eq!(
+        runner(launcher).start_assistant_model_turn(request()).await,
+        Err(AssistantApplicationError::ContinuationIncompatible)
+    );
+}
+
+#[tokio::test]
 async fn runner_aborts_process_when_strict_shutdown_rejects_trailing_output() {
     let (launcher, state) = launcher([
         incoming(1, "InvocationAccepted", json!({"agent_id": "workflow_coauthor@1"})),

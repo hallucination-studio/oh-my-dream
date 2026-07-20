@@ -9,6 +9,55 @@ use assistant::{
 use async_trait::async_trait;
 use serde_json::Value;
 
+use crate::assistant_provider_settings::{
+    AssistantProviderApiKey, AssistantProviderBaseUrl, AssistantProviderModelId,
+};
+
+/// One immutable tested provider connection for a single model invocation.
+pub struct AssistantModelRuntimeConnection {
+    base_url: AssistantProviderBaseUrl,
+    model_id: AssistantProviderModelId,
+    api_key: AssistantProviderApiKey,
+}
+
+impl AssistantModelRuntimeConnection {
+    /// Groups one already-validated provider connection.
+    #[must_use]
+    pub const fn new(
+        base_url: AssistantProviderBaseUrl,
+        model_id: AssistantProviderModelId,
+        api_key: AssistantProviderApiKey,
+    ) -> Self {
+        Self { base_url, model_id, api_key }
+    }
+
+    /// Returns the normalized Base URL.
+    #[must_use]
+    pub const fn base_url(&self) -> &AssistantProviderBaseUrl {
+        &self.base_url
+    }
+
+    /// Returns the selected tested model ID.
+    #[must_use]
+    pub const fn model_id(&self) -> &AssistantProviderModelId {
+        &self.model_id
+    }
+
+    /// Borrows the write-only key for immediate process environment injection.
+    #[must_use]
+    pub const fn api_key(&self) -> &AssistantProviderApiKey {
+        &self.api_key
+    }
+}
+
+/// Loads one transactionally consistent Assistant model connection per invocation.
+#[async_trait]
+pub trait AssistantModelRuntimeConnectionReaderInterface: Send + Sync {
+    async fn load_assistant_model_runtime_connection(
+        &self,
+    ) -> Result<AssistantModelRuntimeConnection, AssistantApplicationError>;
+}
+
 /// Executes one exact model-requested tool through Rust-owned handlers.
 #[async_trait]
 pub trait AssistantProtocolToolExecutorInterface: Send + Sync {

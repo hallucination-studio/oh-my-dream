@@ -12,6 +12,9 @@ pub mod assistant_commands_v5;
 pub mod assistant_model_runner;
 pub mod assistant_presentation;
 pub mod assistant_process_command;
+pub mod assistant_provider_probe_adapter;
+pub mod assistant_provider_settings;
+pub mod assistant_provider_settings_commands;
 pub mod assistant_reviewer_protocol;
 pub mod assistant_tool_runtime;
 pub mod assistant_workflow_bridge;
@@ -48,6 +51,10 @@ pub mod workflow_storage_adapters;
 use asset_commands::{asset_get, asset_import, asset_issue_preview, asset_list};
 use assistant_commands_v5::{
     assistant_decide_workflow_change, assistant_get_pending_workflow_change, assistant_send_message,
+};
+use assistant_provider_settings_commands::{
+    assistant_provider_models_list, assistant_provider_settings_disable,
+    assistant_provider_settings_get, assistant_provider_settings_test_and_apply,
 };
 use generation_provider_settings_commands::{
     generation_provider_settings_apply, generation_provider_settings_get,
@@ -124,6 +131,10 @@ pub fn run() -> tauri::Result<()> {
             assistant_send_message,
             assistant_get_pending_workflow_change,
             assistant_decide_workflow_change,
+            assistant_provider_settings_get,
+            assistant_provider_models_list,
+            assistant_provider_settings_test_and_apply,
+            assistant_provider_settings_disable,
             asset_import,
             asset_get,
             asset_list,

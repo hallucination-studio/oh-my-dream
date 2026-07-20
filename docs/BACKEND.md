@@ -176,7 +176,7 @@ Mock route before MVP release. Production provider adapters are a separately rev
 | Generation Task | one Text/Image/Video/Voice task lifecycle, provider-level composition over focused capabilities, submit/poll/finalize outbox, progress, Workflow-owned cancellation, restart recovery, get/list | standalone creation, independent cancellation, retry attempts, archive, retention, webhooks |
 | Provider | one Mock composite with exact routes for three active model operations and frozen task contracts | production adapters, failover after acceptance, billing, arbitrary vendor options |
 | Asset | import, get/list, node-output write, resolve, preview, Pending reconciliation | delete, archive, tags, search, export, derivatives, garbage collection |
-| Assistant (design intent, reserved) | durable non-executable plan, candidate, review, human decision, exact apply, canonical Run, reviewed repair | plan-as-queue scheduler, unreviewed apply/repair, parallel approvals, distributed Sessions |
+| Assistant | durable non-executable plan, candidate, review, human decision, exact apply, canonical Run, reviewed repair, one user-configured text-only OpenAI Responses connection | plan-as-queue scheduler, unreviewed apply/repair, parallel approvals, distributed Sessions, audio input/transcription, multiple provider connections |
 | Desktop | commands, DTOs, closed post-commit and Generation Task workers, durable event repair, preview protocol, composition | generic job host, server mode, plugins, distributed workers |
 | Storage | SQLite metadata/config/plaintext credentials, managed files, staging | cloud sync, multi-writer coordination, credential/media encryption, backup/restore UI |
 
@@ -187,9 +187,10 @@ decision with implementation and contract tests.
 Freeze discipline: a public surface is frozen only when the same change exercises it with
 implementation and contract tests. An unexercised surface is at most reserved — its name is
 recorded so later work does not invent a second one, but its semantics bind nothing. Currently
-reserved, not frozen: the provider `Immediate` execution composition, the Text focused provider
-contract, and the complete Assistant context (`BACKEND_ASSISTANT.md`). Feature expansion beyond
-the registered MVP surface requires a new reviewed decision.
+reserved, not frozen: the provider `Immediate` execution composition and the Text focused provider
+contract. The Assistant context is frozen in `BACKEND_ASSISTANT.md`; its implementation status and
+remaining gates live in `ROADMAP.md`. Feature expansion beyond the registered MVP surface requires
+a new reviewed decision.
 
 ## Public Boundary Naming
 
@@ -399,8 +400,8 @@ The architecture is closed only when:
    MVP capabilities, and concrete construction outside the composition root;
 11. `./scripts/e2e.sh` passes.
 
-Item 7 binds when the Assistant implementation track starts (see the freeze discipline above);
-core-pipeline closure comprises the remaining items.
+Item 7 is part of the frozen Assistant contract; its implementation status is tracked in
+`ROADMAP.md`. Core-pipeline closure comprises the remaining items.
 
 ## Deferred Architecture
 

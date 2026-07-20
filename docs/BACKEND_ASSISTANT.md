@@ -1,9 +1,6 @@
 # Backend Assistant Architecture
 
-> Status: design intent — not frozen. This document binds no current build task; it is re-reviewed
-> against the then-current model SDK and re-frozen only when the Assistant implementation track
-> starts, after the core pipeline closes (`tasks/todo.md` C4). Pinned external versions
-> (`openai-agents`, native model IDs) are expectations, not commitments.
+> Status: frozen MVP design
 > Owner: Assistant business capability in Rust; model loop in the Python adapter
 > Scope: plan, propose, review, approve, apply, run, observe, and propose repair
 
@@ -435,7 +432,7 @@ UTF-8/JSON depth and size bounds, invocation deadline, event/tool-call limits, a
 transitions. Unknown fields, duplicate keys, non-finite numbers, sequence gaps, oversized frames,
 partial frames, and incompatible continuation envelopes fail the invocation.
 
-Protocol version and Assistant contract epoch are both `1`. Every line is one UTF-8 JSON object
+Protocol version remains `1`; Assistant contract epoch is `2`. Every line is one UTF-8 JSON object
 `{ protocol_version, invocation_id, direction_sequence, kind, payload }`; sequence starts at `1`
 independently in each direction. Rust sends exactly `InvocationStart`, `ToolResult`,
 `ContinuationResume`, or `InvocationCancel`. Python sends exactly `InvocationAccepted`,
@@ -456,9 +453,12 @@ approval turn, and exactly one Completed or Failed terminates. Cancel permits on
 Duplicate call IDs, a second terminal, or any frame after terminal is a protocol violation.
 
 A continuation envelope records protocol version, Assistant contract epoch, SDK version, Agent
-identity, complete tool-version set, and opaque state. Resume rejects any mismatch. Old epochs are
-not migrated into new model/tool contracts; canonical Workflow, Asset, and provider-independent
-state remain unaffected.
+identity, complete tool-version set, model-route fingerprint, and opaque state. The fingerprint is
+the SHA-256 digest of the canonical Assistant Model Profile ref, normalized Base URL, and selected
+model ID; it never includes the credential. Resume rejects any mismatch. Old epochs are not migrated
+into new model/tool contracts; canonical Workflow, Asset, and provider-independent state remain
+unaffected. Rotating only the API key preserves continuation compatibility, while changing the Base
+URL or model fails closed as `ContinuationIncompatible`.
 
 The envelope is at most 4 MiB and is consumed once by exact Project, Session, invocation, Agent
 identity, and tool-version set. Agent identities are `workflow_coauthor@1` and
@@ -466,19 +466,29 @@ identity, and tool-version set. Agent identities are `workflow_coauthor@1` and
 
 ## Configuration And Credentials
 
-Non-secret `AssistantModelConfig` has exactly four fields: `schema_version`, `enabled`,
-`model_profile_ref: AssistantModelProfileRef`, and
-`credential_id: AssistantModelCredentialId`. `AssistantModelProfileRef` is a stable,
-provider-independent product choice. `DesktopCompositionRoot` maps it to the one shipped native
-SDK route; arbitrary endpoints, native model strings, and provider options are not MVP inputs.
+Non-secret `AssistantModelConfig` schema version `2` has exactly six fields: `schema_version`,
+`enabled`, `model_profile_ref: AssistantModelProfileRef`,
+`credential_id: AssistantModelCredentialId`, `base_url: AssistantProviderBaseUrl`, and nullable
+`model_id: AssistantProviderModelId`. `AssistantModelProfileRef` remains the stable,
+provider-independent product choice; Base URL and model ID select the concrete OpenAI Responses-
+compatible route used only by the Desktop Assistant adapter.
+
+`AssistantProviderBaseUrl` is a normalized `http` or `https` URL of at most 2,048 bytes. It permits
+path prefixes such as `/v1`, removes trailing slashes, and rejects userinfo, query, fragment, and
+every other scheme. HTTP is deliberately permitted for user-selected local and LAN endpoints; the
+product makes no confidentiality claim for a credential transmitted over HTTP. It performs no host
+allowlist, private-address rejection, DNS pinning, or SSRF filtering. `AssistantProviderModelId` is
+trimmed, `1..=256` bytes, and contains no control character.
 
 `AssistantModelProfileId` follows the Generation Profile lowercase dot-segment contract; its
 version is a non-zero `u32`, and its canonical ref is `<id>@<version>`.
-The catalog contains only `assistant.workflow_coauthor@1`, displayed as `Workflow Co-author`. It
-maps privately to the OpenAI Responses route using explicit native model `gpt-5.4`, HTTP/SSE,
-`parallel_tool_calls = false`, and SDK `max_turns = 16`; the Reviewer uses the same route and model
-through its distinct fixed Agent identity. SDK defaults, environment model names, Chat Completions,
-WebSocket transport, hosted tools, handoffs, and hosted multi-agent orchestration are not selected.
+The catalog contains only `assistant.workflow_coauthor@1`, displayed as `Workflow Co-author`. A
+disabled default uses Base URL `https://api.openai.com/v1` and no selected model. The user discovers
+model IDs through the configured endpoint and selects exactly one model for both the co-author and
+Reviewer Agent identities. Runtime uses OpenAI Responses over HTTP/SSE with
+`parallel_tool_calls = false` and SDK `max_turns = 16`. Chat Completions fallback, WebSocket
+transport, hosted tools, handoffs, hosted multi-agent orchestration, and separate Reviewer model
+selection are not supported.
 The sidecar lock pins `openai-agents==0.18.1`; its exact version is recorded in every continuation
 envelope, and changing it requires a new reviewed Assistant contract epoch.
 
@@ -497,9 +507,27 @@ that database can read the credential. Public DTOs expose only credential presen
 Plaintext never enters the config payload, model messages, unrelated sidecar frames, errors, or
 logs; the runner receives it only for one bounded model invocation.
 
-The composition root must enforce `enabled`, load the selected model configuration, and supply the
-credential when constructing the runner adapter. Missing/denied credentials make Assistant
-unavailable without affecting manual Workflow and Asset behavior.
+`AssistantProviderProbeInterface` is the consumer-owned external boundary for bounded model listing
+and Responses compatibility testing. Model listing calls `GET {base_url}/models`, returns only a
+sorted, de-duplicated, bounded model-ID collection, and makes no capability claim: the standard
+Models response does not prove Responses or function-tool support. Compatibility testing calls
+`POST {base_url}/responses` with `store = false`, one required no-argument function tool,
+`parallel_tool_calls = false`, and a small output bound. Success requires the exact requested
+function call; it does not execute that function or enter an Assistant conversation.
+
+`AssistantProviderSettingsRepositoryInterface` owns revisioned sanitized settings reads and one
+atomic apply operation. `AssistantProviderSettingsTestAndApplyUseCase` resolves a supplied write-only
+key or the stored key, performs the compatibility test before opening a transaction, then asks the
+repository to compare-and-swap the config revision and upsert or retain the credential in one SQLite
+transaction. Test failure performs no write. Revision conflict after a successful test performs no
+write and discards the result. `AssistantProviderSettingsDisableUseCase` may disable new invocations
+without a provider call and retains the last tested connection.
+
+The composition root always constructs the focused settings commands and runner dependencies. Each
+new model invocation loads the current settings snapshot and credential; a running child keeps its
+immutable values, while a later invocation observes a committed change without application restart.
+Missing, disabled, or denied credentials make only Assistant invocation unavailable without
+affecting manual Workflow and Asset behavior.
 
 ## Failure And Security
 
@@ -526,6 +554,8 @@ model request or canonical mutation is retryable.
 - bridge contract tests prove Workspace/Workflow/Asset/capability authority is reused, not copied;
 - model adapter tests cover schemas, limits, framed transport, continuation compatibility, and
   exact approval resume;
+- provider settings tests cover Base URL/model validation, bounded model discovery, exact function-
+  tool compatibility testing, revision conflict, and atomic config-plus-credential persistence;
 - recovery tests stop before/after Workflow apply and Run admission and prove receipt reuse;
 - Run/repair tests prove canonical events, factual activation, and a new reviewed approval cycle;
 - security tests prove trusted-context separation, path/secret redaction, and fail-closed protocol;

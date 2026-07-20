@@ -10,6 +10,13 @@ pub enum DesktopErrorCode {
     NodeCapabilityInvalidRequest,
     GenerationProviderSettingsInvalidRequest,
     GenerationProviderSettingsRevisionConflict,
+    AssistantProviderSettingsInvalidRequest,
+    AssistantProviderSettingsRevisionConflict,
+    AssistantProviderCredentialMissing,
+    AssistantProviderAuthenticationRejected,
+    AssistantProviderUnavailable,
+    AssistantProviderTimedOut,
+    AssistantProviderIncompatible,
     GenerationTaskInvalidRequest,
     GenerationTaskNotFound,
     WorkflowInvalidRequest,
@@ -121,6 +128,34 @@ fn safe_error(code: DesktopErrorCode) -> (&'static str, &'static str) {
         DesktopErrorCode::GenerationProviderSettingsRevisionConflict => (
             "generation_provider_settings.revision_conflict",
             "Generation Provider Settings changed. Reload and try again.",
+        ),
+        DesktopErrorCode::AssistantProviderSettingsInvalidRequest => (
+            "assistant_provider_settings.invalid_request",
+            "The Assistant Provider Settings request was invalid.",
+        ),
+        DesktopErrorCode::AssistantProviderSettingsRevisionConflict => (
+            "assistant_provider_settings.revision_conflict",
+            "Assistant Provider Settings changed. Reload and try again.",
+        ),
+        DesktopErrorCode::AssistantProviderCredentialMissing => (
+            "assistant_provider_settings.credential_missing",
+            "Enter an API key before testing this connection.",
+        ),
+        DesktopErrorCode::AssistantProviderAuthenticationRejected => (
+            "assistant_provider_settings.authentication_rejected",
+            "The Assistant provider rejected the API key.",
+        ),
+        DesktopErrorCode::AssistantProviderUnavailable => (
+            "assistant_provider_settings.provider_unavailable",
+            "The Assistant provider is unavailable.",
+        ),
+        DesktopErrorCode::AssistantProviderTimedOut => (
+            "assistant_provider_settings.provider_timed_out",
+            "The Assistant provider request timed out.",
+        ),
+        DesktopErrorCode::AssistantProviderIncompatible => (
+            "assistant_provider_settings.incompatible",
+            "The selected model is not compatible with Assistant tools.",
         ),
         DesktopErrorCode::GenerationTaskInvalidRequest => {
             ("generation_task.invalid_request", "The Generation Task request was invalid.")

@@ -8,6 +8,8 @@ VENV="$BUILD_ROOT/venv"
 PYTHON="${PYTHON:-python3}"
 TARGET="${TAURI_ENV_TARGET_TRIPLE:-${TARGET:-$(rustc -vV | awk '/^host:/ {print $2}')}}"
 EXE_SUFFIX="${EXE_SUFFIX:-}"
+export PIP_CACHE_DIR="$BUILD_ROOT/pip-cache"
+export PYINSTALLER_CONFIG_DIR="$BUILD_ROOT/pyinstaller-config"
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) EXE_SUFFIX=".exe" ;;
 esac

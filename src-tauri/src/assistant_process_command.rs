@@ -22,7 +22,7 @@ impl AssistantSidecarCommand {
     }
 
     pub fn development(python: impl Into<OsString>, repository_root: impl AsRef<Path>) -> Self {
-        Self::new(python).args(["-m", "assistant.protocol_v1_app"]).current_dir(repository_root)
+        Self::new(python).args(["-m", "assistant"]).current_dir(repository_root)
     }
 
     pub fn packaged(executable: impl AsRef<Path>) -> Self {

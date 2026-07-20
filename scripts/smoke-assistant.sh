@@ -6,6 +6,8 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_ROOT="${ASSISTANT_BUILD_ROOT:-$PROJECT_ROOT/.build/assistant}"
 VENV="$BUILD_ROOT/venv"
 EXE_SUFFIX="${EXE_SUFFIX:-}"
+export PIP_CACHE_DIR="$BUILD_ROOT/pip-cache"
+export PYINSTALLER_CONFIG_DIR="$BUILD_ROOT/pyinstaller-config"
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) EXE_SUFFIX=".exe" ;;
 esac
@@ -96,5 +98,8 @@ with open(sys.argv[1], "rb") as stream:
 assert frames[-1]["kind"] == "InvocationCompleted", [frame["kind"] for frame in frames]
 assert "ASSISTANT_SMOKE_TRACING_DISABLED=1" in open(sys.argv[2]).read()
 PY
+
+"$VENV/bin/python" "$PROJECT_ROOT/scripts/smoke-packaged-assistant-provider.py" \
+  "$BUILD_ROOT/dist/oh-my-dream-assistant$EXE_SUFFIX"
 
 printf '%s\n' "assistant frozen smoke passed"

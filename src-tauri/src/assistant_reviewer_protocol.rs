@@ -95,7 +95,7 @@ where
                 change_id,
                 mutation_digest: mutation_digest(mutation_digest_hex)?,
                 verdict: review_verdict(verdict)?,
-                reviewer_contract_epoch: AssistantContractEpoch::new(1)
+                reviewer_contract_epoch: AssistantContractEpoch::new(2)
                     .map_err(|_| AssistantApplicationError::ReviewEvidenceInvalid)?,
                 reviewer_model: AssistantModelIdentity::new("workflow_change_reviewer@1")
                     .map_err(|_| AssistantApplicationError::ReviewEvidenceInvalid)?,

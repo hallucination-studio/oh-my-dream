@@ -204,24 +204,38 @@ pub struct AssistantModelConfig {
     pub enabled: bool,
     pub model_profile_ref: String,
     pub credential_id: String,
+    pub base_url: String,
+    pub model_id: Option<String>,
 }
 
 impl Default for AssistantModelConfig {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             enabled: false,
             model_profile_ref: "assistant.workflow_coauthor@1".to_owned(),
             credential_id: "assistant.openai.default".to_owned(),
+            base_url: "https://api.openai.com/v1".to_owned(),
+            model_id: None,
         }
     }
 }
 
 impl AssistantModelConfig {
     fn is_valid(&self) -> bool {
-        self.schema_version == 1
+        let base_url =
+            crate::assistant_provider_settings::AssistantProviderBaseUrl::try_new(&self.base_url)
+                .is_ok_and(|value| value.as_str() == self.base_url);
+        let model_id = self.model_id.as_ref().is_none_or(|value| {
+            crate::assistant_provider_settings::AssistantProviderModelId::try_new(value)
+                .is_ok_and(|model_id| model_id.as_str() == value)
+        });
+        self.schema_version == 2
             && self.model_profile_ref == "assistant.workflow_coauthor@1"
-            && valid_identity(&self.credential_id)
+            && self.credential_id == "assistant.openai.default"
+            && base_url
+            && model_id
+            && (!self.enabled || self.model_id.is_some())
     }
 }
 
@@ -265,16 +279,4 @@ impl AssistantProtocolBudgets {
     fn is_valid(&self) -> bool {
         self == &Self::default()
     }
-}
-
-fn valid_identity(value: &str) -> bool {
-    value.len() <= 128
-        && value.split('.').count() >= 2
-        && value.split('.').all(|segment| {
-            let mut chars = segment.chars();
-            chars.next().is_some_and(|first| first.is_ascii_lowercase())
-                && chars.all(|character| {
-                    character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
-                })
-        })
 }

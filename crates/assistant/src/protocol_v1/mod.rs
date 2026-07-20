@@ -150,6 +150,7 @@ strict_payload!(ContinuationEnvelopePayload {
     sdk_version: String,
     agent_id: String,
     tool_ids: Vec<String>,
+    route_fingerprint: String,
     opaque_state: String,
 });
 
@@ -374,7 +375,7 @@ fn valid_budgets(value: &InvocationBudgets) -> bool {
 
 fn valid_continuation(value: &ContinuationEnvelopePayload) -> bool {
     value.protocol_version == ASSISTANT_PROTOCOL_VERSION
-        && value.contract_epoch == 1
+        && value.contract_epoch == 2
         && value.sdk_version == "0.18.1"
         && matches!(value.agent_id.as_str(), "workflow_coauthor@1" | "workflow_change_reviewer@1")
         && value.tool_ids.len() == 11
@@ -383,6 +384,11 @@ fn valid_continuation(value: &ContinuationEnvelopePayload) -> bool {
             .iter()
             .all(|tool_id| crate::application::AssistantToolId::try_new(tool_id).is_ok())
         && value.tool_ids.iter().collect::<BTreeSet<_>>().len() == 11
+        && value.route_fingerprint.len() == 64
+        && value
+            .route_fingerprint
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
         && valid_bounded_text(&value.opaque_state, 4 * 1024 * 1024)
 }
 

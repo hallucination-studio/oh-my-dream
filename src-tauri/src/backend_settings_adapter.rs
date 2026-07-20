@@ -15,8 +15,10 @@ use crate::{
 use async_trait::async_trait;
 use rusqlite::{Connection, ErrorCode, OptionalExtension, TransactionBehavior, params};
 
-const CONFIG_SCHEMA_VERSION: i64 = 2;
+const CONFIG_SCHEMA_VERSION: i64 = 3;
 
+#[path = "backend_settings_adapter/assistant_settings.rs"]
+mod assistant_settings;
 #[path = "backend_settings_adapter/current_config.rs"]
 pub(crate) mod current_config;
 #[path = "backend_settings_adapter/provider_settings.rs"]

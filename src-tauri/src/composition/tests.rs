@@ -5,10 +5,11 @@ use tempfile::tempdir;
 
 use super::*;
 use crate::{
-    credential_repository::{
-        AssistantModelCredentialRepositoryInterface, AssistantModelCredentialSecret,
+    assistant_provider_settings::{
+        AssistantProviderApiKey, AssistantProviderBaseUrl, AssistantProviderModelId,
+        AssistantProviderSettingsMutation, AssistantProviderSettingsRepositoryInterface,
     },
-    desktop_backend_config::DesktopBackendConfigRepositoryInterface,
+    credential_repository::AssistantModelCredentialRepositoryInterface,
     post_commit_effect::DesktopPostCommitEffect,
     post_commit_worker::DesktopPostCommitEffectExecutionOutcome,
     workflow_run_event_publisher::DesktopEventEmissionError,
@@ -176,17 +177,32 @@ async fn seed_config(paths: &DesktopApplicationPaths, save_assistant_credential:
     let settings =
         SqliteDesktopBackendSettingsAdapterImpl::try_new(Arc::new(Mutex::new(connection)))
             .expect("settings");
-    let mut config = DesktopBackendConfig::default();
-    config.assistant_model.enabled = true;
-    settings.save_desktop_backend_config(config.clone()).await.expect("save config");
-    if save_assistant_credential {
+    let initial = settings
+        .load_assistant_provider_settings_snapshot()
+        .await
+        .expect("load Assistant settings");
+    settings
+        .apply_assistant_provider_settings_mutation(
+            initial.revision(),
+            AssistantProviderSettingsMutation::ApplyTestedConnection {
+                base_url: AssistantProviderBaseUrl::try_new("https://api.openai.com/v1")
+                    .expect("Base URL"),
+                model_id: AssistantProviderModelId::try_new("fixture-model").expect("model ID"),
+                api_key: Some(
+                    AssistantProviderApiKey::try_new(b"plain-test-secret".to_vec())
+                        .expect("API key"),
+                ),
+            },
+        )
+        .await
+        .expect("apply Assistant settings");
+    if !save_assistant_credential {
         settings
-            .save_assistant_model_credential(
-                AssistantModelCredentialId::new(config.assistant_model.credential_id)
+            .delete_assistant_model_credential(
+                &AssistantModelCredentialId::new("assistant.openai.default")
                     .expect("credential ID"),
-                AssistantModelCredentialSecret::new(b"plain-test-secret".to_vec()).expect("secret"),
             )
             .await
-            .expect("save credential");
+            .expect("remove credential");
     }
 }

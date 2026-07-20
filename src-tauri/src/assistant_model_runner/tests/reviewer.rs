@@ -97,10 +97,11 @@ async fn runner_persists_exact_reviewer_evidence_before_announcing_pending_chang
             "ContinuationEnvelopeReady",
             json!({"envelope": {
                 "protocol_version": 1,
-                "contract_epoch": 1,
+                "contract_epoch": 2,
                 "sdk_version": "0.18.1",
                 "agent_id": "workflow_coauthor@1",
                 "tool_ids": tool_ids,
+                "route_fingerprint": "0".repeat(64),
                 "opaque_state": "state",
             }}),
         ),

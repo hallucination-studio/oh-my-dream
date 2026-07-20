@@ -20,8 +20,8 @@ const UI_API: &str = include_str!("../../ui/src/api/types.ts");
 const UI_TAURI: &str = include_str!("../../ui/src/api/tauriApi.ts");
 
 #[test]
-fn active_boundary_has_exact_27_7_1_3_4_counts() {
-    assert_eq!(registered_commands(), 27);
+fn active_boundary_has_exact_31_7_1_3_4_counts() {
+    assert_eq!(registered_commands(), 31);
     assert_eq!(quoted_values(COMPOSITION, "EXACT_NODE_CAPABILITY_REFS").len(), 7);
     assert_eq!(
         NODE_COMPOSITION
@@ -116,17 +116,21 @@ fn legacy_generation_abstractions_are_absent_and_durable_task_path_remains() {
 
 #[test]
 fn assistant_boundaries_do_not_leak_secrets_paths_or_sdk_state() {
-    let leak_surface = [ASSISTANT_DTO, ASSISTANT_PRESENTATION, UI_API, UI_TAURI].join("\n");
-    for prohibited in [
-        "api_key",
-        "credential",
-        "opaque_state",
-        "session_path",
-        "ResponsesStreamEvent",
-        "RawResponsesStreamEvent",
-    ] {
-        assert!(!leak_surface.contains(prohibited), "boundary leak contains {prohibited}");
+    let conversation_surface = [ASSISTANT_DTO, ASSISTANT_PRESENTATION].join("\n");
+    for prohibited in ["api_key", "credential"] {
+        assert!(
+            !conversation_surface.contains(prohibited),
+            "Assistant conversation boundary leak contains {prohibited}"
+        );
     }
+    let all_boundaries = [conversation_surface, UI_API.to_owned(), UI_TAURI.to_owned()].join("\n");
+    for prohibited in
+        ["opaque_state", "session_path", "ResponsesStreamEvent", "RawResponsesStreamEvent"]
+    {
+        assert!(!all_boundaries.contains(prohibited), "boundary leak contains {prohibited}");
+    }
+    assert!(!UI_API.contains("api_key: string"));
+    assert_eq!(UI_TAURI.matches("api_key: apiKey").count(), 2);
 }
 
 #[test]

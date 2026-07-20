@@ -8,8 +8,7 @@ mod runner;
 
 pub use interfaces::*;
 pub use process::{
-    AssistantSidecarCommandProcessLauncherImpl,
-    CredentialedAssistantSidecarProcessLauncherAdapterImpl,
+    AssistantSidecarCommandProcessLauncherImpl, DynamicAssistantSidecarProcessLauncherAdapterImpl,
 };
 pub use runner::PythonAgentsAssistantModelRunnerAdapterImpl;
 

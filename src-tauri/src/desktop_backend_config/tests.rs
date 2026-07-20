@@ -14,9 +14,25 @@ fn defaults_match_the_frozen_non_secret_startup_contract() {
     assert_eq!(config.generation_provider_routes.len(), 3);
     assert_eq!(config.generation_provider_routes[0].provider_id, "mock");
     assert!(!config.assistant_model.enabled);
+    assert_eq!(config.assistant_model.schema_version, 2);
     assert_eq!(config.assistant_model.model_profile_ref, "assistant.workflow_coauthor@1");
     assert_eq!(config.assistant_model.credential_id, "assistant.openai.default");
+    assert_eq!(config.assistant_model.base_url, "https://api.openai.com/v1");
+    assert_eq!(config.assistant_model.model_id, None);
     assert!(config.validate().is_ok());
+}
+
+#[test]
+fn enabled_assistant_config_requires_a_valid_base_url_and_model() {
+    let mut config = DesktopBackendConfig::default();
+    config.assistant_model.enabled = true;
+    assert_eq!(config.validate(), Err(DesktopBackendConfigError::InvalidConfig));
+
+    config.assistant_model.model_id = Some("gpt-5.4".to_owned());
+    assert!(config.validate().is_ok());
+
+    config.assistant_model.base_url = "file:///tmp/provider".to_owned();
+    assert_eq!(config.validate(), Err(DesktopBackendConfigError::InvalidConfig));
 }
 
 #[test]
