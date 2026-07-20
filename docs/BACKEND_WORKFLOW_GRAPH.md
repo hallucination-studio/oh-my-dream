@@ -149,9 +149,11 @@ that bound; nine is not a Workflow-wide limit. Transport size limits are boundar
 business cardinality.
 
 `NodeCapabilityInputRoleKey` meaning is owned by the exact capability module. Examples include
-`subject`, `style`, `composition`, `scene`, `motion`, and `audio_guidance`. Workflow stores and
-validates declared keys mechanically but never interprets them. Semantic positions use separately
-named single inputs such as `first_frame` and `last_frame`, not inferred list roles.
+`subject`, `style`, `first_frame`, `last_frame`, `reference_image`, `reference_video`, and
+`reference_audio`. Workflow stores and validates declared keys mechanically but never interprets
+them. The active universal Video capability deliberately uses explicit roles within its separate
+ordered `images`, `videos`, and `audio` inputs so model switching preserves stable item identity
+and order; its calibration policy, not Workflow, interprets mode-specific role combinations.
 
 MVP outputs publish one exact Text, Image, Video, or Audio `WorkflowDataType`. Accepting multiple concrete input types never permits
 an ambiguous output. The catalog rejects empty role maps, empty accepted-type sets, `Text` inside a
@@ -185,10 +187,10 @@ non-empty list of at most 128 actions. Action order is semantic. The union and e
 
 | Tag | Action | Exact payload |
 | --- | --- | --- |
-| `0` | `WorkflowAddNodeAction` | new node ID, capability ref, complete parameter set, canvas position |
+| `0` | `WorkflowAddNodeAction` | new node ID, capability ref, complete stored parameter map (required keys may be absent), canvas position |
 | `1` | `WorkflowRemoveNodeAction` | existing node ID |
-| `2` | `WorkflowReplaceNodeParametersAction` | existing node ID, complete replacement parameter set |
-| `3` | `WorkflowSelectNodeCapabilityAction` | existing node ID, replacement capability ref and complete parameter set |
+| `2` | `WorkflowReplaceNodeParametersAction` | existing node ID, complete replacement stored parameter map (required keys may be absent) |
+| `3` | `WorkflowSelectNodeCapabilityAction` | existing node ID, replacement capability ref and complete stored parameter map (required keys may be absent) |
 | `4` | `WorkflowMoveNodeAction` | existing node ID and replacement canvas position |
 | `5` | `WorkflowBindSingleInputAction` | target plus new role-free input item |
 | `6` | `WorkflowInsertReferenceItemAction` | target, new role-bearing item, insertion index in `0..=len` |
@@ -196,10 +198,13 @@ non-empty list of at most 128 actions. Action order is semantic. The union and e
 | `8` | `WorkflowRemoveInputItemAction` | target and existing item ID; removes an empty binding |
 | `9` | `WorkflowSetInputItemRoleAction` | target, existing ordered-reference item ID, replacement declared role key |
 
-Add/select never infer defaults, preserve incompatible parameters, or remove bindings. The selected
-capability performs parameter normalization; the candidate graph performs complete binding
-validation after all actions. Any failed action or final validation rejects the entire candidate,
-revision increment, and receipt.
+Add/select capability never infer defaults or remove bindings, and the selected capability performs
+present-value draft validation before the candidate graph performs complete binding validation.
+A model change is an ordinary complete parameter replacement within the same capability: it
+preserves every statically valid dynamic parameter and binding even when the new model contract
+will report calibration issues. Any failed action or draft-validity check rejects the entire
+candidate, revision increment, and receipt; model calibration blocks readiness rather than making
+the editable draft impossible to persist.
 
 `WorkflowMutationCommandHash` is SHA-256 over a length-prefixed binary encoding with domain
 `oh-my-dream/workflow-mutation/v1`, Workflow UUID bytes, base revision as big-endian `u64`, action

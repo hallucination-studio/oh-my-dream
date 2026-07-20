@@ -14,7 +14,7 @@ ui/                 React presentation and interaction
 src-tauri/          Desktop boundary, bridges, effects, and composition
 crates/projects/    pure Project identity and workspace metadata
 crates/engine/      pure Workflow graph and Run semantics
-crates/nodes/       exact Node Capabilities and Generation Profile semantics
+crates/nodes/       exact Node Capabilities, Generation Profile, and Generation Settings semantics
 crates/tasks/       pure Generation Task lifecycle and application interfaces
 crates/backends/    provider composites, focused capabilities, and private routes
 crates/assets/      Asset semantics and managed-media adapters
@@ -46,11 +46,12 @@ representations, never a second source of business semantics.
 ```text
 React / Python adapter
         -> Desktop boundary and composition
-             -> Project, Workflow, Generation Task, Asset, and Assistant use cases/interfaces
+             -> Project, Workflow, Generation Settings, Generation Task, Asset, and Assistant use cases/interfaces
 
 Workflow, Asset, Assistant       -> ProjectId from Project
 Node Capability implementations -> WorkflowNodeCapabilityInterface
 Node Capability implementations -> Generation Task start and managed-media interfaces
+Generation Settings             -> nodes-owned aggregates, policies, use cases, and repository interface
 Generation Task application     -> task-owned provider, Asset, Workflow, storage, and clock interfaces
 Provider composites/routes       -> provider-level and focused task-owned interfaces
 Desktop bridges                  -> managed-media, preview, and cross-context interfaces
@@ -59,6 +60,6 @@ Desktop bridges                  -> managed-media, preview, and cross-context in
 `crates/projects` and `crates/engine` remain pure. Cross-context calls use explicit bridges in
 `src-tauri`. The Desktop
 post-commit worker consumes only the three closed Desktop effect types. The separate Generation
-Task worker consumes its four closed delayed effect types. Neither is a generic job framework.
+Task worker consumes its five closed delayed effect types. Neither is a generic job framework.
 
 The required merge gate is `./scripts/e2e.sh`.

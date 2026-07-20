@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import assetFixture from "../__fixtures__/asset.json";
 import assistantOperationsFixture from "../__fixtures__/assistant_operations.json";
 import assistantApprovalFixture from "../__fixtures__/assistant_approval.json";
+import assistantProviderModelsFixture from "../__fixtures__/assistant_provider_models.json";
+import assistantProviderSettingsFixture from "../__fixtures__/assistant_provider_settings.json";
 import capabilityCatalogFixture from "../__fixtures__/capability_catalog.json";
 import progressFixture from "../__fixtures__/node_progress_event.json";
 import openProjectFixture from "../__fixtures__/open_project.json";
@@ -19,6 +21,8 @@ import type {
   AssetDto,
   AssistantApprovalDecisionInput,
   AssistantPendingWorkflowChange,
+  AssistantProviderModelsDto,
+  AssistantProviderSettingsDto,
   CapabilityCatalog,
   OpenProjectResult,
   Project,
@@ -40,6 +44,8 @@ describe("backend DTO fixtures", () => {
     expect(isNodeCapabilityList(nodeCapabilitiesFixture)).toBe(true);
     expect(isGenerationProfileList(generationProfilesFixture)).toBe(true);
     expect(isGenerationProviderSettings(generationProviderSettingsFixture)).toBe(true);
+    expect(isAssistantProviderSettings(assistantProviderSettingsFixture)).toBe(true);
+    expect(isAssistantProviderModels(assistantProviderModelsFixture)).toBe(true);
     expect(isGenerationTask(generationTaskFixture)).toBe(true);
     expect(isGenerationTaskListPage(generationTasksFixture)).toBe(true);
     expect(isNodeProgressEvent(progressFixture)).toBe(true);
@@ -59,6 +65,23 @@ describe("backend DTO fixtures", () => {
     });
   });
 });
+
+function isAssistantProviderSettings(value: unknown): value is AssistantProviderSettingsDto {
+  if (!isRecord(value) || Object.keys(value).sort().join(",") !==
+    "base_url,enabled,has_api_key,model_id,settings_revision") return false;
+  const encoded = JSON.stringify(value);
+  if (/"api_key"|credential|provider_body|native_runtime/.test(encoded)) return false;
+  return typeof value.settings_revision === "string" &&
+    typeof value.enabled === "boolean" &&
+    typeof value.base_url === "string" &&
+    (value.model_id === null || typeof value.model_id === "string") &&
+    typeof value.has_api_key === "boolean";
+}
+
+function isAssistantProviderModels(value: unknown): value is AssistantProviderModelsDto {
+  return isRecord(value) && Object.keys(value).length === 1 &&
+    Array.isArray(value.models) && value.models.every((model) => typeof model === "string");
+}
 
 function isAssistantApprovalFixture(value: unknown): value is {
   pending: AssistantPendingWorkflowChange;

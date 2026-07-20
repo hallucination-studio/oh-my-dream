@@ -27,7 +27,7 @@ import { IconRail, type RailTab } from "./components/IconRail.tsx";
 import { NodeLibrary } from "./components/NodeLibrary.tsx";
 import { InspectorPanel, type SelectedNode } from "./components/InspectorPanel.tsx";
 import { ProjectSwitcher } from "./components/ProjectSwitcher.tsx";
-import { SettingsDialog } from "./components/SettingsDialog.tsx";
+import { SettingsDialog, type SettingsSection } from "./components/SettingsDialog.tsx";
 import { AssetLibrary } from "./assets/AssetLibrary.tsx";
 import { useAssets } from "./assets/useAssets.ts";
 import { useRunProjection } from "./canvas/useRunProjection.ts";
@@ -58,6 +58,7 @@ export function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("models");
   const [runDetailsOpen, setRunDetailsOpen] = useState(false);
   const [runDetailsAutoFocus, setRunDetailsAutoFocus] = useState(true);
   const [runSnapshot, setRunSnapshot] = useState<WorkflowRunDto | null>(null);
@@ -577,7 +578,10 @@ export function App() {
         status={status}
         workspaceState={workspaceState}
         onOpenProjects={() => setProjectsOpen((v) => !v)}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          setSettingsSection("models");
+          setSettingsOpen(true);
+        }}
         onRun={run}
         onCancel={cancel}
         onOpenRunDetails={() => {
@@ -612,6 +616,11 @@ export function App() {
             }
           }}
           onToggleAssistant={() => {
+            if (!assistantEnabled) {
+              setSettingsSection("assistant");
+              setSettingsOpen(true);
+              return;
+            }
             // Toggle by visible slot, not background state: when the Assistant
             // is backgrounded by a selection, the next click must bring it
             // forward — never silently close it.
@@ -751,6 +760,8 @@ export function App() {
 
       <SettingsDialog
         open={settingsOpen}
+        initialSection={settingsSection}
+        onAssistantSettingsChanged={() => void refreshAssistantEnabled()}
         onClose={() => {
           setSettingsOpen(false);
           refreshAssistantEnabled();

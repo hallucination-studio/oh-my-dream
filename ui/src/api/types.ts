@@ -111,6 +111,18 @@ export interface GenerationProviderSettingsApplyRequestDto {
   action: GenerationProviderSettingsActionDto;
 }
 
+export interface AssistantProviderSettingsDto {
+  settings_revision: string;
+  enabled: boolean;
+  base_url: string;
+  model_id: string | null;
+  has_api_key: boolean;
+}
+
+export interface AssistantProviderModelsDto {
+  models: string[];
+}
+
 export type GenerationTaskStatusDto =
   | "queued"
   | "running"
@@ -402,6 +414,20 @@ export interface WorkflowApi {
     expectedSettingsRevision: string,
     action: GenerationProviderSettingsActionDto,
   ) => Promise<GenerationProviderSettingsDto>;
+  assistantProviderSettingsGet: () => Promise<AssistantProviderSettingsDto>;
+  assistantProviderModelsList: (
+    baseUrl: string,
+    apiKey: string | null,
+  ) => Promise<AssistantProviderModelsDto>;
+  assistantProviderSettingsTestAndApply: (
+    expectedSettingsRevision: string,
+    baseUrl: string,
+    apiKey: string | null,
+    modelId: string,
+  ) => Promise<AssistantProviderSettingsDto>;
+  assistantProviderSettingsDisable: (
+    expectedSettingsRevision: string,
+  ) => Promise<AssistantProviderSettingsDto>;
   generationTaskGet: (projectId: string, taskId: string) => Promise<GenerationTaskDto>;
   generationTaskList: (
     projectId: string,

@@ -9,22 +9,30 @@ import type {
 } from "../api/types.ts";
 import "./settings.css";
 import "./modelSettings.css";
+import {
+  AssistantProviderSettingsPanel,
+  type AssistantProviderSettingsApi,
+} from "./AssistantProviderSettingsPanel.tsx";
 
-const SECTIONS = ["models", "canvas", "about"] as const;
-type SettingsSection = (typeof SECTIONS)[number];
+const SECTIONS = ["models", "assistant", "canvas", "about"] as const;
+export type SettingsSection = (typeof SECTIONS)[number];
 type SettingsApi = Pick<
   WorkflowApi,
   "generationProviderSettingsGet" | "generationProviderSettingsApply"
->;
+> & AssistantProviderSettingsApi;
 
 export function SettingsDialog({
   open,
   onClose,
   settingsApi = api,
+  initialSection = "models",
+  onAssistantSettingsChanged,
 }: {
   open: boolean;
   onClose: () => void;
   settingsApi?: SettingsApi;
+  initialSection?: SettingsSection;
+  onAssistantSettingsChanged?: () => void;
 }) {
   const [section, setSection] = useState<SettingsSection>("models");
   const [settings, setSettings] = useState<GenerationProviderSettingsDto | null>(null);
@@ -35,13 +43,14 @@ export function SettingsDialog({
 
   useEffect(() => {
     if (!open) return;
+    setSection(initialSection);
     closeButton.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose, open]);
+  }, [initialSection, onClose, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -124,6 +133,11 @@ export function SettingsDialog({
                 busy={state !== "idle"}
                 message={message}
                 onApply={(action) => void apply(action)}
+              />
+            ) : section === "assistant" ? (
+              <AssistantProviderSettingsPanel
+                settingsApi={settingsApi}
+                onSettingsChanged={onAssistantSettingsChanged}
               />
             ) : section === "canvas" ? (
               <p className="dialog__grp">No canvas preferences yet.</p>

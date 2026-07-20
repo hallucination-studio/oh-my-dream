@@ -5,6 +5,8 @@
 
 import type {
   CapabilityRef,
+  AssistantProviderModelsDto,
+  AssistantProviderSettingsDto,
   GenerationProfileForCapability,
   GenerationProviderSettingsActionDto,
   GenerationProviderSettingsDto,
@@ -62,6 +64,13 @@ const mockProjects = new Map<string, Project>([
 let mockGenerationProviderSettings = structuredClone(
   generationProviderSettingsFixture,
 ) as GenerationProviderSettingsDto;
+const mockAssistantProviderSettings: AssistantProviderSettingsDto = {
+  settings_revision: "1",
+  enabled: false,
+  base_url: "https://api.openai.com/v1",
+  model_id: null,
+  has_api_key: false,
+};
 const mockGenerationTasks = structuredClone(generationTasksFixture.tasks) as GenerationTaskSummaryDto[];
 const mockGenerationTaskDetail = structuredClone(generationTaskFixture) as GenerationTaskDto;
 const mockGenerationProfiles: Record<string, GenerationProfileForCapability> = {
@@ -167,6 +176,36 @@ async function generationProviderSettingsApply(
     BigInt(mockGenerationProviderSettings.settings_revision) + 1n,
   );
   return structuredClone(mockGenerationProviderSettings);
+}
+
+async function assistantProviderSettingsGet(): Promise<AssistantProviderSettingsDto> {
+  return structuredClone(mockAssistantProviderSettings);
+}
+
+async function assistantProviderModelsList(
+  _baseUrl: string,
+  _apiKey: string | null,
+): Promise<AssistantProviderModelsDto> {
+  throw desktopRuntimeRequired();
+}
+
+async function assistantProviderSettingsTestAndApply(
+  _expectedSettingsRevision: string,
+  _baseUrl: string,
+  _apiKey: string | null,
+  _modelId: string,
+): Promise<AssistantProviderSettingsDto> {
+  throw desktopRuntimeRequired();
+}
+
+async function assistantProviderSettingsDisable(
+  _expectedSettingsRevision: string,
+): Promise<AssistantProviderSettingsDto> {
+  throw desktopRuntimeRequired();
+}
+
+function desktopRuntimeRequired(): Error {
+  return new Error("assistant_provider_settings.desktop_runtime_required");
 }
 
 async function generationTaskGet(projectId: string, taskId: string): Promise<GenerationTaskDto> {
@@ -723,6 +762,10 @@ export const mockApi: WorkflowApi = {
   generationProfileListForCapability,
   generationProviderSettingsGet,
   generationProviderSettingsApply,
+  assistantProviderSettingsGet,
+  assistantProviderModelsList,
+  assistantProviderSettingsTestAndApply,
+  assistantProviderSettingsDisable,
   generationTaskGet,
   generationTaskList,
   workflowCreate,

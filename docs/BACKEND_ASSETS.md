@@ -120,8 +120,8 @@ earlier Run always references the exact bytes it recorded.
 
 ```text
 Image { width, height }
-Video { width, height, duration_ms, has_audio }
-Audio { duration_ms, sample_rate_hz, channels }
+Video { width, height, duration_ms, frame_rate_millihertz, video_codec, pixel_format, audio_codec? }
+Audio { duration_ms, sample_rate_hz, channels, audio_codec }
 ```
 
 Facts are immutable observations extracted before availability. Invalid, unreadable, oversized, or
@@ -132,12 +132,16 @@ The frozen accepted media contracts are:
 | Kind | MIME | Byte maximum | Required fact bounds |
 | --- | --- | --- | --- |
 | Image | `image/png`, `image/jpeg`, `image/webp` | 32 MiB | width and height `1..=16,384` |
-| Video | `video/mp4`, `video/webm` | 512 MiB | width and height `1..=16,384`; duration `1..=86,400,000` ms |
+| Video | `video/mp4`, `video/quicktime`, `video/webm` | 512 MiB | width and height `1..=16,384`; duration `1..=86,400,000` ms; frame rate `1..=240,000` millihertz |
 | Audio | `audio/mpeg`, `audio/wav`, `audio/ogg` | 64 MiB | duration `1..=86,400,000` ms; sample rate `8,000..=192,000` Hz; channels `1..=8` |
 
-Video `has_audio` is an inspected Boolean. Dimensions and duration use non-zero `u32` and `u64`
-values respectively. The inspector rejects animated images, multiple video programs, unknown
-duration, and a container/MIME mismatch. It never transcodes or repairs content.
+Video audio presence is derived from the optional inspected audio codec. Codec/profile and pixel
+format are closed structured values produced by the inspector, never MIME or filename guesses.
+Dimensions, duration, and frame rate use non-zero
+`u32`, `u64`, and `u32` values respectively. Millihertz preserves common fractional frame rates
+without a floating-point domain value. The inspector rejects animated images, multiple video
+programs, unknown duration or frame rate, and a container/MIME mismatch. It never transcodes or
+repairs content.
 
 ## Provenance
 
@@ -260,7 +264,8 @@ association and never reports the cancelled node as succeeded.
 - descriptor digest, length, MIME, media kind, and verified bytes agree;
 - legal MVP transitions are `Pending -> Available`, `Pending -> Missing`, and
   `Available -> Missing`;
-- `Missing -> Available` requires the exact expected digest and length;
+- `Missing` is terminal in MVP; replacing or republishing its node-output identity requires a later
+  explicit Asset repair design and never happens by replaying provider output;
 - finalization is idempotent by `AssetContentFinalizationId`;
 - node-output identity is idempotent by `AssetNodeOutputKey`;
 - only the owning Project may get, list, resolve, or preview an Asset;
@@ -275,7 +280,7 @@ setter.
 | --- | --- |
 | `AssetImportUseCase::import_asset` | validate a trusted user file handle and create an Asset |
 | `AssetRecordNodeOutputUseCase::record_asset_node_output` | validate one node-produced stream and create/reuse its exact output Asset |
-| `AssetRecoverNodeOutputUseCase::recover_asset_node_output` | inspect an exact node-output key without a source stream and return Available, Pending with durable finalization, or SourceRequired |
+| `AssetRecoverNodeOutputUseCase::recover_asset_node_output` | inspect an exact node-output key without a source stream and return Available, Pending with durable finalization, Missing, or SourceRequired |
 | `AssetFinalizeContentUseCase::finalize_asset_content` | consume one committed finalization effect and publish exact managed bytes |
 | `AssetGetUseCase::get_asset` | return one Project-visible Asset |
 | `AssetListUseCase::list_assets` | return one stable bounded Project page |
@@ -358,7 +363,8 @@ does not claim or complete the Desktop outbox effect, retry, sleep, or schedule 
 GenerationTaskEffectWorkerImpl finalization
   -> GenerationTaskAssetSinkInterface::recover_generation_task_asset
   -> AssetRecoverNodeOutputUseCase::recover_asset_node_output
-  -> Available | Pending | SourceRequired
+  -> Available | Pending | Missing | SourceRequired
+  -> Missing terminates Task output publication without another provider call
   -> only SourceRequired continues with provider poll/result bytes
   -> GenerationTaskAssetSinkInterface::store_generation_task_asset
   -> DesktopGenerationTaskAssetSinkAdapterImpl
@@ -381,7 +387,8 @@ it commits the Asset result only with Task success. Workflow attaches the result
 notification. The task worker waits within the persisted Generation Task deadline, never a
 process-only Node deadline. `AssetRecoverNodeOutputUseCase` performs the key-only recovery read: an
 Available Asset is reused, Pending causes safe Task rescheduling while the durable Asset effect
-finishes, and only SourceRequired permits polling the persisted provider handle for result bytes.
+finishes, Missing is a terminal output-publication failure, and only SourceRequired permits polling
+the persisted provider handle for result bytes.
 No code publishes bytes before the Asset effect is durable.
 
 ## Resolve And List
@@ -458,6 +465,18 @@ Video -> MIME, Content-Length, ETag, and one valid byte Range
 Audio -> MIME, Content-Length, ETag, and one valid byte Range
 ```
 
+The lease contains one closed `AssetPreviewRepresentation` derived from the authoritative Asset
+kind, content descriptor, and inspected media facts: `Image`, `PlayableVideo`, or `PlayableAudio`.
+MVP has no poster, thumbnail, waveform, or generic media representation. `PlayableVideo` requires
+MP4 with H.264 AVC Baseline, Main, or High profile through level 5.1 and `yuv420p`; audio is absent
+or AAC-LC.
+`PlayableAudio` requires the first-release MP3 contract. Other Available Video/Audio Assets remain
+valid managed Assets but preview issuance returns structured `PreviewRepresentationUnavailable`.
+A generated Video or Speech result is not presentation-complete until its exact route output can
+issue the matching playable representation; route fixtures, inspector tests, and browser playback
+must prove this. Deterministic Mock media therefore serves valid playable bytes rather than an image
+poster or mislabeled container.
+
 Every request rechecks token signature, expiry, Project, current Asset state, and content
 descriptor. It supports bounded `GET` and `HEAD`, sets `nosniff`, and exposes no managed path. React
 owns zoom, seek, playback, volume, and object-URL lifetime.
@@ -472,11 +491,14 @@ protocol Range handling. The protocol request performs its documented fresh Asse
 checks before access.
 
 `AssetPreviewLease` contains an `AssetPreviewLeaseId`, Project ID, Asset ID, exact content ID,
-issued-at, and expiry. Its lifetime is exactly five minutes; the signed protocol token is
+`AssetPreviewRepresentation`, issued-at, and expiry. Its lifetime is exactly five minutes; the signed protocol token is
 process-scoped and is not persisted. Image rejects Range. Video and Audio accept either no Range or
 one `bytes=start-end`, `bytes=start-`, or `bytes=-suffix` range. Multiple ranges, invalid syntax,
-zero suffix, unsatisfiable bounds, or a range spanning more than 16 MiB is rejected. `HEAD` returns
-the same status and headers as `GET` without opening or returning a body.
+zero suffix, or unsatisfiable bounds are rejected. A valid single range may span the complete
+verified Asset length, up to the media-kind content bound; the adapter streams with backpressure and
+the request deadline instead of buffering the range. This explicitly supports browser requests such
+as `bytes=0-` for Videos larger than 16 MiB. `HEAD` returns the same status and headers as `GET`
+without opening or returning a body.
 
 Preview lease timestamps use the same non-negative epoch-millisecond representation as Asset
 timestamps. Construction derives expiry as exactly `issued_at + 300_000`; callers cannot supply a
@@ -484,10 +506,10 @@ different expiry. A negative issue time or timestamp overflow returns `PreviewLe
 `AssetPreviewLease` is an immutable process-local application value. It contains no signed token and
 grants no content access by itself.
 
-`AssetPreviewPolicy` is the non-secret Desktop configuration representation of these fixed protocol
-bounds. It contains exactly `lease_lifetime_ms: 300_000` and
-`max_range_bytes: 16_777_216`. Both values must equal those constants; configuration cannot weaken,
-extend, or disable either bound.
+`AssetPreviewPolicy` is the non-secret Desktop configuration representation of the fixed lease
+bound. It contains exactly `lease_lifetime_ms: 300_000`, which configuration cannot weaken, extend,
+or disable. Range length is bounded by the already-verified Asset descriptor and media-kind content
+maximum, not by a second preview-specific byte limit.
 
 ## Recovery
 
@@ -574,7 +596,8 @@ accept rows, paths, provider values, Desktop effect envelopes, or generic byte p
   Asset ID, expected media kind, and the caller's process-monotonic deadline.
 - `AssetResolvedContent` contains exactly one descriptor and one managed-content lease; it is not
   cloneable or serializable and exposes no path or preview token.
-- `AssetIssuePreviewCommand` contains only Project ID and Asset ID. Preview lifetime and identity are
+- `AssetIssuePreviewCommand` contains only Project ID and Asset ID. The result representation is
+  mechanically derived from the Asset kind; preview lifetime and identity are
   application-owned and cannot be supplied by a caller.
 - `AssetListCursor` contains `(created_at, asset_id)`. `AssetListQuery` contains Project ID, optional
   media kind, optional cursor, and `AssetPageLimit`. `AssetPageLimit` is one shared validated
@@ -752,7 +775,8 @@ Verification covers:
 - output-key same-content replay and different-content conflict;
 - behavioral equivalence across fake, SQLite, and filesystem implementations;
 - effect consumption, startup reconciliation, and exact-content Missing behavior;
-- list ordering/bounds and preview MIME, Range, expiry, and path non-disclosure;
+- list ordering/bounds and preview representation, playable Video/Audio Range behavior, MIME,
+  expiry, and path non-disclosure;
 - Desktop bridge translation and no Workflow output before availability.
 
 ## Post-MVP

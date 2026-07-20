@@ -21,6 +21,8 @@ import type {
   GenerationProfileForCapability,
   GenerationProviderSettingsActionDto,
   GenerationProviderSettingsDto,
+  AssistantProviderModelsDto,
+  AssistantProviderSettingsDto,
   GenerationTaskDto,
   GenerationTaskListPageDto,
   GenerationTaskRequestKindDto,
@@ -150,6 +152,45 @@ async function generationProviderSettingsApply(
 ): Promise<GenerationProviderSettingsDto> {
   return invoke<GenerationProviderSettingsDto>("generation_provider_settings_apply", {
     request: { expected_settings_revision: expectedSettingsRevision, action },
+  });
+}
+
+async function assistantProviderSettingsGet(): Promise<AssistantProviderSettingsDto> {
+  return invoke<AssistantProviderSettingsDto>("assistant_provider_settings_get", {
+    request: {},
+  });
+}
+
+async function assistantProviderModelsList(
+  baseUrl: string,
+  apiKey: string | null,
+): Promise<AssistantProviderModelsDto> {
+  return invoke<AssistantProviderModelsDto>("assistant_provider_models_list", {
+    request: { base_url: baseUrl, api_key: apiKey },
+  });
+}
+
+async function assistantProviderSettingsTestAndApply(
+  expectedSettingsRevision: string,
+  baseUrl: string,
+  apiKey: string | null,
+  modelId: string,
+): Promise<AssistantProviderSettingsDto> {
+  return invoke<AssistantProviderSettingsDto>("assistant_provider_settings_test_and_apply", {
+    request: {
+      expected_settings_revision: expectedSettingsRevision,
+      base_url: baseUrl,
+      api_key: apiKey,
+      model_id: modelId,
+    },
+  });
+}
+
+async function assistantProviderSettingsDisable(
+  expectedSettingsRevision: string,
+): Promise<AssistantProviderSettingsDto> {
+  return invoke<AssistantProviderSettingsDto>("assistant_provider_settings_disable", {
+    request: { expected_settings_revision: expectedSettingsRevision },
   });
 }
 
@@ -330,6 +371,10 @@ export const tauriApi: WorkflowApi = {
   generationProfileListForCapability,
   generationProviderSettingsGet,
   generationProviderSettingsApply,
+  assistantProviderSettingsGet,
+  assistantProviderModelsList,
+  assistantProviderSettingsTestAndApply,
+  assistantProviderSettingsDisable,
   generationTaskGet,
   generationTaskList,
   workflowCreate,

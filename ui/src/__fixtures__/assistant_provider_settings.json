@@ -1,0 +1,7 @@
+{
+  "settings_revision": "3",
+  "enabled": true,
+  "base_url": "http://localhost:11434/v1",
+  "model_id": "local-text-model",
+  "has_api_key": true
+}

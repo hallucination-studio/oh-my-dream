@@ -36,16 +36,14 @@ export function IconRail({
       >
         <AssetsIcon />
       </button>
-      {assistantEnabled && (
-        <button
-          className={`rail__btn${assistantOpen ? " is-on" : ""}`}
-          onClick={onToggleAssistant}
-          aria-label="Assistant"
-          title="Assistant"
-        >
-          <AssistantIcon />
-        </button>
-      )}
+      <button
+        className={`rail__btn${assistantOpen ? " is-on" : ""}`}
+        onClick={onToggleAssistant}
+        aria-label="Assistant"
+        title={assistantEnabled ? "Assistant" : "Configure Assistant"}
+      >
+        <AssistantIcon />
+      </button>
     </div>
   );
 }

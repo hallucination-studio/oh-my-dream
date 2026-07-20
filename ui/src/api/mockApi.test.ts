@@ -238,6 +238,24 @@ it("applies Mock Settings with no-op and revision conflict semantics", async () 
     .toEqual({ provider_id: "mock", route_id: route.route_id });
 });
 
+it("fails closed for Assistant provider operations outside the Desktop runtime", async () => {
+  const before = await mockApi.assistantProviderSettingsGet();
+  expect(before).toMatchObject({ enabled: false, model_id: null, has_api_key: false });
+
+  await expect(mockApi.assistantProviderModelsList("http://localhost:11434/v1", "key"))
+    .rejects.toThrow("assistant_provider_settings.desktop_runtime_required");
+  await expect(mockApi.assistantProviderSettingsTestAndApply(
+    before.settings_revision,
+    "http://localhost:11434/v1",
+    "key",
+    "model-a",
+  )).rejects.toThrow("assistant_provider_settings.desktop_runtime_required");
+  await expect(mockApi.assistantProviderSettingsDisable(before.settings_revision))
+    .rejects.toThrow("assistant_provider_settings.desktop_runtime_required");
+
+  await expect(mockApi.assistantProviderSettingsGet()).resolves.toEqual(before);
+});
+
 it("lists and gets Project-scoped mock Generation Tasks with bounded filters", async () => {
   const projectId = "123e4567-e89b-42d3-a456-426600000001";
   const page = await mockApi.generationTaskList(projectId, "failed", "image", null, 1);

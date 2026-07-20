@@ -11,7 +11,7 @@ native model, Generation Task, or generic job.
 
 1. Workflow owns one consumer-facing `WorkflowNodeCapabilityInterface`.
 2. Every exact operation has one behavior-revealing implementation such as
-   `ImageToVideoCapabilityImpl`.
+   `GenerateVideoCapabilityImpl`.
 3. One immutable `WorkflowNodeCapabilityRegistry` holds active implementations by exact
    `NodeCapabilityContractRef`.
 4. Each implementation owns its contract, parameter normalization, external readiness, typed
@@ -89,18 +89,21 @@ matching `[a-z][a-z0-9_]*`. Display labels are never identity.
 | `2` | `Choice` | one declared capability-owned key |
 | `3` | `GenerationProfile` | canonical D0.3 `GenerationProfileRef` bytes |
 | `4` | `ManagedAsset` | canonical D0.4 `AssetId` bytes |
+| `5` | `GenerationModel` | exact 16-byte RFC 9562 UUIDv4 `GenerationModelId` |
+| `6` | `Boolean` | one byte: `0` false or `1` true |
 
-Engine stores those two cross-context variants as
+Engine stores those three cross-context variants as
 `NodeCapabilityGenerationProfileRefParameterValue` and
-`NodeCapabilityManagedAssetIdParameterValue`. They are mechanical boundary representations, not a
-second Generation Profile or Asset identity owner. The first contains the validated canonical
-profile ID bytes plus non-zero version; the second contains one
-`WorkflowManagedAssetIdBoundaryValue`. They expose
-only canonical bytes, equality, and ordering and cannot answer lifecycle, compatibility,
-availability, Project visibility, media kind, or Asset state.
+`NodeCapabilityManagedAssetIdParameterValue`, and
+`NodeCapabilityGenerationModelIdParameterValue`. They are mechanical boundary representations,
+not a second Generation Profile, Generation Model, or Asset identity owner. The first contains the
+validated canonical profile ID bytes plus non-zero version; the second contains one
+`WorkflowManagedAssetIdBoundaryValue`; the third contains exact UUID bytes. They expose only
+canonical bytes, equality, and ordering and cannot answer lifecycle, compatibility, availability,
+Project visibility, media kind, or Asset state.
 
-The Generation Profile module implements explicit conversion between `GenerationProfileRef` and
-`NodeCapabilityGenerationProfileRefParameterValue`. The Desktop node-to-Asset bridge converts
+The Generation Profile/Model module implements explicit conversion for `GenerationProfileRef` and
+`GenerationModelId` boundary values. The Desktop node-to-Asset bridge converts
 between `NodeCapabilityManagedAssetIdParameterValue` and Asset-owned `AssetId` at its boundary; the
 same bridge translates the typed Workflow managed-media references and their fingerprints.
 Engine performs only canonical shape validation; each semantic owner revalidates and interprets its
@@ -112,17 +115,30 @@ pairs; keys and variable bytes use big-endian `u32` lengths and the explicit tag
 keys, duplicate keys, wrong variants, and values outside the exact contract are rejected. There is
 no null, nested map/list, arbitrary JSON, provider option, or untyped string enum.
 
-`NodeCapabilityParameterContract` declares key, exact variant, Required or Optional-with-default,
-and only variant-appropriate bounds/allowed choices. Normalization inserts declared defaults and
-returns `NodeCapabilityNormalizedParameters`. It never reads vendor defaults. Construction rejects
+`NodeCapabilityParameterContract` declares key, exact variant, `Required`, `Optional`, or
+`OptionalWithDefault`, and only variant-appropriate bounds/allowed choices. Normalization inserts
+only capability-owned static defaults and returns `NodeCapabilityNormalizedParameters`. It never
+reads a selected model or vendor default. `Optional` exists for fields whose availability,
+requirement, and suggested value come from a selected immutable Generation Model contract.
+Construction rejects
 duplicate keys, empty/invalid ranges or choices, invalid defaults, duplicate inputs/outputs, no
 output, or more than one primary output.
 
+`NodeCapabilityContract::validate_draft_parameters` validates only keys and values present in the
+stored parameter map. It rejects unknown keys, wrong variants, and invalid present values, but it
+does not require a `Required` key and does not insert defaults. It returns the canonical stored
+parameter map used by `WorkflowAggregate` draft construction and restore.
+`NodeCapabilityContract::normalize_parameters_for_execution` is the separate completeness boundary:
+it requires every `Required` key, inserts only `OptionalWithDefault` static defaults, and returns
+`NodeCapabilityNormalizedParameters`. Readiness and Run admission use this operation; mutation and
+restore never do. These two methods share the same parameter definitions and value validator, so
+there is no second owner of bounds or allowed values.
+
 Its constraint is exactly one closed variant: `UnsignedIntegerRange { minimum, maximum }`,
 `UnsignedIntegerAllowedValues(non-empty sorted set)`, `TextUtf8Bytes { minimum, maximum }`,
-`ChoiceAllowedKeys(non-empty sorted set)`, `GenerationProfileRef`, or
-`ManagedAssetId { media_kind }`. Minimum is not greater than maximum. Presence is exactly `Required`
-or `OptionalWithDefault(value)`; the default must satisfy the same constraint. Constraint and value
+`ChoiceAllowedKeys(non-empty sorted set)`, `Boolean`, `GenerationProfileRef`, or
+`ManagedAssetId { media_kind }`, or `GenerationModelId`. Minimum is not greater than maximum. Presence is exactly `Required`
+or `Optional` or `OptionalWithDefault(value)`; a supplied default must satisfy the same constraint. Constraint and value
 tags must match, and no independent optional bound, validator callback, or generic metadata exists.
 
 ## Versioned Contract
@@ -152,6 +168,8 @@ remain unique identity. Registry order is independent and always ascending by co
 pub struct NodeCapabilityReadinessRequest {
     pub project_id: ProjectId,
     pub normalized_parameters: NodeCapabilityNormalizedParameters,
+    pub input_binding_snapshot: NodeCapabilityInputBindingSnapshot,
+    pub model_selection: NodeCapabilityReadinessModelSelection,
     pub deadline: NodeCapabilityReadinessDeadline,
 }
 
@@ -174,16 +192,41 @@ pub struct NodeCapabilityExecutionRequest {
     pub context: WorkflowNodeExecutionContext,
     pub origin: WorkflowNodeExecutionOrigin,
     pub normalized_parameters: NodeCapabilityNormalizedParameters,
+    pub external_admission: WorkflowNodeExternalAdmission,
     pub inputs: WorkflowNodeInputSet,
 }
 ```
 
-Readiness checks only parameter-selected external state: managed Assets and Generation Profiles.
-They do not resolve upstream runtime inputs, dispatch providers, mutate state, or write media. An
+`WorkflowNodeExternalAdmission` is the closed boundary value `None | GenerationModel {
+model_id_bytes, revision }`. Run admission supplies `GenerationModel` exactly for a model-powered
+capability and `None` for every local capability. `model_id_bytes` are the same exact UUID bytes as
+the normalized parameter; revision is non-zero. The capability rejects a mismatched tag, model ID,
+or zero revision as `InvalidCapabilityInvocation` before any external call, then explicitly
+translates the value to its nodes-owned `GenerationModelRevisionRef`.
+
+`NodeCapabilityReadinessModelSelection` is `Current | Frozen(WorkflowNodeExternalAdmission)`.
+Ordinary editing/readiness uses `Current`; a model-powered capability resolves the stable model ID
+from normalized parameters against the current Settings snapshot. Run admission first bulk-resolves
+all selected IDs from one Settings snapshot, then repeats readiness with each exact `Frozen`
+revision before it commits. Local capabilities require `Frozen(None)` during admission. A
+capability rejects a mismatched frozen model ID or kind as `InvalidCapabilityInvocation` and never
+falls back to `Current`.
+
+`NodeCapabilityInputBindingSnapshot` is a rule-free immutable projection of the candidate graph's
+declared input keys, absent/single/ordered shape, stable input-item IDs, roles, and concrete source
+output data types. It contains no runtime values, Asset facts, source paths, URLs, or provider data.
+Workflow constructs it mechanically from the same revision being evaluated. It lets an exact
+capability own cross-field calibration such as Video mode/cardinality rules without teaching
+Workflow or React those semantics.
+
+Readiness checks parameter-selected external state and capability-owned relationships among the
+selected model contract, parameters, and binding snapshot. It does not resolve upstream runtime
+values or media bytes, dispatch providers, mutate state, or write media. An
 empty issue vector means ready; otherwise it contains 1..=64 unique issues sorted by category tag,
-target kind, then target bytes. Every external-state issue identifies one parameter key and its typed
-Asset ID or Generation Profile ref. At most one issue is returned per parameter; when several observations could
-apply, the category table order wins. The capability ref comes from the resolved implementation and
+target kind, then target bytes. Asset/Profile/Model state issues identify one parameter key and its
+typed identity; calibration issues identify one parameter, input, or stable input item. At most one
+issue is returned for the same category and target; when several non-calibration state observations
+could apply to one parameter, the category table order wins. The capability ref comes from the resolved implementation and
 is not duplicated in the readiness request. The execution request carries it only inside the
 frozen producer origin and the capability validates that copy against its resolved implementation.
 
@@ -238,14 +281,37 @@ Their exact semantic shapes are:
 | `ReadImageAssetCapabilityImpl` | required `asset_id`: ManagedAsset(Image) | none | primary `image`: Image | `ManagedAssetRead` |
 | `ReadVideoAssetCapabilityImpl` | required `asset_id`: ManagedAsset(Video) | none | primary `video`: Video | `ManagedAssetRead` |
 | `ReadAudioAssetCapabilityImpl` | required `asset_id`: ManagedAsset(Audio) | none | primary `audio`: Audio | `ManagedAssetRead` |
-| `TextToImageCapabilityImpl` | required `generation_profile_ref`; optional `aspect_ratio`, default `square` | required single `prompt`: Text | primary `image`: Image | `ContentGeneration` |
-| `ImageToVideoCapabilityImpl` | required `generation_profile_ref`; optional `duration_seconds`, default `5` | required single `image`: Image; optional single `prompt`: Text | primary `video`: Video | `MediaTransformation` |
-| `TextToSpeechCapabilityImpl` | required `generation_profile_ref` | required single `text`: Text | primary `audio`: Audio | `ContentGeneration` |
+| `TextToImageCapabilityImpl` | required `generation_profile_ref` and `generation_model_id`; optional `aspect_ratio`, default `square` | required single `prompt`: Text | primary `image`: Image | `ContentGeneration` |
+| `GenerateVideoCapabilityImpl` | required `generation_profile_ref`, `generation_model_id`, and `input_mode`; optional dynamic Video fields listed below | optional single `prompt`: Text; optional ordered `images`, `videos`, and `audio` | primary `video`: Video | `ContentGeneration` |
+| `TextToSpeechCapabilityImpl` | required `generation_profile_ref` and `generation_model_id` | required single `text`: Text | primary `audio`: Audio | `ContentGeneration` |
 
 `aspect_ratio` choices are `square`, `landscape_4_3`, `portrait_3_4`, `landscape_16_9`, and
-`portrait_9_16`. `duration_seconds` is UnsignedInteger restricted to `{5, 10}`. Every model-powered
-contract requires exactly one compatible active Generation Profile. Voice/model/style behavior for
-speech belongs to the selected profile, not an extra provider-native node parameter.
+`portrait_9_16`. Every model-powered contract requires exactly one compatible active Generation
+Profile and one user-selected enabled Generation Model configuration. Voice/model/style behavior
+for speech belongs to the selected profile, not an extra provider-native node parameter.
+
+The stable Video parameter superset is exact:
+
+| Key | Static parameter shape |
+| --- | --- |
+| `input_mode` | required Choice: `text_to_video`, `first_frame`, `first_and_last_frames`, `multimodal_reference` |
+| `generate_audio`, `draft`, `camera_fixed`, `watermark` | optional Boolean |
+| `resolution` | optional Choice: `p480`, `p720`, `p1080`, `k4` (translated to semantic 480p/720p/1080p/4k values) |
+| `ratio` | optional Choice: `landscape_16_9`, `landscape_4_3`, `square_1_1`, `portrait_3_4`, `portrait_9_16`, `cinematic_21_9`, `adaptive` |
+| `duration_mode` | optional Choice: `auto`, `seconds`, `frames` |
+| `duration_seconds` | optional UnsignedInteger `2..=15` |
+| `frame_count` | optional UnsignedInteger `29..=289` |
+| `seed_mode` | optional Choice: `random`, `fixed` |
+| `seed` | optional UnsignedInteger `0..=4_294_967_295` |
+
+The stable input superset has `prompt` as `OptionalSingleValue(Text)`; `images` as
+`OrderedReferences(0..=9)` with Image-only roles `first_frame`, `last_frame`, and
+`reference_image`; `videos` as `OrderedReferences(0..=3)` with Video-only role
+`reference_video`; and `audio` as `OrderedReferences(0..=3)` with Audio-only role
+`reference_audio`. An absent ordered binding means zero items. This broad draft-valid shape lets a
+model switch preserve every connection. `VideoGenerationCalibrationPolicy` applies the selected
+model revision's narrower mode, availability, value, default, and cross-field contract before Run
+admission.
 
 All seven contracts declare exactly one output. Asset-read capabilities resolve and return an
 Available exact-kind Asset during execution. Provider-backed capabilities return a durable waiting
@@ -256,23 +322,28 @@ level, native voice, native aspect token, or provider seed is an MVP node parame
 ## Implementation Shape
 
 ```rust
-pub struct ImageToVideoCapabilityImpl<R, A, T> {
+pub struct GenerateVideoCapabilityImpl<R, A, C, T> {
     generation_profile_catalog: Arc<GenerationProfileCatalog>,
-    generation_profile_availability_reader: A,
+    generation_model_availability_reader: A,
+    generation_model_contract_reader: C,
     managed_media_reader: R,
     generation_task_starter: T,
     contract: NodeCapabilityContract,
+    calibration_policy: VideoGenerationCalibrationPolicy,
 }
 ```
 
-`ImageToVideoCapabilityImpl`:
+`GenerateVideoCapabilityImpl`:
 
 1. validates and normalizes its stable parameters;
-2. checks only the parameter-selected `GenerationProfileRef` during external readiness;
-3. resolves the exact input Image only during execution;
-4. converts Workflow values into `NodeCapabilityGenerationTaskStartRequest`;
-5. calls `NodeCapabilityGenerationTaskStarterInterface::start_generation_task`;
-6. returns `WaitingForGenerationTask` only after durable task creation succeeds.
+2. checks the parameter-selected `GenerationProfileRef` and stable `GenerationModelId` during
+   external readiness;
+3. calibrates the stable input/parameter superset against the exact selected model contract;
+4. resolves every ordered input media item only during execution while preserving stable item IDs,
+   roles, and order;
+5. converts Workflow values into `NodeCapabilityGenerationTaskStartRequest`;
+6. calls `NodeCapabilityGenerationTaskStarterInterface::start_generation_task`;
+7. returns `WaitingForGenerationTask` only after durable task creation succeeds.
 
 It never reads a provider name, route ID, remote task ID, path, URL, Asset repository, or concrete
 adapter.
@@ -284,26 +355,35 @@ implementation. Every listed dependency is an independent constructor argument; 
 generation context or service bundle groups them.
 
 Readiness first requires the complete normalized parameter shape and successful conversion of its
-`generation_profile_ref` boundary value. Either failure returns only
-`InvalidCapabilityInvocation`. For a converted `GenerationProfileRef`, it then:
+`generation_profile_ref` and `generation_model_id` boundary values. Either failure returns only
+`InvalidCapabilityInvocation`. For converted values, it then:
 
 1. requires an Active catalog definition compatible with the capability contract;
-2. constructs one `GenerationProfileAvailabilityRequest` with the implementation's exact
-   capability ref, only that selected profile ref, and the readiness request's unchanged monotonic
-   deadline;
-3. performs exactly one availability read and requires exactly one matching observation.
+2. resolves either the current model revision or the request's exact frozen revision according to
+   `NodeCapabilityReadinessModelSelection`;
+3. performs one structural availability read and one safe model-capability-contract read for that
+   same revision under the request's unchanged monotonic deadline;
+4. for `GenerateVideoCapabilityImpl`, runs `VideoGenerationCalibrationPolicy` over that exact
+   contract, normalized parameters, and input binding snapshot.
 
-A missing, Retired, or incompatible catalog definition becomes
-`GenerationProfileIncompatible`. Availability state `Available` returns no issue, `Unavailable`
-becomes `GenerationProfileUnavailable`, and `Indeterminate` becomes
-`GenerationProfileAvailabilityIndeterminate`.
-`AvailabilityRequestInvalid`, `AvailabilityReadFailed`, `DeadlineExceeded`, or an observation set
-that would be `InvalidAvailabilityObservation` also becomes
-`GenerationProfileAvailabilityIndeterminate`. Every Generation Profile issue above targets
-`GenerationProfile { parameter_key: generation_profile_ref, generation_profile_ref }`, contains no
-provider detail or retry metadata, and blocks admission. Readiness never resolves runtime inputs,
-calls a provider, writes media, retries, caches, or substitutes a profile. It never truncates or
-replaces the caller's deadline.
+A missing, Retired, or incompatible catalog definition becomes `GenerationProfileIncompatible`.
+A missing, disabled, removed, credential-less, incompatible, or unresolvable model becomes
+`GenerationModelUnavailable`. The issue targets
+`GenerationModel { parameter_key: generation_model_id, generation_model_id }`, contains no
+endpoint, native model, provider route, credential detail, or retry metadata, and blocks admission.
+Reader failure, deadline expiry, or an invalid observation becomes
+`GenerationModelAvailabilityIndeterminate` and also blocks admission. Readiness never resolves
+runtime inputs, calls a provider, writes media, retries, caches, or substitutes a profile or model.
+It never truncates or replaces the caller's deadline.
+
+Calibration returns zero or more `GenerationModelCalibrationIssue` values. Each contains one
+closed rule code, a target of `Parameter(key)`, `Input(key)`, or
+`InputItem { input_key, input_item_id }`, and a closed correction of `SetChoice`, `SetBoolean`,
+`SetUnsignedInteger`, `RemoveParameter`, `ConnectInput`, `RemoveInputItem`, or
+`SetInputItemRole`. A value proposal contains only contract-declared compatible choices, bounds,
+or the suggested default. It contains no provider ID, Endpoint, native model ID, credential,
+provider error text, or automatic mutation. Missing required model values and still-present
+unsupported values are both calibration issues.
 
 ### Generation-Capability Execution
 
@@ -311,7 +391,18 @@ Execution accepts only the exact normalized parameters and complete runtime inpu
 the resolved contract, plus an origin whose capability ref equals that contract ref. A malformed
 direct call or mismatched origin returns `InvalidCapabilityInvocation` at `ResolveInputs` with
 target `Capability` before an external boundary. It does not repeat catalog or availability reads;
-the selected profile enters the task request unchanged. The complete
+it resolves the exact model capability contract by the selected
+`GenerationModelRevisionRef`, repeats the same pure calibration over runtime input identities and
+roles, and rejects any disagreement as `InvalidCapabilityInvocation` before media or task work.
+After resolving each ordered media input through `NodeCapabilityManagedMediaReaderInterface`,
+`GenerateVideoCapabilityImpl` invokes
+`VideoGenerationCalibrationPolicy::validate_resolved_video_inputs` with the exact stable input-item
+IDs, roles, MIME values, byte lengths, and verified media facts. The method owns every Seedance
+input-fact rule and returns the same typed calibration issue vocabulary. It runs before construction
+of `NodeCapabilityGenerationTaskStartRequest`; any issue fails at `ResolveInputs` and no Generation
+Task or provider call is created. Task and provider adapters validate boundary integrity and wire
+bounds only; they never reimplement these capability-owned media eligibility rules.
+The selected profile and frozen model revision enter the task request unchanged. The complete
 `WorkflowNodeExecutionContext` and `WorkflowNodeExecutionOrigin` enter the task-start request
 unchanged; a capability never reconstructs or replaces its Project, Run, node execution, deadline,
 cancellation, or frozen origin values.
@@ -320,9 +411,9 @@ The exact mappings are:
 
 | Implementation | Generation Task mapping | Asset display name | Asset provenance after finalization |
 | --- | --- | --- | --- |
-| `TextToImageCapabilityImpl` | `prompt`, selected profile, normalized `aspect_ratio` | `Generated Image` | `ProviderGenerated { profile_ref }` |
-| `ImageToVideoCapabilityImpl` | exact readable Image, optional `prompt`, selected profile, normalized `duration_seconds` | `Generated Video` | `ProviderDerived { source_media_refs: [input image ref], profile_ref }` |
-| `TextToSpeechCapabilityImpl` | `text`, selected profile | `Synthesized Speech` | `ProviderGenerated { profile_ref }` |
+| `TextToImageCapabilityImpl` | `prompt`, selected profile/model revision, normalized `aspect_ratio` | `Generated Image` | `ProviderGenerated { profile_ref }` |
+| `GenerateVideoCapabilityImpl` | explicit mode, optional/required `prompt`, ordered readable Images/Videos/Audio with stable IDs and roles, selected profile/model revision, and one calibrated Video parameter set | `Generated Video` | `ProviderDerived { source_media_refs: ordered input media refs, profile_ref }`, or `ProviderGenerated` when no media is supplied |
+| `TextToSpeechCapabilityImpl` | `text`, selected profile/model revision | `Synthesized Speech` | `ProviderGenerated { profile_ref }` |
 
 Generation Task finalization uses the same Node Execution coordinates, profile, source Asset
 snapshots, declared output key, and ordinal `0` to create exactly one durable Asset. No capability
@@ -348,9 +439,10 @@ only the waiting outcome after durable task creation.
 | `NodeCapabilityManagedMediaReaderInterface` | `read_managed_media` | `NodeCapabilityManagedMediaReadRequest` | `NodeCapabilityReadableMediaInput` |
 | `NodeCapabilityGenerationTaskStarterInterface` | `start_generation_task` | `NodeCapabilityGenerationTaskStartRequest` | `NodeCapabilityGenerationTaskStartResult` |
 
-The task-start request contains the exact semantic generation spec, `GenerationProfileRef`,
-`WorkflowNodeExecutionContext`, and `WorkflowNodeExecutionOrigin`. It contains no provider name,
-native model ID, credential, endpoint, URL, path, remote task ID, wire DTO, or generic options map.
+The task-start request contains the exact semantic generation spec, `GenerationProfileRef`, frozen
+`GenerationModelRevisionRef`, `WorkflowNodeExecutionContext`, and
+`WorkflowNodeExecutionOrigin`. It contains no provider name, native model ID, credential, endpoint,
+URL, path, remote task ID, wire DTO, or generic options map.
 Its result proves durable task creation and contains no provider observation or generated output.
 
 The two capability-consumed interfaces and their boundary values are exact. All fields are private with
@@ -361,7 +453,7 @@ encoding. Before reading a length prefix it rejects an input larger than 1 MiB; 
 variable value is additionally bounded by the global maximum of 64 KiB before allocation. It
 consumes the entire slice and rejects unknown value tags, invalid UTF-8, truncation, trailing bytes,
 duplicate or non-strictly-sorted keys, more than 64 entries, and violations of global value shape
-such as an invalid typed profile/Asset boundary value. Every decoded key is constructed through its
+such as an invalid typed profile/model/Asset boundary value. Every decoded key is constructed through its
 authoritative 1..=64-byte grammar-valid `NodeCapabilityParameterKey` constructor. It does not know a capability contract and
 therefore does not decide declared keys, Text bounds, Choice members, or numeric constraints. It
 re-encodes the decoded shape and requires byte-for-byte equality before returning it. Its concrete
@@ -430,14 +522,14 @@ values and are copied unchanged into `ManagedAssetKindMismatch` readiness detail
 preserves that direction in `NodeCapabilityMediaFailure`. No layer reverses or re-derives them.
 
 `NodeCapabilityMediaMimeType` is exactly `ImagePng`, `ImageJpeg`, `ImageWebp`, `VideoMp4`,
-`VideoWebm`, `AudioMpeg`, `AudioWav`, or `AudioOgg`. Generated MVP payloads restrict those values to
+`VideoQuickTime`, `VideoWebm`, `AudioMpeg`, `AudioWav`, or `AudioOgg`. Generated payloads restrict those values to
 PNG, MP4, and MPEG respectively. `NodeCapabilityDeclaredMediaFacts` has the same closed Image/Video/Audio fields
 and numeric bounds as Asset facts, but is a nodes-owned boundary observation translated by the
 Desktop bridge; it is not an Asset-domain alias or a second inspector.
 
 ```text
 Image { width, height }
-Video { width, height, duration_ms, has_audio }
+Video { width, height, duration_ms, frame_rate_millihertz, has_audio }
 Audio { duration_ms, sample_rate_hz, channels }
 ```
 
@@ -468,11 +560,12 @@ its cancellation immediately before and after that read.
 ### Generation Task Start Boundary
 
 `NodeCapabilityGenerationTaskStartRequest` contains the unchanged execution context and origin,
-the selected `GenerationProfileRef`, one node-owned Text/Image/Video/Voice generation request variant, the declared
-primary output key, and ordered exact input Asset snapshots. Construction checks coordinates and
-closed operation shape but does not resolve a provider route or create task state. The Desktop
-adapter translates it explicitly to `GenerationTaskStartCommand`; `crates/nodes` does not import
-`crates/tasks` domain types.
+the selected `GenerationProfileRef`, the admission-frozen `GenerationModelRevisionRef`, one
+node-owned Text/Image/Video/Voice generation request variant, the declared primary output key, and
+ordered exact input Asset snapshots. Construction checks coordinates and closed operation shape but
+does not resolve a provider route or create task state. The Desktop adapter translates it
+explicitly to `GenerationTaskStartCommand`; `crates/nodes` does not import `crates/tasks` domain
+types.
 
 `NodeCapabilityGenerationTaskStarterInterface::start_generation_task` returns
 `NodeCapabilityGenerationTaskStartResult` only after task, request hash, and `SubmitTask` effect are
@@ -505,11 +598,6 @@ interface.
 | `image.generate_from_image@1.0` | `ImageToImageCapabilityImpl` | Image provider capability |
 | `image.generate_from_reference_images@1.0` | `ReferenceImagesToImageCapabilityImpl` | Image provider capability |
 | `image.crop@1.0` | `ImageCropCapabilityImpl` | local image operation |
-| `video.generate_from_text@1.0` | `TextToVideoCapabilityImpl` | Video provider capability |
-| `video.generate_from_reference_images@1.0` | `ReferenceImagesToVideoCapabilityImpl` | Video provider capability |
-| `video.generate_from_first_frame@1.0` | `FirstFrameToVideoCapabilityImpl` | Video provider capability |
-| `video.generate_from_first_and_last_frames@1.0` | `FirstAndLastFramesToVideoCapabilityImpl` | Video provider capability |
-| `video.generate_from_mixed_media@1.0` | `MixedMediaToVideoCapabilityImpl` | Video provider capability |
 | `video.upscale@1.0` | `VideoUpscaleCapabilityImpl` | Video provider capability |
 | `video.extract_frames@1.0` | `VideoFrameExtractionCapabilityImpl` | local video operation |
 | `video.concatenate@1.0` | `VideoConcatenationCapabilityImpl` | local video operation |
@@ -518,14 +606,10 @@ interface.
 | `text.generate_from_mixed_media@1.0` | `MixedMediaToTextGenerationCapabilityImpl` | Text provider capability |
 | `audio.generate_music_from_text@1.0` | `TextToMusicCapabilityImpl` | future Music provider capability, not Voice |
 
-The distinctions are contractual:
-
-- `ImageToVideo` uses an image as conditioning input but does not promise exact first-frame pixels;
-- `FirstFrameToVideo` guarantees the supplied image is the first frame;
-- `FirstAndLastFramesToVideo` guarantees both endpoint frames;
-- reference-image operations use ordered role-bearing subject/style/material references;
-- mixed-media operations accept typed Image and Video items with explicit roles;
-- speech and music remain separate operations, profiles, results, and failure semantics.
+The active `video.generate@1.0` contract already owns Text-to-Video, FirstFrame,
+FirstAndLastFrames, and MultimodalReference as explicit mutually exclusive modes. A roadmap entry
+must not reintroduce those modes as separate capabilities. Speech and music remain separate
+operations, profiles, results, and failure semantics.
 
 Activating a roadmap operation requires its complete parameter, input-role, result, error, mock,
 provider/media interface, Asset provenance, UI contract, and E2E tests in the same change.
@@ -548,8 +632,9 @@ The closed parameter categories are `UnknownParameter`, `RequiredParameterMissin
 `ParameterValueKindMismatch`, `ParameterValueOutOfBounds`, `ParameterChoiceNotDeclared`, and
 `ParameterSetTooLarge`. Readiness categories are `InvalidCapabilityInvocation`, `ManagedAssetUnavailable`,
 `ManagedAssetKindMismatch`, `ManagedAssetReadinessIndeterminate`,
-`GenerationProfileIncompatible`, `GenerationProfileUnavailable`, and
-`GenerationProfileAvailabilityIndeterminate`. Execution stages are `ResolveInputs`,
+`GenerationProfileIncompatible`, `GenerationModelUnavailable`,
+`GenerationModelCalibrationRequired`, and
+`GenerationModelAvailabilityIndeterminate`. Execution stages are `ResolveInputs`,
 `StartGenerationTask`, and `AssembleOutputs`; normalization has its own pre-admission result.
 `NodeCapabilityExecutionError` wraps one `NodeCapabilityExecutionFailure` with contract ref, node
 execution ID, stage, and a structured safe target.
@@ -561,7 +646,9 @@ The error values are closed and field-exact:
 - `NodeCapabilityReadinessIssue` contains one readiness category and
   `NodeCapabilityReadinessTarget`. The target is exactly
   `Capability`, `ManagedAsset { parameter_key, asset_id }`, or
-  `GenerationProfile { parameter_key, generation_profile_ref }`; kind-mismatch detail additionally
+  `GenerationProfile { parameter_key, generation_profile_ref }`, or
+  `GenerationModel { parameter_key, generation_model_id }`, or a calibration target
+  `Parameter(key) | Input(key) | InputItem { input_key, input_item_id }`; kind-mismatch detail additionally
   contains expected and observed `WorkflowDataType` values;
 - `NodeCapabilityGenerationTaskStartFailure` contains one safe task-start category and no remote
   handle, route, credential, provider body, or retry instruction;
@@ -571,16 +658,17 @@ The error values are closed and field-exact:
   or `FinalizationFailed`, plus no adapter text;
 - `NodeCapabilityExecutionError` contains contract ref, node execution ID, stage, one
   `NodeCapabilityExecutionFailure`, and `NodeCapabilityExecutionTarget` (`Capability`, parameter key,
-  input key, or output key). Its failure is exactly Readiness, GenerationTaskStart, Media, Cancelled, or
+  input key, input item, or output key). Its failure is exactly Readiness, GenerationTaskStart, Media, Cancelled, or
   DeadlineExceeded, plus `InvalidCapabilityInvocation` only when a direct execution request does not
   satisfy the already-resolved capability's normalized-parameter/input contract or carries another
   capability contract ref in its origin, and `InvalidCapabilityResult` only when capability-owned
   final output-set validation fails.
 
 Construction rejects an execution target inconsistent with its stage: ResolveInputs targets a
-parameter, input, or capability; StartGenerationTask targets the capability; output assembly
+parameter, input, input item, or capability; StartGenerationTask targets the capability; output assembly
 targets only an output. Readiness targets
-`Capability` only for invalid invocation and a declared parameter for every external-state issue.
+`Capability` only for invalid invocation, a declared parameter for identity state, or a declared
+parameter/input/input item for calibration.
 Cancellation/deadline use
 the operation target active when observed; no absent-key convention carries target meaning.
 
@@ -623,6 +711,9 @@ credentials, response bodies, and adapter errors may not.
 - every active implementation passes the shared `WorkflowNodeCapabilityInterface` behavior suite;
 - exact tests cover normalization, stable input order, request mapping, result validation,
   provenance, idempotent media write, and error translation;
+- Video calibration tests parameterize every Seedance variant and mode, preserve incompatible
+  values across model switches, and cover role/cardinality, defaults, duration/frame exclusivity,
+  draft/resolution, generated audio, seed, camera-fixed, and ordered mixed-media mapping;
 - the Mock provider composite passes the provider-level suite; every contributed focused capability
   passes its type-specific task-provider suite, which later production adapters must also pass;
 - fault-injection tests cover cancellation, timeout, malformed payload, Asset write failure, and

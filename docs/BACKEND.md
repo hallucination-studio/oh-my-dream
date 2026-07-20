@@ -12,7 +12,7 @@ The backend has one closed business loop:
 author or import inputs
   -> create or open a Project
   -> edit its one typed Workflow
-  -> select a stable Generation Profile on each model-powered node
+  -> select a stable Generation Profile and saved Generation Model on each model-powered node
   -> persist a Run before external work
   -> execute exact Node Capabilities
   -> persist media as Assets
@@ -59,7 +59,7 @@ Workflow bounded context (`crates/engine`)
 Node Capability support           |
 (`crates/nodes`)                   +------ Asset bounded context (`crates/assets`)
   exact capabilities                     managed media, provenance, preview permission
-  Generation Profile catalog
+  Generation Profile catalog and Generation Model selection semantics
        ^
        | task-start interface
 Generation Task (`crates/tasks`)
@@ -69,7 +69,8 @@ Provider adapters (`crates/backends`)
   provider composites -> focused capabilities -> vendor routes -> external APIs
 
 Generation Task bounded context (`crates/tasks`)
-  durable generation intent -> submit/poll/finalize outbox -> Asset and Workflow bridges
+  durable generation intent -> submit/poll/cancel/delete/notify outbox
+                              -> Asset and Workflow bridges
 
 Assistant bounded context (`crates/assistant`)
   proposal -> review -> human decision -> Workflow mutation interface
@@ -78,9 +79,9 @@ Desktop boundary (`src-tauri`)
   commands, DTOs, bridges, closed Desktop/task workers, preview protocol, composition
 ```
 
-Project, Workflow, Generation Task, Asset, and Assistant are business contexts. Node Capability
-and Generation Profile support Workflow. Provider and Desktop modules are boundaries, not owners
-of creative business state.
+Project, Workflow, Generation Task, Asset, and Assistant are business contexts. Node Capability,
+Generation Profile, and Generation Model selection support Workflow. Provider and Desktop modules
+are boundaries, not owners of creative business state.
 
 ## Semantic Owners
 
@@ -93,8 +94,9 @@ of creative business state.
 | one node's graph-execution state, failure, and terminal output | Workflow Run | `WorkflowNodeExecutionEntity` |
 | one provider-backed generation lifecycle, remote handle, and progress | Generation Task | `GenerationTaskAggregate` |
 | exact operation parameters, inputs, outputs, and execution behavior | exact capability implementation | `TextToImageCapabilityImpl`, and peers |
-| stable user-selectable model identity and compatibility | Generation Profile catalog | `GenerationProfileDefinition` |
-| current profile availability and route health | provider availability adapter | `GenerationProfileAvailabilityObservation` |
+| stable provider-independent product promise and compatibility | Generation Profile catalog | `GenerationProfileDefinition` |
+| saved model identity, immutable configuration revisions, lifecycle, and structural availability | Generation Model configuration | `GenerationModelConfiguration` |
+| exact model revision selected for one admitted Run | Workflow execution plan | `WorkflowGenerationModelRevisionSelection` |
 | provider-native request/status translation | one concrete provider route | private provider types |
 | media identity, bytes availability, facts, and provenance | Asset | `AssetAggregate` |
 | Assistant working plan | Assistant | `AssistantProductionPlanAggregate` |
@@ -157,13 +159,14 @@ The composition root registers exactly these contracts:
 | `image.read_asset@1.0` | `ReadImageAssetCapabilityImpl` | `NodeCapabilityManagedMediaReaderInterface` |
 | `video.read_asset@1.0` | `ReadVideoAssetCapabilityImpl` | `NodeCapabilityManagedMediaReaderInterface` |
 | `audio.read_asset@1.0` | `ReadAudioAssetCapabilityImpl` | `NodeCapabilityManagedMediaReaderInterface` |
-| `image.generate_from_text@1.0` | `TextToImageCapabilityImpl` | profile catalog/availability and `NodeCapabilityGenerationTaskStarterInterface` |
-| `video.generate_from_image@1.0` | `ImageToVideoCapabilityImpl` | profile catalog/availability, managed-media reader, and `NodeCapabilityGenerationTaskStarterInterface` |
-| `audio.synthesize_speech_from_text@1.0` | `TextToSpeechCapabilityImpl` | profile catalog/availability and `NodeCapabilityGenerationTaskStarterInterface` |
+| `image.generate_from_text@1.0` | `TextToImageCapabilityImpl` | profile catalog, model availability, and `NodeCapabilityGenerationTaskStarterInterface` |
+| `video.generate@1.0` | `GenerateVideoCapabilityImpl` | profile catalog, model availability/contract readers, managed-media reader, and `NodeCapabilityGenerationTaskStarterInterface` |
+| `audio.synthesize_speech_from_text@1.0` | `TextToSpeechCapabilityImpl` | profile catalog, model availability, and `NodeCapabilityGenerationTaskStarterInterface` |
 
 This supports the complete `Text -> Image -> Video` path and an independent `Text -> Speech` path,
-with imported Image, Video, and Audio inputs. Every registered model-powered capability has a
-Mock route before MVP release. Production provider adapters are a separately reviewed later phase.
+with imported Image, Video, and Audio inputs. Deterministic Mock routes remain debug-gated test infrastructure.
+The production target ships OpenAI Images, Volcengine Seedream, Volcengine Seedance, and
+Volcengine Agent Plan HTTP TTS routes.
 
 ### Module Surface
 
@@ -172,9 +175,9 @@ Mock route before MVP release. Production provider adapters are a separately rev
 | Project | create, rename, get, stable list, open with current Workflow summary | archive, delete, duplicate, templates, search, collaboration |
 | Workflow | create/get-current, atomic mutation, readiness, whole/through-node Run, cancel, Run/event query, node presentation | history, backend undo, retry-in-place, cache, batches, groups, subgraphs, conditions |
 | Node Capability | one interface and seven implementations above | registration of the roadmap operations |
-| Generation Profile | stable per-node profile selection, compatibility, availability query, Settings-owned provider/route binding | node-level vendor selection, arbitrary model IDs/options, cross-profile fallback |
-| Generation Task | one Text/Image/Video/Voice task lifecycle, provider-level composition over focused capabilities, submit/poll/finalize outbox, progress, Workflow-owned cancellation, restart recovery, get/list | standalone creation, independent cancellation, retry attempts, archive, retention, webhooks |
-| Provider | one Mock composite with exact routes for three active model operations and frozen task contracts | production adapters, failover after acceptance, billing, arbitrary vendor options |
+| Generation Profile/Model | stable per-node profile and saved-model selection, immutable model revisions, model-level structural availability, multiple configurations per profile/kind | provider-native node fields, arbitrary options/headers, automatic fallback |
+| Generation Task | one Text/Image/Video/Voice task lifecycle, provider-level composition over focused capabilities, submit/poll/cancel/delete/notify outbox, progress, Workflow-owned cancellation, restart recovery, get/list | standalone creation, independent cancellation, retry attempts, archive, retention, webhooks |
+| Provider | `.env`-gated deterministic Mock plus production OpenAI Images, Seedream, Seedance, and Agent Plan HTTP TTS routes behind the same frozen task contracts | ASR, failover after acceptance, billing, arbitrary vendor options |
 | Asset | import, get/list, node-output write, resolve, preview, Pending reconciliation | delete, archive, tags, search, export, derivatives, garbage collection |
 | Assistant | durable non-executable plan, candidate, review, human decision, exact apply, canonical Run, reviewed repair, one user-configured text-only OpenAI Responses connection | plan-as-queue scheduler, unreviewed apply/repair, parallel approvals, distributed Sessions, audio input/transcription, multiple provider connections |
 | Desktop | commands, DTOs, closed post-commit and Generation Task workers, durable event repair, preview protocol, composition | generic job host, server mode, plugins, distributed workers |
@@ -207,7 +210,7 @@ Examples are `WorkflowStartRunUseCase`, `AssetRecordNodeOutputUseCase`,
 
 Public methods state their action. Vague methods such as `execute`, `process`, `handle`, `update`, or
 `run` alone are prohibited. Examples are `apply_workflow_mutation`, `execute_node_capability`,
-`generate_video_from_image`, and `issue_asset_preview`.
+`generate_video`, and `issue_asset_preview`.
 
 ## Module Interaction Rules
 
@@ -234,12 +237,14 @@ Public methods state their action. Vague methods such as `execute`, `process`, `
 ```text
 DesktopCompositionRoot
   -> acquire the held-open OS-exclusive data-root lock for the process lifetime
-  -> open SQLite, create fresh epoch-2 storage or validate its exact schema version
+  -> open SQLite, create fresh epoch-3 storage or validate its exact schema version
   -> load and validate SQLite backend configuration
   -> construct focused SQLite plaintext credential repositories
   -> construct Project, Asset, Workflow, Generation Task, and Assistant repositories/use cases
   -> construct Project/Workflow and other cross-context bridges
-  -> construct profile catalog, provider composites, exact routes, registry, and availability reader
+  -> load the revisioned Generation Model catalog and credential-presence projection
+  -> construct profile catalog, production routes, and debug-gated Mock routes when explicitly enabled
+  -> construct the provider registry plus model availability and model-contract readers
   -> construct seven capability implementations and WorkflowNodeCapabilityRegistry
   -> reconcile bounded Pending Assets and reclaim prior-instance or expired Generation Task effects
   -> preserve Runs waiting on authoritative non-terminal Generation Tasks
@@ -248,8 +253,10 @@ DesktopCompositionRoot
   -> register commands, preview protocol, post-commit worker, and Generation Task worker
 ```
 
-A missing credential or unhealthy provider marks only affected profiles unavailable. It does not
-prevent graph editing, Asset access, deterministic tests, or Assistant-independent use.
+A missing credential or invalid configuration marks only affected saved models unavailable. The
+exact `.env` debug flag may additionally contribute deterministic built-in models for E2E; with the
+flag absent they are neither registered nor listed. Neither condition prevents graph editing,
+Asset access, or Assistant-independent use.
 
 ### Project Create And Open
 
@@ -283,22 +290,28 @@ the same canonical Run path used by the UI.
 
 ```text
 generation_profile_list_for_capability
-  -> immutable compatibility catalog + expiring availability observations
-  -> provider-independent selectable profiles
+  -> immutable provider-independent compatibility catalog
+
+generation_model_list_for_capability
+  -> selected capability/profile + saved enabled configurations + structural availability
+  -> selectable saved models without endpoints, native IDs, routes, or credentials
 
 workflow_start_run
   -> reload exact Workflow revision
-  -> validate graph, Assets, capability registrations, profiles, and current availability
-  -> build immutable WorkflowExecutionPlan
+  -> validate graph, Assets, capability registrations, profiles, and selected model IDs
+  -> resolve all selected models against one Settings snapshot
+  -> build immutable WorkflowExecutionPlan with exact model revision selections
   -> atomically persist Queued Run + node executions + event + request receipt
      + WorkflowExecuteRunEffect
   -> return before provider work starts
 ```
 
-`Unavailable` and `Indeterminate` profiles both block admission in the MVP. Run admission is the
-last availability check: after it, the immutable Task target is authoritative, task admission
-resolves only that structural binding, and neither execution nor recovery repeats the availability
-probe.
+A missing, disabled, removed, credential-less, incompatible, or structurally invalid selected model
+blocks admission. Run admission is the authoritative revision freeze: after it, each model-powered
+node uses that exact revision, Task admission copies its non-secret route target, and neither
+execution nor recovery consults current Settings or substitutes another model. Remote
+authentication, quota, policy, and health failures are provider-call outcomes rather than
+speculative readiness probes.
 
 ### Node Execution And Media Publication
 
@@ -331,7 +344,8 @@ different bytes is a structured conflict.
 | Asset becomes Available just before cancellation wins | the Asset remains durable with provenance, but the late node output is rejected |
 | event emission fails after commit | its safe outbox effect retries; Run remains authoritative and UI can query the gap |
 | process exits after accepted provider work | task outbox reclaims the poll by persisted remote ID and later resumes the same waiting node |
-| process exits before a durable task handoff or during an unsafe submission | startup fails closed; only the affected unverifiable Run uses `InterruptedByRestart` or the task records `AmbiguousSubmission` |
+| process exits before a durable task handoff | startup fails closed and only the affected unverifiable Run uses `InterruptedByRestart` |
+| remote create may have been accepted but its response is lost | consume Submit, fail `AmbiguousSubmission`, notify Workflow, never repeat create, and never attach or control a provider-list candidate |
 | duplicate mutation or Run request | matching request hash returns the prior receipt; mismatched reuse returns an idempotency conflict |
 
 ### Preview And Reopen
@@ -357,7 +371,7 @@ URLs, playback state, and loaded credential values do not.
 | Workflow mutation | snapshot + revision + mutation receipt | return the committed result | retry by request ID |
 | Run admission | Run + executions + event + request receipt + execute effect | execute the Run | replay queued work or classify unsafe execution |
 | Run transition | transition + outputs + durable events | emit undispatched events | replay/query event rows |
-| Generation Task create/transition | task + optional result + consumed/enqueued task effect | submit, poll, cancel, finalize, or notify Workflow | reset a prior-process claim and continue the exact task |
+| Generation Task create/transition | task + optional result + consumed/enqueued task effect | submit, poll, cancel, delete, or notify Workflow | reset a prior-process claim; resume only a directly persisted handle and fail an unbound Submitting task as ambiguous |
 | Asset node output | Pending + finalization + output key + finalize effect | publish managed bytes | safely replay exact finalization |
 | Asset availability | Available transition + completed finalization | allow node output commit | verify exact digest/length |
 | Assistant decision | transition + apply effect | idempotent apply, resume, and Run effects | safely replay stable request IDs |
@@ -386,15 +400,19 @@ The architecture is closed only when:
 
 1. Projects can be created, renamed, listed, opened, and isolated across Workflow, Asset, and Assistant;
 2. the seven active capabilities can be edited, saved, reopened, run, and presented;
-3. each of the three model-powered capabilities supports per-node profile selection and current
-   availability without exposing provider/native model identity;
-4. one Mock route passes each exact active provider contract, including restart-safe remote polling;
+3. each of the three model-powered capabilities supports per-node profile and saved-model selection,
+   multiple compatible configurations, and exact Run-time revision freeze without exposing
+   Endpoint, Token, route, or native model identity on the node;
+4. debug-gated Mock and the four production protocol routes pass their exact active provider contracts,
+   including both first-release Seedream model identities, Seedance create/query/queued-cancel/
+   terminal-delete recovery with fail-safe ambiguous-create handling, and one durable MP3 result from
+   the exact HTTP TTS route;
 5. imported and node-produced media use the same Asset availability and preview path;
 6. every Run, Generation Task, cancellation, failure, event gap, Pending Asset, and restart has the outcome defined
    above;
 7. an Assistant-approved change reaches Workflow and execution only through the canonical mutation
    and Run use cases, and repair repeats the same review/approval chain;
-8. fake, Mock, and every later production implementation pass the same interface contract suites;
+8. fake, Mock, and every production implementation pass the same interface contract suites;
 9. Rust/TypeScript DTO fixtures remain mechanically aligned;
 10. architecture tests reject inward concrete dependencies, duplicate semantic owners, generic jobs, unregistered
    MVP capabilities, and concrete construction outside the composition root;
@@ -405,11 +423,12 @@ Item 7 is part of the frozen Assistant contract; its implementation status is tr
 
 ## Deferred Architecture
 
-Text-to-video, image-to-image, reference-based generation, mixed-media generation, text generation,
-music, crop, upscale, frame extraction, concatenation, and storyboard analysis retain explicit
-roadmap names in the capability document. They are not MVP runtime behavior.
+Image-to-image, text generation, music, crop, upscale, frame extraction, concatenation, and
+storyboard analysis retain explicit roadmap names in the capability document. Text-to-Video,
+FirstFrame, FirstAndLastFrames, and MultimodalReference are modes of the active universal Video
+capability, not deferred capability IDs.
 
-Automatic generation retry, failover after acceptance, dynamic/plugin capabilities, cross-Run
+ASR, automatic generation retry, failover after acceptance, dynamic/plugin capabilities, cross-Run
 cache, Project lifecycle management, unreviewed Assistant apply/repair,
 Asset lifecycle management, server mode, cloud sync, collaboration, 3D, and scenes each require a
 separate decision that updates this freeze.

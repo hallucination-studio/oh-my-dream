@@ -20,6 +20,8 @@ export type {
   AssetListPageDto,
   AssetPreviewDto,
   AssistantContext,
+  AssistantProviderModelsDto,
+  AssistantProviderSettingsDto,
   AssistantPendingWorkflowChange,
   AssistantPresentationEvent,
   AssistantSendMessageResult,

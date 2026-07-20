@@ -33,7 +33,8 @@ exported names.
 | `Workflow` | graph, revision, readiness, plan, Run, node execution, and output association | `WorkflowAggregate`, `WorkflowStartRunUseCase` |
 | `NodeCapability` | shared exact-operation contracts and node execution boundary | `NodeCapabilityContract`, `NodeCapabilityExecutionRequest` |
 | exact operation name | one capability implementation | `TextToImageCapabilityImpl` |
-| `GenerationProfile` | provider-independent model selection, compatibility, and availability | `GenerationProfileRef`, `GenerationProfileListForCapabilityUseCase` |
+| `GenerationProfile` | provider-independent product promise and capability compatibility | `GenerationProfileRef`, `GenerationProfileListForCapabilityUseCase` |
+| `GenerationModel` | saved production model identity, immutable revisions, safe capability contract, lifecycle, and selection | `GenerationModelConfiguration`, `GenerationModelCapabilityContract` |
 | `GenerationTask` | durable provider-backed generation lifecycle | `GenerationTaskAggregate`, `GenerationTaskListUseCase` |
 | `GenerationProvider` | provider identity/composition plus account, route, credential, and shared adapter policy | `GenerationProviderInterface`, `GenerationProviderRouteId` |
 | `Asset` | managed media identity, availability, facts, provenance, and preview permission | `AssetAggregate`, `AssetImportUseCase` |
@@ -42,7 +43,7 @@ exported names.
 
 `ProjectId` is the only Project type shared with other business contexts. A provider vendor or
 storage technology is a concrete adapter prefix, not a semantic owner:
-`MockImageToVideoProviderRouteImpl`, `SqliteWorkflowRunRepositoryAdapterImpl`, and
+`MockGenerateVideoProviderRouteImpl`, `SqliteWorkflowRunRepositoryAdapterImpl`, and
 `SqliteDesktopBackendSettingsAdapterImpl`.
 
 ## Role Suffixes
@@ -54,7 +55,7 @@ storage technology is a concrete adapter prefix, not a semantic owner:
 | `*State` | closed lifecycle state | `AssetManagedContentState` |
 | `*Id`, `*Key`, `*Ref` | typed identity, key, or immutable reference | `WorkflowNodeId`, `GenerationProfileRef` |
 | `*Contract` | immutable, versioned semantic contract | `NodeCapabilityContract` |
-| `*Impl` | concrete implementation of an interface | `ImageToVideoCapabilityImpl` |
+| `*Impl` | concrete implementation of an interface | `GenerateVideoCapabilityImpl` |
 | `*Policy` | pure domain decision without external I/O | `WorkflowReadinessPolicy` |
 | `*Command` | application request that may change state | `WorkflowApplyMutationCommand` |
 | `*Query` | bounded application read request | `AssetListQuery` |
@@ -62,7 +63,7 @@ storage technology is a concrete adapter prefix, not a semantic owner:
 | `*UseCase` | application orchestrator for one user intention | `AssistantDecideWorkflowChangeUseCase` |
 | `*Interface` | consumer-owned trait at a real substitution or external boundary | `AssetManagedContentStoreInterface` |
 | `*AdapterImpl` | infrastructure implementation of a consumer-owned interface | `SqliteAssetRepositoryAdapterImpl` |
-| `*RouteImpl` | concrete provider-operation implementation | `MockImageToVideoProviderRouteImpl` |
+| `*RouteImpl` | concrete provider-operation implementation | `MockGenerateVideoProviderRouteImpl` |
 | `*Row` | private persistence representation | `SqliteWorkflowRunRow` |
 | `*Dto` | Tauri or provider wire representation | `WorkflowStartRunRequestDto` |
 | `*View` | read-only UI projection with no business transitions | `WorkflowNodePresentationView` |
@@ -97,6 +98,8 @@ Use-case types are source-first and then verb-first:
 | Workflow | `WorkflowApplyMutationUseCase`, `WorkflowStartRunUseCase`, `WorkflowGetNodePresentationUseCase` |
 | Node Capability | `NodeCapabilityListUseCase` |
 | Generation Profile | `GenerationProfileListForCapabilityUseCase` |
+| Generation Settings | `GenerationSettingsGetUseCase`, `GenerationSettingsApplyUseCase` |
+| Generation Model | `GenerationModelListForCapabilityUseCase`, `GenerationModelCapabilityContractGetUseCase` |
 | Generation Task | `GenerationTaskStartUseCase`, `GenerationTaskGetUseCase`, `GenerationTaskListUseCase` |
 | Asset | `AssetImportUseCase`, `AssetRecordNodeOutputUseCase`, `AssetIssuePreviewUseCase` |
 | Assistant | `AssistantSendMessageUseCase`, `AssistantDecideWorkflowChangeUseCase`, `AssistantActivateRepairUseCase` |
@@ -156,11 +159,19 @@ workflow_apply_mutation
 workflow_start_run
 node_capability_list
 generation_profile_list_for_capability
+generation_model_list_for_capability
+generation_model_capability_contract_get
+generation_settings_get
+generation_settings_apply
 generation_task_get
 generation_task_list
 asset_import
 assistant_send_message
 assistant_decide_workflow_change
+assistant_provider_settings_get
+assistant_provider_models_list
+assistant_provider_settings_test_and_apply
+assistant_provider_settings_disable
 ```
 
 Request and response types mirror the same phrase in UpperCamelCase, for example
@@ -172,7 +183,7 @@ Capability contract IDs use the produced domain followed by an exact behavior:
 
 ```text
 image.generate_from_text@1.0
-video.generate_from_image@1.0
+video.generate@1.0
 audio.synthesize_speech_from_text@1.0
 ```
 
@@ -240,10 +251,14 @@ durable provider-backed generation, not graph execution.
 | `GenerationTaskId` | local stable task identity |
 | `GenerationTaskOrigin` | exact Project, Workflow, Run, node, and Node Execution coordinates |
 | `GenerationTaskRequest` | immutable provider-neutral Text, Image, Video, or Voice generation snapshot |
+| `VideoGenerationSpec` | explicit universal Video mode, ordered role-bearing media snapshots, and calibrated provider-neutral parameters |
+| `GenerationTaskTarget` | immutable profile/model revision/model-contract and exact non-secret protocol route snapshot |
+| `GenerationTaskInputAssetReaderInterface` | Task-owned boundary that reopens an exact frozen input Asset snapshot before media submission |
 | `GenerationTaskState` | Queued, Submitting, Running, CancelRequested, or one terminal state |
 | `GenerationProviderTaskHandle` | validated opaque remote identity stored only by Generation Task |
 | `GenerationTaskResult` | single durable inline Text or generated Asset reference |
-| `GenerationTaskEffect` | closed SubmitTask, PollTask, CancelRemoteTask, or NotifyWorkflow work |
+| `GenerationTaskOutputSourceLease` | non-cloneable one-shot Task-owned stream that transfers completed provider media into Asset finalization |
+| `GenerationTaskEffect` | closed SubmitTask, PollTask, CancelRemoteTask, DeleteRemoteTask, or NotifyWorkflow work |
 | `GenerationTaskSummaryView` | rule-free bounded task-list projection |
 | `GenerationProviderId` | stable cloud-provider identity used with an exact route in one task target |
 | `GenerationProviderInterface` | provider-level composition boundary exposing identity and one non-empty complete capability product |
@@ -257,7 +272,7 @@ durable provider-backed generation, not graph execution.
 Generation Task is not a Workflow Run, Node Execution, provider DTO, download, retry attempt, or
 generic background Job.
 
-### Node Capability And Generation Profile
+### Node Capability, Generation Profile, And Generation Model
 
 | Name | Meaning |
 | --- | --- |
@@ -278,10 +293,21 @@ generic background Job.
 | `NodeCapabilityManagedAssetIdParameterValue` | engine boundary UUID bytes translated to Asset-owned `AssetId` |
 | `GenerationProfileRef` | stable provider-independent user selection persisted on a model-powered node |
 | `GenerationProfileDefinition` | profile identity, lifecycle, and compatible capability refs |
-| `GenerationProfileAvailabilityObservation` | expiring operational observation, never persisted on a node |
+| `GenerationProviderConnectionId` | stable application-owned UUID for one reusable production service connection |
+| `GenerationProviderConnectionConfiguration` | one user-managed service family, normalized Endpoint, credential binding, and lifecycle shared by compatible models |
+| `GenerationProviderConnectionRevisionRef` | stable connection ID plus one immutable non-zero configuration revision frozen by Run admission |
+| `GenerationProviderCredentialBindingId` | non-secret identity of credential bytes compatible with one connection Endpoint epoch |
+| `GenerationModelId` | stable application-owned UUID persisted on a model-powered node |
+| `GenerationModelConfiguration` | one user-managed native identity, family/variant, profile, capability contract, lifecycle, and immutable connection-revision ref; owns neither Endpoint nor token bytes |
+| `GenerationModelRevisionRef` | stable model ID plus one immutable non-zero configuration revision frozen by Run admission |
+| `GenerationModelVariant` | explicit closed capability variant selected in Settings; never inferred from a native model ID |
+| `GenerationModelCapabilityContract` | safe immutable model-specific input, parameter, default, and calibration contract |
+| `GenerationModelCalibrationIssue` | structured mismatch and closed correction proposal owned by an exact capability policy |
+| `GenerationModelAvailabilityObservation` | current structural model observation, never persisted on a node |
+| `GenerationSettingsRevision` | independent collection CAS revision for Provider Connection and Generation Model mutations |
 
-A Generation Profile is not a provider model alias. A Node Capability is not a UI shell. A provider
-route is not a capability.
+A Generation Profile is not a provider model alias. A Generation Model is not a native model-ID
+string or credential. A Node Capability is not a UI shell. A provider route is not a capability.
 
 ### Asset
 
@@ -311,6 +337,10 @@ An Asset ID is never a path, URL, provider task ID, or content digest. Text is n
 | `AssistantWorkflowChangeDecision` | human Approve or Reject decision |
 | `AssistantWorkspaceSnapshot` | bounded read-only projection assembled from authoritative modules |
 | `AssistantModelProfileRef` | stable provider-independent Assistant model-route selection |
+| `AssistantProviderBaseUrl` | normalized user-selected HTTP(S) root for one OpenAI Responses-compatible Assistant connection |
+| `AssistantProviderModelId` | selected provider-native model identifier used by the Assistant adapter |
+| `AssistantProviderSettingsSnapshot` | revisioned sanitized Assistant connection state plus credential presence |
+| `AssistantProviderModelRouteFingerprint` | SHA-256 compatibility identity over Assistant Model Profile, normalized Base URL, and model ID; never credential bytes |
 | `AssistantModelRunnerInterface` | Assistant-owned boundary to the external model runtime |
 | `AssistantRepairActivation` | factual failed-Run activation; never a selected repair step |
 | `AssistantApplyWorkflowChangeEffect` | idempotent post-approval apply intent |
@@ -332,7 +362,8 @@ WorkflowNodeCapabilityInterface
 WorkflowMediaPreviewIssuerInterface
 NodeCapabilityManagedMediaReaderInterface
 NodeCapabilityGenerationTaskStarterInterface
-GenerationProfileAvailabilityReaderInterface
+GenerationModelAvailabilityReaderInterface
+GenerationModelCapabilityContractReaderInterface
 GenerationTaskRepositoryInterface
 GenerationProviderInterface
 TextGenerationProviderInterface
@@ -349,6 +380,8 @@ AssistantWorkflowMutationApplierInterface
 AssistantWorkflowRunStarterInterface
 AssistantWorkflowRunReaderInterface
 AssistantModelRunnerInterface
+AssistantProviderProbeInterface
+AssistantProviderSettingsRepositoryInterface
 AssistantProductionPlanRepositoryInterface
 AssistantWorkflowChangeRepositoryInterface
 AssistantRepairActivationRepositoryInterface
@@ -367,7 +400,9 @@ SqliteWorkflowRunRepositoryAdapterImpl
 LocalFilesystemAssetManagedContentStoreAdapterImpl
 DesktopNodeCapabilityAssetBridgeAdapterImpl
 DesktopAssistantWorkflowBridgeAdapterImpl
+PythonOpenAiAssistantProviderAdapterImpl
 MockGenerationProviderAdapterImpl
+MockGenerateVideoProviderRouteImpl
 SqliteDesktopBackendSettingsAdapterImpl
 SqliteDesktopPostCommitEffectOutboxAdapterImpl
 DesktopPostCommitEffectWorker
@@ -409,7 +444,7 @@ WorkflowAggregate <-> SqliteWorkflowRow
 GenerationTaskAggregate <-> SqliteGenerationTaskRow
 AssetAggregate <-> SqliteAssetRow
 AssistantWorkflowChangeAggregate <-> SqliteAssistantWorkflowChangeRow
-GenerationTaskRequest <-> MockImageToVideoRequestDto
+VideoGenerationSpec -> VolcengineArkSeedanceCreateTaskRequestDto
 ```
 
 A `*Dto`, `*Row`, or `*View` performs shape conversion only. Business validation and transitions

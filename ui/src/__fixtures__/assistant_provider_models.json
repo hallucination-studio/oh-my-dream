@@ -1,0 +1,6 @@
+{
+  "models": [
+    "gpt-5.4",
+    "local-text-model"
+  ]
+}

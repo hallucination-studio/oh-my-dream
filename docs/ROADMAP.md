@@ -7,6 +7,26 @@ pending, and every known gap. It must never restate or redefine design rules; it
 
 Backend semantics remain owned by the documents mapped from [`BACKEND.md`](BACKEND.md).
 
+## Active planned iteration (2026-07-20)
+
+The next implementation iteration is the production Generation Settings and unified Image, Speech,
+and universal Video delivery hard cut.
+Its frozen authorities are `BACKEND_PROVIDERS.md`, `BACKEND_CAPABILITIES.md`,
+`BACKEND_TASK.md`, `BACKEND_STORAGE.md`, `BACKEND_APPLICATION.md`, and the Generation Settings/
+media preview sections of `DESKTOP_UI.md`. Dependency order, acceptance evidence, and command-level
+work are tracked only in `tasks/plan.md` and `tasks/todo.md`.
+
+Status: planned, no implementation started in this documentation change. It includes the new
+epoch-3/config-v4 Connection -> Models storage shape, OpenAI GPT Image 2, Seedance
+create/query/queued-cancel/terminal-delete with fail-safe ambiguous-create handling, Agent Plan HTTP TTS, dynamic Video calibration, playable
+Image/Audio/Video previews, environment-gated deterministic Mock models for E2E, and the exact
+Seedream 5.0 Lite/Pro Image routes frozen in `BACKEND_PROVIDERS.md`. It is a version-1.0 hard cut: no legacy reader,
+importer, migration, or dual-write work is scheduled. Seedance activation requires direct-response
+remote-handle ownership, no resubmission or inventory attachment after an uncertain create,
+cancellation/deletion race tests, and persisted-handle cleanup recovery. Provider list remains a
+private diagnostic operation and cannot authorize Task transitions. It does not require cross-model
+synchronization and does not claim provider-level exactly-once creation.
+
 ## Verified status (2026-07-18)
 
 - `npm run test --prefix ui`: 120 tests, 39 files, green. `npm run typecheck --prefix ui`: clean.
@@ -89,8 +109,6 @@ Ordered by leverage. Each item closes register entries named in brackets.
   Run tab timeline inside the shell S1 provides. The overlay chrome itself moved to S1.
 - **A5 Stale output treatment** (pairs with UI-39): the `Changed since run` state from Node
   Presentation, with consistent invalidation across nodes, Top bar, and previews.
-- **A5 Stale output treatment** (pairs with UI-39): the `Changed since run` state from Node
-  Presentation, with consistent invalidation across nodes, Top bar, and previews.
 - **A6 Run details honesty pack** (UI-60, UI-77): actionable outputs (preview + jump to Asset),
   creator-language step details, no raw `request_kind`/failure codes.
 - **A7 Settings content** (UI-59, UI-65): About shows name/version, Storage shows the data
@@ -107,8 +125,19 @@ Ordered by leverage. Each item closes register entries named in brackets.
   human option labels for every enum, node/Inspector label parity, no CSS uppercase on labels.
   Frozen in DESKTOP_UI.md (Labels and copy).
 - **A12 Small convergences**: restore the seven-label Node Library with the Assets group (D1,
-  closes UI-66); move the MiniMap to the lower-left canvas edge (D2); Settings Providers section
-  per the frozen spec (D4) plus the About/Storage facts (UI-59).
+  closes UI-66); move the MiniMap to the lower-left canvas edge (D2); Settings Models section per
+  the frozen spec (D4) plus the About/Storage facts (UI-59).
+- **A13 Assistant connection settings**: implement the frozen Base URL, write-only API key, model
+  discovery/selection, Responses function-tool test-and-save, disable, and composer-availability
+  flow. I0-I6.1 are complete. Evidence recorded 2026-07-19: Python `88 passed, 43 subtests
+  passed`; Assistant Rust `31 unit + 6 integration`; Tauri `148 unit + 10 architecture + 13
+  integration + 1 contract`; UI `40 files / 127 tests`, typecheck, and production build; Clippy and
+  npm audit pass. The production PyInstaller one-file sidecar rebuild and smoke also pass: the
+  frozen protocol path, `/models`, the required-tool `/responses` test, and one configured Assistant
+  text turn all complete without exposing the key. I0-I6.2 are complete. The browser-only mock
+  fails closed for Assistant provider
+  discovery, testing, saving, and disabling, so only the Tauri Desktop runtime can present real
+  provider results or persist Assistant settings. Human UI approval was recorded 2026-07-19.
 - **S1 Overlay shell** (UI-48, UI-83, UI-84, UI-85, part of UI-47): the canvas becomes the only
   inline region; left overlay slot (Nodes / Assets + detail), right overlay slot (Inspector →
   Work Drawer, Assistant) with one-at-a-time exclusivity and state preservation; placement and
@@ -120,12 +149,6 @@ Ordered by leverage. Each item closes register entries named in brackets.
 Pages or surfaces the product needs but that have no frozen design yet. Do not build before the
 design lands in `DESKTOP_UI.md`.
 
-- **B1 Providers management** — provider list, active provider, write-only API keys. The Settings
-  section in the spec names the capability; detailed states (empty key, invalid key, multiple
-  providers, unreachable provider) are undesigned. Current UI ships a different `Models routes`
-  section instead — see D4.
-- **B2 Assistant configuration section** — master enable, Base URL, Model, write-only key.
-  Blocked on G7 (no config query/command pair).
 - **B3 Skills list and Developer mode** — blocked on G6 (no backend commands).
 - **B4 Project management beyond the switcher** — rename confirmation, delete, duplicate.
 - **B5 Keyboard shortcut reference** — discoverability for connect/delete/run/save shortcuts.
@@ -164,7 +187,7 @@ Things that work but feel wrong or unpolished.
 | UI-58 | ux | Asset grid renders one giant card per row at 1440px; a video card is a huge empty tile (verified live). | Multi-column grid density targets per panel width; fix the video thumbnail (UI-36). |
 | UI-59 | ux | Settings Canvas/Storage/About each render only `NOTHING HERE YET.` (verified live). | About shows app name/version (no backend needed); Storage shows the data-location fact or is removed; weak all-caps copy replaced. |
 | UI-60 | ux | Run details Outputs are bare `String text / Image image / Video video` rows — no preview, no jump; `This Run has no available Task for the selected Step.` shows jargon after a success (verified live). | Outputs become actionable (preview + open in Library); step-details section hides or explains in creator language. |
-| UI-61 | ux | Assistant empty-state suggestions are hardcoded and name a nonexistent `Text Prompt node` (verified live). | Suggestions derive from real node labels; G7 owns the config surface. |
+| UI-61 | ux | Assistant empty-state suggestions are hardcoded and name a nonexistent `Text Prompt node` (verified live). | Suggestions derive from real node labels; A13 owns the config surface. |
 | UI-62 | ux | The Inspector Mode select is a permanently one-option dead control (App.tsx:590, InspectorPanel.tsx:112). | Remove until a capability has real modes. |
 | UI-63 | ux | Disabled `Run all` keeps the full teal fill and reads as active (verified live). | Muted disabled treatment for the primary action. |
 | UI-64 | ux | Node param labels uppercase-wrap (`DURATION SECONDS`) while the Inspector shows lowercase — inconsistent casing (verified live). | One casing rule for parameter labels; see D5. |
@@ -238,8 +261,8 @@ above.
 - **D2 MiniMap**: lower-left with the zoom/fit cluster, per spec.
 - **D3 Run history and multiple Workflows**: admitted into scope; design first (B8/B9), no
   implementation before the sections are frozen in DESKTOP_UI.md.
-- **D4 Settings**: converge to the spec's Providers section; the Models-routes section's fate is
-  decided in that work (fold or keep as a Models section).
+- **D4 Settings**: the production Models section and protocol-dependent connection editor are now
+  frozen in `DESKTOP_UI.md`; implementation belongs to the active planned iteration.
 - **D5 Labels**: the sentence-case Labels-and-copy system in DESKTOP_UI.md governs every surface.
 
 ## Design-authorization gates
@@ -254,10 +277,9 @@ No code before the named authority exists.
 | G4 | Undo/redo (UI-24) | A frozen history design keyed to canonical mutation receipts |
 | G5 | Asset Export (UI-12, B7) | A backend export command, or confirmation Export stays removed |
 | G6 | Settings Skills list / Developer mode (B3) | Backend skill-management commands |
-| G7 | Assistant configuration surface (B2) | A config query/command pair (the legacy one was removed) |
 | G8 | Scoped readiness for `Run to here` (UI-37) | A node-scoped readiness query |
-| G9 | Video preview rendering (UI-36) | A preview-kind declaration: poster image vs playable video file |
-| G10 | Provider API-key fields and the Storage section | Backend credential commands and a data-location query |
+| G9 | Video preview implementation (UI-36) | Design closed: `AssetPreviewRepresentation` distinguishes `image`, `playable_video`, and `playable_audio`; implementation and browser playback evidence remain pending |
+| G10 | Storage section | A backend data-location query |
 
 ## Verification policy
 

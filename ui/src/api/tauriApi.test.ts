@@ -89,6 +89,39 @@ describe("canonical Workflow Tauri client", () => {
     ]);
   });
 
+  it("invokes the four tested-only Assistant Provider Settings commands", async () => {
+    const { tauriApi } = await import("./tauriApi.ts");
+    invokeMock.mockResolvedValue({});
+
+    await tauriApi.assistantProviderSettingsGet();
+    await tauriApi.assistantProviderModelsList("http://localhost:11434/v1", "secret");
+    await tauriApi.assistantProviderSettingsTestAndApply(
+      "3",
+      "http://localhost:11434/v1",
+      "secret",
+      "local-text-model",
+    );
+    await tauriApi.assistantProviderSettingsDisable("4");
+
+    expect(invokeMock.mock.calls.slice(-4)).toEqual([
+      ["assistant_provider_settings_get", { request: {} }],
+      ["assistant_provider_models_list", {
+        request: { base_url: "http://localhost:11434/v1", api_key: "secret" },
+      }],
+      ["assistant_provider_settings_test_and_apply", {
+        request: {
+          expected_settings_revision: "3",
+          base_url: "http://localhost:11434/v1",
+          api_key: "secret",
+          model_id: "local-text-model",
+        },
+      }],
+      ["assistant_provider_settings_disable", {
+        request: { expected_settings_revision: "4" },
+      }],
+    ]);
+  });
+
   it("invokes the four canonical Asset commands without paths or bytes", async () => {
     const { tauriApi } = await import("./tauriApi.ts");
     invokeMock.mockResolvedValue({});

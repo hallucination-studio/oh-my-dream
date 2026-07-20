@@ -14,7 +14,8 @@ rule and never stores Project metadata.
 
 ## MVP Goal
 
-Users can edit, save, reopen, validate, run, cancel, observe, and preview the exact-seven graph. The Workflow
+Users can edit, save, reopen, validate, run, cancel, observe, and preview the exact-seven graph,
+including the universal Video generation capability. The Workflow
 context is the sole authority for graph revision, typed bindings, readiness, execution planning,
 Run state, node state, and output association. It performs no UI, network, filesystem, database,
 provider, or Assistant work.
@@ -33,9 +34,9 @@ Repositories persist already-approved state and expose no arbitrary state setter
 single inputs, ordered reference inputs, stable input-item identities, roles, structured prompt
 references, persistence ordering, and graph invariants.
 
-Ordered references remain a frozen graph primitive because the approved roadmap already requires
-reference-image and mixed-media operations. They do not activate any roadmap capability, provider
-interface, UI form, or output data type in the MVP.
+Ordered references are an active graph primitive used by universal Video generation for ordered
+Image, Video, and Audio inputs. Workflow owns only binding identity, order, role declaration, and
+concrete type validity; the Video capability owns mode and model calibration.
 
 React derives `WorkflowNodeShellKindDto` from the primary output type. The MVP has only `Text`,
 `Image`, `Video`, and `Audio` shells. Shell kind is presentation state and is never persisted as a
@@ -81,22 +82,33 @@ An incomplete graph remains editable. Validation therefore has two levels.
 - valid structured prompt references;
 - no self-edge or cycle.
 
+For every add, capability-select, parameter-replace, restore, and mutation replay,
+`WorkflowAggregate` calls the exact contract's `validate_draft_parameters`. The returned canonical
+stored map may omit required keys and contains no inserted defaults. The aggregate never calls
+execution normalization while validating an editable draft.
+
 `WorkflowCheckReadinessUseCase` adds execution readiness:
 
 - every required parameter and input is present;
 - every ordered-reference minimum is met;
 - every referenced Asset is visible, Available, and the exact kind;
 - one implementation is registered for every node in scope;
-- every selected Generation Profile is reported compatible and currently `Available` by its exact
-  capability;
+- every selected Generation Profile is compatible with its exact capability;
+- every selected Generation Model is structurally available and calibrated against the node's
+  parameters and binding snapshot;
 - each exact capability reports no other external readiness issue.
 
-`WorkflowReadinessPolicy` owns pure structural checks. Exact capabilities own parameter and external
-readiness semantics, including Generation Profile compatibility and availability. The use case
-mechanically projects capability-owned Generation Profile issues into the three Workflow Generation
-Profile categories below and preserves every other typed issue as
-`WorkflowCapabilityExternalReadinessIssue`; it does not query the catalog or availability reader a
-second time. Run admission checks readiness again and never repairs the graph automatically.
+Readiness calls `normalize_parameters_for_execution`; missing required keys become the structured
+issues below rather than mutation failures. Run admission repeats that same operation before freezing
+the execution plan. This is the only path that produces `NodeCapabilityNormalizedParameters`.
+
+`WorkflowReadinessPolicy` owns pure structural checks. Exact capabilities own parameter, profile,
+model, and calibration semantics. The use case mechanically projects capability-owned typed issues
+into the Workflow categories below; it does not reimplement Seedance tables, query another
+availability source, or mutate the graph. Ordinary editing readiness resolves current model
+revisions. Run admission first bulk-resolves all selected revisions from one Settings snapshot and
+then repeats capability readiness against those exact frozen revisions. It never repairs the graph
+automatically.
 
 Every Workflow external-readiness evaluation, including each invocation of
 `WorkflowCheckReadinessUseCase` and each Run-admission evaluation, captures one process-monotonic
@@ -118,8 +130,9 @@ by node ID, table-order category tag, then optional target key with absent first
 | `WorkflowAssetKindMismatch` | node ID, input key, expected/actual media kind |
 | `WorkflowCapabilityUnregistered` | node ID, exact capability ref |
 | `WorkflowGenerationProfileIncompatible` | node ID, profile ref, capability ref |
-| `WorkflowGenerationProfileUnavailable` | node ID, profile ref |
-| `WorkflowGenerationProfileAvailabilityIndeterminate` | node ID, profile ref |
+| `WorkflowGenerationModelUnavailable` | node ID, stable model ID and structured safe reason |
+| `WorkflowGenerationModelAvailabilityIndeterminate` | node ID, stable model ID |
+| `WorkflowGenerationModelCalibrationRequired` | node ID, model ID, rule code, typed parameter/input/input-item target, and closed correction proposal |
 | `WorkflowCapabilityExternalReadinessIssue` | node ID, capability-owned typed issue |
 
 The result contains no message-derived category, severity, automatic repair, fallback profile, or
@@ -181,9 +194,11 @@ ancestors; it never executes unrelated branches.
 
 ```text
 load the exact current revision
-  -> check structural and external readiness
   -> topologically order the selected subgraph
-  -> normalize parameters and freeze ordered input bindings
+  -> check structural validity and normalize the static parameter superset
+  -> resolve every selected GenerationModelId against one consistent Settings snapshot
+  -> repeat external readiness and model calibration against those exact revisions
+  -> freeze normalized parameters, ordered input bindings, and one model revision per powered node
   -> create WorkflowRunAggregate and WorkflowNodeExecutionEntity values
   -> atomically persist Queued Run + node executions + first event + request receipt
      + WorkflowExecuteRunEffect
@@ -209,18 +224,22 @@ stores request ID, hash, and admitted Run ID. Matching replay loads that Run; mi
 - node ID and `WorkflowNodeExecutionId`;
 - exact `NodeCapabilityContractRef`;
 - `NodeCapabilityNormalizedParameters`;
+- for each model-powered node, one `WorkflowGenerationModelRevisionSelection` containing only the
+  selected stable model UUID and non-zero immutable configuration revision;
 - named single/ordered bindings with stable item IDs and roles;
 - exact source node/output references.
 
 The plan contains no UI position, provider/native model, route, credential, URL, path, preview,
-remote task handle, or mutable availability observation. The current Workflow may be edited after
-admission without changing the Run.
+remote task handle, or mutable availability observation. The application-owned model revision
+selection is not provider configuration. The current Workflow or Generation Settings may be
+edited after admission without changing the Run.
 
 Before invoking one exact capability, `WorkflowExecuteRunUseCase` copies the plan's Workflow ID,
 revision, node ID, and capability contract ref into `WorkflowNodeExecutionOrigin`. It separately
 constructs `WorkflowNodeExecutionContext` from the Project, Run, node-execution, deadline, and
-cancellation values. It does not ask a capability or Desktop bridge to reconstruct frozen producer
-coordinates.
+cancellation values. It supplies the matching model revision as `WorkflowNodeExternalAdmission`
+for model-powered capabilities and `None` otherwise. It does not ask a capability or Desktop bridge
+to reconstruct frozen producer coordinates or re-resolve current Settings.
 
 The MVP does not define a separate planned/dispatch hash or cross-Run cache key.
 `WorkflowNodeExecutionId` is sufficient for provider submission idempotency inside one durable Run.
@@ -252,7 +271,10 @@ Input/output sets use exact contract keys; a capability returns every output or 
 `WorkflowManagedAssetIdBoundaryValue` contains exact RFC 9562 UUIDv4 bytes; its content fingerprint
 counterpart contains exactly 32 SHA-256 bytes. Image, video, and audio reference types contain both
 and fix media kind. They expose canonical bytes, equality, and ordering, never Asset lifecycle, path,
-URL, content, Project visibility, or provider state. Outputs require an Available Asset.
+URL, content, Project visibility, or provider state. Creating a direct capability output requires an
+Available Asset. Generation Task notification instead attaches the Task's immutable Asset
+ID/kind/digest result, which proves availability at Task success and remains valid historical output
+identity even if the Asset later becomes Missing.
 
 Structured text has literals and stable references. Workflow owns integrity; the capability owns normalization/provider mapping. Provider syntax is not persisted.
 
@@ -263,6 +285,9 @@ empty ones. Input/output maps reject duplicate keys and never contain null, part
 These engine-owned values do not own Asset semantics. The Desktop bridge translates Asset ID/digest
 and revalidates Project, media kind, and Available state on every access. Engine never depends on
 Asset; shared contracts, generic media, legacy readers, and implicit conversion are prohibited.
+Current downstream byte access and preview issuance revalidate Project, media kind, digest, and
+Available state. Notification replay does not revalidate current byte availability and therefore
+cannot turn one already-Succeeded Task into a different Workflow history after restart.
 
 ## Run Aggregate And State
 
@@ -420,6 +445,7 @@ Latest means maximum `(run_created_at, workflow_run_id)` among plans containing 
 | `WorkflowAggregateRepositoryInterface` | `load_workflow`, atomically `commit_workflow_mutation` with revision and receipt |
 | `WorkflowRunRepositoryInterface` | atomically admit/transition Runs, outputs, events, request receipts, and `WorkflowExecuteRunEffect` |
 | `WorkflowNodeCapabilityInterface` | contract, normalization, external readiness, and exact execution |
+| `WorkflowGenerationModelAdmissionResolverInterface` | resolve all model-powered nodes against one Settings snapshot and return exact provider-independent model revisions in request order |
 | `WorkflowGenerationTaskRecoveryReaderInterface` | classify exact Running pre-handoff and waiting Node Execution task states during startup |
 | `WorkflowMediaPreviewIssuerInterface` | `issue_workflow_media_preview` |
 | `WorkflowClockInterface` | `current_workflow_time` |
@@ -439,6 +465,7 @@ as an immutable collection. Only `DesktopCompositionRoot` selects concrete adapt
 `WorkflowCreationIdempotencyConflict`, `WorkflowRevisionConflict`,
 `WorkflowMutationIdempotencyConflict`, `WorkflowRunNotFound`,
 `WorkflowRunRevisionMismatch`, `WorkflowRunIdempotencyConflict`, `WorkflowNotReady`,
+`WorkflowGenerationModelAdmissionFailed`,
 `WorkflowRunEventLimitOutOfBounds`, `WorkflowPersistenceFailure`, `WorkflowCapabilityExecutionFailure`,
 `WorkflowGenerationTaskCompletionConflict`, `WorkflowGenerationTaskRecoveryReadFailure`,
 `WorkflowMediaPreviewIssueFailure`, and `WorkflowRunEventPublishFailure`.
@@ -451,8 +478,8 @@ Errors contain safe typed IDs and structured details. Message text never control
 - Project-association tests prove one current Workflow per Project and idempotent concurrent create;
 - mutation tests prove atomic action sets, revision CAS, request idempotency, and capability changes;
 - readiness tests prove structural/external ownership and admission recheck;
-- plan tests prove whole/through-node scope, dependency order, normalized parameters, and persisted
-  reference order;
+- plan tests prove whole/through-node scope, dependency order, normalized parameters, exact model
+  revision freeze, Settings-snapshot consistency, and persisted reference order;
 - Run tests cover every legal/illegal transition, branches, failure, cancellation, late output,
   event sequence, and terminal immutability;
 - repository contract tests prove admission/transition/output/event atomicity and idempotency;

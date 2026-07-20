@@ -1,6 +1,6 @@
 # Backend Storage Architecture
 
-> Status: frozen MVP design
+> Status: frozen production model hard-cut design
 > Owner: consumer-owned interfaces; concrete adapters composed by `src-tauri`
 > Scope: Project, Workflow, Run, Generation Task, Asset, Assistant, configuration, and credentials
 
@@ -37,8 +37,9 @@ application cache, or cross-device synchronization in the MVP.
 5. SQLite and filesystem publication are coordinated explicitly, not called one transaction.
 6. Rows, paths, URLs, provider payloads, SDK bytes, and plaintext secrets never enter domain identity
    or public DTOs.
-7. Startup recovery is bounded; accepted provider work resumes only by an authoritative persisted
-   Generation Task and its exact remote handle.
+7. Startup recovery is bounded; accepted provider work resumes only by an authoritative Generation
+   Task with the exact handle returned directly by its validated create response. An unbound
+   `Submitting` Task fails conservatively as `AmbiguousSubmission` and is never resubmitted.
 
 ## State Placement
 
@@ -52,7 +53,7 @@ application cache, or cross-device synchronization in the MVP.
 | `WorkflowRunAggregate`, frozen plan, node executions, outputs, and event delivery state | SQLite |
 | Workflow Run request hashes and admission receipts | SQLite |
 | `GenerationTaskAggregate`, immutable request/target, remote handle, optional result, and revision | SQLite |
-| closed Generation Task submit/poll/cancel/notify effects and claim state | SQLite |
+| five closed Generation Task submit/poll/cancel/delete/notify effects and claim state | SQLite |
 | `AssetAggregate`, node-output keys, and content finalization | SQLite |
 | `AssistantProductionPlanAggregate` and items | SQLite |
 | `AssistantWorkflowChangeAggregate`, review, decision, and Run link | SQLite |
@@ -61,7 +62,8 @@ application cache, or cross-device synchronization in the MVP.
 | opaque Assistant continuation and SDK Session | contract-epoch storage owned by the model adapter |
 | validated media bytes | managed-media directory |
 | incomplete media bytes | staging directory |
-| validated startup limits, route/profile entries, credential IDs | SQLite |
+| validated startup limits and Assistant configuration | SQLite backend-config row |
+| Generation Settings revision, Provider Connection and Generation Model current pointers/lifecycle, immutable sanitized revisions, and credential bindings | SQLite |
 | provider and Assistant API secrets | plaintext SQLite credential rows |
 
 `ProjectId` is defined by `crates/projects` and stored on every Project-owned Workflow, Run, Asset,
@@ -72,11 +74,12 @@ Production Plan, and Assistant Workflow Change. Other contexts do not copy Proje
 - one hydrated aggregate during one application call;
 - active `DesktopPostCommitEffectWorker` handles and cancellation tokens;
 - one active Assistant invocation lock per Session;
-- provider transport and one in-flight submit/poll/cancel call;
+- provider transport and one in-flight list/submit/poll/cancel/delete call;
+- exact Generation Task input-Asset source leases and adapter-private temporary media references;
 - loaded credential values during one bounded use;
 - open source, staging, managed-content, sidecar, and preview handles;
 - one process-local signing secret for preview leases;
-- one bulk Generation Profile availability observation response.
+- one bulk Generation Model structural-availability observation response.
 
 No command assumes any process-scoped value survives restart.
 
@@ -86,7 +89,8 @@ No command assumes any process-scoped value survives restart.
 - preview URLs, preview tokens, preview leases, or signing keys;
 - user source paths or managed absolute paths in business records;
 - credentials outside their dedicated SQLite rows or call-scoped secret values;
-- provider request/response bodies, signed URLs, or native model IDs;
+- provider request/response bodies or signed URLs; native model/Endpoint IDs persist only inside
+  sanitized Generation Model revisions and copied non-secret Task targets;
 - current provider availability observations;
 - generated media bytes inside SQLite;
 - arbitrary background-job kinds or provider-specific task lifecycles;
@@ -160,17 +164,48 @@ store a remote task handle.
 ## Logical Generation Task Records
 
 `SqliteGenerationTaskRow` stores the exact Workflow origin, immutable request snapshot and hash,
-stable profile and non-secret route binding, normalized state, optional progress and opaque remote
-handle, structured failure, timestamps, and optimistic revision.
+stable profile, Generation Model revision, Provider Connection revision, non-secret credential
+binding ID, model-contract ref, exact provider/route, and the
+closed production protocol/variant/Endpoint/native identity or debug built-in identity
+target, normalized state, optional progress and opaque remote handle, diagnostic client request ID,
+optional route-fixed remote cleanup deadline, structured failure, timestamps, and optimistic
+revision. The diagnostic ID proves neither provider idempotency nor remote ownership. The cleanup
+deadline exists only after `TooLateRunning`. The row stores no credential bytes.
 
 The Generation Task row stores one optional tagged result: either bounded inline Text or one Asset
 reference from finalization. Row constraints require a representation matching the request kind,
 and the named translator restores the matching `GenerationTaskResult` variant.
-`SqliteGenerationTaskOutboxRow` stores one of `SubmitTask`, `PollTask`, `CancelRemoteTask`, or
-`NotifyWorkflow`, plus availability time, `Ready | Claimed | Completed`, bounded delivery count,
+`SqliteGenerationTaskOutboxRow` stores one of `SubmitTask`, `PollTask`, `CancelRemoteTask`,
+`DeleteRemoteTask`, or `NotifyWorkflow`, plus availability time, `Ready | Claimed | Completed`, bounded delivery count,
 completion, and safe last failure. The payload contains identifiers only. Unique origin/idempotency and provider-handle
-indexes prevent duplicate local tasks and ambiguous lookup. Exact schema and transaction semantics
+indexes prevent duplicate local tasks and ambiguous lookup. A scoped unique index on connection
+revision, route, and non-null remote handle prevents two local Tasks claiming the same provider
+record. Exact schema and transaction semantics
 are owned by `BACKEND_TASK.md`.
+
+## Logical Generation Model Records
+
+`SqliteGenerationSettingsRow` is a singleton containing the non-zero Settings revision.
+`SqliteGenerationProviderConnectionCurrentRow` stores stable connection ID, current non-zero
+revision, and lifecycle. `SqliteGenerationProviderConnectionRevisionRow` stores immutable display
+name, service family, normalized Endpoint root, and credential-binding ID.
+`SqliteGenerationModelCurrentRow` stores stable model ID, current non-zero model revision, and
+current lifecycle. `SqliteGenerationModelRevisionRow` stores one immutable sanitized revision:
+display name, connection-revision ref, explicit model family/variant, native model identity and
+evidence, model capability contract ref, profile, and derived generation kind. Endpoint and token
+ownership never appear on a model row. `(model_id, model_revision)` is unique;
+rows referenced by an admitted non-terminal Run or Generation Task cannot be removed.
+
+Credential bytes exist only in `generation_provider_credentials`, keyed by the typed binding ID
+owned by a connection revision. Sanitized Settings queries join current connections with credential
+presence and return `has_api_token`. Removed connections and models remain tombstones; removal never
+deletes a revision or credential binding needed by non-terminal work or incomplete remote cleanup.
+There is no default-model row, fallback order, arbitrary options JSON, or provider-specific task
+table.
+
+Debug-gated Mock models and `OH_MY_DREAM_ENABLE_MOCK_MODELS` are process-scoped composition data.
+They never create rows in these tables. Their fixed UUIDv4/revision pairs resolve only while the
+debug gate is enabled.
 
 ## Logical Asset Records
 
@@ -229,6 +264,7 @@ mechanically encodes it in the same transaction as the owning state.
 | `WorkflowRunRepositoryInterface` | idempotently admit and atomically transition Runs, outputs, and events |
 | `GenerationTaskRepositoryInterface` | atomically create/transition Tasks with consumed and enqueued task effects |
 | `GenerationTaskOutboxReaderInterface` | claim, reschedule, and recover the closed task-effect protocol |
+| `GenerationSettingsRepositoryInterface` | load one consistent connection/model snapshot, resolve immutable revisions, and atomically CAS one closed connection or model mutation with credential write/cascade when required |
 | `AssetRepositoryInterface` | load/query Assets and resolve node-output identity |
 | `AssetIngestTransactionInterface` | commit Pending/finalization and availability transitions |
 | `AssetManagedContentStoreInterface` | stage, publish, open, verify, and remove stale staged bytes |
@@ -237,8 +273,9 @@ mechanically encodes it in the same transaction as the owning state.
 | `AssistantRepairActivationRepositoryInterface` | record-or-get one factual activation per failed Run |
 | `AssistantModelContinuationStoreInterface` | store/load/consume versioned opaque continuation state |
 | `DesktopPostCommitEffectOutboxInterface` | claim/finish one closed effect and page/CAS prior-instance claims plus Ready Workflow effects for startup recovery |
-| `GenerationProviderCredentialRepositoryInterface` | save/load/delete plaintext generation-provider secrets in SQLite |
+| `GenerationProviderCredentialRepositoryInterface` | save/load plaintext binding-keyed generation-provider secrets in SQLite; deletion requires no admitted work or incomplete remote cleanup reference |
 | `AssistantModelCredentialRepositoryInterface` | save/load/delete plaintext Assistant model secrets in SQLite |
+| `AssistantProviderSettingsRepositoryInterface` | load revisioned sanitized Assistant settings and atomically CAS tested config plus optional credential |
 | `DesktopBackendConfigRepositoryInterface` | load/save and validate startup configuration in SQLite |
 
 There is no global `Store`, `Database`, repository, unit of work, or credential interface. SQLite,
@@ -281,6 +318,25 @@ the Run root, affected node executions, a complete output set, and ordered event
 occur while the already-committed Run effect is being consumed; no per-node effect records are
 created. Tauri emission consumes committed event rows after their transaction.
 
+### Generation Settings Mutation
+
+```text
+validate one closed connection or model mutation
+  -> compare expected Settings plus affected connection/model revisions
+  -> write immutable sanitized connection and/or model revisions
+  -> update affected current pointers/lifecycles
+  -> insert or retain the connection revision's credential binding
+  -> increment Settings revision and commit, or write nothing
+```
+
+No provider call occurs inside or before this transaction. Endpoint syntax, protocol/profile/kind
+compatibility, credential presence, and collection bounds are deterministic validation. Token-only
+rotation for the same Endpoint compatibility epoch may retain the connection revision and binding;
+an Endpoint change creates a new connection revision and binding and atomically advances every
+attached model to a new revision referencing it. Credential bytes never enter an immutable revision
+payload. A disabled/removed connection or model cannot admit a new Run; exact revisions and bindings
+already frozen into non-terminal Runs or incomplete remote cleanup remain resolvable.
+
 ### Asset Publication
 
 ```text
@@ -308,6 +364,20 @@ failure transitions the change to `ApplyFailed`; a transient storage failure lea
 An ambiguous sidecar-continuation resume is marked interrupted rather than replayed; canonical
 Workflow apply and Run admission remain authoritative.
 
+### Assistant Provider Test And Apply
+
+```text
+perform bounded model-list or Responses compatibility read outside SQLite
+  -> begin immediate transaction only after compatibility succeeds
+  -> compare expected Desktop config revision
+  -> write canonical Assistant config and upsert or retain its credential
+  -> increment revision and commit, or write nothing
+```
+
+The provider test is a read used to validate candidate configuration, not an outbox side effect.
+No transaction remains open during network or sidecar work. A revision conflict after a successful
+test discards the test result and requires the user to test the latest revision again.
+
 ## Managed Media Publication
 
 Import and node output share one protocol:
@@ -331,8 +401,9 @@ permissions. Managed bytes are immutable after availability.
 
 ## Configuration And Credentials
 
-`metadata.sqlite` stores the validated `DesktopBackendConfig` and the two credential classes in
-separate focused tables. Credential values are deliberately stored as plaintext blobs. The MVP
+`metadata.sqlite` stores the validated `DesktopBackendConfig`, revisioned Generation Models, and
+the two credential classes in separate focused tables. Credential values are deliberately stored
+as plaintext blobs. The current design
 does not claim encryption at rest, does not derive or embed an encryption key, and does not use
 macOS Keychain, Windows Credential Manager, Linux Secret Service, a JSON config file, or an
 environment-variable persistence fallback.
@@ -342,28 +413,47 @@ The physical rows are exact:
 | Table | Key and payload |
 | --- | --- |
 | `desktop_backend_config` | singleton key `1`, schema version, non-zero monotonic revision, and canonical JSON blob `1..=262,144` bytes |
-| `generation_provider_credentials` | credential ID primary key and plaintext secret blob `1..=16,384` bytes; inactive in the Mock MVP |
+| `generation_settings` | singleton key `1` and non-zero monotonic Settings revision |
+| `generation_provider_connection_current` | stable connection UUID primary key, current non-zero revision, and lifecycle |
+| `generation_provider_connection_revisions` | `(connection UUID, revision)` primary key and immutable display/service-family/Endpoint/credential-binding identity |
+| `generation_model_current` | stable model UUID primary key, current non-zero revision, and lifecycle |
+| `generation_model_revisions` | `(model UUID, revision)` primary key and immutable bounded model configuration referencing one connection revision |
+| `generation_provider_credentials` | typed credential-binding ID primary key and plaintext API-token blob `1..=16,384` bytes |
 | `assistant_model_credentials` | typed credential ID primary key, plaintext secret blob `1..=16,384` bytes |
 
-Settings apply atomically compare-and-swaps the config revision and changes only the selected Mock
-binding. Selecting the already-current binding returns `Unchanged` without a revision increment.
-Task admission copies the selected profile/provider/route tuple into the immutable Task target;
-Task persistence does not read or compare config or credential rows. Config initialization writes
-the frozen default only when the singleton row is absent; a corrupt, oversized, unsupported-version,
-or non-canonical row fails startup and is never silently replaced.
+Generation Settings apply atomically compare-and-swaps its independent Settings revision and then
+performs one closed connection or model mutation. Connection creation/Endpoint replacement writes
+an immutable connection revision and credential binding; Endpoint replacement also writes new
+revisions for every attached current model in the same transaction. Token-only rotation updates the
+same binding without changing revision identity. Model mutations write only model-owned fields and
+one connection-revision ref. An exact non-secret replay with no token change returns `Unchanged`
+without a revision increment. Any validation, Settings/aggregate revision conflict, cascade, or SQL
+failure preserves all prior connection, model, and credential state.
 
-The Mock architecture uses a new hard-cut Desktop storage epoch and creates version 2 configuration
-directly. It has no legacy config column or compatibility path. A prior-epoch database is rejected
-without mutation, so current Mock Settings and Generation Tasks cannot inspect or reference its
-provider configuration or credentials. Production-provider credential semantics require a future
-reviewed design rather than speculative migration or revision/tombstone tables in this MVP.
+Assistant Provider test-and-apply performs its external compatibility read before opening a
+transaction, then atomically compare-and-swaps the Desktop config revision and upserts or retains
+`assistant.openai.default` in `assistant_model_credentials`. Test failure, revision conflict, or
+either SQL write failure changes neither config nor credential.
+
+Run admission freezes a model revision and model capability contract ref; Task admission copies
+that revision plus its exact connection revision and credential-binding ID into the immutable Task
+target. Task persistence never reads current Settings. Provider execution loads only that frozen
+binding immediately before an authenticated call; it never derives a credential from the current
+model or connection pointer.
+
+Fresh epoch-3 initialization writes canonical Desktop configuration version `4`, Generation
+Settings revision `1`, no production connection/model rows, and no provider credentials. A corrupt, oversized,
+non-canonical, prior-version, or newer-version row fails startup and is never silently replaced.
+No current Settings, Generation Task, or Assistant path can inspect a rejected prior-epoch
+configuration or credential.
 
 The database and parent data directory use private user-only permissions where the platform
 supports them. This reduces accidental disclosure but is not encryption: any process or user able
 to read the database can read every stored credential. Public DTOs expose only configured presence
-and typed credential IDs. Provider routes and the Assistant runner load one secret immediately
-before an authenticated call; request construction may zeroize temporary header buffers, but the
-durable SQLite value remains plaintext by design.
+and typed credential IDs, except that the Assistant settings projection omits the fixed credential
+ID and exposes only `has_api_key`. Provider routes, Assistant discovery/testing, and the Assistant
+runner load one secret immediately before an authenticated call; request construction may zeroize
+temporary header buffers, but the durable SQLite value remains plaintext by design.
 
 The generation-provider and Assistant credential repositories remain separate consumer-owned
 interfaces and separate tables even when one SQLite adapter implements both. Tests prove
@@ -386,14 +476,15 @@ the process-secret lifetime and the opaque managed-content read used after valid
 ```text
 resolve private application-data locations
   -> acquire the held-open OS-exclusive data-root lock for the process lifetime
-  -> open SQLite and apply known migrations
+  -> open SQLite and create or validate the one exact epoch-3 schema
   -> load or initialize validated DesktopBackendConfig and credential repositories
   -> construct Project and other repositories, managed-content adapters, and application use cases
   -> construct provider routes, Node Capabilities, Assistant adapter, and bridges
   -> validate the active Assistant contract epoch
-  -> reset prior-process Generation Task claims
-  -> reconcile bounded Pending Assets and classify non-terminal Workflow Runs against exact durable
-     task handoffs
+  -> reconcile bounded Pending Assets
+  -> classify unbound Submitting Tasks as AmbiguousSubmission and atomically replace stale Submit effects with NotifyWorkflow
+  -> reset remaining prior-process Generation Task claims
+  -> classify non-terminal Workflow Runs against exact durable task handoffs
   -> preserve waiting Runs, replay queued Runs, and interrupt only unsafe Runs
   -> recover Asset finalization and Assistant Applying effects through idempotency receipts
   -> emit bounded undispatched Workflow Run events
@@ -404,10 +495,11 @@ resolve private application-data locations
 recovery ordering and CAS semantics; this sequence is its storage-level summary, never an
 alternative order.
 
-An accepted Generation Task resumes only by its persisted remote handle and exact route binding.
-An ambiguous uncommitted submission is never blindly repeated. Pending Asset reconciliation is safe
-because it completes only already-identified local bytes. Assistant apply recovery remains isolated
-and invokes canonical idempotent Workflow/Run admission.
+An accepted Generation Task resumes by its persisted remote handle and exact route binding. A remote
+create whose response was lost is never repeated and no provider-list candidate is attached: startup
+consumes the stale Submit effect, commits `AmbiguousSubmission`, and notifies Workflow. Pending Asset
+reconciliation is safe because it completes only already-identified local bytes. Assistant apply
+recovery remains isolated and invokes canonical idempotent Workflow/Run admission.
 
 ## SQLite Hard-Cut Policy
 
@@ -425,12 +517,12 @@ Startup creates the current schema directly, refuses every prior or newer unsupp
 never deletes or silently recreates rejected user data. Assistant contract-epoch storage is a hard
 compatibility boundary and is never parsed by a new epoch.
 
-The hard-cut Desktop storage epoch is `2`: SQLite `application_id` is `0x4f4d4432` and its only
+The hard-cut Desktop storage epoch is `3`: SQLite `application_id` is `0x4f4d4433` and its only
 accepted `user_version` is `1`. An absent database is created directly at that exact pair. An
 existing non-empty database with a missing/different application ID is
 `UnsupportedLegacyStorageEpoch`; one with any other `user_version` is
 `UnsupportedStorageSchemaVersion`. Both remain untouched with adjacent files. There are no schema
-migrations within epoch `2` and no migration from any earlier epoch. A future incompatible schema
+migrations within epoch `3` and no migration from any earlier epoch. A future incompatible schema
 must use a new storage epoch and application ID. The abandoned architecture has no reader,
 importer, compatibility table, backfill, dual-read/write, or destructive reset path.
 
@@ -449,10 +541,12 @@ Verification proves:
 - Run admission receipt, transition/output/event atomicity, and event ordering;
 - Asset fault injection at every SQLite/filesystem boundary and node-output replay/conflict;
 - Assistant plan CAS, exact change reconstruction, Applying recovery, and Run-link idempotency;
-- Generation Task transaction/outbox atomicity, startup claim reset, query-by-ID resume, and
-  safe/unsafe Workflow restart classification;
+- Generation Task transaction/outbox atomicity, startup claim reset, fail-safe create-response-loss
+  classification, query-by-ID resume, remote-handle uniqueness, and safe/unsafe Workflow restart classification;
 - SQLite configuration and plaintext credential round trip, isolation, deletion, and redaction
   from DTOs/errors/logs;
+- Assistant test-and-apply fault injection proves the config row and credential row commit together
+  or remain together at their prior values;
 - bounded queries, Project isolation, preview expiry/Range, and path non-disclosure;
 - translators reject unknown versions, variants, corrupt combinations, and oversized payloads.
 

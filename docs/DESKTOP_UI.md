@@ -16,9 +16,9 @@ terminology. The first acceptance path is:
 
 1. enter a text prompt;
 2. connect Text to Text to Image;
-3. connect the generated Image to Image to Video;
-4. choose understandable generation settings;
-5. run through Image to Video;
+3. connect the generated Image to Generate video as its first frame;
+4. choose a saved production or debug-gated test model and understandable generation settings;
+5. run through Generate video;
 6. observe the Workflow Run and every Node Execution;
 7. inspect the generated image and video after their Assets become available.
 
@@ -36,10 +36,12 @@ is not success.
   Capability, Workflow, Run, Asset, and Assistant commands, plus provider/assistant configuration
   and Generation Task get/list commands exposed by the desktop backend.
 - The exact seven Node Capabilities and the existing whole/through-node Run scopes.
+- Multiple saved production Image, Video, and Speech model configurations with write-only tokens,
+  protocol-dependent forms, dynamic model capability contracts, and explicit Video calibration.
 - Empty, editing, blocked, queued, running, succeeded, failed, cancelled, and stale
   presentation states mechanically derived from existing DTOs.
 - Keyboard-operable node selection, connection, deletion, and Run controls.
-- A deterministic mock Text-to-Image -> Image-to-Video path with typed Asset read-back.
+- A debug-gated deterministic mock Text-to-Image -> universal Video path with typed Asset read-back.
 - Asset Library view, Assistant dock, and Settings dialog presentation as specified below.
 - Run history and multiple Workflows per Project are product scope. Their presentation design
   is pending; it will be frozen in this document before any implementation.
@@ -339,9 +341,12 @@ preview, never a broken media element.
 | waiting for external completion | Running | `Waiting for the model`, with the last supplied progress |
 | cancelled | Cancelled | no fabricated result |
 
-An Image or Video preview is rendered only when the current node presentation contains a complete,
-non-stale typed output and a preview URI. Before that, the same area is a compact instructional empty
-state. A Video node never shows a play affordance without a video preview URI.
+An Image, Video, or Audio preview is rendered only when the current node presentation contains a
+complete, non-stale typed output and an Asset preview whose representation matches that type. Before
+that, the same area is a compact instructional empty state. `image` renders an image;
+`playable_video` renders a native video player with controls and metadata preload;
+`playable_audio` renders native audio controls. A Video node never shows a play affordance for a
+poster, missing URI, or mismatched representation.
 
 ## Generation Model Selection
 
@@ -350,17 +355,84 @@ The `Configure` tab label is `Generation model`, not `Generation profile`.
 Each option presents:
 
 - display name, such as `Fast image model`;
+- creator-facing source, such as `Seedance 2.0` or `Debug mock`;
 - availability: `Ready` or the existing structured reason it cannot run.
 
-Provider IDs, credential IDs, and secrets are never displayed. If exactly one structurally
-compatible model exists, it is selected by default and shown as a read-only row. If multiple
-compatible models exist, the choice stays inline in `Configure`. A compatible but unavailable or
-indeterminate model remains visible and disabled with its structured reason. With no compatible
+Provider route IDs, credential IDs, Endpoint IDs, and secrets are never displayed on a node. If
+exactly one structurally compatible model exists while a new node is being created, that explicit
+Add Node mutation selects it and its suggested values. An existing node with no selection is never
+auto-mutated or silently repaired. If multiple
+models exist, the choice stays inline in `Configure`. A compatible but unavailable model remains
+visible and disabled with its structured reason; the currently selected model remains visible even
+after it becomes disabled, removed, or debug-gated off. With no compatible
 model, the control reads `No generation model supports this node type`, and the node is not ready
 to run.
 
+Choices are grouped by creator-facing service/source. Selecting a saved model switches its provider
+and model together through one stable model ID; there is no second provider dropdown that can form
+an unsaved or incompatible pair.
+
 The frontend does not invent model compatibility. Options come only from
-`generation_profile_list_for_capability` for the selected exact capability.
+`generation_model_list_for_capability`; dynamic controls come only from
+`generation_model_capability_contract_get`; calibration findings come only from canonical Workflow
+readiness/presentation. React never parses native model IDs or owns a Seedance version matrix.
+
+For a newly added generation node, choosing its initial model and the backend-suggested values is
+one explicit Add Node mutation. A later model switch changes only `generation_model_id` (and the
+paired profile when required), preserving every existing parameter and connection. The refreshed
+contract may make that draft invalid for running, but the mutation still persists and the node
+explains the required calibration. No model switch silently resets, removes, disconnects, or
+substitutes anything.
+
+## Universal Video Node
+
+The library label remains `Generate video`; visible UI never exposes separate Text-to-Video or
+Image-to-Video node types. The node uses the exact `video.generate@1.0` capability and four stable
+input rows in this order:
+
+| Input | UI behavior |
+| --- | --- |
+| `Prompt` | one optional Text connection; the selected mode may require it |
+| `Images` | ordered 0..9 connections with per-item First frame, Last frame, or Reference image role |
+| `Videos` | ordered 0..3 Reference video connections |
+| `Audio` | ordered 0..3 Reference audio connections |
+
+The node body shows only selected model and mode; counts such as `Images 2/9` fit on the input rows.
+The Configure tab owns reordering, role menus, and detailed parameters. Stable input-item identity
+survives reorder. It never infers first/last position from filenames or connection time.
+
+`Mode` is a segmented control with `Text`, `First frame`, `First + last`, and `References` using
+only choices returned by the selected model contract. Connections incompatible with the chosen
+mode stay visible with an issue marker. A persisted mode unavailable on the new model remains
+visible as the disabled current value in `Needs calibration` until explicitly changed. Text mode requires Prompt and no media; First frame requires
+one first-frame Image; First + last requires the ordered pair; References applies the returned
+Image/Video/Audio limits and never permits Audio as the only media.
+
+The parameter panel is contract-driven:
+
+| Contract field | Control |
+| --- | --- |
+| `generate_audio` | `Generate synchronized audio` toggle |
+| `draft` | `Sample mode` toggle |
+| `resolution` and `ratio` | option menus containing only contract choices |
+| `duration_mode` | `Auto / Seconds / Frames` segmented control plus the required numeric stepper |
+| `seed_mode` | `Random / Fixed` segmented control plus seed input when Fixed |
+| `camera_fixed` | `Fixed camera` toggle |
+| `watermark` | `AI watermark` toggle |
+
+Available fields show their persisted value. A newly created node starts with the contract's
+suggested values; later contract changes never apply them automatically. A field unavailable on
+the new model is normally omitted, but if the node still persists a value it remains visible in a
+`Needs calibration` group with the backend-proposed removal. Cross-field findings, such as Sample
+mode requiring 480p, appear beside both affected controls.
+
+After a model or mode change, Configure shows one compact calibration summary and highlights every
+affected input item or parameter. Each finding states the concrete creator action and offers only
+backend-declared compatible choices/defaults. The user may commit individual edits or explicitly
+apply the displayed correction set as one canonical Workflow mutation. A revision conflict reloads
+the current node and requires review again. `Run all` and `Run to here` remain blocked until the
+authoritative issue set is empty. Raw provider errors, routes, Endpoint IDs, and vendor request
+syntax never become calibration copy.
 
 ## Run Work Drawer
 
@@ -424,8 +496,8 @@ the graph or loses viewport position.
 
 ### Asset card
 
-- A thumbnail for an Available Asset with an issued preview; otherwise a typed empty tile — never a
-  broken media element.
+- An Image preview or playable Video/Audio preview for an Available Asset with an issued matching
+  representation; otherwise a typed empty tile, never a broken or type-mismatched media element.
 - A kind badge pairing an icon with the words `Image`, `Video`, or `Audio`; color is never the sole
   carrier of media type.
 - The prompt or name line, the origin Project or node when the DTO establishes it, and the creation
@@ -496,25 +568,110 @@ Settings is a modal dialog over the workspace with a left section list, one cont
 `Done` action. A section with no available capability shows a short factual empty state; it never
 implies a function the command surface does not provide.
 
-- `Models`: the generation model list from the provider settings commands. Each model row shows
-  its display name, the provider route serving it, and an enable toggle. Raw profile references
-  and revision counters never appear. Provider API keys are managed outside the app until a
-  backend credential command exists; no key field is shown before then.
-- `Assistant`: the master enable, and the OpenAI-protocol connection — Base URL, Model, and a
-  write-only API key. This section stays unbuilt until an assistant configuration command exists.
-  The Skills list and Developer mode from the reference mockup are likewise gated on backend
-  commands that do not exist yet.
+- `Models`: reusable Provider Connections plus multiple saved production Image, Video, and Speech
+  model configurations, with create, edit, enable/disable, and remove actions backed by Generation
+  Settings commands. There is no global active provider or fallback order.
+- `Assistant`: the master enable and the one OpenAI Responses-compatible connection described
+  below. Skills and Developer mode from the reference mockup remain absent until their own backend
+  commands exist.
 - `Canvas`: editor preferences. None exist yet; the section shows a short factual empty state.
 - `About`: application name and version, read from the frontend package itself.
 
 A Storage section returns only when a backend query can report where Project data lives. Saving
 announces success or failure in place. Secrets never appear in copy, logs, or diagnostics.
 
+### Generation model connections
+
+The Models section first shows reusable `Connections`, then model groups `Image`, `Video`, and
+`Speech`. A connection row shows display name, creator-facing service, enabled state, token presence,
+and an abbreviated Endpoint. A model row shows display name, family/variant, connection display
+name, enabled state, and `Ready` or one safe setup issue. Neither row shows route ID, credential ID,
+revision, token, or provider task ID. Removed tombstones leave active groups and appear only in a
+collapsed read-only `Removed` group.
+
+`Add connection` opens an editor with `Display name`, closed `Service`, `Base URL`, and write-only
+`API token`. Service is immutable after creation and is one of `OpenAI Image API`, `Volcengine Ark
+Standard visual`, `Volcengine Agent Plan visual`, or `Volcengine Agent Plan speech`. Base URL is the
+protocol root; the product owns operation paths. Non-loopback HTTP, URL credentials, query, and
+fragment are rejected using backend validation. Edit shows `Configured` with an empty token field.
+Leaving it empty retains the token only while the Endpoint is unchanged; entering a value rotates
+the same binding. Changing Base URL requires a fresh token and clearly states that all attached
+models receive new revisions together. The field clears after success and on dialog close.
+
+`Add model` requires one compatible enabled Connection and then shows model-owned fields only:
+`Display name`, `Model family`, provider-native `Model or Endpoint ID` when the family requires it,
+and `Generation profile`. The model editor never accepts Base URL or token. Seedance family is a
+closed choice (`2.0`, `2.0 Fast`, `2.0 Mini`, `1.5 Pro`, `1.0 Pro`, or `1.0 Pro Fast`) and is never
+inferred from opaque native text. Agent Plan speech states its fixed TTS 2.0 identity read-only.
+
+Connection and model enable/disable actions are switches. Remove uses explicit confirmation and
+creates a tombstone. A disabled/removed connection blocks all attached models for new Runs; affected
+nodes stay visible and explain the exact issue. None of these actions changes an admitted or running
+Run, whose exact model, connection revision, and credential binding remain recoverable.
+
+Save applies one revision-checked Generation Settings mutation. Validation focuses the exact field and keeps
+the non-secret draft. A Settings or model revision conflict reloads the current sanitized list,
+clears entered token text, and asks the user to review the draft before saving again. Storage
+failure states that nothing was saved. Authentication, quota, and content-policy behavior are not
+guessed by a paid test request; those become structured Generation Task outcomes when the model is
+used.
+
+With `OH_MY_DREAM_ENABLE_MOCK_MODELS=true` in the debug/E2E `.env`, immutable read-only `Debug mock`
+choices appear in node model selectors and the Models section's separate debug group. With the flag
+absent they do not render at all. Debug rows have no editor, token, enable switch, or remove action
+and are never confused with saved production configurations.
+
+### Assistant connection
+
+The section edits one draft connection and never exposes generic Agents SDK options:
+
+- `Enable Assistant` is a switch. First-time setup and re-enabling require `Test and save`; turning
+  an already configured Assistant off invokes the dedicated disable command and retains the tested
+  connection for later use.
+- `Base URL` is a text field accepting `http://` or `https://`, including path prefixes such as
+  `/v1`. The displayed value is always the sanitized persisted value.
+- `API key` is a password field and write-only. When a stored key exists, the empty field is paired
+  with a factual `Configured` state and means retain the stored key. Entered key text is cleared on
+  successful save and whenever the dialog closes.
+- `Load models` calls the candidate Base URL with the entered key or retained stored key. It never
+  saves. Success populates a searchable `Model` selector with sorted model IDs returned by the
+  endpoint; no capability badge or inferred support is shown.
+- `Test and save` is the only enable/save action. It is available after successful model discovery
+  and selection, performs the real Responses function-tool compatibility test, and persists only
+  when that backend test succeeds. There is no separate Save action that can bypass testing.
+
+Changing Base URL or API key clears the discovered model list and draft selection. Changing only the
+selected model keeps the list but invalidates any prior test. Discovery and test actions disable only
+their dependent controls and keep the panel dimensions stable. Success refreshes the sanitized view,
+turns the switch on, clears the key field, enables the Assistant composer, and announces `Assistant
+connected.`
+
+Failures preserve the non-secret draft and use one creator-facing status near the actions:
+
+| Failure | Presentation |
+| --- | --- |
+| Invalid Base URL or missing key | Focus the relevant field and state what is required. |
+| Authentication rejected | `The API key was rejected.` |
+| Provider unavailable or timed out | `The Assistant provider could not be reached.` |
+| Models response invalid | `Models could not be loaded from this provider.` |
+| Selected model rejected | `This model is not available from the provider.` |
+| Responses/tool test incompatible | `This model does not support the Assistant response tools.` |
+| Settings revision conflict | Reload current sanitized settings and ask the user to test again. |
+| Storage unavailable | Keep the tested draft visible and state that settings were not saved. |
+
+The standard Models response is only a model-ID directory. Actual Assistant compatibility is proven
+only by `Test and save`. Provider response bodies, credential IDs, revisions, and raw error text are
+never displayed. HTTP is accepted without a warning because the local Desktop user explicitly owns
+the endpoint choice.
+
 ## Asset Flow
 
 - Successful generated media appears in the node result and Asset Library only after the backend
   exposes an Available Asset and issues a preview.
-- Generated Image output is the bound input to Image to Video; the UI never copies preview URLs into
+- A successful production or Mock Video acceptance path must play the generated managed Video bytes
+  through `playable_video`; a static poster does not satisfy Video preview acceptance.
+- Generated Image output may be the bound First frame or Reference image input to Generate video;
+  the UI never copies preview URLs into
   Workflow data.
 - The Asset Library refreshes when a Run succeeds, as specified in the Asset Library View.
 - Opening an output shows media type, dimensions/duration when present, origin node, and creation
@@ -523,18 +680,24 @@ announces success or failure in place. Secrets never appear in copy, logs, or di
 
 ## Deterministic Browser Mock
 
-The mock implements the same user-visible contract without network or vendor calls:
+The mock implements the same user-visible contract without network or vendor calls. Its generation
+models are present only when the E2E/debug composition enables
+`OH_MY_DREAM_ENABLE_MOCK_MODELS=true`:
 
 - expose at least one available model for each generation capability;
 - enforce canonical readiness rather than returning `ready` unconditionally;
 - emit observable queued, started, progress, succeeded, and terminal Run events in stable order;
 - produce one typed deterministic Image Asset for Text to Image;
-- consume that Asset reference and produce one typed deterministic Video Asset for Image to Video;
+- consume that Asset reference as a first-frame input and produce one typed deterministic Video
+  Asset through universal Video generation;
+- return a safe Video model capability contract and deterministic calibration findings for model,
+  mode, role, and parameter-switch cases;
 - return stable local preview fixtures and list both Assets in project order;
 - preserve cancellation and failure injection cases used by UI tests;
 - answer Assistant messages with a deterministic streamed reply and support the injected approval
   flow used by UI tests;
-- once Settings sections are wired, serve deterministic provider and assistant configuration state.
+- serve deterministic Assistant settings, model discovery, tool-compatible test success, auth
+  failure, incompatibility, and revision-conflict states without network or vendor calls.
 
 Mock preview fixtures must be visibly labelled as deterministic samples. They are test data, not
 claims that a vendor model ran.
@@ -591,10 +754,13 @@ Asset read-back, console output, and the accessibility tree. Full Cargo and E2E 
 - Component: labelled ports, compatible-target highlighting, Configure readiness, empty preview,
   timeline progress/failure, library filtering, approval-card decisions, and Settings section
   behavior once wired.
-- Cross-language contract: unchanged DTO fixtures remain authoritative.
-- Browser: the complete deterministic Text -> Image -> Video path with two Assets and no console
-  errors, and an Assistant propose -> review -> approve round trip.
-- Backend E2E: existing Workflow, Asset, and Assistant behavior remains unchanged.
+- Cross-language contract: Generation Settings, model list/capability-contract/calibration, and
+  Assistant Provider fixtures remain mechanically aligned with strict TypeScript guards.
+- Browser: with the debug model flag enabled, the complete deterministic Text -> Image -> Video
+  path, model-switch calibration, two Assets, no console errors, and an Assistant propose -> review
+  -> approve round trip.
+- Backend E2E: generation model create/edit/enable/disable/remove, immutable Run revision freeze,
+  debug-gate absence/presence, and the existing Assistant flow never expose a credential.
 
 ## Boundaries
 
@@ -622,17 +788,27 @@ Asset read-back, console output, and the accessibility tree. Full Cargo and E2E 
 ## Acceptance Criteria
 
 - A first-time desktop user can build and run Text -> Image -> Video without knowing backend terms.
+- A user can save several production models with distinct Endpoint/token/variant configuration and
+  select any compatible enabled model on a node.
+- Switching Video models preserves all inputs and values, shows every exact calibration issue, and
+  blocks Run until the user explicitly resolves them.
 - All connections can be completed by pointer and keyboard and persist after Project reopen.
 - No node overlaps another when created through the library.
 - `Generation profile` is absent from visible UI copy.
 - The Work Drawer's `Run` tab shows every admitted step and its authoritative state/progress/failure.
 - No Image or Video preview appears before a current output exists.
-- The deterministic mock Run creates one Image Asset and one Video Asset with usable previews, and
+- With the debug `.env` flag enabled, the deterministic mock Run creates one Image Asset and one Video Asset with usable previews, and
   the Asset Library lists both after the Run succeeds.
+- With the debug flag absent, no Mock model appears in Settings or any node selector.
 - The successful path never displays `Done · 0 outputs`.
 - The Assistant dock completes a propose -> review -> approve round trip against the deterministic
   mock, and an undecided proposal resurfaces after the dock or Project reopens.
-- Settings never displays secrets and never presents a capability without a backing command.
+- A first-time user can enter Base URL and API key, load models, select one, pass the real Responses
+  function-tool test, and enable the Assistant; any failed test leaves storage unchanged.
+- A configured user can disable the Assistant, and a changed Base URL or model affects the next
+  invocation without changing an already-running invocation.
+- Generation Model and Assistant Settings never display stored secrets and never present a
+  capability without a backing command.
 - UI text does not collide or clip at the three desktop verification sizes.
 - Browser console has zero errors and warnings for the acceptance path.
 
@@ -642,8 +818,10 @@ Asset read-back, console output, and the accessibility tree. Full Cargo and E2E 
   a persistent preference that this phase does not need.
 - Successful admission switches the Work Drawer to `Run` immediately; the creator must see queued
   work rather than wait for the first execution event.
-- One available generation model is selected automatically; multiple available models are selected
-  inline in `Configure`. Model configuration is not added without a backend command.
+- One available generation model may be included in the explicit new-node mutation; an existing
+  node is never auto-mutated. Multiple available models are selected inline in `Configure`.
+  Production model configuration lives in Settings; debug models are
+  immutable and environment-gated.
 - The Assistant lives in a rail-toggled dock rather than a full page: co-authoring stays beside the
   canvas and never replaces it.
 - Settings is a modal dialog rather than a workspace view: it is infrequent and must not compete

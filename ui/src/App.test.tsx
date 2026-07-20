@@ -43,6 +43,13 @@ describe("App canonical workspace shell", () => {
 
   it("keeps the assistant dock alive across close and reopen", async () => {
     vi.spyOn(api, "listProjects").mockResolvedValue([]);
+    vi.spyOn(api, "assistantProviderSettingsGet").mockResolvedValue({
+      settings_revision: "2",
+      enabled: true,
+      base_url: "http://localhost:11434/v1",
+      model_id: "model-a",
+      has_api_key: true,
+    });
     render(<App />);
     await waitFor(() => expect(screen.getByText("No project")).toBeTruthy());
 
@@ -59,5 +66,24 @@ describe("App canonical workspace shell", () => {
 
     fireEvent.click(rail);
     expect(host?.hasAttribute("hidden")).toBe(false);
+  });
+
+  it("routes an unavailable Assistant rail action to Assistant settings", async () => {
+    vi.spyOn(api, "listProjects").mockResolvedValue([]);
+    vi.spyOn(api, "assistantProviderSettingsGet").mockResolvedValue({
+      settings_revision: "1",
+      enabled: false,
+      base_url: "https://api.openai.com/v1",
+      model_id: null,
+      has_api_key: false,
+    });
+    render(<App />);
+
+    const rail = await screen.findByRole("button", { name: "Assistant" });
+    fireEvent.click(rail);
+
+    expect(await screen.findByRole("dialog", { name: "Settings" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Assistant" })).toBeTruthy();
+    expect(document.querySelector(".adock-host")).toBeNull();
   });
 });

@@ -5,7 +5,7 @@
 > Scope: Tauri admission, DTOs, cross-context bridges, post-commit effects, protocols, and composition
 
 Desktop is an application host and infrastructure boundary. It owns no Workflow, Asset, Node
-Capability, Generation Profile, or Assistant business transition.
+Capability, Generation Profile, Generation Model, or Assistant business transition.
 
 ## Responsibility
 
@@ -14,7 +14,7 @@ The Desktop host:
 - attaches trusted Project and process context to untrusted DTOs;
 - invokes one named application use case per command;
 - translates domain/application values to boundary DTOs;
-- consumes the three closed Desktop post-commit effect types and the four closed Generation Task
+- consumes the three closed Desktop post-commit effect types and the five closed Generation Task
   effect types through separate workers;
 - bridges consumer-owned interfaces across bounded contexts;
 - emits only committed Run events;
@@ -65,8 +65,10 @@ visibility, profile compatibility, review evidence, or legal transitions.
 | `workflow_get_node_presentation` | `WorkflowGetNodePresentationRequestDto` | `WorkflowGetNodePresentationUseCase` |
 | `node_capability_list` | `NodeCapabilityListRequestDto` | `NodeCapabilityListUseCase` |
 | `generation_profile_list_for_capability` | `GenerationProfileListForCapabilityRequestDto` | `GenerationProfileListForCapabilityUseCase` |
-| `generation_provider_settings_get` | `GenerationProviderSettingsGetRequestDto` | `GenerationProviderSettingsGetUseCase` |
-| `generation_provider_settings_apply` | `GenerationProviderSettingsApplyRequestDto` | `GenerationProviderSettingsApplyUseCase` |
+| `generation_model_list_for_capability` | `GenerationModelListForCapabilityRequestDto` | `GenerationModelListForCapabilityUseCase` |
+| `generation_model_capability_contract_get` | `GenerationModelCapabilityContractGetRequestDto` | `GenerationModelCapabilityContractGetUseCase` |
+| `generation_settings_get` | `GenerationSettingsGetRequestDto` | `GenerationSettingsGetUseCase` |
+| `generation_settings_apply` | `GenerationSettingsApplyRequestDto` | `GenerationSettingsApplyUseCase` |
 | `generation_task_get` | `GenerationTaskGetRequestDto` | `GenerationTaskGetUseCase` |
 | `generation_task_list` | `GenerationTaskListRequestDto` | `GenerationTaskListUseCase` |
 | `asset_import` | `AssetImportRequestDto` | `AssetImportUseCase` |
@@ -76,6 +78,10 @@ visibility, profile compatibility, review evidence, or legal transitions.
 | `assistant_send_message` | `AssistantSendMessageRequestDto` | `AssistantSendMessageUseCase` |
 | `assistant_get_pending_workflow_change` | `AssistantGetPendingWorkflowChangeRequestDto` | `AssistantGetPendingWorkflowChangeUseCase` |
 | `assistant_decide_workflow_change` | `AssistantDecideWorkflowChangeRequestDto` | `AssistantDecideWorkflowChangeUseCase` |
+| `assistant_provider_settings_get` | `AssistantProviderSettingsGetRequestDto` | `AssistantProviderSettingsGetUseCase` |
+| `assistant_provider_models_list` | `AssistantProviderModelsListRequestDto` | `AssistantProviderModelsListUseCase` |
+| `assistant_provider_settings_test_and_apply` | `AssistantProviderSettingsTestAndApplyRequestDto` | `AssistantProviderSettingsTestAndApplyUseCase` |
+| `assistant_provider_settings_disable` | `AssistantProviderSettingsDisableRequestDto` | `AssistantProviderSettingsDisableUseCase` |
 
 `WorkflowStartRunRequestDto` contains one closed `WorkflowRunScopeDto` (`WholeWorkflow` or
 `ThroughNode`). There is no duplicate through-node command. It returns a durable queued
@@ -131,77 +137,109 @@ late node output is accepted only if the Run aggregate still permits its transit
 
 ## Generation Task Coordination
 
-`GenerationProviderSettingsGetUseCase` joins the frozen Generation Profile catalog, persisted
-provider selection, credential presence, and safe `GenerationProviderContract` projections. For
-each `(profile, generation kind)` pair it returns only provider choices whose matching focused
-contract contains at least one route explicitly compatible with that exact profile. Each choice contains
-the safe provider identity and its non-empty compatible route choices.
-`GenerationProviderSettingsApplyUseCase` rejects a
-`(profile_ref, generation_kind, provider_id, route_id)` selection
-unless that exact tuple exists in the contract projection. React renders exactly those choices; a
-provider without Voice, or without a Voice route compatible with the selected profile, cannot be
-selected and no failed call is needed to discover that fact.
+Generation Settings business code lives in `crates/nodes::generation_settings`. Desktop owns only
+the DTO translators, SQLite and credential adapters, commands, and composition for that capability.
+No connection/model lifecycle, compatibility, revision, cascade, or mutation rule is implemented in
+`src-tauri`.
 
-`GenerationProviderSettingsProfileDto` contains one `(profile, generationKind)` pair, its optional
-sanitized selected binding, and `providerChoices`. Each
-`GenerationProviderSettingsProviderChoiceDto` contains only provider ID/display name and a
-non-empty `routes` list; each route choice contains only route ID and display name. The use case
-filters before DTO construction, orders profiles by profile ref, providers by provider ID, and
-routes by route ID, and rejects duplicate `(provider_id, kind, route_id)` keys. Consequently an
-unrelated capability can never bring a provider back into the current profile's choice list.
+`GenerationSettingsGetUseCase` returns one revisioned sanitized snapshot containing Provider
+Connections and Generation Models. A connection DTO contains stable ID/revision, display name,
+service family, normalized Endpoint root, lifecycle, and `has_api_token`. A model DTO contains
+stable ID/revision, display name, lifecycle, exact connection-revision ref, explicit model family
+and native identity, profile, generation kind, and model capability contract ref. Multiple models
+may share one connection. Debug-gated Mock models are not Settings records. Neither DTO contains
+token bytes, credential-binding ID, provider headers, route implementation, remote Task ID, or a
+`supports_*` boolean.
 
-`GenerationProviderSettingsDto` contains non-zero `settingsRevision` plus the ordered profile-kind
-items. `GenerationProviderSettingsApplyRequestDto` contains `expectedSettingsRevision` and exactly
-one closed action:
+`GenerationSettingsApplyRequestDto` contains `expected_settings_revision` and exactly one closed
+action:
 
 ```text
-SetBinding {
-  profileRef, generationKind, providerId, routeId
-}
-RemoveBinding {
-  profileRef, generationKind
-}
+CreateConnection { display_name, service_family, endpoint_root, api_token }
+UpdateConnection { connection_id, expected_connection_revision, display_name, endpoint_root,
+                   api_token? }
+SetConnectionEnabled { connection_id, expected_connection_revision, enabled }
+RemoveConnection { connection_id, expected_connection_revision }
+CreateModel { display_name, connection_id, model_family, native_model_id?, profile_ref }
+UpdateModel { model_id, expected_model_revision, display_name, connection_id, model_family,
+              native_model_id?, profile_ref }
+SetModelEnabled { model_id, expected_model_revision, enabled }
+RemoveModel { model_id, expected_model_revision }
 ```
 
-Apply compare-and-swaps the config revision, commits the binding change, and returns the complete
-Settings DTO with the new revision. A stale revision returns `CONFLICT`; the UI reloads and asks the
-user to retry. Reapplying the already-current binding is a normal no-op result with no revision
-increment. The Mock MVP accepts no account or credential input. Production-provider account and
-credential mutation requires a separately reviewed Settings contract when such a provider is
-activated.
+The service family derives the only valid Endpoint shape, authentication scheme, provider, and
+route families. The model family derives generation kind and model capability contract. The caller
+cannot submit provider ID, route ID, arbitrary headers, request path, generic options JSON, or kind
+independently. Connection creation requires a token. A tokenless Endpoint-stable update retains the
+same binding; Endpoint replacement requires a new token and atomically advances all attached model
+revisions. Model mutations never accept a token or Endpoint. Remove creates a tombstone and never
+erases a revision or credential needed by admitted work or incomplete remote cleanup.
 
-`GenerationProviderSettingsRepositoryInterface`, owned by this Settings application capability,
-has exactly `load_generation_provider_settings_snapshot` and
-`apply_generation_provider_settings_mutation`. The latter accepts only the validated closed
-mutation and expected revision and returns `Committed | Unchanged | RevisionConflict`. Its SQLite
-adapter owns the config transaction; neither the use case nor a provider receives a connection.
+Apply validates the closed service/model families and profile compatibility, then performs one SQLite
+transaction that compare-and-swaps Settings revision and applies the exact connection or model
+mutation, including an Endpoint-change cascade when required. Validation, Settings conflict,
+aggregate-revision conflict, cascade failure, or any write failure changes none of them. A stale
+revision returns `CONFLICT`; the UI reloads and preserves only the user's non-secret draft. An exact
+replay of the current sanitized mutation with no token change returns `Unchanged` without a revision
+increment.
 
-Settings DTOs expose no trait object, endpoint, native model, route implementation, remote task ID,
-secret, or `supports_*` boolean. The capability/route set is a safe contract projection used for
-selection, not an optional execution method.
+`GenerationSettingsRepositoryInterface` is consumer-owned in
+`crates/nodes::generation_settings::interfaces`. It loads one consistent connection/model snapshot, resolves exact immutable revisions,
+applies the closed mutation atomically with credential persistence, and retains revisions and
+bindings referenced by admitted work or incomplete remote cleanup. Neither a use case nor provider
+route receives a SQLite connection.
+
+`GenerationModelListForCapabilityUseCase` accepts one exact registered capability, compatible
+Active profile, and optional currently selected model ID. It returns compatible non-Removed saved
+models, the selected saved record even when disabled/removed/incompatible, plus debug built-ins only when the composition gate is
+enabled. Each item contains stable ID, revision, display name, creator-facing
+protocol/source name, and structural availability. Disabled or credential-less models remain
+visible but cannot be newly selected. Endpoint and native model fields remain confined to Settings.
+React renders this list verbatim and never infers compatibility from provider name or a failed
+generation call.
+
+`GenerationModelCapabilityContractGetUseCase` accepts one exact capability ref and one listed or
+currently selected stable model ID. It returns the model revision, exact safe contract ref, and one
+closed capability projection. The Video projection contains supported input modes; role and count
+bounds; parameter availability; allowed choices/ranges; suggested defaults; and closed cross-field
+rule codes. It contains no endpoint, native model ID, provider/route ID, token, price, prompt
+suffix, or arbitrary schema. A model unavailable for new selection still returns its current safe
+contract when resolvable so an existing node can show how to calibrate or replace it. Missing or
+incompatible IDs fail with a structured model error. A Removed saved model may still return its
+immutable safe contract for calibration/display, but remains unavailable for admission. A
+debug-disabled built-in returns no public contract and is represented only by the node's structured
+unavailable selection.
 
 The Node palette keeps `NodeCapabilityListUseCase` as the authoritative registry read. For each
 model-powered capability, React also consumes its authoritative
-`generation_profile_list_for_capability` result. A non-empty compatible profile list proves
-structural support and keeps the node in the add menu. If every observation is `Unavailable` or
-`Indeterminate`, the node remains visible but disabled and presents the structured readiness
-reason. Only an empty compatible list or a provider registry with no matching focused interface
-makes the node absent. This presentation rule does not mutate the registry or reimplement profile
-compatibility. Existing saved nodes always remain visible and explain their readiness issue.
+`generation_profile_list_for_capability` and
+`generation_model_list_for_capability` results. A non-empty compatible profile proves structural
+support and keeps the node in the add menu; a Run additionally requires one selected enabled model.
+Existing saved nodes always remain visible and explain a missing, disabled, removed,
+credential-less, or incompatible model selection.
 
-The requesting Node Capability determines the generation kind; a profile may be compatible with
-more than one capability, so Settings persists kind as part of its mapping key. Kind is not an
-independent UI choice on a Workflow node and remains owned by the exact Task request at admission.
-Provider construction rejects route ID reuse across focused capabilities.
+`DesktopWorkflowGenerationModelAdmissionResolverAdapterImpl` implements the Workflow-owned bulk
+admission interface over the same authoritative model repository and debug built-ins. It resolves
+every selected model in a Run against one consistent Settings snapshot, returning only stable model
+ID plus exact revision. Workflow then asks each exact capability to repeat readiness/calibration
+against that frozen revision before commit. The plan carries only the provider-independent
+selection. The requesting Node Capability determines generation kind; it is never an independent
+UI choice or inferred from a display name.
 
 `DesktopNodeCapabilityGenerationTaskStarterAdapterImpl` implements the node-owned task-start
 interface over `GenerationTaskStartUseCase`. It translates the exact execution origin and semantic
 request but does not expose a repository or provider adapter to node code.
 
-`GenerationTaskEffectWorkerImpl` consumes only `SubmitTask`, `PollTask`, `CancelRemoteTask`, and
-`NotifyWorkflow` from `generation_task_outbox`. It claims serially and executes on the bounded
+`DesktopGenerationTaskInputAssetReaderAdapterImpl` implements the Task-owned exact-snapshot source
+interface through Asset application reads. It reopens only the admitted Project's Available bytes,
+verifies the frozen digest/MIME/length/facts, and returns a one-shot deadline-bound lease. It never
+returns a managed path or preview URL and is used only before a media-bearing Immediate/Submit
+call, never for polling.
+
+`GenerationTaskEffectWorkerImpl` consumes only `SubmitTask`, `PollTask`, `CancelRemoteTask`,
+`DeleteRemoteTask`, and `NotifyWorkflow` from `generation_task_outbox`. It claims serially and executes on the bounded
 in-flight pool sized by `generation_task_effect_concurrency`, with at most one in-flight effect per
-task, as frozen in `BACKEND_TASK.md`. Submit/poll/cancel calls occur outside SQLite
+task, as frozen in `BACKEND_TASK.md`. Submit, poll, cancel, and delete calls occur outside SQLite
 transactions. Each result is committed with optimistic revision and the current effect consumed or
 rescheduled atomically. Delayed polls and startup claim reset are task-delivery semantics, not Desktop
 post-commit effects or a generic scheduler.
@@ -223,7 +261,7 @@ NodeCapabilityManagedMediaReaderInterface::read_managed_media
 
 GenerationTaskAssetSinkInterface::recover_generation_task_asset
   -> AssetRecoverNodeOutputUseCase::recover_asset_node_output
-  -> Available | Pending | SourceRequired
+  -> Available | Pending | Missing | SourceRequired
 GenerationTaskAssetSinkInterface::store_generation_task_asset (SourceRequired only)
   -> AssetRecordNodeOutputUseCase::record_asset_node_output
   -> AssetFinalizeContentUseCase::finalize_asset_content after the effect commit
@@ -374,9 +412,15 @@ contract, readiness, latest relevant execution/output, and optional preview.
 `WorkflowNodePresentationDto` has only the four MVP variants: Text, Image, Video, and Audio. It is a
 projection and is never valid input to `workflow_apply_mutation`.
 
-`DesktopAssetPreviewProtocolAdapterImpl` validates each `AssetPreviewLease`, signature, expiry, Project,
-current Asset state, and descriptor. Video and Audio support one bounded Range. Managed paths never
-leave the adapter. React owns rendering and playback state.
+`DesktopAssetPreviewProtocolAdapterImpl` validates each `AssetPreviewLease`, signature, expiry,
+Project, current Asset state, descriptor, and representation. Video and Audio support one bounded
+Range. Managed paths never leave the adapter. React owns rendering and playback state.
+
+`AssetPreviewDto` contains exactly `asset_id`, `preview_uri`, `representation`, and
+`expires_at_epoch_ms`. `representation` is `image | playable_video | playable_audio` and is copied
+from the Asset-owned lease; Desktop and React never infer it from a URL, file extension, poster
+availability, or MIME prefix. A Workflow node presentation may contain this DTO only for a current
+Available typed output.
 
 The adapter issues `desktop-asset://v1/<token>`. The unpadded base64url token is canonical bytes:
 version byte `1`, lease UUID (16), Project UUID (16), Asset UUID (16), managed-content ID canonical
@@ -391,7 +435,9 @@ obtain its authoritative media kind and calls `AssetResolveContentUseCase` with 
 protocol deadline. The resolved Available descriptor must have the same managed-content ID before
 its opaque lease is read.
 Only `GET` and `HEAD` are allowed. Image rejects Range; Video and Audio accept one satisfiable byte
-range and return `206`, otherwise `416`. No signing interface, key rotation, token row, revocation
+range through the complete verified Asset length and return `206`, otherwise `416`. The adapter
+streams the selected range with backpressure under the request deadline and never buffers it in
+full. No signing interface, key rotation, token row, revocation
 list, refresh token, path, or multi-version negotiation exists in MVP.
 
 The decoder accepts only unpadded canonical base64url and rejects invalid alphabet, padding,
@@ -431,20 +477,24 @@ durable authority; after a gap or restart React reloads pending change and canon
 `DesktopCompositionRoot` in `composition.rs` is the only code that names concrete adapters:
 
 ```text
-open SQLite and managed-content roots; create fresh epoch-2 storage or validate its exact version
-  -> construct SQLite backend-config and Assistant plaintext credential repository
+open SQLite and managed-content roots; create fresh current storage epoch or validate its exact version
+  -> construct SQLite backend-config plus Generation Provider and Assistant credential repositories
   -> load and validate DesktopBackendConfig
   -> construct Project, Workflow, Generation Task, Asset, and Assistant repositories
   -> construct Project use cases and DesktopProjectWorkflowBridgeAdapterImpl
   -> construct Asset storage/inspection use cases
-  -> construct node/Asset, node/task, task/Asset, task/Workflow, and Workflow-preview bridges
+  -> construct node/Asset, node/task, task-input/Asset, task-output/Asset, task/Workflow, and Workflow-preview bridges
   -> construct the frozen Generation Profile catalog
-  -> construct the immutable Mock provider composite, focused capabilities, and provider registry
-  -> construct profile availability reader
+  -> construct immutable OpenAI and Volcengine provider composites and protocol registry
+  -> read OH_MY_DREAM_ENABLE_MOCK_MODELS and add built-in Mock routes/models only when debug-gated
+  -> construct revisioned Generation Model settings/revision repository plus model availability and contract readers
   -> construct exactly seven Node Capability implementations and one registry
   -> construct Workflow use cases, DesktopPostCommitEffectWorker, and GenerationTaskEffectWorkerImpl
-  -> construct Assistant aggregates/use cases, Workflow bridges, and model runner adapter
-  -> reconcile Pending Assets, reset prior-process task claims, and classify non-terminal Runs
+  -> construct Assistant aggregates/use cases, Workflow/model bridges, Generation Settings use cases,
+     provider probe adapter, and dynamic model runner adapter
+  -> reconcile Pending Assets
+  -> classify every unbound Submitting Task as AmbiguousSubmission and atomically replace its stale Submit effect with NotifyWorkflow
+  -> reset remaining prior-process task claims and classify non-terminal Runs
   -> register commands, both closed effect workers, sidecar transport, and preview protocol
 ```
 
@@ -454,58 +504,74 @@ adapters without starting Tauri.
 
 ## Configuration And Credentials
 
-`DesktopBackendConfig` schema version `2` is stored in `metadata.sqlite` and loaded through
+`DesktopBackendConfig` schema version `4` is stored in `metadata.sqlite` and loaded through
 `DesktopBackendConfigRepositoryInterface`. `DesktopBackendConfig` contains exactly
 `sqlite_busy_timeout_ms`, `post_commit_effect_concurrency`, `workflow_run_concurrency`,
 `workflow_node_concurrency`, `generation_task_effect_concurrency`, `asset_reconciliation_policy`,
-`asset_preview_policy`, `generation_provider_routes`, `assistant_model`, and
+`asset_preview_policy`, `assistant_model`, and
 `assistant_protocol_budgets`. Defaults for the
 first five are 5,000, `4`, `1`, `2`, and `4`; every concurrency bound is `1..=8`. The remaining
 nested values use
 their owner-document exact fields, defaults, and maxima and cannot weaken or exceed them. Locations
 are derived from the OS application-data root and are not config fields.
 
-Each `generation_provider_routes` item has exactly `profile_ref`, `generation_kind`, `provider_id`,
-and `route_id`. Endpoint, native model, account, credential, operation deadline, polling bounds,
-response limits, and download host allowlist are not configuration fields. Adding a production
-provider may extend the Settings and Task target schemas only through a separately reviewed design.
 `assistant_protocol_budgets` has exactly
 `invocation_deadline_ms`, `frame_max_bytes`, `json_max_depth`, `event_max_count`,
 `tool_call_max_count`, `model_turn_max_count`, `direction_max_bytes`, `text_output_max_bytes`,
 `snapshot_max_bytes`, `candidate_max_bytes`, `continuation_max_bytes`, and `approval_expiry_ms`, with
 D0.5 exact values.
 
-There is at most one active `generation_provider_routes` item per `(profile_ref, generation_kind)`;
-its fields are one indivisible binding. The Mock Settings UI selects or removes that provider/route
-binding and renders no account or credential fields. Duplicate mapping keys or duplicate bindings
-are rejected.
+The backend-config repository uses one canonical JSON payload of at most 256 KiB inside a revisioned
+SQLite row. It rejects duplicate/unknown fields, wrong schema, credential values, Generation Model
+records, and paths inside that payload. Its Assistant default is schema `2`, enabled `false`,
+`assistant.workflow_coauthor@1`, credential ID
+`assistant.openai.default`, Base URL `https://api.openai.com/v1`, and no model ID. Configuration is
+validated at startup. Provider Connection and Generation Model configurations live in their focused
+revision/current-pointer tables, not in `DesktopBackendConfig`; an absent generation-settings row
+initializes revision `1` with no user-created production connections or models. The immutable shipped protocol registry is not rebuilt after a
+Settings mutation. A missing Assistant credential disables only Assistant commands.
 
-The repository uses one canonical JSON payload of at most 256 KiB inside a revisioned SQLite row.
-It rejects duplicate/unknown fields, wrong schema, Assistant native model overrides, credential
-values inside the config payload, and paths. An absent row yields and atomically stores the exact
-three `(profile, generation kind)`-to-Mock-route bindings from `BACKEND_PROVIDERS.md` and Assistant disabled. Its
-Assistant default is schema `1`, enabled `false`,
-`assistant.workflow_coauthor@1`, and credential ID `assistant.openai.default`. Configuration is
-validated at startup, and every Settings mutation is validated against the same shipped provider/
-route contracts before its transaction commits. Provider composites and their shipped route
-registry are immutable and are not rebuilt after a Settings mutation. New task admission copies
-the currently selected `(profile, generation kind, provider, route)` tuple into the immutable Task
-target. A concurrent Settings change affects only a later binding resolution; the admitted Task
-continues with its copied target. A missing Assistant credential disables only Assistant commands.
+`OH_MY_DREAM_ENABLE_MOCK_MODELS` is process-scoped startup configuration, not a
+`DesktopBackendConfig` or Settings field. Only the exact value `true` enables built-in models, and
+release packaging forces it off. The flag and Mock model rows are never persisted or returned by
+Generation Settings commands; E2E sets it through its local `.env`/process environment.
 
-The Mock architecture starts in a new hard-cut Desktop storage epoch. Fresh storage writes canonical
-version 2 with the exact three Mock bindings. There is no legacy config column, reader, importer,
-translator, or migration. A non-empty database from any prior epoch fails startup closed and remains
-untouched; current runtime code therefore cannot inspect, compose, or mutate its provider routes or
-credential rows.
+Generation Settings supports at most 16 non-Removed Provider Connections, 64 non-Removed Generation
+Models, and one non-zero monotonic Settings revision independent of `DesktopBackendConfig` revision.
+Every mutation writes immutable sanitized revisions and current pointer/lifecycle rows. Run admission
+resolves stable model IDs and their connection revisions from one consistent snapshot; Task
+admission copies either the saved model/connection/credential-binding target or a debug built-in's
+exact provider/route identity. A concurrent Settings change affects only a later Run. Tokens are
+stored in `generation_provider_credentials`, keyed by typed credential-binding ID, and each provider
+operation loads only the binding frozen in the Task target.
 
-`AssistantModelCredentialRepositoryInterface` remains the active plaintext credential boundary.
-Legacy provider credentials and Assistant credentials occupy separate SQLite tables. This provides
-no encryption at rest: any actor able to read the database can read them. Plaintext never enters
-the active config payload, public DTOs, errors, or logs. The Mock MVP defines no provider credential
-mutation interface, revision lifecycle, tombstone, or Task foreign key. Those semantics belong to
-the first separately reviewed production-provider design. There is no JSON-file, platform-vault,
-encrypted-column, or embedded-key fallback.
+Assistant Provider settings are different: each new Assistant invocation loads the latest committed
+Assistant config and credential before launching its isolated sidecar. A running invocation retains
+its immutable connection, and a pending continuation resumes only when its stored model-route
+fingerprint matches the current Base URL and model. Model discovery performs no write. The only
+enable/save path performs a real Responses function-tool compatibility test, then atomically commits
+config plus credential through revision CAS; disable retains the last tested connection.
+
+The production model architecture is the hard-cut Desktop storage epoch `3`. Fresh storage
+writes canonical backend-config version `4`, empty Generation Settings revision `1`, and no
+connection, model, or provider credential. There is no legacy provider-route reader, importer,
+translator, or migration.
+A non-empty database from a prior epoch fails startup closed and remains untouched.
+
+`GenerationProviderCredentialRepositoryInterface` and
+`AssistantModelCredentialRepositoryInterface` remain separate plaintext credential boundaries and
+tables. This provides no encryption at rest: any actor able to read the database can read them.
+Plaintext never enters config/model revision payloads, public DTOs, errors, or logs. There is no
+JSON-file, platform-vault, encrypted-column, or embedded-key fallback.
+
+Assistant Provider commands use exact snake-case DTOs. `AssistantProviderSettingsDto` contains only
+`settings_revision`, `enabled`, `base_url`, nullable `model_id`, and `has_api_key`.
+`AssistantProviderModelsListRequestDto` contains candidate `base_url` and nullable write-only
+`api_key`; null reuses the stored credential and first-time discovery therefore requires a key.
+`AssistantProviderModelsListDto` contains only bounded `model_ids`. The test-and-apply request adds
+`expected_settings_revision` and selected `model_id`; it has no separate untested save counterpart.
+Disable carries only `expected_settings_revision`. Unknown fields and duplicate keys fail before the
+application use case.
 
 ## Representation Boundaries
 
@@ -525,7 +591,8 @@ ProjectWorkspaceView             -> ProjectWorkspaceDto
 WorkflowRunAggregate            -> WorkflowRunDto
 WorkflowRunEvent                -> WorkflowRunEventDto
 NodeCapabilityContract          -> NodeCapabilityContractDto
-GenerationProfileAvailabilityObservation -> GenerationProfileAvailabilityDto
+GenerationModelAvailabilityObservation -> GenerationModelAvailabilityDto
+GenerationModelCapabilityContract -> GenerationModelCapabilityContractDto
 AssetAggregate                  -> AssetDto
 AssistantWorkflowChangeAggregate -> AssistantPendingWorkflowChangeDto
 
@@ -537,8 +604,9 @@ SqliteAssistantWorkflowChangeRow -> AssistantWorkflowChangeAggregate
 ```
 
 A persistence row, provider DTO, SDK state, credential, managed path, remote provider task ID, or
-raw provider payload is never returned to React. A stable safe route ID appears only in the Models
-Settings contract where the user selects that route; Task DTOs do not expose it.
+raw provider payload is never returned to React. Model Settings exposes the closed protocol name,
+Base URL, and editable native model/Endpoint ID, but never the derived provider/route IDs or token.
+Task DTOs expose neither Settings fields nor route details.
 
 ## Error Translation
 
@@ -550,7 +618,7 @@ Tauri translates a structured context error once into `DesktopErrorDto`:
 
 Every field is present; the last three may be null. `code` is a source-prefixed lowercase dot key.
 `target` is one tagged Project, Workflow, Run, Node, Asset, Assistant Change, Generation Profile,
-parameter, input, or output identity—never a map. Unknown failures use `desktop.internal` and a new
+Generation Model, parameter, input, input item, or output identity—never a map. Unknown failures use `desktop.internal` and a new
 correlation UUID. `message` is safe presentation text and never drives logic. Logs exclude secrets,
 model prompts, provider bodies, signed URLs, opaque SDK state, and unnecessary paths.
 
@@ -572,20 +640,22 @@ belongs to V3 and is not fixed here.
 - Project command/bridge tests cover create, rename, list, open, isolation, and one current Workflow;
 - use-case tests use fake interfaces without Tauri;
 - transaction tests prove every durable-before-effect ordering;
-- effect-worker tests cover the three Desktop effects, four task effects, single-worker claiming,
-  cancellation, and restart policy;
+- effect-worker tests cover the three Desktop effects, five task effects, single-worker claiming,
+  fail-safe create-response-loss handling, cancellation/delete races, and restart policy;
 - bridge tests prove exact cross-context translation without copied semantics;
 - event tests cover sequence, emission failure, duplicate/gap repair, and terminal query;
-- preview tests cover Project isolation, expiry, MIME, Range, and path non-disclosure;
-- composition tests assert exactly seven active Node Capabilities, configured provider composites,
-  and the exact three active profile routes;
-- Assistant E2E proves proposal -> review -> approval -> canonical apply -> canonical Run -> repair
-  when the Assistant implementation track starts (design intent until then);
+- preview tests cover Project isolation, expiry, representation, playable Video/Audio Range behavior,
+  MIME, and path non-disclosure;
+- composition tests assert exactly seven active Node Capabilities, Mock absence by default,
+  deterministic Mock presence only under the exact debug flag, and the four production protocol
+  routes;
+- Assistant E2E proves proposal -> review -> approval -> canonical apply -> canonical Run -> repair,
+  plus configured text-only Responses discovery, compatibility testing, and invocation;
 - contract fixtures prove Rust, Python, and TypeScript DTO/schema alignment.
 
 ## Post-MVP
 
 New roadmap capabilities, Project archive/delete/duplicate, standalone task creation, server/background
-workers, provider choice, dynamic plugins, durable backend undo/history, cross-Run cache, advanced
+workers, automatic provider routing/failover, dynamic plugins, durable backend undo/history, cross-Run cache, advanced
 Asset lifecycle, multi-device Assistant coordination, cloud sync, 3D, and scenes remain outside the
 frozen Desktop surface.

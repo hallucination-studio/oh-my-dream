@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import fixture from "../__fixtures__/generation_provider_settings.json";
 import type {
+  AssistantProviderSettingsDto,
   GenerationProviderSettingsActionDto,
   GenerationProviderSettingsDto,
 } from "../api/types.ts";
@@ -26,6 +27,7 @@ describe("Generation Provider Settings", () => {
         open
         onClose={vi.fn()}
         settingsApi={{
+          ...assistantApi(),
           generationProviderSettingsGet: async () => structuredClone(settings),
           generationProviderSettingsApply: apply,
         }}
@@ -68,6 +70,7 @@ describe("Generation Provider Settings", () => {
         open
         onClose={close}
         settingsApi={{
+          ...assistantApi(),
           generationProviderSettingsGet: get,
           generationProviderSettingsApply: vi.fn().mockRejectedValue(
             new Error("generation_provider_settings.revision_conflict"),
@@ -88,3 +91,122 @@ describe("Generation Provider Settings", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 });
+
+describe("Assistant Provider Settings", () => {
+  it("discovers a text model and saves only through the compatibility test", async () => {
+    const get = vi.fn().mockResolvedValue(disabledAssistantSettings());
+    const list = vi.fn().mockResolvedValue({ models: ["model-a", "model-b"] });
+    const apply = vi.fn().mockResolvedValue({
+      ...disabledAssistantSettings(),
+      settings_revision: "2",
+      enabled: true,
+      model_id: "model-a",
+      has_api_key: true,
+    });
+    render(
+      <SettingsDialog
+        open
+        onClose={vi.fn()}
+        settingsApi={{
+          generationProviderSettingsGet: async () =>
+            structuredClone(fixture) as GenerationProviderSettingsDto,
+          generationProviderSettingsApply: vi.fn(),
+          assistantProviderSettingsGet: get,
+          assistantProviderModelsList: list,
+          assistantProviderSettingsTestAndApply: apply,
+          assistantProviderSettingsDisable: vi.fn(),
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    const baseUrl = await screen.findByRole("textbox", { name: "Base URL" });
+    const apiKey = screen.getByLabelText("API key") as HTMLInputElement;
+    fireEvent.change(baseUrl, { target: { value: "http://localhost:11434/v1" } });
+    fireEvent.change(apiKey, { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load models" }));
+
+    await waitFor(() => expect(list).toHaveBeenCalledWith(
+      "http://localhost:11434/v1",
+      "secret",
+    ));
+    const model = await screen.findByRole("combobox", { name: "Model" });
+    fireEvent.change(model, { target: { value: "model-a" } });
+    fireEvent.click(screen.getByRole("button", { name: "Test and save" }));
+
+    await waitFor(() => expect(apply).toHaveBeenCalledWith(
+      "1",
+      "http://localhost:11434/v1",
+      "secret",
+      "model-a",
+    ));
+    expect(await screen.findByText("Assistant connected.")).toBeTruthy();
+    expect(apiKey.value).toBe("");
+    expect(screen.getByRole("switch", { name: "Enable Assistant" }).getAttribute("aria-checked"))
+      .toBe("true");
+  });
+
+  it("invalidates discovered models on connection edits and clears the key when closed", async () => {
+    const close = vi.fn();
+    const view = render(
+      <SettingsDialog open onClose={close} settingsApi={assistantApi()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    const key = await screen.findByLabelText("API key") as HTMLInputElement;
+    fireEvent.change(key, { target: { value: "draft-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Load models" }));
+    expect(await screen.findByRole("combobox", { name: "Model" })).toBeTruthy();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Base URL" }), {
+      target: { value: "http://localhost:11435/v1" },
+    });
+    expect(screen.queryByRole("combobox", { name: "Model" })).toBeNull();
+
+    view.rerender(<SettingsDialog open={false} onClose={close} settingsApi={assistantApi()} />);
+    view.rerender(<SettingsDialog open onClose={close} settingsApi={assistantApi()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    expect((await screen.findByLabelText("API key") as HTMLInputElement).value).toBe("");
+  });
+
+  it("disables a configured Assistant through the dedicated command", async () => {
+    const configured = { ...disabledAssistantSettings(), enabled: true, has_api_key: true };
+    const disable = vi.fn().mockResolvedValue({
+      ...configured,
+      settings_revision: "2",
+      enabled: false,
+    });
+    render(
+      <SettingsDialog
+        open
+        onClose={vi.fn()}
+        settingsApi={{ ...assistantApi(configured), assistantProviderSettingsDisable: disable }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Assistant" }));
+    const toggle = await screen.findByRole("switch", { name: "Enable Assistant" });
+    fireEvent.click(toggle);
+    await waitFor(() => expect(disable).toHaveBeenCalledWith("1"));
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+  });
+});
+
+function disabledAssistantSettings(): AssistantProviderSettingsDto {
+  return {
+    settings_revision: "1",
+    enabled: false,
+    base_url: "https://api.openai.com/v1",
+    model_id: null,
+    has_api_key: false,
+  };
+}
+
+function assistantApi(settings = disabledAssistantSettings()) {
+  return {
+    generationProviderSettingsGet: vi.fn().mockResolvedValue(structuredClone(fixture)),
+    generationProviderSettingsApply: vi.fn(),
+    assistantProviderSettingsGet: vi.fn().mockResolvedValue(structuredClone(settings)),
+    assistantProviderModelsList: vi.fn().mockResolvedValue({ models: ["model-a"] }),
+    assistantProviderSettingsTestAndApply: vi.fn(),
+    assistantProviderSettingsDisable: vi.fn(),
+  };
+}
