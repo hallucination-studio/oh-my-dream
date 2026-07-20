@@ -28,15 +28,19 @@ naming, asset picker for dragged asset nodes, run/readiness bugfix batch, intera
 and the light reskin with mockup-exact node metrics. Commits `8597733..bf40bfc` plus design
 freezes `6c62d00`, `d293462`, `5a231d2`.
 
-Closed with live evidence: UI-34 (run_started tracked), UI-35 (not a bug — mock runs are
-sub-second), UI-36 (posters render via `<img>`), UI-38, UI-40, UI-41, UI-42, UI-43, UI-44,
-UI-45, UI-47 (graph-anchored placement), UI-48 (overlay shell), UI-49, UI-50, UI-51 (focus
-traps), UI-52, UI-53, UI-54, UI-55, UI-56, UI-57, UI-58 (fixed 340 px panel), UI-59, UI-60
+Closed with live evidence: UI-34 (run_started tracked), UI-35 (browser-mock timing now exposes
+run motion and elapsed state), UI-36 (posters render via `<img>`), UI-38, UI-40, UI-41, UI-42, UI-43, UI-44,
+UI-45, UI-47 (graph-anchored placement), UI-48 (overlay shell), UI-49, UI-50, UI-51 (Settings
+focus trap; Run details is non-modal), UI-52, UI-53, UI-54, UI-55, UI-56, UI-57, UI-58 (fixed 340 px panel), UI-59, UI-60
 (jargon line removed; actionable outputs remain A6), UI-61, UI-62, UI-63, UI-64, UI-65, UI-66
 (superseded: asset nodes left the palette again by product decision), UI-67 (tinted header is
 the type identity now), UI-68, UI-69, UI-70, UI-71, UI-72, UI-73, UI-74, UI-75, UI-76 (contrast
 floors lifted; recheck after the reskin), UI-77 (jargon swept), UI-78, UI-83, UI-84, UI-85.
 UI-39's mechanism was disproved live; the residual all-or-nothing invalidation moves to A5.
+Browser-mock generation steps remain active for 1.2 s so the frozen 0.9 s edge-flow motion is
+visible during local demonstrations; real provider timing remains authoritative in Tauri.
+Run details is a non-modal right overlay with no canvas scrim, so admitted Run state stays visible
+without dimming node or edge motion.
 
 ### Mockup-parity pass (2026-07-18, verified at 1280x720 / 1440x900 / 1920x1080)
 

@@ -13,6 +13,21 @@ const NODE_ID = "30000000-0000-4000-8000-000000000001";
 const EXECUTION_ID = "40000000-0000-4000-8000-000000000001";
 
 describe("RunDrawer", () => {
+  it("renders as a non-modal workspace overlay without a canvas scrim", () => {
+    const view = render(
+      <RunDrawer
+        open
+        onClose={vi.fn()}
+        projectId={PROJECT_ID}
+        run={waitingRun()}
+        taskApi={{ generationTaskList: async () => ({ tasks: [], next_cursor: null }) }}
+      />,
+    );
+
+    expect(screen.getByRole("complementary", { name: "Run details" })).toBeTruthy();
+    expect(view.container.querySelector(".rundrawer__scrim")).toBeNull();
+  });
+
   it("selects the exact waiting Step and shows normalized Task state", async () => {
     const task = taskSummary("queued");
     const list = vi.fn(async (): Promise<GenerationTaskListPageDto> => ({

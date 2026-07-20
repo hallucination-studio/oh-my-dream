@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useFocusTrap } from "./useFocusTrap.ts";
 import {
   api,
   type GenerationTaskDto,
@@ -49,7 +48,6 @@ export function RunDrawer({
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
   const [now, setNow] = useState(() => Date.now());
   const closeButton = useRef<HTMLButtonElement>(null);
-  const dialogRef = useFocusTrap<HTMLDivElement>(open);
 
   useEffect(() => {
     if (!open || !autoFocus) return;
@@ -98,8 +96,8 @@ export function RunDrawer({
 
   const task = selectTask(tasks, run, activeNodeId);
   return (
-    <div className="rundrawer__scrim" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="rundrawer" role="dialog" aria-modal="true" aria-labelledby="run-drawer-title" ref={dialogRef}>
+    <div className="rundrawer__host">
+      <aside className="rundrawer" aria-labelledby="run-drawer-title">
         <header className="rundrawer__head">
           <div>
             <span className="rundrawer__eyebrow">Run information</span>
@@ -148,7 +146,7 @@ export function RunDrawer({
           {state === "idle" && run !== null && task !== null && <TaskDetails task={task} nodeLabel={nodeLabel} />}
           {outputPreview && <OutputPreview outputs={outputPreview} />}
         </div>
-      </div>
+      </aside>
     </div>
   );
 }

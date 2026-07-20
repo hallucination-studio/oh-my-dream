@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { mockApi } from "./mockApi.ts";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -165,6 +165,27 @@ it("transitions the run through running and rejects cancelling a terminal run", 
   );
   const after = await mockApi.workflowGetRun(project.id, run.workflow_run_id);
   expect(after.state).toBe("succeeded");
+});
+
+it("keeps a generation step running for a complete edge-flow cycle", async () => {
+  vi.useFakeTimers();
+  try {
+    const project = await mockApi.createProject("Visible edge flow");
+    const { workflow, revision, imageId } = await buildAcceptanceWorkflow(project.id);
+    const run = await mockApi.workflowStartRun(project.id, workflow.workflow_id, revision, {
+      kind: "whole_workflow",
+    });
+
+    await vi.advanceTimersByTimeAsync(120);
+    await vi.advanceTimersByTimeAsync(899);
+
+    const active = await mockApi.workflowGetRun(project.id, run.workflow_run_id);
+    expect(active.node_executions.find((execution) => execution.node_id === imageId)?.state)
+      .toBe("running");
+  } finally {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  }
 });
 
 it("persists a canonical Workflow mutation in the browser mock", async () => {

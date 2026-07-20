@@ -469,6 +469,7 @@ function requireMockRun(id: string): WorkflowRunDto {
 }
 
 const MOCK_STEP_MS = 120;
+const MOCK_GENERATION_PHASE_MS = 600;
 
 function executeMockRun(runId: string): void {
   void runMockRunSteps(runId);
@@ -486,21 +487,22 @@ async function runMockRunSteps(runId: string): Promise<void> {
     if (mockRunCancelled(runId)) return;
     const node = workflow.nodes.find((candidate) => candidate.node_id === execution.node_id);
     if (!node) continue;
+    const isGeneration = isMockGenerationCapability(node.capability_id);
     updateMockExecution(runId, execution.node_execution_id, "running", 0);
     appendMockRunEvent(runId, {
       type: "node_started",
       node_execution_id: execution.node_execution_id,
     });
-    await mockDelay();
+    await mockDelay(isGeneration ? MOCK_GENERATION_PHASE_MS : MOCK_STEP_MS);
     if (mockRunCancelled(runId)) return;
-    if (isMockGenerationCapability(node.capability_id)) {
+    if (isGeneration) {
       updateMockExecution(runId, execution.node_execution_id, "running", 4200);
       appendMockRunEvent(runId, {
         type: "node_progressed",
         node_execution_id: execution.node_execution_id,
         progress_basis_points: 4200,
       });
-      await mockDelay();
+      await mockDelay(MOCK_GENERATION_PHASE_MS);
       if (mockRunCancelled(runId)) return;
     }
     const outputs = produceMockOutputs(run, workflow, node);
@@ -515,8 +517,8 @@ async function runMockRunSteps(runId: string): Promise<void> {
   appendMockRunEvent(runId, { type: "run_succeeded" });
 }
 
-function mockDelay(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, MOCK_STEP_MS));
+function mockDelay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function mockRunCancelled(runId: string): boolean {
